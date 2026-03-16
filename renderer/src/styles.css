@@ -37,13 +37,17 @@
   --transition: 160ms ease;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   background: var(--bg-base);
   color: var(--text-primary);
@@ -57,7 +61,10 @@ body {
   overflow: hidden;
 }
 
-button, textarea, input, a {
+button,
+textarea,
+input,
+a {
   font: inherit;
 }
 
@@ -783,7 +790,7 @@ button, textarea, input, a {
 }
 
 .card__surface-frame::before {
-  inset: -10px;
+  inset: 0px;
   border-radius: 26px;
 }
 
@@ -1136,7 +1143,9 @@ button, textarea, input, a {
 }
 
 @keyframes blink {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.72;
   }
 
