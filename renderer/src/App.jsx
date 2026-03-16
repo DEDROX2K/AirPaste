@@ -1,23 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Card from "./components/Card";
 import { DevConsole } from "./components/DevConsole";
+import TileContextMenu from "./components/TileContextMenu";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
 import { useCanvas } from "./hooks/useCanvas";
 import { useLog } from "./hooks/useLog";
 import { useToast } from "./hooks/useToast";
 import { isEditableElement, isUrl } from "./lib/workspace";
-
-const THEME_STORAGE_KEY = "airpaste.theme";
-
-function readInitialTheme() {
-  try {
-    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return savedTheme === "night" ? "night" : "dark";
-  } catch {
-    return "dark";
-  }
-}
+import { filterTiles } from "./utils/searchTiles";
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) return "No folder";
@@ -61,12 +52,23 @@ function IconClose() {
   );
 }
 
+function IconSearch() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
 export default function App() {
   const usesCustomTitlebar = window.electronAPI?.usesCustomTitlebar === true;
-  const [theme, setTheme] = useState(readInitialTheme);
+  const [searchQuery, setSearchQuery] = useState("");
   const {
     booting,
+    createNewLinkCard,
     error,
+    deleteExistingCard,
     folderLoading,
     folderPath,
     openFolder,
@@ -74,7 +76,6 @@ export default function App() {
     workspace,
     setViewport,
     createNewTextCard,
-    createNewLinkCard,
     updateExistingCard,
   } = useAppContext();
 
@@ -91,16 +92,10 @@ export default function App() {
     onViewportChange: setViewport,
   });
   const dragStateRef = useRef(null);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // Ignore storage write failures in restricted environments.
-    }
-  }, [theme]);
+  const searchInputRef = useRef(null);
+  const contextMenuRef = useRef(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [contextMenu, setContextMenu] = useState(null);
 
   useEffect(() => {
     if (error) {
@@ -109,6 +104,94 @@ export default function App() {
       setError("");
     }
   }, [error, log, toast, setError]);
+
+  useEffect(() => {
+    setSearchQuery("");
+  }, [folderPath]);
+
+  useEffect(() => {
+    setContextMenu(null);
+  }, [folderPath]);
+
+  const focusSearchInput = useCallback(() => {
+    const input = searchInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    input.select();
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      const activeElement = document.activeElement;
+      const editingAnotherField = isEditableElement(activeElement) && activeElement !== searchInputRef.current;
+
+      if (event.key === "Escape" && contextMenu) {
+        event.preventDefault();
+        setContextMenu(null);
+        return;
+      }
+
+      if (editingAnotherField) {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        focusSearchInput();
+        return;
+      }
+
+      if (event.key === "Escape" && activeElement === searchInputRef.current) {
+        event.preventDefault();
+
+        if (searchQuery) {
+          setSearchQuery("");
+        } else {
+          searchInputRef.current.blur();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu, focusSearchInput, searchQuery]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return undefined;
+    }
+
+    function closeOnPointerDown(event) {
+      if (contextMenuRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setContextMenu(null);
+    }
+
+    function closeOnWindowChange() {
+      setContextMenu(null);
+    }
+
+    window.addEventListener("pointerdown", closeOnPointerDown, true);
+    window.addEventListener("resize", closeOnWindowChange);
+    window.addEventListener("blur", closeOnWindowChange);
+    window.addEventListener("wheel", closeOnWindowChange, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", closeOnPointerDown, true);
+      window.removeEventListener("resize", closeOnWindowChange);
+      window.removeEventListener("blur", closeOnWindowChange);
+      window.removeEventListener("wheel", closeOnWindowChange);
+    };
+  }, [contextMenu]);
 
   const triggerPreview = useCallback(async (card) => {
     log("info", "Fetching link preview...", { url: card.url, cardId: card.id });
@@ -186,8 +269,13 @@ export default function App() {
   }, [log, updateExistingCard, workspace.viewport.zoom]);
 
   const handleCardDragStart = useCallback((card, event) => {
-    if (event.button !== 0) return;
+    setContextMenu(null);
+
+    const isPrimaryPointer = event.button === 0 || event.buttons === 1;
+
+    if (!isPrimaryPointer) return;
     event.preventDefault();
+    event.stopPropagation();
     dragStateRef.current = {
       cardId: card.id,
       pointerX: event.clientX,
@@ -195,6 +283,29 @@ export default function App() {
       originX: card.x,
       originY: card.y,
     };
+  }, []);
+
+  const handleCardContextMenu = useCallback((card, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const MENU_WIDTH = 376;
+    const MENU_HEIGHT = 340;
+    const VIEWPORT_PADDING = 16;
+    const nextX = Math.min(
+      event.clientX,
+      window.innerWidth - MENU_WIDTH - VIEWPORT_PADDING,
+    );
+    const nextY = Math.min(
+      event.clientY,
+      window.innerHeight - MENU_HEIGHT - VIEWPORT_PADDING,
+    );
+
+    setContextMenu({
+      card,
+      x: Math.max(VIEWPORT_PADDING, nextX),
+      y: Math.max(VIEWPORT_PADDING, nextY),
+    });
   }, []);
 
   const handleOpenFolder = useCallback(async () => {
@@ -227,9 +338,45 @@ export default function App() {
     toast("success", "Blank note dropped into the center.");
   }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
 
-  const handleThemeToggle = useCallback(() => {
-    setTheme((currentTheme) => (currentTheme === "dark" ? "night" : "dark"));
+  const handleContextAction = useCallback(() => {
+    setContextMenu(null);
   }, []);
+
+  const handleDeleteFromContextMenu = useCallback((card) => {
+    if (!card) {
+      return;
+    }
+
+    try {
+      deleteExistingCard(card.id);
+      setContextMenu(null);
+      log("info", `Deleted card ${card.id}`);
+      toast("success", "Tile deleted.");
+    } catch (deleteError) {
+      const message = deleteError?.message || "Unable to delete this tile.";
+      log("error", `Failed to delete card ${card.id}`, message);
+      toast("error", message);
+    }
+  }, [deleteExistingCard, log, toast]);
+
+  const totalTileCount = workspace.cards.length;
+  const filteredTiles = useMemo(
+    () => filterTiles(workspace.cards, deferredSearchQuery),
+    [workspace.cards, deferredSearchQuery],
+  );
+  const visibleTileCount = filteredTiles.length;
+  const hasActiveSearch = deferredSearchQuery.trim().length > 0;
+  const zoomPct = Math.round(workspace.viewport.zoom * 100);
+  const folderLabel = folderPath ? folderNameFromPath(folderPath) : "No folder selected";
+  const showSearchHud = Boolean(folderPath || totalTileCount > 0);
+  const tileCountLabel = hasActiveSearch
+    ? `${visibleTileCount} of ${totalTileCount} tiles`
+    : `${totalTileCount} ${totalTileCount === 1 ? "tile" : "tiles"}`;
+  const sidebarEyebrow = folderPath ? "Workspace" : "Setup";
+  const sidebarLabel = folderPath ? folderLabel : "Open folder";
+  const sidebarMeta = folderPath
+    ? tileCountLabel
+    : "Choose a local folder, then paste links or notes onto the board.";
 
   if (booting) {
     return (
@@ -243,18 +390,11 @@ export default function App() {
     );
   }
 
-  const cardCount = workspace.cards.length;
-  const zoomPct = Math.round(workspace.viewport.zoom * 100);
-  const folderLabel = folderPath ? folderNameFromPath(folderPath) : "No folder selected";
-
   return (
     <div className={`app-shell ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"}`}>
       {usesCustomTitlebar ? (
         <header className="titlebar">
-          <div className="titlebar__brand">
-            <span className="titlebar__brand-dot" />
-            AirPaste
-          </div>
+          <div className="titlebar__spacer" />
           <div className="titlebar__actions">
             <button
               id="titlebar-minimize"
@@ -278,133 +418,194 @@ export default function App() {
         </header>
       ) : null}
 
-      <main className="canvas-stage">
-        <div className="canvas-hud canvas-hud--top-left">
-          <div className="brand-chip">
-            <span className="brand-chip__dot" />
-            <span>AirPaste</span>
+      <div className="workspace-shell">
+        <aside className="side-nav">
+          <div className="side-nav__brand" aria-label="AirPaste">
+            <span className="side-nav__brand-mark">
+              <span className="side-nav__brand-core" />
+            </span>
+            <span className="side-nav__brand-copy">AirPaste</span>
           </div>
-          <div className="canvas-hud__actions">
+
+          <div className="side-nav__actions">
             <button
-              id="hud-open-folder"
-              className="hud-chip hud-chip--action"
+              id="side-nav-open-folder"
+              className="side-nav__action side-nav__action--primary"
               type="button"
               onClick={handleOpenFolder}
               disabled={folderLoading}
+              aria-label={folderLoading ? "Opening folder" : "Open folder"}
+              title={folderLoading ? "Opening folder" : "Open folder"}
             >
               <IconFolder />
-              {folderLoading ? "Opening..." : "Open Folder"}
             </button>
             <button
-              id="hud-new-note"
-              className="hud-chip"
+              id="side-nav-new-note"
+              className="side-nav__action"
               type="button"
               onClick={handleNewTextCard}
               disabled={!folderPath}
+              aria-label="Create note"
+              title="Create note"
             >
               <IconNote />
-              New Note
+            </button>
+            <button
+              id="side-nav-search"
+              className="side-nav__action"
+              type="button"
+              onClick={focusSearchInput}
+              disabled={!showSearchHud}
+              aria-label="Focus search"
+              title="Focus search (Ctrl+K)"
+            >
+              <IconSearch />
             </button>
           </div>
-          <p className="canvas-hud__hint">
-            {folderPath
-              ? `${folderLabel} stores the canvas data locally as data.json.`
-              : "Pick a folder, then paste links or notes directly onto the dotted field."}
-          </p>
-        </div>
 
-        <div className="canvas-hud canvas-hud--top-right">
-          <span className="hud-stat">{folderLabel}</span>
-          <span className="hud-stat">{cardCount} {cardCount === 1 ? "tile" : "tiles"}</span>
-          <span className="hud-stat">{zoomPct}%</span>
-        </div>
+          <div className="side-nav__footer">
+            <p className="side-nav__eyebrow">{sidebarEyebrow}</p>
+            <p className="side-nav__label">{sidebarLabel}</p>
+            <p className="side-nav__meta">{sidebarMeta}</p>
+            <p className="side-nav__shortcut">Ctrl+V add, Ctrl+K search</p>
+            <p className="side-nav__zoom">{zoomPct}% zoom</p>
+          </div>
+        </aside>
 
-        <div
-          ref={containerRef}
-          id="canvas-board"
-          className="canvas"
-          tabIndex={-1}
-          onPointerDown={handleCanvasPointerDown}
-          onWheel={handleCanvasWheel}
-          onClick={(event) => {
-            if (!isEditableElement(event.target)) {
-              event.currentTarget.focus({ preventScroll: true });
-            }
-          }}
-        >
+        <main className="canvas-stage">
+          {showSearchHud ? (
+            <div className="canvas-hud canvas-hud--top-center">
+              <div className="search-panel">
+                <div className="search-shell">
+                  <input
+                    id="tile-search"
+                    ref={searchInputRef}
+                    className="search-shell__input"
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search"
+                    aria-label="Search tiles"
+                  />
+                  {searchQuery ? (
+                    <button
+                      className="search-shell__clear"
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        focusSearchInput();
+                      }}
+                    >
+                      Clear
+                    </button>
+                  ) : (
+                    <span className="search-shell__meta">Ctrl+K</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div
-            className="canvas__grid"
-            style={{
-              backgroundSize: `${28 * workspace.viewport.zoom}px ${28 * workspace.viewport.zoom}px`,
-              backgroundPosition: `${workspace.viewport.x}px ${workspace.viewport.y}px`,
-            }}
-          />
-          <div
-            className="canvas__content"
-            style={{
-              transform: `translate(${workspace.viewport.x}px, ${workspace.viewport.y}px) scale(${workspace.viewport.zoom})`,
+            ref={containerRef}
+            id="canvas-board"
+            className="canvas"
+            tabIndex={-1}
+            onPointerDown={handleCanvasPointerDown}
+            onWheel={handleCanvasWheel}
+            onClick={(event) => {
+              if (!isEditableElement(event.target)) {
+                event.currentTarget.focus({ preventScroll: true });
+              }
             }}
           >
-            {workspace.cards.map((card) => (
-              <Card
-                key={card.id}
-                card={card}
-                onDragStart={handleCardDragStart}
-                onTextChange={(cardId, nextText) => {
-                  updateExistingCard(cardId, { text: nextText });
-                }}
-                onRetry={(nextCard) => {
-                  log("info", `Retrying preview for card ${nextCard.id}`);
-                  toast("info", "Retrying link preview...");
-                  updateExistingCard(nextCard.id, { status: "loading" });
-                  void triggerPreview(nextCard);
-                }}
-              />
-            ))}
+            <div
+              className="canvas__grid"
+              style={{
+                backgroundSize: `${28 * workspace.viewport.zoom}px ${28 * workspace.viewport.zoom}px`,
+                backgroundPosition: `${workspace.viewport.x}px ${workspace.viewport.y}px`,
+              }}
+            />
+            <div
+              className="canvas__content"
+              style={{
+                transform: `translate(${workspace.viewport.x}px, ${workspace.viewport.y}px) scale(${workspace.viewport.zoom})`,
+              }}
+            >
+              {filteredTiles.map((card) => (
+                <Card
+                  key={card.id}
+                  card={card}
+                  onContextMenu={handleCardContextMenu}
+                  onDragStart={handleCardDragStart}
+                  onTextChange={(cardId, nextText) => {
+                    updateExistingCard(cardId, { text: nextText });
+                  }}
+                  onRetry={(nextCard) => {
+                    log("info", `Retrying preview for card ${nextCard.id}`);
+                    toast("info", "Retrying link preview...");
+                    updateExistingCard(nextCard.id, { status: "loading" });
+                    void triggerPreview(nextCard);
+                  }}
+                />
+              ))}
+            </div>
+
+            {!folderPath ? (
+              <section className="canvas__callout">
+                <p className="canvas__eyebrow">Local-first board</p>
+                <h1>Open a folder, then paste straight into the canvas.</h1>
+                <p>
+                  URLs become rich preview tiles. Plain text becomes simple notes.
+                  Everything stays inside that folder.
+                </p>
+                <button
+                  id="canvas-open-folder"
+                  className="button button--primary"
+                  type="button"
+                  onClick={handleOpenFolder}
+                  disabled={folderLoading}
+                >
+                  {folderLoading ? "Opening..." : "Choose Folder"}
+                </button>
+              </section>
+            ) : null}
+
+            {folderPath && totalTileCount === 0 ? (
+              <section className="canvas__callout canvas__callout--subtle">
+                <p className="canvas__eyebrow">Canvas ready</p>
+                <h2>Press Ctrl+V to drop your first link or note into the center.</h2>
+                <p>Hold Ctrl and scroll to zoom. Drag on empty space to pan around the board.</p>
+              </section>
+            ) : null}
+
+            {folderPath && totalTileCount > 0 && hasActiveSearch && visibleTileCount === 0 ? (
+              <section className="canvas__callout canvas__callout--subtle">
+                <p className="canvas__eyebrow">Search</p>
+                <h2>No tiles match &ldquo;{deferredSearchQuery.trim()}&rdquo;.</h2>
+                <p>Try a title, URL, note snippet, site name, or tile type.</p>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    focusSearchInput();
+                  }}
+                >
+                  Clear Search
+                </button>
+              </section>
+            ) : null}
           </div>
+        </main>
+      </div>
 
-          {!folderPath ? (
-            <section className="canvas__callout">
-              <p className="canvas__eyebrow">Local-first board</p>
-              <h1>Open a folder, then paste straight into the canvas.</h1>
-              <p>
-                URLs become rich preview tiles. Plain text becomes simple notes.
-                Everything stays inside that folder.
-              </p>
-              <button
-                id="canvas-open-folder"
-                className="button button--primary"
-                type="button"
-                onClick={handleOpenFolder}
-                disabled={folderLoading}
-              >
-                {folderLoading ? "Opening..." : "Choose Folder"}
-              </button>
-            </section>
-          ) : null}
-
-          {folderPath && cardCount === 0 ? (
-            <section className="canvas__callout canvas__callout--subtle">
-              <p className="canvas__eyebrow">Canvas ready</p>
-              <h2>Press Ctrl+V to drop your first link or note into the center.</h2>
-              <p>Hold Ctrl and scroll to zoom. Drag on empty space to pan around the board.</p>
-            </section>
-          ) : null}
-        </div>
-
-        <button
-          id="theme-toggle"
-          className={`theme-toggle theme-toggle--${theme}`}
-          type="button"
-          onClick={handleThemeToggle}
-          aria-label={`Switch to ${theme === "dark" ? "night" : "dark"} mode`}
-          title={theme === "dark" ? "Switch to night mode" : "Switch to dark mode"}
-        >
-          <span className="theme-toggle__core" />
-          <span className="theme-toggle__orbit" />
-        </button>
-      </main>
-
+      <TileContextMenu
+        menu={contextMenu}
+        menuRef={contextMenuRef}
+        onAction={handleContextAction}
+        onDelete={handleDeleteFromContextMenu}
+      />
       <ToastStack />
       <DevConsole />
     </div>

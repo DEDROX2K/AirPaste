@@ -56,6 +56,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     title: type === "link" ? String(card?.title ?? "") : "",
     description: type === "link" ? String(card?.description ?? "") : "",
     image: type === "link" ? String(card?.image ?? "") : "",
+    favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
@@ -206,6 +207,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null) {
     siteName: domain,
     description: "",
     image: "",
+    favicon: "",
     status: "loading",
     x: position.x,
     y: position.y,
@@ -225,6 +227,10 @@ export function updateCard(cards, cardId, updates) {
         updatedAt: nowIso(),
       })
       : card);
+}
+
+export function removeCard(cards, cardId) {
+  return cards.filter((card) => card.id !== cardId);
 }
 
 export function isUrl(value) {

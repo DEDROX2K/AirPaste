@@ -5,6 +5,7 @@ import {
   createLinkCard,
   createTextCard,
   normalizeWorkspace,
+  removeCard,
   updateCard,
 } from "../lib/workspace";
 
@@ -118,6 +119,23 @@ export function AppProvider({ children }) {
     }));
   }, [patchWorkspace]);
 
+  const deleteExistingCard = useCallback((cardId) => {
+    if (!cardId) {
+      return;
+    }
+
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: removeCard(currentWorkspace.cards, cardId),
+    }));
+
+    const cancelPreview = window.airpaste?.cancelLinkPreview;
+
+    if (folderPath && typeof cancelPreview === "function") {
+      void cancelPreview(folderPath, cardId).catch(() => {});
+    }
+  }, [folderPath, patchWorkspace]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -163,6 +181,7 @@ export function AppProvider({ children }) {
               title: payload.card.title,
               description: payload.card.description,
               image: payload.card.image,
+              favicon: payload.card.favicon,
               siteName: payload.card.siteName,
               status: payload.card.status,
               updatedAt: payload.card.updatedAt,
@@ -209,6 +228,7 @@ export function AppProvider({ children }) {
     setViewport,
     createNewTextCard,
     createNewLinkCard,
+    deleteExistingCard,
     updateExistingCard,
   }), [
     booting,
@@ -220,6 +240,7 @@ export function AppProvider({ children }) {
     setViewport,
     createNewTextCard,
     createNewLinkCard,
+    deleteExistingCard,
     updateExistingCard,
   ]);
 

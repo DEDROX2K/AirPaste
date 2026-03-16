@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld("airpaste", {
   saveWorkspace: (folderPath, data) => ipcRenderer.invoke("airpaste:saveWorkspace", folderPath, data),
   fetchLinkPreview: (folderPath, cardId, url, cardSnapshot) =>
     ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot),
+  cancelLinkPreview: (folderPath, cardId) =>
+    ipcRenderer.invoke("airpaste:cancelLinkPreview", folderPath, cardId),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
     const handler = (_event, payload) => listener(payload);

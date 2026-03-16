@@ -2,11 +2,20 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const openGraphScraper = require("open-graph-scraper");
+process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
+const { chromium } = require("playwright");
 
 const DATA_FILE_NAME = "data.json";
 const CONFIG_FILE_NAME = "config.json";
 const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
+const PREVIEW_CAPTURE_TIMEOUT_MS = 15000;
+const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
+const PREVIEW_JPEG_QUALITY = 58;
+const PREVIEW_VIEWPORT = Object.freeze({
+  width: 1280,
+  height: 720,
+});
 
 const DEFAULT_WORKSPACE = Object.freeze({
   version: 1,
@@ -21,6 +30,8 @@ const DEFAULT_WORKSPACE = Object.freeze({
 let mainWindow = null;
 const previewJobs = new Map();
 const workspaceQueues = new Map();
+const cancelledPreviewJobs = new Set();
+let previewBrowserPromise = null;
 
 function cloneDefaultWorkspace() {
   return JSON.parse(JSON.stringify(DEFAULT_WORKSPACE));
@@ -58,6 +69,7 @@ function normalizeCard(card, index = 0) {
     title: type === "link" ? String(card?.title ?? "") : "",
     description: type === "link" ? String(card?.description ?? "") : "",
     image: type === "link" ? String(card?.image ?? "") : "",
+    favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
@@ -237,29 +249,109 @@ function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
 }
 
-function normalizeImage(input) {
-  if (!input) {
+function resolveUrl(input, baseUrl) {
+  const value = firstString(input);
+
+  if (!value) {
     return "";
   }
 
-  if (typeof input === "string") {
-    return input;
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
   }
-
-  if (Array.isArray(input)) {
-    return normalizeImage(input[0]);
-  }
-
-  if (typeof input === "object") {
-    return firstString(input.url, input.secureUrl, input.source);
-  }
-
-  return "";
 }
 
-async function fetchPreviewData(url) {
-  const hostname = getHostname(url);
+function bufferToDataUrl(buffer, mimeType) {
+  if (!buffer || !mimeType) {
+    return "";
+  }
 
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+async function getPreviewBrowser() {
+  if (!previewBrowserPromise) {
+    previewBrowserPromise = chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage"],
+    })
+      .then((browser) => {
+        browser.on("disconnected", () => {
+          previewBrowserPromise = null;
+        });
+
+        return browser;
+      })
+      .catch((error) => {
+        previewBrowserPromise = null;
+        throw error;
+      });
+  }
+
+  return previewBrowserPromise;
+}
+
+async function closePreviewBrowser() {
+  const browserPromise = previewBrowserPromise;
+  previewBrowserPromise = null;
+
+  if (!browserPromise) {
+    return;
+  }
+
+  try {
+    const browser = await browserPromise;
+    await browser.close();
+  } catch {
+    // Ignore shutdown issues during app exit.
+  }
+}
+
+async function capturePreviewScreenshot(url) {
+  let context = null;
+
+  try {
+    const browser = await getPreviewBrowser();
+    context = await browser.newContext({
+      viewport: PREVIEW_VIEWPORT,
+      deviceScaleFactor: 1,
+      ignoreHTTPSErrors: true,
+    });
+    const page = await context.newPage();
+
+    page.setDefaultNavigationTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
+    page.setDefaultTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
+
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: PREVIEW_NETWORK_IDLE_TIMEOUT_MS }).catch(() => {});
+    await page.addStyleTag({
+      content: [
+        "*, *::before, *::after {",
+        "  animation-duration: 0s !important;",
+        "  animation-delay: 0s !important;",
+        "  transition-duration: 0s !important;",
+        "  caret-color: transparent !important;",
+        "}",
+      ].join("\n"),
+    }).catch(() => {});
+
+    const screenshot = await page.screenshot({
+      type: "jpeg",
+      quality: PREVIEW_JPEG_QUALITY,
+      fullPage: false,
+    });
+
+    return bufferToDataUrl(screenshot, "image/jpeg");
+  } catch {
+    return "";
+  } finally {
+    await context?.close().catch(() => {});
+  }
+}
+
+async function fetchOpenGraphMetadata(url) {
   try {
     const { error, result } = await openGraphScraper({
       url,
@@ -268,57 +360,82 @@ async function fetchPreviewData(url) {
 
     if (error || !result) {
       return {
-        status: "failed",
-        title: hostname,
+        title: "",
         description: "",
-        image: "",
-        siteName: hostname,
+        siteName: "",
+        favicon: "",
       };
     }
 
-    const image = normalizeImage(result.ogImage ?? result.twitterImage);
-    const title = firstString(
-      result.ogTitle,
-      result.twitterTitle,
-      result.dcTitle,
-      result.title,
-      hostname,
-    );
-    const description = firstString(
-      result.ogDescription,
-      result.twitterDescription,
-      result.description,
-    );
-    const siteName = firstString(
-      result.ogSiteName,
-      result.twitterSite,
-      hostname,
-    );
-
     return {
-      status: title || description || image ? "ready" : "failed",
-      title,
-      description,
-      image,
-      siteName,
+      title: firstString(
+        result.ogTitle,
+        result.twitterTitle,
+        result.dcTitle,
+        result.title,
+      ),
+      description: firstString(
+        result.ogDescription,
+        result.twitterDescription,
+        result.description,
+      ),
+      siteName: firstString(
+        result.ogSiteName,
+        result.twitterSite,
+      ),
+      favicon: resolveUrl(result.favicon, url),
     };
   } catch {
     return {
-      status: "failed",
-      title: hostname,
+      title: "",
       description: "",
-      image: "",
-      siteName: hostname,
+      siteName: "",
+      favicon: "",
     };
   }
 }
 
+async function fetchPreviewData(url) {
+  const hostname = getHostname(url);
+  const [metadata, image] = await Promise.all([
+    fetchOpenGraphMetadata(url),
+    capturePreviewScreenshot(url),
+  ]);
+  const hasPreviewData = Boolean(
+    metadata.title
+      || metadata.description
+      || metadata.siteName
+      || metadata.favicon
+      || image,
+  );
+
+  return {
+    status: hasPreviewData ? "ready" : "failed",
+    title: metadata.title || hostname,
+    description: metadata.description,
+    image,
+    favicon: metadata.favicon,
+    siteName: metadata.siteName || hostname,
+  };
+}
+
 async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
+  const jobKey = `${folderPath}:${cardId}`;
+
+  if (cancelledPreviewJobs.has(jobKey)) {
+    return null;
+  }
+
   const preview = await fetchPreviewData(url);
+
+  if (cancelledPreviewJobs.has(jobKey)) {
+    return null;
+  }
+
   const workspace = await ensureWorkspace(folderPath);
   let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
 
-  if (cardIndex === -1 && cardSnapshot) {
+  if (cardIndex === -1 && cardSnapshot && !cancelledPreviewJobs.has(jobKey)) {
     const placeholderCard = normalizeCard(cardSnapshot, workspace.cards.length);
     workspace.cards.push(placeholderCard);
     cardIndex = workspace.cards.length - 1;
@@ -334,6 +451,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     title: preview.title || currentCard.title || getHostname(url),
     description: preview.description || currentCard.description,
     image: preview.image || currentCard.image,
+    favicon: preview.favicon || currentCard.favicon,
     siteName: preview.siteName || currentCard.siteName || getHostname(url),
     status: preview.status,
     updatedAt: nowIso(),
@@ -450,6 +568,7 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
   }
 
   const jobKey = `${folderPath}:${cardId}`;
+  cancelledPreviewJobs.delete(jobKey);
 
   if (previewJobs.has(jobKey)) {
     return { queued: false };
@@ -467,6 +586,15 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
   previewJobs.set(jobKey, job);
 
   return { queued: true };
+});
+
+ipcMain.handle("airpaste:cancelLinkPreview", async (_event, folderPath, cardId) => {
+  if (!folderPath || !cardId) {
+    return { cancelled: false };
+  }
+
+  cancelledPreviewJobs.add(`${folderPath}:${cardId}`);
+  return { cancelled: true };
 });
 
 // ── Window controls ─────────────────────────────────────
@@ -496,4 +624,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  void closePreviewBrowser();
 });

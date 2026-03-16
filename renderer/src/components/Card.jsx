@@ -1,4 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import { formatCardSubtitle } from "../lib/workspace";
+
+const CONNECTOR_EDGE_THRESHOLD = 36;
+const DRAG_START_THRESHOLD = 8;
 
 function formatShortUrl(url) {
   try {
@@ -9,81 +13,302 @@ function formatShortUrl(url) {
   }
 }
 
-function statusLabel(status) {
-  if (status === "loading") {
-    return "Fetching preview";
+function getCardLabel(card) {
+  if (card.type === "text") {
+    return card.text.trim().slice(0, 28) || "Quick note";
   }
 
-  if (status === "ready") {
-    return "Preview ready";
+  return formatCardSubtitle(card);
+}
+
+function getConnectorEdge(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+  const candidates = [];
+
+  if (localX <= CONNECTOR_EDGE_THRESHOLD) {
+    candidates.push({ edge: "left", distance: localX });
   }
 
-  if (status === "failed") {
-    return "Fallback card";
+  if (rect.width - localX <= CONNECTOR_EDGE_THRESHOLD) {
+    candidates.push({ edge: "right", distance: rect.width - localX });
   }
 
-  return "Saved locally";
+  if (rect.height - localY <= CONNECTOR_EDGE_THRESHOLD) {
+    candidates.push({ edge: "bottom", distance: rect.height - localY });
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((leftEdge, rightEdge) => leftEdge.distance - rightEdge.distance);
+  return candidates[0].edge;
 }
 
 export default function Card({
   card,
+  onContextMenu,
   onDragStart,
   onTextChange,
   onRetry,
 }) {
+  const articleRef = useRef(null);
+  const pressStateRef = useRef(null);
+  const textEditorRef = useRef(null);
+  const [activeConnectorEdge, setActiveConnectorEdge] = useState(null);
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  const label = getCardLabel(card);
+  const linkTitle = card.title || formatShortUrl(card.url) || "Untitled link";
+  const surfaceFrameClassName = [
+    "card__surface-frame",
+    activeConnectorEdge ? `card__surface-frame--edge-${activeConnectorEdge}` : "",
+    card.type === "text" && isTextExpanded ? "card__surface-frame--expanded" : "",
+    card.type === "text" && !isTextExpanded ? "card__surface-frame--interactive" : "",
+    card.type === "link" ? "card__surface-frame--interactive" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  useEffect(() => {
+    if (card.type !== "text" || !isTextExpanded) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const editor = textEditorRef.current;
+
+      if (!editor) {
+        return;
+      }
+
+      editor.focus();
+      const cursorPosition = editor.value.length;
+      editor.setSelectionRange(cursorPosition, cursorPosition);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [card.type, isTextExpanded]);
+
+  useEffect(() => {
+    if (card.type !== "text" || !isTextExpanded) {
+      return undefined;
+    }
+
+    function collapseOnOutsidePointerDown(event) {
+      if (articleRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setIsTextExpanded(false);
+    }
+
+    window.addEventListener("pointerdown", collapseOnOutsidePointerDown, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", collapseOnOutsidePointerDown, true);
+    };
+  }, [card.type, isTextExpanded]);
+
+  function handleSurfacePointerMove(event) {
+    if (event.pointerType === "touch") {
+      setActiveConnectorEdge(null);
+    } else {
+      const nextEdge = getConnectorEdge(event);
+      setActiveConnectorEdge((currentEdge) => (
+        currentEdge === nextEdge ? currentEdge : nextEdge
+      ));
+    }
+
+    const pressState = pressStateRef.current;
+
+    if (!pressState || pressState.pointerId !== event.pointerId || pressState.hasTriggeredDrag) {
+      return;
+    }
+
+    const deltaX = event.clientX - pressState.startX;
+    const deltaY = event.clientY - pressState.startY;
+
+    if (Math.hypot(deltaX, deltaY) < DRAG_START_THRESHOLD) {
+      return;
+    }
+
+    pressState.hasTriggeredDrag = true;
+    onDragStart(card, event);
+  }
+
+  function handleSurfacePointerLeave() {
+    setActiveConnectorEdge(null);
+  }
+
+  function handleSurfacePointerDown(event) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    if (card.type === "text" && isTextExpanded) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    pressStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      hasTriggeredDrag: false,
+      target: event.currentTarget,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function clearPressState(event) {
+    const pressState = pressStateRef.current;
+
+    if (!pressState) {
+      return null;
+    }
+
+    if (event && pressState.pointerId !== event.pointerId) {
+      return null;
+    }
+
+    pressState.target?.releasePointerCapture?.(pressState.pointerId);
+    pressStateRef.current = null;
+    return pressState;
+  }
+
+  function handleSurfacePointerUp(event) {
+    const pressState = clearPressState(event);
+
+    if (!pressState) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (pressState.hasTriggeredDrag) {
+      return;
+    }
+
+    if (card.type === "text") {
+      setIsTextExpanded(true);
+      return;
+    }
+
+    window.open(card.url, "_blank", "noopener,noreferrer");
+  }
+
+  function handleSurfacePointerCancel(event) {
+    clearPressState(event);
+  }
+
+  function preventNativeDrag(event) {
+    event.preventDefault();
+  }
+
+  function renderConnector() {
+    if (!activeConnectorEdge) {
+      return null;
+    }
+
+    return (
+      <span
+        className={`card__connector card__connector--${activeConnectorEdge}`}
+        aria-hidden="true"
+      >
+        <span className="card__connector-core" />
+      </span>
+    );
+  }
+
   return (
     <article
-      className={`card card--${card.type}`}
+      ref={articleRef}
+      className={`card card--${card.type}${card.type === "text" && isTextExpanded ? " card--text-expanded" : ""}`}
       style={{
         width: `${card.width}px`,
-        minHeight: `${card.height}px`,
         transform: `translate(${card.x}px, ${card.y}px)`,
       }}
+      onContextMenu={(event) => onContextMenu(card, event)}
+      onDragStart={preventNativeDrag}
     >
       <div
         className="card__toolbar"
         onPointerDown={(event) => onDragStart(card, event)}
       >
-        <div>
-          <p className="card__label">{formatCardSubtitle(card)}</p>
-          <h2 className="card__title">
-            {card.type === "link" ? (card.title || formatShortUrl(card.url) || "Untitled link") : "Quick note"}
-          </h2>
-        </div>
-        <span className={`card__status card__status--${card.status}`}>{statusLabel(card.status)}</span>
+        <p className="card__label">{label}</p>
       </div>
 
       {card.type === "text" ? (
-        <textarea
-          className="card__textarea"
-          value={card.text}
-          onChange={(event) => onTextChange(card.id, event.target.value)}
-          placeholder="Paste or write a note..."
-        />
+        <div
+          className={surfaceFrameClassName}
+          onPointerDown={handleSurfacePointerDown}
+          onPointerMove={handleSurfacePointerMove}
+          onPointerUp={handleSurfacePointerUp}
+          onPointerCancel={handleSurfacePointerCancel}
+          onPointerLeave={handleSurfacePointerLeave}
+        >
+          <div
+            className="card__surface card__surface--text"
+            style={{ height: `${card.height}px` }}
+          >
+            <textarea
+              ref={textEditorRef}
+              className="card__textarea"
+              value={card.text}
+              onChange={(event) => onTextChange(card.id, event.target.value)}
+              placeholder="Paste or write a note..."
+              readOnly={!isTextExpanded}
+              tabIndex={isTextExpanded ? 0 : -1}
+            />
+          </div>
+          {renderConnector()}
+        </div>
       ) : (
         <div className="card__content">
-          {card.image ? (
-            <div className="card__image-wrap">
-              <img
-                className="card__image"
-                src={card.image}
-                alt={card.title || "Link preview"}
-              />
-            </div>
-          ) : null}
-
-          <div className="card__meta">
-            <p className="card__description">
-              {card.description || "AirPaste saved the link locally, but the page did not expose a full preview."}
-            </p>
+          <div
+            className={surfaceFrameClassName}
+            onPointerDown={handleSurfacePointerDown}
+            onPointerMove={handleSurfacePointerMove}
+            onPointerUp={handleSurfacePointerUp}
+            onPointerCancel={handleSurfacePointerCancel}
+            onPointerLeave={handleSurfacePointerLeave}
+          >
             <a
-              className="card__link"
+              className="card__surface card__surface--link"
               href={card.url}
               target="_blank"
               rel="noreferrer"
+              title={linkTitle}
+              aria-label={`Open ${linkTitle}`}
+              style={{ height: `${card.height}px` }}
+              draggable={false}
+              onClick={(event) => event.preventDefault()}
+              onDragStart={preventNativeDrag}
             >
-              {formatShortUrl(card.url)}
+              {card.image ? (
+                <img
+                  className="card__image"
+                  src={card.image}
+                  alt={linkTitle}
+                  draggable={false}
+                  onDragStart={preventNativeDrag}
+                />
+              ) : (
+                <div className="card__placeholder">
+                  <p className="card__placeholder-title">{linkTitle}</p>
+                  <p className="card__placeholder-subtitle">{formatShortUrl(card.url)}</p>
+                </div>
+              )}
             </a>
+            {renderConnector()}
           </div>
 
           {card.status === "failed" ? (
