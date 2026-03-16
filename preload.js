@@ -13,3 +13,10 @@ contextBridge.exposeInMainWorld("airpaste", {
     return () => ipcRenderer.removeListener("airpaste:previewUpdated", handler);
   },
 });
+
+contextBridge.exposeInMainWorld("electronAPI", {
+  minimize:  () => ipcRenderer.send("window:minimize"),
+  maximize:  () => ipcRenderer.send("window:maximize"),
+  close:     () => ipcRenderer.send("window:close"),
+  usesCustomTitlebar: process.platform === "darwin",
+});

@@ -353,12 +353,16 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
 }
 
 async function createWindow() {
+  const useCustomTitlebar = process.platform === "darwin";
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1024,
-    minHeight: 700,
-    backgroundColor: "#f6f1ea",
+    minWidth: 960,
+    minHeight: 600,
+    backgroundColor: "#0d0d0d",
+    frame: !useCustomTitlebar,
+    titleBarStyle: useCustomTitlebar ? "hidden" : "default",
     show: false,
     title: "AirPaste",
     webPreferences: {
@@ -464,6 +468,19 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
 
   return { queued: true };
 });
+
+// ── Window controls ─────────────────────────────────────
+ipcMain.on("window:minimize", () => mainWindow?.minimize());
+ipcMain.on("window:maximize", () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+ipcMain.on("window:close", () => mainWindow?.close());
+
 
 app.whenReady().then(async () => {
   await createWindow();
