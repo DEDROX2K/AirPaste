@@ -47,7 +47,7 @@ export default function Card({
         <div>
           <p className="card__label">{formatCardSubtitle(card)}</p>
           <h2 className="card__title">
-            {card.type === "link" ? (card.title || "Untitled link") : "Quick note"}
+            {card.type === "link" ? (card.title || formatShortUrl(card.url) || "Untitled link") : "Quick note"}
           </h2>
         </div>
         <span className={`card__status card__status--${card.status}`}>{statusLabel(card.status)}</span>

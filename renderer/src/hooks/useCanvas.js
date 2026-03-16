@@ -67,6 +67,22 @@ export function useCanvas({ viewport, onViewportChange }) {
     });
   }, [onViewportChange, toWorldPoint, viewport]);
 
+  const getViewportCenter = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return {
+        x: Math.round((-viewport.x + 480) / viewport.zoom),
+        y: Math.round((-viewport.y + 320) / viewport.zoom),
+      };
+    }
+
+    return {
+      x: Math.round((rect.width / 2 - viewport.x) / viewport.zoom),
+      y: Math.round((rect.height / 2 - viewport.y) / viewport.zoom),
+    };
+  }, [viewport]);
+
   useEffect(() => {
     function handlePointerMove(event) {
       if (!panStateRef.current) {
@@ -98,6 +114,7 @@ export function useCanvas({ viewport, onViewportChange }) {
 
   return {
     containerRef,
+    getViewportCenter,
     handleCanvasPointerDown,
     handleCanvasWheel,
   };

@@ -92,7 +92,61 @@ function intersects(a, b) {
   );
 }
 
-export function getNextCardPosition(cards, viewport, type) {
+function getCardSize(type) {
+  return type === "link" ? LINK_CARD_SIZE : TEXT_CARD_SIZE;
+}
+
+function hasCollision(cards, candidate) {
+  return cards.some((card) =>
+    intersects(candidate, {
+      x: card.x,
+      y: card.y,
+      width: card.width,
+      height: card.height,
+    }));
+}
+
+function getCenteredCardPosition(cards, preferredCenter, type) {
+  const size = getCardSize(type);
+  const startX = Math.round(preferredCenter.x - size.width / 2);
+  const startY = Math.round(preferredCenter.y - size.height / 2);
+  const stepX = Math.max(48, Math.round(size.width * 0.42));
+  const stepY = Math.max(40, Math.round(size.height * 0.38));
+
+  for (let radius = 0; radius < 18; radius += 1) {
+    for (let row = -radius; row <= radius; row += 1) {
+      for (let col = -radius; col <= radius; col += 1) {
+        if (radius > 0 && Math.max(Math.abs(row), Math.abs(col)) !== radius) {
+          continue;
+        }
+
+        const candidate = {
+          x: startX + col * stepX,
+          y: startY + row * stepY,
+          width: size.width,
+          height: size.height,
+        };
+
+        if (!hasCollision(cards, candidate)) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  return {
+    x: startX,
+    y: startY + cards.length * 36,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+export function getNextCardPosition(cards, viewport, type, preferredCenter = null) {
+  if (preferredCenter && Number.isFinite(preferredCenter.x) && Number.isFinite(preferredCenter.y)) {
+    return getCenteredCardPosition(cards, preferredCenter, type);
+  }
+
   const size = type === "link" ? LINK_CARD_SIZE : TEXT_CARD_SIZE;
   const startX = Math.max(72, Math.round((-viewport.x + 120) / viewport.zoom));
   const startY = Math.max(72, Math.round((-viewport.y + 160) / viewport.zoom));
@@ -108,15 +162,7 @@ export function getNextCardPosition(cards, viewport, type) {
         height: size.height,
       };
 
-      const collision = cards.some((card) =>
-        intersects(candidate, {
-          x: card.x,
-          y: card.y,
-          width: card.width,
-          height: card.height,
-        }));
-
-      if (!collision) {
+      if (!hasCollision(cards, candidate)) {
         return candidate;
       }
     }
@@ -130,8 +176,8 @@ export function getNextCardPosition(cards, viewport, type) {
   };
 }
 
-export function createTextCard(cards, viewport, text = "") {
-  const position = getNextCardPosition(cards, viewport, "text");
+export function createTextCard(cards, viewport, text = "", preferredCenter = null) {
+  const position = getNextCardPosition(cards, viewport, "text", preferredCenter);
   const timestamp = nowIso();
 
   return normalizeCard({
@@ -147,8 +193,8 @@ export function createTextCard(cards, viewport, text = "") {
   });
 }
 
-export function createLinkCard(cards, viewport, url) {
-  const position = getNextCardPosition(cards, viewport, "link");
+export function createLinkCard(cards, viewport, url, preferredCenter = null) {
+  const position = getNextCardPosition(cards, viewport, "link", preferredCenter);
   const timestamp = nowIso();
   const domain = getDomainLabel(url);
 
@@ -156,7 +202,7 @@ export function createLinkCard(cards, viewport, url) {
     id: crypto.randomUUID(),
     type: "link",
     url,
-    title: domain,
+    title: "",
     siteName: domain,
     description: "",
     image: "",

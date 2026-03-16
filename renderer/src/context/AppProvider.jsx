@@ -79,11 +79,12 @@ export function AppProvider({ children }) {
     }));
   }, [patchWorkspace]);
 
-  const createNewTextCard = useCallback((text = "") => {
+  const createNewTextCard = useCallback((text = "", preferredCenter = null) => {
     const card = createTextCard(
       workspaceRef.current.cards,
       workspaceRef.current.viewport,
       text,
+      preferredCenter,
     );
 
     patchWorkspace((currentWorkspace) => ({
@@ -94,11 +95,12 @@ export function AppProvider({ children }) {
     return card;
   }, [patchWorkspace]);
 
-  const createNewLinkCard = useCallback((url) => {
+  const createNewLinkCard = useCallback((url, preferredCenter = null) => {
     const card = createLinkCard(
       workspaceRef.current.cards,
       workspaceRef.current.viewport,
       url,
+      preferredCenter,
     );
 
     patchWorkspace((currentWorkspace) => ({
