@@ -12,10 +12,25 @@ const BACKUP_SUFFIX = ".bak";
 const PREVIEW_CAPTURE_TIMEOUT_MS = 15000;
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
 const PREVIEW_JPEG_QUALITY = 58;
+const REMOTE_IMAGE_TIMEOUT_MS = 12000;
+const REMOTE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const PREVIEW_VIEWPORT = Object.freeze({
   width: 1280,
   height: 720,
 });
+const MUSIC_HOSTS = Object.freeze([
+  "open.spotify.com",
+  "spotify.link",
+  "music.apple.com",
+  "geo.music.apple.com",
+  "music.youtube.com",
+  "soundcloud.com",
+  "bandcamp.com",
+  "tidal.com",
+  "listen.tidal.com",
+  "deezer.com",
+  "www.deezer.com",
+]);
 
 const DEFAULT_WORKSPACE = Object.freeze({
   version: 1,
@@ -71,6 +86,7 @@ function normalizeCard(card, index = 0) {
     image: type === "link" ? String(card?.image ?? "") : "",
     favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
+    previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
@@ -263,6 +279,435 @@ function resolveUrl(input, baseUrl) {
   }
 }
 
+function getUrlHostname(url) {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isMusicHost(url) {
+  const hostname = getUrlHostname(url);
+  return MUSIC_HOSTS.some((musicHost) => hostname === musicHost || hostname.endsWith(`.${musicHost}`));
+}
+
+function normalizeImageCandidate(candidate, baseUrl) {
+  if (!candidate) {
+    return null;
+  }
+
+  if (typeof candidate === "string") {
+    const url = resolveUrl(candidate, baseUrl);
+    return url ? { url, width: 0, height: 0 } : null;
+  }
+
+  if (typeof candidate !== "object") {
+    return null;
+  }
+
+  const url = resolveUrl(
+    firstString(candidate.url, candidate.secureUrl, candidate.secureURL),
+    baseUrl,
+  );
+
+  if (!url) {
+    return null;
+  }
+
+  const width = Number.parseInt(candidate.width, 10);
+  const height = Number.parseInt(candidate.height, 10);
+
+  return {
+    url,
+    width: Number.isFinite(width) ? width : 0,
+    height: Number.isFinite(height) ? height : 0,
+  };
+}
+
+function getImageCandidates(result, url) {
+  const entries = [];
+  const rawCandidates = [
+    result?.ogImage,
+    result?.twitterImage,
+    result?.ogImage?.url,
+    result?.twitterImage?.url,
+  ].flat();
+
+  for (const candidate of rawCandidates) {
+    if (Array.isArray(candidate)) {
+      for (const nestedCandidate of candidate) {
+        const normalized = normalizeImageCandidate(nestedCandidate, url);
+        if (normalized?.url) {
+          entries.push(normalized);
+        }
+      }
+      continue;
+    }
+
+    const normalized = normalizeImageCandidate(candidate, url);
+    if (normalized?.url) {
+      entries.push(normalized);
+    }
+  }
+
+  return entries;
+}
+
+function scoreImageCandidate(candidate) {
+  if (!candidate?.url) {
+    return -1;
+  }
+
+  const largestSide = Math.max(candidate.width || 0, candidate.height || 0);
+  const squareness = candidate.width > 0 && candidate.height > 0
+    ? 1 - Math.abs(candidate.width - candidate.height) / Math.max(candidate.width, candidate.height)
+    : 0.4;
+
+  return largestSide + squareness * 500;
+}
+
+function uniqueValues(values) {
+  return [...new Set(
+    values
+      .filter((value) => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  )];
+}
+
+function isDirectImageUrl(url) {
+  return /\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(url);
+}
+
+function isSpotifyHost(url) {
+  return /(?:^|\.)spotify(?:\.com|\.link)$/i.test(getUrlHostname(url));
+}
+
+function isYouTubeHost(url) {
+  return /(?:^|\.)youtube\.com$/i.test(getUrlHostname(url)) || /(?:^|\.)youtu\.be$/i.test(getUrlHostname(url));
+}
+
+function isTwitterHost(url) {
+  return /(?:^|\.)x\.com$/i.test(getUrlHostname(url)) || /(?:^|\.)twitter\.com$/i.test(getUrlHostname(url));
+}
+
+function isBlockedPreviewImageUrl(url) {
+  if (!url) {
+    return true;
+  }
+
+  const normalizedUrl = url.toLowerCase();
+
+  return normalizedUrl.includes("abs.twimg.com/emoji/")
+    || normalizedUrl.includes("abs.twimg.com/rweb/ssr/default/v2/og/image.png")
+    || normalizedUrl.includes("client-web/icon")
+    || normalizedUrl.includes("/favicon")
+    || normalizedUrl.includes("/profile_images/")
+    || normalizedUrl.includes("/semantic_core_img/");
+}
+
+function chooseBestArtworkUrl(result, pageUrl) {
+  const candidates = getImageCandidates(result, pageUrl);
+
+  if (candidates.length === 0) {
+    return "";
+  }
+
+  candidates.sort((leftCandidate, rightCandidate) => (
+    scoreImageCandidate(rightCandidate) - scoreImageCandidate(leftCandidate)
+  ));
+
+  return candidates[0].url;
+}
+
+function upgradeArtworkUrl(url) {
+  if (!url) {
+    return "";
+  }
+
+  let nextUrl = url;
+
+  nextUrl = nextUrl.replace(/https:\/\/image-cdn-[^/]+\.spotifycdn\.com\/image\//i, "https://i.scdn.co/image/");
+  nextUrl = nextUrl.replace(/00001e02/ig, "0000b273");
+  nextUrl = nextUrl.replace(/00004851/ig, "0000b273");
+
+  // Apple Music / iTunes art can usually be requested at a larger square size.
+  nextUrl = nextUrl.replace(/\/\d{2,4}x\d{2,4}(?:bb|sr)(?=[./?])/i, "/1600x1600bb");
+
+  // Deezer cover assets expose size in-path.
+  nextUrl = nextUrl.replace(/\/cover\/\d+x\d+-/i, "/cover/1000x1000-");
+
+  // Pinterest serves a higher-quality original file under the originals path.
+  nextUrl = nextUrl.replace(/i\.pinimg\.com\/(?:\d+x|\d+x\d+_RS)\//i, "i.pinimg.com/originals/");
+
+  // Prefer the original media size on X / Twitter image hosts.
+  if (/pbs\.twimg\.com\/media\//i.test(nextUrl) || /pbs\.twimg\.com\/ext_tw_video_thumb\//i.test(nextUrl)) {
+    if (/[?&]name=/i.test(nextUrl)) {
+      nextUrl = nextUrl.replace(/([?&]name=)(?:small|medium|large|900x900|orig)/i, "$1orig");
+    } else {
+      nextUrl = `${nextUrl}${nextUrl.includes("?") ? "&" : "?"}name=orig`;
+    }
+  }
+
+  nextUrl = nextUrl.replace(/\/(?:hqdefault|mqdefault|sddefault)\.jpg(?=$|[?#])/i, "/maxresdefault.jpg");
+
+  return nextUrl;
+}
+
+async function fetchImageDataUrl(url) {
+  if (!url) {
+    return "";
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REMOTE_IMAGE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      return "";
+    }
+
+    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+    const contentLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
+
+    if (!contentType.startsWith("image/")) {
+      return "";
+    }
+
+    if (Number.isFinite(contentLength) && contentLength > REMOTE_IMAGE_MAX_BYTES) {
+      return "";
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    if (buffer.length > REMOTE_IMAGE_MAX_BYTES) {
+      return "";
+    }
+
+    return bufferToDataUrl(buffer, contentType);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchJson(url) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function parseYouTubeVideoId(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    if (hostname === "youtu.be") {
+      return parsedUrl.pathname.slice(1);
+    }
+
+    if (!hostname.endsWith("youtube.com")) {
+      return "";
+    }
+
+    if (parsedUrl.pathname === "/watch") {
+      return parsedUrl.searchParams.get("v") ?? "";
+    }
+
+    const segments = parsedUrl.pathname.split("/").filter(Boolean);
+
+    if (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live") {
+      return segments[1] ?? "";
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function parseTweetIdentity(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const segments = parsedUrl.pathname.split("/").filter(Boolean);
+
+    if (segments.length < 3) {
+      return null;
+    }
+
+    const statusIndex = segments.findIndex((segment) => segment === "status");
+
+    if (statusIndex < 1 || statusIndex === segments.length - 1) {
+      return null;
+    }
+
+    return {
+      username: segments[statusIndex - 1],
+      tweetId: segments[statusIndex + 1],
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSpotifyOEmbedPreview(url) {
+  if (!isSpotifyHost(url)) {
+    return null;
+  }
+
+  const payload = await fetchJson(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`);
+
+  if (!payload?.thumbnail_url) {
+    return null;
+  }
+
+  return {
+    title: firstString(payload.title),
+    description: "",
+    siteName: firstString(payload.provider_name, "Spotify"),
+    imageUrls: [payload.thumbnail_url],
+    previewKind: "music",
+  };
+}
+
+function fetchYouTubePreview(url) {
+  if (!isYouTubeHost(url)) {
+    return null;
+  }
+
+  const videoId = parseYouTubeVideoId(url);
+
+  if (!videoId) {
+    return null;
+  }
+
+  return {
+    title: "",
+    description: "",
+    siteName: "YouTube",
+    imageUrls: [
+      `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    ],
+    previewKind: "default",
+  };
+}
+
+async function fetchVxTwitterPreview(url) {
+  if (!isTwitterHost(url)) {
+    return null;
+  }
+
+  const identity = parseTweetIdentity(url);
+
+  if (!identity?.tweetId) {
+    return null;
+  }
+
+  const payload = await fetchJson(`https://api.vxtwitter.com/${identity.username}/status/${identity.tweetId}`);
+
+  if (!payload) {
+    return null;
+  }
+
+  const mediaUrls = uniqueValues([
+    ...(Array.isArray(payload.mediaURLs) ? payload.mediaURLs : []),
+    ...(Array.isArray(payload.media_extended)
+      ? payload.media_extended.flatMap((media) => [
+        media?.url,
+        media?.thumbnail_url,
+        media?.image,
+      ])
+      : []),
+  ]);
+
+  if (mediaUrls.length === 0) {
+    return null;
+  }
+
+  return {
+    title: "",
+    description: firstString(payload.text),
+    siteName: "X (formerly Twitter)",
+    imageUrls: mediaUrls,
+    previewKind: "default",
+  };
+}
+
+async function fetchProviderPreview(url) {
+  if (isDirectImageUrl(url)) {
+    return {
+      title: "",
+      description: "",
+      siteName: getHostname(url),
+      imageUrls: [url],
+      previewKind: "default",
+    };
+  }
+
+  const spotifyPreview = await fetchSpotifyOEmbedPreview(url);
+  if (spotifyPreview) {
+    return spotifyPreview;
+  }
+
+  const youtubePreview = fetchYouTubePreview(url);
+  if (youtubePreview) {
+    return youtubePreview;
+  }
+
+  const twitterPreview = await fetchVxTwitterPreview(url);
+  if (twitterPreview) {
+    return twitterPreview;
+  }
+
+  return null;
+}
+
+async function resolvePreviewImage(candidateUrls) {
+  const uniqueCandidates = uniqueValues(candidateUrls)
+    .map((candidateUrl) => upgradeArtworkUrl(candidateUrl))
+    .filter((candidateUrl) => candidateUrl && !isBlockedPreviewImageUrl(candidateUrl));
+
+  let remoteFallbackUrl = "";
+
+  for (const candidateUrl of uniqueCandidates) {
+    if (!remoteFallbackUrl) {
+      remoteFallbackUrl = candidateUrl;
+    }
+
+    const dataUrl = await fetchImageDataUrl(candidateUrl);
+
+    if (dataUrl) {
+      return dataUrl;
+    }
+  }
+
+  return remoteFallbackUrl;
+}
+
 function bufferToDataUrl(buffer, mimeType) {
   if (!buffer || !mimeType) {
     return "";
@@ -364,8 +809,15 @@ async function fetchOpenGraphMetadata(url) {
         description: "",
         siteName: "",
         favicon: "",
+        imageUrl: "",
+        previewKind: "default",
       };
     }
+
+    const ogType = firstString(result.ogType).toLowerCase();
+    const previewKind = isMusicHost(url) || ogType.startsWith("music.")
+      ? "music"
+      : "default";
 
     return {
       title: firstString(
@@ -384,6 +836,8 @@ async function fetchOpenGraphMetadata(url) {
         result.twitterSite,
       ),
       favicon: resolveUrl(result.favicon, url),
+      imageUrl: chooseBestArtworkUrl(result, url),
+      previewKind,
     };
   } catch {
     return {
@@ -391,31 +845,45 @@ async function fetchOpenGraphMetadata(url) {
       description: "",
       siteName: "",
       favicon: "",
+      imageUrl: "",
+      previewKind: "default",
     };
   }
 }
 
 async function fetchPreviewData(url) {
   const hostname = getHostname(url);
-  const [metadata, image] = await Promise.all([
+  const [metadata, providerPreview] = await Promise.all([
     fetchOpenGraphMetadata(url),
-    capturePreviewScreenshot(url),
+    fetchProviderPreview(url),
   ]);
+  const image = await resolvePreviewImage([
+    ...(providerPreview?.imageUrls ?? []),
+    metadata.imageUrl,
+  ]);
+  const previewKind = image && (providerPreview?.previewKind === "music" || metadata.previewKind === "music")
+    ? "music"
+    : "default";
+  const finalImage = image || await capturePreviewScreenshot(url);
   const hasPreviewData = Boolean(
-    metadata.title
+    providerPreview?.title
+      || providerPreview?.description
+      || providerPreview?.siteName
+      || metadata.title
       || metadata.description
       || metadata.siteName
       || metadata.favicon
-      || image,
+      || finalImage,
   );
 
   return {
     status: hasPreviewData ? "ready" : "failed",
-    title: metadata.title || hostname,
-    description: metadata.description,
-    image,
+    title: providerPreview?.title || metadata.title || hostname,
+    description: providerPreview?.description || metadata.description,
+    image: finalImage,
     favicon: metadata.favicon,
-    siteName: metadata.siteName || hostname,
+    siteName: providerPreview?.siteName || metadata.siteName || hostname,
+    previewKind,
   };
 }
 
@@ -453,6 +921,10 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     image: preview.image || currentCard.image,
     favicon: preview.favicon || currentCard.favicon,
     siteName: preview.siteName || currentCard.siteName || getHostname(url),
+    previewKind: preview.previewKind || currentCard.previewKind,
+    height: preview.previewKind === "music"
+      ? Math.max(currentCard.height, currentCard.width)
+      : currentCard.height,
     status: preview.status,
     updatedAt: nowIso(),
   });

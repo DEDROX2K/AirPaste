@@ -7,6 +7,7 @@ import {
   normalizeWorkspace,
   removeCard,
   updateCard,
+  updateCards,
 } from "../lib/workspace";
 
 const SAVE_DELAY_MS = 250;
@@ -119,6 +120,13 @@ export function AppProvider({ children }) {
     }));
   }, [patchWorkspace]);
 
+  const updateExistingCards = useCallback((updatesById) => {
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: updateCards(currentWorkspace.cards, updatesById),
+    }));
+  }, [patchWorkspace]);
+
   const deleteExistingCard = useCallback((cardId) => {
     if (!cardId) {
       return;
@@ -175,17 +183,20 @@ export function AppProvider({ children }) {
       patchWorkspace((currentWorkspace) => ({
         ...currentWorkspace,
         cards: currentWorkspace.cards.map((card) =>
-          card.id === payload.card.id
-            ? {
-              ...card,
-              title: payload.card.title,
-              description: payload.card.description,
-              image: payload.card.image,
-              favicon: payload.card.favicon,
-              siteName: payload.card.siteName,
-              status: payload.card.status,
-              updatedAt: payload.card.updatedAt,
-            }
+            card.id === payload.card.id
+              ? {
+                ...card,
+                title: payload.card.title,
+                description: payload.card.description,
+                image: payload.card.image,
+                favicon: payload.card.favicon,
+                siteName: payload.card.siteName,
+                previewKind: payload.card.previewKind,
+                width: payload.card.width,
+                height: payload.card.height,
+                status: payload.card.status,
+                updatedAt: payload.card.updatedAt,
+              }
             : card),
       }));
     });
@@ -230,6 +241,7 @@ export function AppProvider({ children }) {
     createNewLinkCard,
     deleteExistingCard,
     updateExistingCard,
+    updateExistingCards,
   }), [
     booting,
     error,
@@ -242,6 +254,7 @@ export function AppProvider({ children }) {
     createNewLinkCard,
     deleteExistingCard,
     updateExistingCard,
+    updateExistingCards,
   ]);
 
   return (

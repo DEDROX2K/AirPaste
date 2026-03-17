@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatCardSubtitle } from "../lib/workspace";
 
-const CONNECTOR_EDGE_THRESHOLD = 36;
 const DRAG_START_THRESHOLD = 8;
 
 function formatShortUrl(url) {
@@ -18,37 +17,13 @@ function getCardLabel(card) {
     return card.text.trim().slice(0, 28) || "Quick note";
   }
 
-  return formatCardSubtitle(card);
-}
-
-function getConnectorEdge(event) {
-  const rect = event.currentTarget.getBoundingClientRect();
-  const localX = event.clientX - rect.left;
-  const localY = event.clientY - rect.top;
-  const candidates = [];
-
-  if (localX <= CONNECTOR_EDGE_THRESHOLD) {
-    candidates.push({ edge: "left", distance: localX });
-  }
-
-  if (rect.width - localX <= CONNECTOR_EDGE_THRESHOLD) {
-    candidates.push({ edge: "right", distance: rect.width - localX });
-  }
-
-  if (rect.height - localY <= CONNECTOR_EDGE_THRESHOLD) {
-    candidates.push({ edge: "bottom", distance: rect.height - localY });
-  }
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort((leftEdge, rightEdge) => leftEdge.distance - rightEdge.distance);
-  return candidates[0].edge;
+  return card.title.trim() || formatCardSubtitle(card);
 }
 
 export default function Card({
   card,
+  isSelected = false,
+  onMediaLoad,
   onContextMenu,
   onDragStart,
   onTextChange,
@@ -57,16 +32,17 @@ export default function Card({
   const articleRef = useRef(null);
   const pressStateRef = useRef(null);
   const textEditorRef = useRef(null);
-  const [activeConnectorEdge, setActiveConnectorEdge] = useState(null);
   const [isTextExpanded, setIsTextExpanded] = useState(false);
+  const isMusicCard = card.type === "link" && card.previewKind === "music" && Boolean(card.image);
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || "Untitled link";
   const surfaceFrameClassName = [
     "card__surface-frame",
-    activeConnectorEdge ? `card__surface-frame--edge-${activeConnectorEdge}` : "",
     card.type === "text" && isTextExpanded ? "card__surface-frame--expanded" : "",
     card.type === "text" && !isTextExpanded ? "card__surface-frame--interactive" : "",
     card.type === "link" ? "card__surface-frame--interactive" : "",
+    isSelected ? "card__surface-frame--selected" : "",
+    isMusicCard ? "card__surface-frame--music" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -114,15 +90,6 @@ export default function Card({
   }, [card.type, isTextExpanded]);
 
   function handleSurfacePointerMove(event) {
-    if (event.pointerType === "touch") {
-      setActiveConnectorEdge(null);
-    } else {
-      const nextEdge = getConnectorEdge(event);
-      setActiveConnectorEdge((currentEdge) => (
-        currentEdge === nextEdge ? currentEdge : nextEdge
-      ));
-    }
-
     const pressState = pressStateRef.current;
 
     if (!pressState || pressState.pointerId !== event.pointerId || pressState.hasTriggeredDrag) {
@@ -138,10 +105,6 @@ export default function Card({
 
     pressState.hasTriggeredDrag = true;
     onDragStart(card, event);
-  }
-
-  function handleSurfacePointerLeave() {
-    setActiveConnectorEdge(null);
   }
 
   function handleSurfacePointerDown(event) {
@@ -213,25 +176,29 @@ export default function Card({
     event.preventDefault();
   }
 
-  function renderConnector() {
-    if (!activeConnectorEdge) {
-      return null;
+  function handleImageLoad(event) {
+    if (typeof onMediaLoad !== "function") {
+      return;
     }
 
-    return (
-      <span
-        className={`card__connector card__connector--${activeConnectorEdge}`}
-        aria-hidden="true"
-      >
-        <span className="card__connector-core" />
-      </span>
+    onMediaLoad(
+      event.currentTarget.naturalWidth,
+      event.currentTarget.naturalHeight,
     );
   }
 
   return (
     <article
       ref={articleRef}
-      className={`card card--${card.type}${card.type === "text" && isTextExpanded ? " card--text-expanded" : ""}`}
+      className={[
+        "card",
+        `card--${card.type}`,
+        card.type === "text" && isTextExpanded ? "card--text-expanded" : "",
+        isSelected ? "card--selected" : "",
+        isMusicCard ? "card--music" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={{
         width: `${card.width}px`,
         transform: `translate(${card.x}px, ${card.y}px)`,
@@ -253,7 +220,6 @@ export default function Card({
           onPointerMove={handleSurfacePointerMove}
           onPointerUp={handleSurfacePointerUp}
           onPointerCancel={handleSurfacePointerCancel}
-          onPointerLeave={handleSurfacePointerLeave}
         >
           <div
             className="card__surface card__surface--text"
@@ -269,7 +235,6 @@ export default function Card({
               tabIndex={isTextExpanded ? 0 : -1}
             />
           </div>
-          {renderConnector()}
         </div>
       ) : (
         <div className="card__content">
@@ -279,10 +244,9 @@ export default function Card({
             onPointerMove={handleSurfacePointerMove}
             onPointerUp={handleSurfacePointerUp}
             onPointerCancel={handleSurfacePointerCancel}
-            onPointerLeave={handleSurfacePointerLeave}
           >
             <a
-              className="card__surface card__surface--link"
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
               href={card.url}
               target="_blank"
               rel="noreferrer"
@@ -293,12 +257,30 @@ export default function Card({
               onClick={(event) => event.preventDefault()}
               onDragStart={preventNativeDrag}
             >
-              {card.image ? (
+              {isMusicCard ? (
+                <div className="card__record-shell">
+                  <div
+                    className="card__record-disc"
+                    aria-hidden="true"
+                  />
+                  <div className="card__record-sleeve">
+                    <img
+                      className="card__image card__image--music"
+                      src={card.image}
+                      alt={linkTitle}
+                      draggable={false}
+                      onLoad={handleImageLoad}
+                      onDragStart={preventNativeDrag}
+                    />
+                  </div>
+                </div>
+              ) : card.image ? (
                 <img
                   className="card__image"
                   src={card.image}
                   alt={linkTitle}
                   draggable={false}
+                  onLoad={handleImageLoad}
                   onDragStart={preventNativeDrag}
                 />
               ) : (
@@ -308,7 +290,6 @@ export default function Card({
                 </div>
               )}
             </a>
-            {renderConnector()}
           </div>
 
           {card.status === "failed" ? (

@@ -58,6 +58,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     image: type === "link" ? String(card?.image ?? "") : "",
     favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
+    previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
@@ -208,6 +209,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null) {
     description: "",
     image: "",
     favicon: "",
+    previewKind: "default",
     status: "loading",
     x: position.x,
     y: position.y,
@@ -227,6 +229,22 @@ export function updateCard(cards, cardId, updates) {
         updatedAt: nowIso(),
       })
       : card);
+}
+
+export function updateCards(cards, updatesById) {
+  return cards.map((card) => {
+    const updates = updatesById?.[card.id];
+
+    if (!updates) {
+      return card;
+    }
+
+    return normalizeCard({
+      ...card,
+      ...updates,
+      updatedAt: nowIso(),
+    });
+  });
 }
 
 export function removeCard(cards, cardId) {

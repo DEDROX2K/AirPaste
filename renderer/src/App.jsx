@@ -10,10 +10,156 @@ import { useToast } from "./hooks/useToast";
 import { isEditableElement, isUrl } from "./lib/workspace";
 import { filterTiles } from "./utils/searchTiles";
 
+const IMAGE_CARD_PORTRAIT_MAX_WIDTH = 320;
+const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
+const IMAGE_CARD_SQUARE_MAX_WIDTH = 340;
+const IMAGE_CARD_SQUARE_MAX_HEIGHT = 380;
+const IMAGE_CARD_LANDSCAPE_MAX_WIDTH = 420;
+const IMAGE_CARD_LANDSCAPE_MAX_HEIGHT = 320;
+const IMAGE_CARD_MIN_WIDTH = 180;
+const IMAGE_CARD_MIN_HEIGHT = 140;
+const MARQUEE_DRAG_THRESHOLD = 6;
+
 function folderNameFromPath(folderPath) {
   if (!folderPath) return "No folder";
   const segments = folderPath.split(/[\\/]/);
   return segments[segments.length - 1] || folderPath;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error || new Error("Unable to read pasted image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function getImageDimensions(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+    };
+    image.onerror = () => reject(new Error("Unable to decode pasted image."));
+    image.src = src;
+  });
+}
+
+async function readClipboardImage(clipboardData) {
+  const imageItem = Array.from(clipboardData?.items ?? []).find((item) => item.type.startsWith("image/"));
+
+  if (!imageItem) {
+    return null;
+  }
+
+  const file = imageItem.getAsFile();
+
+  if (!file) {
+    return null;
+  }
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const dimensions = await getImageDimensions(dataUrl);
+
+  return {
+    dataUrl,
+    width: dimensions.width,
+    height: dimensions.height,
+  };
+}
+
+function getImageCardSize(width, height, previewKind = "default") {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return {
+      width: 340,
+      height: 280,
+    };
+  }
+
+  if (previewKind === "music") {
+    const side = Math.max(
+      IMAGE_CARD_MIN_WIDTH,
+      Math.min(IMAGE_CARD_SQUARE_MAX_WIDTH, Math.round(Math.min(width, height))),
+    );
+
+    return {
+      width: side,
+      height: side,
+    };
+  }
+
+  const aspectRatio = width / height;
+  const bounds = aspectRatio < 0.9
+    ? {
+      maxWidth: IMAGE_CARD_PORTRAIT_MAX_WIDTH,
+      maxHeight: IMAGE_CARD_PORTRAIT_MAX_HEIGHT,
+    }
+    : aspectRatio > 1.18
+      ? {
+        maxWidth: IMAGE_CARD_LANDSCAPE_MAX_WIDTH,
+        maxHeight: IMAGE_CARD_LANDSCAPE_MAX_HEIGHT,
+      }
+      : {
+        maxWidth: IMAGE_CARD_SQUARE_MAX_WIDTH,
+        maxHeight: IMAGE_CARD_SQUARE_MAX_HEIGHT,
+      };
+
+  let scale = Math.min(
+    bounds.maxWidth / width,
+    bounds.maxHeight / height,
+    1,
+  );
+
+  let nextWidth = width * scale;
+  let nextHeight = height * scale;
+
+  if (nextWidth < IMAGE_CARD_MIN_WIDTH && nextHeight < IMAGE_CARD_MIN_HEIGHT) {
+    const upscale = Math.max(
+      IMAGE_CARD_MIN_WIDTH / nextWidth,
+      IMAGE_CARD_MIN_HEIGHT / nextHeight,
+    );
+
+    nextWidth *= upscale;
+    nextHeight *= upscale;
+  }
+
+  return {
+    width: Math.round(nextWidth),
+    height: Math.round(nextHeight),
+  };
+}
+
+function isSelectionModifierPressed(event) {
+  return event.ctrlKey || event.metaKey;
+}
+
+function normalizeRect(startX, startY, endX, endY) {
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  const right = Math.max(startX, endX);
+  const bottom = Math.max(startY, endY);
+
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function rectsIntersect(leftRect, rightRect) {
+  return !(
+    leftRect.right < rightRect.left
+    || leftRect.left > rightRect.right
+    || leftRect.bottom < rightRect.top
+    || leftRect.top > rightRect.bottom
+  );
 }
 
 function IconFolder() {
@@ -77,6 +223,7 @@ export default function App() {
     setViewport,
     createNewTextCard,
     updateExistingCard,
+    updateExistingCards,
   } = useAppContext();
 
   const { log } = useLog();
@@ -92,10 +239,13 @@ export default function App() {
     onViewportChange: setViewport,
   });
   const dragStateRef = useRef(null);
+  const marqueeStateRef = useRef(null);
   const searchInputRef = useRef(null);
   const contextMenuRef = useRef(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [contextMenu, setContextMenu] = useState(null);
+  const [selectedCardIds, setSelectedCardIds] = useState([]);
+  const [marqueeBox, setMarqueeBox] = useState(null);
 
   useEffect(() => {
     if (error) {
@@ -112,6 +262,41 @@ export default function App() {
   useEffect(() => {
     setContextMenu(null);
   }, [folderPath]);
+
+  useEffect(() => {
+    setSelectedCardIds([]);
+    setMarqueeBox(null);
+    marqueeStateRef.current = null;
+    dragStateRef.current = null;
+  }, [folderPath]);
+
+  const selectedCardIdSet = useMemo(() => new Set(selectedCardIds), [selectedCardIds]);
+
+  const clientToWorldPoint = useCallback((clientX, clientY) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: (clientX - rect.left - workspace.viewport.x) / workspace.viewport.zoom,
+      y: (clientY - rect.top - workspace.viewport.y) / workspace.viewport.zoom,
+    };
+  }, [containerRef, workspace.viewport.x, workspace.viewport.y, workspace.viewport.zoom]);
+
+  const clientToCanvasPoint = useCallback((clientX, clientY) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }, [containerRef]);
 
   const focusSearchInput = useCallback(() => {
     const input = searchInputRef.current;
@@ -207,21 +392,66 @@ export default function App() {
   }, [folderPath, log, toast, updateExistingCard]);
 
   useEffect(() => {
-    function handlePaste(event) {
+    async function handlePaste(event) {
       if (isEditableElement(document.activeElement)) return;
 
-      const text = event.clipboardData?.getData("text/plain")?.trim();
-      if (!text) return;
-
-      event.preventDefault();
+      const clipboardData = event.clipboardData;
+      const text = clipboardData?.getData("text/plain")?.trim() ?? "";
 
       if (!folderPath) {
+        if (!text && !Array.from(clipboardData?.items ?? []).some((item) => item.type.startsWith("image/"))) {
+          return;
+        }
+
+        event.preventDefault();
         log("warn", "Paste blocked because no folder is open");
         toast("warn", "Open a folder first so AirPaste knows where to save the board.");
         return;
       }
 
       const centerPoint = getViewportCenter();
+
+      try {
+        const pastedImage = await readClipboardImage(clipboardData);
+
+        if (pastedImage?.dataUrl) {
+          event.preventDefault();
+
+          const imageCard = createNewLinkCard(pastedImage.dataUrl, centerPoint);
+          const imageCardSize = getImageCardSize(pastedImage.width, pastedImage.height);
+
+          updateExistingCard(imageCard.id, {
+            url: pastedImage.dataUrl,
+            title: "Pasted image",
+            description: "",
+            image: pastedImage.dataUrl,
+            siteName: "Image",
+            status: "ready",
+            width: imageCardSize.width,
+            height: imageCardSize.height,
+          });
+
+          log("success", "Pasted image into canvas center", {
+            width: pastedImage.width,
+            height: pastedImage.height,
+            centerPoint,
+          });
+          toast("success", "Image dropped into the center of the canvas.");
+          return;
+        }
+      } catch (pasteError) {
+        event.preventDefault();
+        const message = pasteError?.message || "Unable to paste that image.";
+        log("error", "Image paste failed", message);
+        toast("error", message);
+        return;
+      }
+
+      if (!text) {
+        return;
+      }
+
+      event.preventDefault();
 
       if (isUrl(text)) {
         log("info", "Pasted URL into canvas center", { url: text, centerPoint });
@@ -238,35 +468,240 @@ export default function App() {
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [createNewLinkCard, createNewTextCard, folderPath, getViewportCenter, log, toast, triggerPreview]);
+  }, [
+    createNewLinkCard,
+    createNewTextCard,
+    folderPath,
+    getViewportCenter,
+    log,
+    toast,
+    triggerPreview,
+    updateExistingCard,
+  ]);
+
+  const handleCanvasBoardPointerDown = useCallback((event) => {
+    const isCanvasBackground = event.target === event.currentTarget
+      || event.target.classList?.contains("canvas__content");
+
+    if (event.button !== 0 || !isCanvasBackground) {
+      return;
+    }
+
+    if (isSelectionModifierPressed(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startCanvasPoint = clientToCanvasPoint(event.clientX, event.clientY);
+
+      marqueeStateRef.current = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        currentClientX: event.clientX,
+        currentClientY: event.clientY,
+      };
+
+      setMarqueeBox({
+        x: startCanvasPoint.x,
+        y: startCanvasPoint.y,
+        width: 0,
+        height: 0,
+      });
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    if (selectedCardIds.length > 0) {
+      setSelectedCardIds([]);
+    }
+
+    handleCanvasPointerDown(event);
+  }, [clientToCanvasPoint, handleCanvasPointerDown, selectedCardIds.length]);
+
+  const handleCardMediaLoad = useCallback((card, mediaWidth, mediaHeight) => {
+    if (!card?.id || !card.image) {
+      return;
+    }
+
+    const nextSize = getImageCardSize(mediaWidth, mediaHeight, card.previewKind);
+
+    if (
+      Math.abs(card.width - nextSize.width) <= 1
+      && Math.abs(card.height - nextSize.height) <= 1
+    ) {
+      return;
+    }
+
+    updateExistingCard(card.id, {
+      width: nextSize.width,
+      height: nextSize.height,
+    });
+  }, [updateExistingCard]);
 
   useEffect(() => {
+    function updateMarquee(event) {
+      const marqueeState = marqueeStateRef.current;
+
+      if (!marqueeState || marqueeState.pointerId !== event.pointerId) {
+        return;
+      }
+
+      marqueeState.currentClientX = event.clientX;
+      marqueeState.currentClientY = event.clientY;
+
+      const startCanvasPoint = clientToCanvasPoint(
+        marqueeState.startClientX,
+        marqueeState.startClientY,
+      );
+      const currentCanvasPoint = clientToCanvasPoint(event.clientX, event.clientY);
+      const canvasRect = normalizeRect(
+        startCanvasPoint.x,
+        startCanvasPoint.y,
+        currentCanvasPoint.x,
+        currentCanvasPoint.y,
+      );
+
+      setMarqueeBox({
+        x: canvasRect.left,
+        y: canvasRect.top,
+        width: canvasRect.width,
+        height: canvasRect.height,
+      });
+    }
+
+    function finishMarquee(event) {
+      const marqueeState = marqueeStateRef.current;
+
+      if (!marqueeState || (event && marqueeState.pointerId !== event.pointerId)) {
+        return;
+      }
+
+      const dragDistanceX = Math.abs(marqueeState.currentClientX - marqueeState.startClientX);
+      const dragDistanceY = Math.abs(marqueeState.currentClientY - marqueeState.startClientY);
+
+      marqueeStateRef.current = null;
+      setMarqueeBox(null);
+
+      if (dragDistanceX < MARQUEE_DRAG_THRESHOLD && dragDistanceY < MARQUEE_DRAG_THRESHOLD) {
+        return;
+      }
+
+      const startWorldPoint = clientToWorldPoint(
+        marqueeState.startClientX,
+        marqueeState.startClientY,
+      );
+      const endWorldPoint = clientToWorldPoint(
+        marqueeState.currentClientX,
+        marqueeState.currentClientY,
+      );
+      const selectionWorldRect = normalizeRect(
+        startWorldPoint.x,
+        startWorldPoint.y,
+        endWorldPoint.x,
+        endWorldPoint.y,
+      );
+      const nextSelectedIds = workspace.cards
+        .filter((card) => rectsIntersect(selectionWorldRect, {
+          left: card.x,
+          top: card.y,
+          right: card.x + card.width,
+          bottom: card.y + card.height,
+        }))
+        .map((card) => card.id);
+
+      setSelectedCardIds(nextSelectedIds);
+    }
+
+    function cancelMarquee() {
+      if (!marqueeStateRef.current) {
+        return;
+      }
+
+      marqueeStateRef.current = null;
+      setMarqueeBox(null);
+    }
+
+    window.addEventListener("pointermove", updateMarquee, true);
+    window.addEventListener("pointerup", finishMarquee, true);
+    window.addEventListener("pointercancel", finishMarquee, true);
+    window.addEventListener("blur", cancelMarquee);
+
+    return () => {
+      window.removeEventListener("pointermove", updateMarquee, true);
+      window.removeEventListener("pointerup", finishMarquee, true);
+      window.removeEventListener("pointercancel", finishMarquee, true);
+      window.removeEventListener("blur", cancelMarquee);
+    };
+  }, [clientToCanvasPoint, clientToWorldPoint, workspace.cards]);
+
+  useEffect(() => {
+    function finishDrag() {
+      const dragState = dragStateRef.current;
+
+      if (!dragState) {
+        return;
+      }
+
+      if (dragState.hasMoved) {
+        log("info", "Card moved", {
+          cardId: dragState.cardId,
+          selectionSize: dragState.cardIds.length,
+        });
+      }
+
+      dragStateRef.current = null;
+    }
+
     function handlePointerMove(event) {
       if (!dragStateRef.current) return;
 
       const deltaX = (event.clientX - dragStateRef.current.pointerX) / workspace.viewport.zoom;
       const deltaY = (event.clientY - dragStateRef.current.pointerY) / workspace.viewport.zoom;
 
-      updateExistingCard(dragStateRef.current.cardId, {
-        x: dragStateRef.current.originX + deltaX,
-        y: dragStateRef.current.originY + deltaY,
-      });
+      dragStateRef.current.hasMoved = true;
+
+      updateExistingCards(
+        Object.fromEntries(
+          dragStateRef.current.cardIds.map((cardId) => {
+            const origin = dragStateRef.current.origins[cardId];
+
+            return [
+              cardId,
+              {
+                x: origin.x + deltaX,
+                y: origin.y + deltaY,
+              },
+            ];
+          }),
+        ),
+      );
     }
 
     function handlePointerUp() {
-      if (dragStateRef.current) {
-        log("info", "Card moved", { cardId: dragStateRef.current.cardId });
-        dragStateRef.current = null;
+      finishDrag();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        finishDrag();
       }
     }
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointermove", handlePointerMove, true);
+    window.addEventListener("pointerup", handlePointerUp, true);
+    window.addEventListener("pointercancel", handlePointerUp, true);
+    window.addEventListener("blur", handlePointerUp);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerup", handlePointerUp, true);
+      window.removeEventListener("pointercancel", handlePointerUp, true);
+      window.removeEventListener("blur", handlePointerUp);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [log, updateExistingCard, workspace.viewport.zoom]);
+  }, [log, updateExistingCards, workspace.viewport.zoom]);
 
   const handleCardDragStart = useCallback((card, event) => {
     setContextMenu(null);
@@ -276,14 +711,35 @@ export default function App() {
     if (!isPrimaryPointer) return;
     event.preventDefault();
     event.stopPropagation();
+
+    const dragCardIds = selectedCardIdSet.has(card.id)
+      ? selectedCardIds
+      : [card.id];
+
+    if (!selectedCardIdSet.has(card.id)) {
+      setSelectedCardIds([card.id]);
+    }
+
     dragStateRef.current = {
       cardId: card.id,
+      cardIds: dragCardIds,
       pointerX: event.clientX,
       pointerY: event.clientY,
-      originX: card.x,
-      originY: card.y,
+      origins: Object.fromEntries(
+        dragCardIds
+          .map((cardId) => workspace.cards.find((currentCard) => currentCard.id === cardId))
+          .filter(Boolean)
+          .map((currentCard) => [
+            currentCard.id,
+            {
+              x: currentCard.x,
+              y: currentCard.y,
+            },
+          ]),
+      ),
+      hasMoved: false,
     };
-  }, []);
+  }, [selectedCardIdSet, selectedCardIds, workspace.cards]);
 
   const handleCardContextMenu = useCallback((card, event) => {
     event.preventDefault();
@@ -509,9 +965,9 @@ export default function App() {
           <div
             ref={containerRef}
             id="canvas-board"
-            className="canvas"
+            className={`canvas${marqueeBox ? " canvas--selecting" : ""}`}
             tabIndex={-1}
-            onPointerDown={handleCanvasPointerDown}
+            onPointerDown={handleCanvasBoardPointerDown}
             onWheel={handleCanvasWheel}
             onClick={(event) => {
               if (!isEditableElement(event.target)) {
@@ -536,6 +992,10 @@ export default function App() {
                 <Card
                   key={card.id}
                   card={card}
+                  isSelected={selectedCardIdSet.has(card.id)}
+                  onMediaLoad={(mediaWidth, mediaHeight) => {
+                    handleCardMediaLoad(card, mediaWidth, mediaHeight);
+                  }}
                   onContextMenu={handleCardContextMenu}
                   onDragStart={handleCardDragStart}
                   onTextChange={(cardId, nextText) => {
@@ -550,6 +1010,16 @@ export default function App() {
                 />
               ))}
             </div>
+            {marqueeBox ? (
+              <div
+                className="canvas__marquee"
+                style={{
+                  transform: `translate(${marqueeBox.x}px, ${marqueeBox.y}px)`,
+                  width: `${marqueeBox.width}px`,
+                  height: `${marqueeBox.height}px`,
+                }}
+              />
+            ) : null}
 
             {!folderPath ? (
               <section className="canvas__callout">
