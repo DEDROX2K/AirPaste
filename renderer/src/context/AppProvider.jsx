@@ -4,6 +4,7 @@ import {
   createEmptyWorkspace,
   createLinkCard,
   createTextCard,
+  mergeCardIntoNoteFolder,
   normalizeWorkspace,
   removeCard,
   updateCard,
@@ -81,12 +82,13 @@ export function AppProvider({ children }) {
     }));
   }, [patchWorkspace]);
 
-  const createNewTextCard = useCallback((text = "", preferredCenter = null) => {
+  const createNewTextCard = useCallback((text = "", preferredCenter = null, options = {}) => {
     const card = createTextCard(
       workspaceRef.current.cards,
       workspaceRef.current.viewport,
       text,
       preferredCenter,
+      options,
     );
 
     patchWorkspace((currentWorkspace) => ({
@@ -125,6 +127,24 @@ export function AppProvider({ children }) {
       ...currentWorkspace,
       cards: updateCards(currentWorkspace.cards, updatesById),
     }));
+  }, [patchWorkspace]);
+
+  const mergeExistingNoteCardIntoFolder = useCallback((sourceCardId, targetCardId) => {
+    const mergeResult = mergeCardIntoNoteFolder(workspaceRef.current.cards, sourceCardId, targetCardId);
+
+    if (!mergeResult) {
+      return null;
+    }
+
+    const nextWorkspace = {
+      ...workspaceRef.current,
+      cards: mergeResult.cards,
+    };
+
+    workspaceRef.current = nextWorkspace;
+    patchWorkspace(nextWorkspace);
+
+    return mergeResult.folderCard;
   }, [patchWorkspace]);
 
   const deleteExistingCard = useCallback((cardId) => {
@@ -240,6 +260,7 @@ export function AppProvider({ children }) {
     createNewTextCard,
     createNewLinkCard,
     deleteExistingCard,
+    mergeExistingNoteCardIntoFolder,
     updateExistingCard,
     updateExistingCards,
   }), [
@@ -253,6 +274,7 @@ export function AppProvider({ children }) {
     createNewTextCard,
     createNewLinkCard,
     deleteExistingCard,
+    mergeExistingNoteCardIntoFolder,
     updateExistingCard,
     updateExistingCards,
   ]);

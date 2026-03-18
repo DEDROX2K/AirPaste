@@ -1,13 +1,21 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Card from "./components/Card";
 import { DevConsole } from "./components/DevConsole";
+import NoteMagnifier from "./components/notes/NoteMagnifier";
 import TileContextMenu from "./components/TileContextMenu";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
 import { useCanvas } from "./hooks/useCanvas";
 import { useLog } from "./hooks/useLog";
 import { useToast } from "./hooks/useToast";
-import { isEditableElement, isUrl } from "./lib/workspace";
+import {
+  isEditableElement,
+  isUrl,
+  NOTE_FOLDER_CARD_TYPE,
+  NOTE_STYLE_ONE,
+  NOTE_STYLE_TWO,
+  NOTE_STYLE_THREE,
+} from "./lib/workspace";
 import { filterTiles } from "./utils/searchTiles";
 
 const IMAGE_CARD_PORTRAIT_MAX_WIDTH = 320;
@@ -19,6 +27,7 @@ const IMAGE_CARD_LANDSCAPE_MAX_HEIGHT = 320;
 const IMAGE_CARD_MIN_WIDTH = 180;
 const IMAGE_CARD_MIN_HEIGHT = 140;
 const MARQUEE_DRAG_THRESHOLD = 6;
+const NOTE_FOLDER_HOVER_DELAY_MS = 2000;
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) return "No folder";
@@ -162,6 +171,39 @@ function rectsIntersect(leftRect, rightRect) {
   );
 }
 
+function getCardRect(card) {
+  return {
+    left: card.x,
+    top: card.y,
+    right: card.x + card.width,
+    bottom: card.y + card.height,
+    width: card.width,
+    height: card.height,
+  };
+}
+
+function getIntersectionArea(leftRect, rightRect) {
+  const width = Math.min(leftRect.right, rightRect.right) - Math.max(leftRect.left, rightRect.left);
+  const height = Math.min(leftRect.bottom, rightRect.bottom) - Math.max(leftRect.top, rightRect.top);
+
+  if (width <= 0 || height <= 0) {
+    return 0;
+  }
+
+  return width * height;
+}
+
+function pointInsideCard(point, card) {
+  return point.x >= card.x
+    && point.x <= card.x + card.width
+    && point.y >= card.y
+    && point.y <= card.y + card.height;
+}
+
+function isNoteFolderMergeCandidate(card) {
+  return card?.type === "text" || card?.type === NOTE_FOLDER_CARD_TYPE;
+}
+
 function IconFolder() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -178,6 +220,27 @@ function IconNote() {
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
       <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+function IconChecklistNote() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="m8 9 1.4 1.4L12 7.8" />
+      <path d="m8 15 1.4 1.4L12 13.8" />
+      <line x1="14" y1="9" x2="17" y2="9" />
+      <line x1="14" y1="15" x2="17" y2="15" />
+    </svg>
+  );
+}
+
+function IconQuote() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 8H6.8A2.8 2.8 0 0 0 4 10.8V14a3 3 0 0 0 3 3h1a3 3 0 0 0 3-3V8.8A2.8 2.8 0 0 0 8.2 6H8" />
+      <path d="M20 8h-3.2A2.8 2.8 0 0 0 14 10.8V14a3 3 0 0 0 3 3h1a3 3 0 0 0 3-3V8.8A2.8 2.8 0 0 0 18.2 6H18" />
     </svg>
   );
 }
@@ -222,6 +285,7 @@ export default function App() {
     workspace,
     setViewport,
     createNewTextCard,
+    mergeExistingNoteCardIntoFolder,
     updateExistingCard,
     updateExistingCards,
   } = useAppContext();
@@ -239,13 +303,30 @@ export default function App() {
     onViewportChange: setViewport,
   });
   const dragStateRef = useRef(null);
+  const cardsRef = useRef(workspace.cards);
+  const mergeIntentRef = useRef(null);
   const marqueeStateRef = useRef(null);
   const searchInputRef = useRef(null);
   const contextMenuRef = useRef(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [contextMenu, setContextMenu] = useState(null);
+  const [mergeTargetCardId, setMergeTargetCardId] = useState(null);
+  const [magnifiedNoteState, setMagnifiedNoteState] = useState(null);
   const [selectedCardIds, setSelectedCardIds] = useState([]);
   const [marqueeBox, setMarqueeBox] = useState(null);
+
+  const clearMergeIntent = useCallback(() => {
+    if (mergeIntentRef.current?.timeoutId) {
+      window.clearTimeout(mergeIntentRef.current.timeoutId);
+    }
+
+    mergeIntentRef.current = null;
+    setMergeTargetCardId(null);
+  }, []);
+
+  useEffect(() => {
+    cardsRef.current = workspace.cards;
+  }, [workspace.cards]);
 
   useEffect(() => {
     if (error) {
@@ -268,7 +349,21 @@ export default function App() {
     setMarqueeBox(null);
     marqueeStateRef.current = null;
     dragStateRef.current = null;
-  }, [folderPath]);
+    clearMergeIntent();
+    setMagnifiedNoteState(null);
+  }, [clearMergeIntent, folderPath]);
+
+  useEffect(() => {
+    if (!magnifiedNoteState) {
+      return;
+    }
+
+    const noteStillExists = workspace.cards.some((card) => card.id === magnifiedNoteState.cardId && card.type === "text");
+
+    if (!noteStillExists) {
+      setMagnifiedNoteState(null);
+    }
+  }, [magnifiedNoteState, workspace.cards]);
 
   const selectedCardIdSet = useMemo(() => new Set(selectedCardIds), [selectedCardIds]);
 
@@ -539,6 +634,101 @@ export default function App() {
     });
   }, [updateExistingCard]);
 
+  const findMergeHoverTarget = useCallback((dragState, pointerClientX, pointerClientY) => {
+    if (!dragState || dragState.cardIds.length !== 1) {
+      return null;
+    }
+
+    const sourceCard = cardsRef.current.find((card) => card.id === dragState.cardId);
+
+    if (!sourceCard || sourceCard.type !== "text") {
+      return null;
+    }
+
+    const deltaX = (pointerClientX - dragState.pointerX) / workspace.viewport.zoom;
+    const deltaY = (pointerClientY - dragState.pointerY) / workspace.viewport.zoom;
+    const draggedRect = {
+      left: dragState.origins[sourceCard.id].x + deltaX,
+      top: dragState.origins[sourceCard.id].y + deltaY,
+      right: dragState.origins[sourceCard.id].x + deltaX + sourceCard.width,
+      bottom: dragState.origins[sourceCard.id].y + deltaY + sourceCard.height,
+      width: sourceCard.width,
+      height: sourceCard.height,
+    };
+    const pointerWorldPoint = clientToWorldPoint(pointerClientX, pointerClientY);
+    let bestTarget = null;
+    let bestScore = 0;
+
+    for (const card of cardsRef.current) {
+      if (card.id === sourceCard.id || !isNoteFolderMergeCandidate(card)) {
+        continue;
+      }
+
+      const targetRect = getCardRect(card);
+      const intersectionArea = getIntersectionArea(draggedRect, targetRect);
+      const overlapScore = intersectionArea / Math.min(
+        Math.max(1, draggedRect.width * draggedRect.height),
+        Math.max(1, targetRect.width * targetRect.height),
+      );
+      const pointerInsideTarget = pointInsideCard(pointerWorldPoint, card);
+      const score = pointerInsideTarget ? overlapScore + 1 : overlapScore;
+
+      if ((pointerInsideTarget || overlapScore >= 0.18) && score > bestScore) {
+        bestTarget = card;
+        bestScore = score;
+      }
+    }
+
+    return bestTarget;
+  }, [clientToWorldPoint, workspace.viewport.zoom]);
+
+  const queueMergeIntent = useCallback((sourceCardId, targetCardId) => {
+    const existingIntent = mergeIntentRef.current;
+
+    if (existingIntent?.sourceCardId === sourceCardId && existingIntent?.targetCardId === targetCardId) {
+      return;
+    }
+
+    clearMergeIntent();
+    setMergeTargetCardId(targetCardId);
+
+    const timeoutId = window.setTimeout(() => {
+      const activeDrag = dragStateRef.current;
+      const activeIntent = mergeIntentRef.current;
+
+      if (
+        !activeDrag
+        || !activeIntent
+        || activeIntent.sourceCardId !== sourceCardId
+        || activeIntent.targetCardId !== targetCardId
+      ) {
+        return;
+      }
+
+      const folderCard = mergeExistingNoteCardIntoFolder(sourceCardId, targetCardId);
+      clearMergeIntent();
+
+      if (!folderCard) {
+        return;
+      }
+
+      dragStateRef.current = null;
+      setSelectedCardIds([folderCard.id]);
+      log("success", "Notes grouped into a folder", {
+        sourceCardId,
+        targetCardId,
+        folderCardId: folderCard.id,
+      });
+      toast("success", "Note tucked into a folder.");
+    }, NOTE_FOLDER_HOVER_DELAY_MS);
+
+    mergeIntentRef.current = {
+      sourceCardId,
+      targetCardId,
+      timeoutId,
+    };
+  }, [clearMergeIntent, log, mergeExistingNoteCardIntoFolder, toast]);
+
   useEffect(() => {
     function updateMarquee(event) {
       const marqueeState = marqueeStateRef.current;
@@ -640,6 +830,7 @@ export default function App() {
       const dragState = dragStateRef.current;
 
       if (!dragState) {
+        clearMergeIntent();
         return;
       }
 
@@ -651,6 +842,7 @@ export default function App() {
       }
 
       dragStateRef.current = null;
+      clearMergeIntent();
     }
 
     function handlePointerMove(event) {
@@ -676,6 +868,18 @@ export default function App() {
           }),
         ),
       );
+
+      const mergeTarget = findMergeHoverTarget(
+        dragStateRef.current,
+        event.clientX,
+        event.clientY,
+      );
+
+      if (mergeTarget) {
+        queueMergeIntent(dragStateRef.current.cardId, mergeTarget.id);
+      } else {
+        clearMergeIntent();
+      }
     }
 
     function handlePointerUp() {
@@ -701,10 +905,12 @@ export default function App() {
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [log, updateExistingCards, workspace.viewport.zoom]);
+  }, [clearMergeIntent, findMergeHoverTarget, log, queueMergeIntent, updateExistingCards, workspace.viewport.zoom]);
 
   const handleCardDragStart = useCallback((card, event) => {
     setContextMenu(null);
+    clearMergeIntent();
+    setMagnifiedNoteState(null);
 
     const isPrimaryPointer = event.button === 0 || event.buttons === 1;
 
@@ -739,7 +945,7 @@ export default function App() {
       ),
       hasMoved: false,
     };
-  }, [selectedCardIdSet, selectedCardIds, workspace.cards]);
+  }, [clearMergeIntent, selectedCardIdSet, selectedCardIds, workspace.cards]);
 
   const handleCardContextMenu = useCallback((card, event) => {
     event.preventDefault();
@@ -781,7 +987,7 @@ export default function App() {
     }
   }, [log, openFolder, toast]);
 
-  const handleNewTextCard = useCallback(() => {
+  const handleCreateNoteVariant = useCallback((noteStyle, successMessage, logMessage) => {
     if (!folderPath) {
       log("warn", "New note blocked because no folder is open");
       toast("warn", "Open a folder first.");
@@ -789,13 +995,53 @@ export default function App() {
     }
 
     const centerPoint = getViewportCenter();
-    log("success", "New blank text card created in canvas center", centerPoint);
-    createNewTextCard("", centerPoint);
-    toast("success", "Blank note dropped into the center.");
+    log("success", logMessage, centerPoint);
+    createNewTextCard("", centerPoint, { noteStyle });
+    toast("success", successMessage);
   }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
+
+  const handleNewNoteOneCard = useCallback(() => {
+    handleCreateNoteVariant(
+      NOTE_STYLE_ONE,
+      "Note 1 dropped into the center.",
+      "New blank note 1 card created in canvas center",
+    );
+  }, [handleCreateNoteVariant]);
+
+  const handleNewTextCard = useCallback(() => {
+    handleCreateNoteVariant(
+      NOTE_STYLE_TWO,
+      "Note 2 dropped into the center.",
+      "New blank note 2 card created in canvas center",
+    );
+  }, [handleCreateNoteVariant]);
+
+  const handleNewQuoteCard = useCallback(() => {
+    handleCreateNoteVariant(
+      NOTE_STYLE_THREE,
+      "Note 3 dropped into the center.",
+      "New blank note 3 card created in canvas center",
+    );
+  }, [handleCreateNoteVariant]);
 
   const handleContextAction = useCallback(() => {
     setContextMenu(null);
+  }, []);
+
+  const handleRequestTextNoteMagnify = useCallback((cardId, options = {}) => {
+    if (!cardId) {
+      return;
+    }
+
+    setContextMenu(null);
+    setMagnifiedNoteState({
+      cardId,
+      startSplit: Boolean(options.startSplit),
+    });
+  }, []);
+
+  const handleCloseTextNoteMagnify = useCallback(() => {
+    setMagnifiedNoteState(null);
   }, []);
 
   const handleDeleteFromContextMenu = useCallback((card) => {
@@ -833,6 +1079,9 @@ export default function App() {
   const sidebarMeta = folderPath
     ? tileCountLabel
     : "Choose a local folder, then paste links or notes onto the board.";
+  const magnifiedNoteCard = magnifiedNoteState
+    ? workspace.cards.find((card) => card.id === magnifiedNoteState.cardId && card.type === "text") ?? null
+    : null;
 
   if (booting) {
     return (
@@ -896,15 +1145,37 @@ export default function App() {
               <IconFolder />
             </button>
             <button
-              id="side-nav-new-note"
+              id="side-nav-new-note-1"
+              className="side-nav__action"
+              type="button"
+              onClick={handleNewNoteOneCard}
+              disabled={!folderPath}
+              aria-label="Create note 1"
+              title="Create note 1"
+            >
+              <IconChecklistNote />
+            </button>
+            <button
+              id="side-nav-new-note-2"
               className="side-nav__action"
               type="button"
               onClick={handleNewTextCard}
               disabled={!folderPath}
-              aria-label="Create note"
-              title="Create note"
+              aria-label="Create note 2"
+              title="Create note 2"
             >
               <IconNote />
+            </button>
+            <button
+              id="side-nav-new-note-3"
+              className="side-nav__action"
+              type="button"
+              onClick={handleNewQuoteCard}
+              disabled={!folderPath}
+              aria-label="Create note 3"
+              title="Create note 3"
+            >
+              <IconQuote />
             </button>
             <button
               id="side-nav-search"
@@ -992,14 +1263,17 @@ export default function App() {
                 <Card
                   key={card.id}
                   card={card}
+                  isMergeTarget={mergeTargetCardId === card.id}
                   isSelected={selectedCardIdSet.has(card.id)}
+                  viewportZoom={workspace.viewport.zoom}
                   onMediaLoad={(mediaWidth, mediaHeight) => {
                     handleCardMediaLoad(card, mediaWidth, mediaHeight);
                   }}
                   onContextMenu={handleCardContextMenu}
                   onDragStart={handleCardDragStart}
-                  onTextChange={(cardId, nextText) => {
-                    updateExistingCard(cardId, { text: nextText });
+                  onRequestTextNoteMagnify={handleRequestTextNoteMagnify}
+                  onTextChange={(cardId, updates) => {
+                    updateExistingCard(cardId, updates);
                   }}
                   onRetry={(nextCard) => {
                     log("info", `Retrying preview for card ${nextCard.id}`);
@@ -1075,6 +1349,14 @@ export default function App() {
         menuRef={contextMenuRef}
         onAction={handleContextAction}
         onDelete={handleDeleteFromContextMenu}
+      />
+      <NoteMagnifier
+        card={magnifiedNoteCard}
+        initialSplit={Boolean(magnifiedNoteState?.startSplit)}
+        onClose={handleCloseTextNoteMagnify}
+        onTextChange={(cardId, updates) => {
+          updateExistingCard(cardId, updates);
+        }}
       />
       <ToastStack />
       <DevConsole />

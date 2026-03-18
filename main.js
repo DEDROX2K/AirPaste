@@ -41,6 +41,11 @@ const DEFAULT_WORKSPACE = Object.freeze({
   },
   cards: [],
 });
+const NOTE_FOLDER_CARD_TYPE = "note-folder";
+const NOTE_STYLE_TWO = "notes-2";
+const NOTE_STYLE_THREE = "notes-3";
+const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
+const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
 
 let mainWindow = null;
 const previewJobs = new Map();
@@ -61,16 +66,94 @@ function isFiniteNumber(value, fallback) {
 }
 
 function defaultCardSize(type) {
-  return type === "link"
-    ? { width: 340, height: 280 }
-    : { width: 300, height: 220 };
+  if (type === "link") {
+    return { width: 340, height: 280 };
+  }
+
+  if (type === NOTE_FOLDER_CARD_TYPE) {
+    return { width: 360, height: 284 };
+  }
+
+  return { width: 428, height: 540 };
+}
+
+function defaultTextCardSize(noteStyle) {
+  if (noteStyle === NOTE_STYLE_THREE) {
+    return { width: 452, height: 468 };
+  }
+
+  return { width: 428, height: 540 };
+}
+
+function firstString(...values) {
+  return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
+}
+
+function getCardType(card) {
+  if (card?.type === "link") {
+    return "link";
+  }
+
+  if (card?.type === NOTE_FOLDER_CARD_TYPE) {
+    return NOTE_FOLDER_CARD_TYPE;
+  }
+
+  return "text";
+}
+
+function stripNoteLine(line) {
+  return String(line ?? "")
+    .trim()
+    .replace(/^#+\s*/, "")
+    .replace(/^(?:[-*•]\s*)?\[(?:\s|x|X)\]\s+/, "")
+    .replace(/^(?:[-*•]\s+)/, "")
+    .trim();
+}
+
+function getTextCardHeadline(text) {
+  return String(text ?? "")
+    .split(/\r?\n/)
+    .map(stripNoteLine)
+    .find(Boolean) ?? "";
+}
+
+function normalizeFolderNote(note, index = 0) {
+  const createdAt = typeof note?.createdAt === "string" ? note.createdAt : nowIso();
+  const updatedAt = typeof note?.updatedAt === "string" ? note.updatedAt : createdAt;
+
+  return {
+    id: typeof note?.id === "string" ? note.id : `note-${index}-${Date.now()}`,
+    text: String(note?.text ?? ""),
+    secondaryText: String(note?.secondaryText ?? ""),
+    noteStyle: typeof note?.noteStyle === "string" ? note.noteStyle : NOTE_STYLE_TWO,
+    quoteAuthor: String(note?.quoteAuthor ?? ""),
+    createdAt,
+    updatedAt,
+  };
+}
+
+function normalizeFolderNotes(notes) {
+  return Array.isArray(notes)
+    ? notes.map((note, index) => normalizeFolderNote(note, index))
+    : [];
+}
+
+function getFolderTitleFromNotes(notes) {
+  return firstString(
+    ...notes.map((note) => getTextCardHeadline(note.text)),
+    NOTE_FOLDER_DEFAULT_TITLE,
+  );
 }
 
 function normalizeCard(card, index = 0) {
-  const type = card?.type === "link" ? "link" : "text";
-  const size = defaultCardSize(type);
+  const type = getCardType(card);
+  const noteStyle = type === "text" && typeof card?.noteStyle === "string"
+    ? card.noteStyle
+    : NOTE_STYLE_TWO;
+  const size = type === "text" ? defaultTextCardSize(noteStyle) : defaultCardSize(type);
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
+  const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
 
   return {
     id: typeof card?.id === "string" ? card.id : `card-${index}-${Date.now()}`,
@@ -80,9 +163,20 @@ function normalizeCard(card, index = 0) {
     width: isFiniteNumber(card?.width, size.width),
     height: isFiniteNumber(card?.height, size.height),
     text: type === "text" ? String(card?.text ?? "") : "",
+    secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
+    noteStyle: type === "text" ? noteStyle : "",
+    quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
     url: type === "link" ? String(card?.url ?? "") : "",
-    title: type === "link" ? String(card?.title ?? "") : "",
-    description: type === "link" ? String(card?.description ?? "") : "",
+    title: type === "link"
+      ? String(card?.title ?? "")
+      : type === NOTE_FOLDER_CARD_TYPE
+        ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
+        : "",
+    description: type === "link"
+      ? String(card?.description ?? "")
+      : type === NOTE_FOLDER_CARD_TYPE
+        ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
+        : "",
     image: type === "link" ? String(card?.image ?? "") : "",
     favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
@@ -90,6 +184,7 @@ function normalizeCard(card, index = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    notes,
     createdAt,
     updatedAt,
   };
@@ -259,10 +354,6 @@ function getHostname(url) {
   } catch {
     return "Link";
   }
-}
-
-function firstString(...values) {
-  return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
 }
 
 function resolveUrl(input, baseUrl) {
