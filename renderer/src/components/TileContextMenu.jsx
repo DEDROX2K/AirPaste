@@ -6,13 +6,16 @@ const PRIMARY_ACTIONS = [
 
 export default function TileContextMenu({
   menu,
-  menuRef,
   onAction,
   onDelete,
 }) {
   if (!menu) {
     return null;
   }
+
+  const deleteLabel = menu.selectionIds?.length > 1
+    ? `Delete ${menu.selectionIds.length} tiles`
+    : "Delete tile";
 
   function handleActionClick(event, actionId) {
     event.preventDefault();
@@ -23,16 +26,15 @@ export default function TileContextMenu({
   function handleDeleteClick(event) {
     event.preventDefault();
     event.stopPropagation();
-    onDelete(menu.card);
+    onDelete(menu);
   }
 
   return (
     <div
-      ref={menuRef}
       className="tile-context-menu"
       style={{
-        left: `${menu.x}px`,
-        top: `${menu.y}px`,
+        "--context-menu-x": `${menu.x}px`,
+        "--context-menu-y": `${menu.y}px`,
       }}
       role="menu"
       aria-label="Tile actions"
@@ -63,7 +65,7 @@ export default function TileContextMenu({
           onClick={handleDeleteClick}
         >
           <span className="tile-context-menu__icon tile-context-menu__icon--delete" aria-hidden="true" />
-          <span>Delete card</span>
+          <span>{deleteLabel}</span>
         </button>
       </div>
     </div>

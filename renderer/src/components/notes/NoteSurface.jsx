@@ -60,10 +60,13 @@ export default function NoteSurface({
     .filter(Boolean)
     .join(" ");
   const surfaceStyle = isMagnified
-    ? getMagnifiedTextNoteStyle(card, isSplit)
+    ? {
+      "--note-surface-width": getMagnifiedTextNoteStyle(card, isSplit).width,
+      "--note-surface-height": getMagnifiedTextNoteStyle(card, isSplit).height,
+    }
     : {
-      width: `${card.width}px`,
-      height: `${card.height}px`,
+      "--note-surface-width": `${card.width}px`,
+      "--note-surface-height": `${card.height}px`,
     };
 
   return (

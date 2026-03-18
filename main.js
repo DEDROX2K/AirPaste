@@ -32,8 +32,10 @@ const MUSIC_HOSTS = Object.freeze([
   "www.deezer.com",
 ]);
 
+const WORKSPACE_SCHEMA_VERSION = 2;
+
 const DEFAULT_WORKSPACE = Object.freeze({
-  version: 1,
+  version: WORKSPACE_SCHEMA_VERSION,
   viewport: {
     x: 180,
     y: 120,
@@ -191,16 +193,16 @@ function normalizeCard(card, index = 0) {
 }
 
 function normalizeWorkspace(rawWorkspace) {
-  const workspace = rawWorkspace && typeof rawWorkspace === "object"
+  const workspace = migrateWorkspace(rawWorkspace && typeof rawWorkspace === "object"
     ? rawWorkspace
-    : cloneDefaultWorkspace();
+    : cloneDefaultWorkspace());
 
   const cards = Array.isArray(workspace.cards)
     ? workspace.cards.map((card, index) => normalizeCard(card, index))
     : [];
 
   return {
-    version: 1,
+    version: WORKSPACE_SCHEMA_VERSION,
     viewport: {
       x: isFiniteNumber(workspace.viewport?.x, DEFAULT_WORKSPACE.viewport.x),
       y: isFiniteNumber(workspace.viewport?.y, DEFAULT_WORKSPACE.viewport.y),
@@ -208,6 +210,28 @@ function normalizeWorkspace(rawWorkspace) {
     },
     cards,
   };
+}
+
+function migrateWorkspace(rawWorkspace) {
+  const safeWorkspace = rawWorkspace && typeof rawWorkspace === "object"
+    ? rawWorkspace
+    : cloneDefaultWorkspace();
+  const version = Number.isFinite(safeWorkspace.version) ? safeWorkspace.version : 1;
+
+  if (version >= WORKSPACE_SCHEMA_VERSION) {
+    return safeWorkspace;
+  }
+
+  let nextWorkspace = { ...safeWorkspace };
+
+  if (version < 2) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 2,
+    };
+  }
+
+  return nextWorkspace;
 }
 
 function getConfigPath() {
@@ -1123,6 +1147,15 @@ ipcMain.handle("airpaste:saveWorkspace", async (_event, folderPath, data) => {
     await safeWriteJson(getWorkspaceFilePath(folderPath), workspace);
     return workspace;
   });
+});
+
+ipcMain.handle("airpaste:openExternal", async (_event, url) => {
+  if (typeof url !== "string" || url.trim().length === 0) {
+    return { opened: false };
+  }
+
+  await shell.openExternal(url);
+  return { opened: true };
 });
 
 ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, url, cardSnapshot) => {

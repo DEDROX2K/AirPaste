@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("airpaste", {
   openFolder: () => ipcRenderer.invoke("airpaste:openFolder"),
   loadWorkspace: (folderPath) => ipcRenderer.invoke("airpaste:loadWorkspace", folderPath),
   saveWorkspace: (folderPath, data) => ipcRenderer.invoke("airpaste:saveWorkspace", folderPath, data),
+  openExternal: (url) => ipcRenderer.invoke("airpaste:openExternal", url),
   fetchLinkPreview: (folderPath, cardId, url, cardSnapshot) =>
     ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot),
   cancelLinkPreview: (folderPath, cardId) =>

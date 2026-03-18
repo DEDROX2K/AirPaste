@@ -3,13 +3,17 @@ import { AppContext } from "./AppContext";
 import {
   createEmptyWorkspace,
   createLinkCard,
+  createNoteFolderCard,
   createTextCard,
   mergeCardIntoNoteFolder,
   normalizeWorkspace,
+  replaceCards,
   removeCard,
+  reorderCards,
   updateCard,
   updateCards,
 } from "../lib/workspace";
+import { desktop } from "../lib/desktop";
 
 const SAVE_DELAY_MS = 250;
 
@@ -36,7 +40,7 @@ export function AppProvider({ children }) {
     setError("");
 
     try {
-      const payload = await window.airpaste.loadWorkspace(nextFolderPath);
+      const payload = await desktop.workspace.loadWorkspace(nextFolderPath);
       skipSaveRef.current = true;
       setFolderPath(payload.folderPath);
       setWorkspace(normalizeWorkspace(payload.workspace));
@@ -51,7 +55,7 @@ export function AppProvider({ children }) {
 
   const openFolder = useCallback(async () => {
     try {
-      const selectedPath = await window.airpaste.openFolder();
+      const selectedPath = await desktop.workspace.openFolder();
 
       if (!selectedPath) {
         return null;
@@ -99,6 +103,22 @@ export function AppProvider({ children }) {
     return card;
   }, [patchWorkspace]);
 
+  const createNewNoteFolderCard = useCallback((preferredCenter = null, options = {}) => {
+    const card = createNoteFolderCard(
+      workspaceRef.current.cards,
+      workspaceRef.current.viewport,
+      preferredCenter,
+      options,
+    );
+
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: [...currentWorkspace.cards, card],
+    }));
+
+    return card;
+  }, [patchWorkspace]);
+
   const createNewLinkCard = useCallback((url, preferredCenter = null) => {
     const card = createLinkCard(
       workspaceRef.current.cards,
@@ -126,6 +146,20 @@ export function AppProvider({ children }) {
     patchWorkspace((currentWorkspace) => ({
       ...currentWorkspace,
       cards: updateCards(currentWorkspace.cards, updatesById),
+    }));
+  }, [patchWorkspace]);
+
+  const replaceWorkspaceCards = useCallback((nextCards) => {
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: replaceCards(currentWorkspace.cards, nextCards),
+    }));
+  }, [patchWorkspace]);
+
+  const reorderExistingCards = useCallback((orderedCardIds) => {
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: reorderCards(currentWorkspace.cards, orderedCardIds),
     }));
   }, [patchWorkspace]);
 
@@ -157,7 +191,7 @@ export function AppProvider({ children }) {
       cards: removeCard(currentWorkspace.cards, cardId),
     }));
 
-    const cancelPreview = window.airpaste?.cancelLinkPreview;
+    const cancelPreview = desktop.workspace.cancelLinkPreview;
 
     if (folderPath && typeof cancelPreview === "function") {
       void cancelPreview(folderPath, cardId).catch(() => {});
@@ -169,7 +203,7 @@ export function AppProvider({ children }) {
 
     async function boot() {
       try {
-        const lastFolder = await window.airpaste.getLastFolder();
+        const lastFolder = await desktop.workspace.getLastFolder();
 
         if (cancelled || !lastFolder) {
           return;
@@ -195,7 +229,7 @@ export function AppProvider({ children }) {
   }, [loadFolder]);
 
   useEffect(() => {
-    const unsubscribe = window.airpaste.onPreviewUpdated((payload) => {
+    const unsubscribe = desktop.workspace.onPreviewUpdated((payload) => {
       if (!payload?.card || (folderPath && payload.folderPath !== folderPath)) {
         return;
       }
@@ -237,7 +271,7 @@ export function AppProvider({ children }) {
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await window.airpaste.saveWorkspace(folderPath, workspace);
+        await desktop.workspace.saveWorkspace(folderPath, workspace);
       } catch (saveError) {
         setError(saveError.message || "Unable to save the current canvas.");
       }
@@ -258,9 +292,12 @@ export function AppProvider({ children }) {
     setError,
     setViewport,
     createNewTextCard,
+    createNewNoteFolderCard,
     createNewLinkCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,
+    replaceWorkspaceCards,
+    reorderExistingCards,
     updateExistingCard,
     updateExistingCards,
   }), [
@@ -272,9 +309,12 @@ export function AppProvider({ children }) {
     openFolder,
     setViewport,
     createNewTextCard,
+    createNewNoteFolderCard,
     createNewLinkCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,
+    replaceWorkspaceCards,
+    reorderExistingCards,
     updateExistingCard,
     updateExistingCards,
   ]);
