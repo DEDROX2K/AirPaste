@@ -813,8 +813,7 @@ a {
   --record-hover-rotation: -5deg;
   --record-transition-duration: 280ms;
   --record-transition-easing: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Drop a future transparent PNG into this variable to overlay the sleeve artwork. */
-  --record-overlay-image: none;
+  --record-overlay-image: url("/tilesimg/album%20cover.png");
   --record-overlay-opacity: 1;
 }
 
@@ -2110,9 +2109,12 @@ a {
 
 .card__record-sleeve::before {
   z-index: 1;
-  background:
+  background-image: url('public/tilesimg/album cover.png');
+
+  opacity: 0.1;
+  /* background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, transparent 58%, rgba(0, 0, 0, 0.12));
+    linear-gradient(180deg, transparent 58%, rgba(0, 0, 0, 0.12)); */
 }
 
 .card__record-sleeve::after {
