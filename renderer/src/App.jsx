@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Card from "./components/Card";
+import CanvasDock from "./components/CanvasDock";
 import { DevConsole } from "./components/DevConsole";
 import NoteMagnifier from "./components/notes/NoteMagnifier";
 import TileContextMenu from "./components/TileContextMenu";
@@ -13,6 +14,7 @@ import { useCanvasSystem } from "./systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "./systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "./systems/interactions/useCanvasInteractionSystem";
 import { useTileLayoutSystem } from "./systems/layout/useTileLayoutSystem";
+import { useTheme } from "./hooks/useTheme";
 import { filterTiles } from "./utils/searchTiles";
 
 function folderNameFromPath(folderPath) {
@@ -53,6 +55,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const { theme, toggleTheme } = useTheme();
 
   const {
     booting,
@@ -83,8 +86,9 @@ export default function App() {
 
   const commands = useCanvasCommands({
     folderPath,
+    workspace,
     getViewportCenter: canvas.getViewportCenter,
-    openFolder,
+    openFolderDialog: openFolder,
     createNewLinkCard,
     createNewNoteFolderCard,
     createNewTextCard,
@@ -192,17 +196,18 @@ export default function App() {
   );
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
+    openFolderId: commands.openFolderId,
+    folderGroupingPreview: interactions.folderGroupingPreview,
     selectedTileIds: interactions.selectedTileIds,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
     editingTileId: interactions.editingTileId,
     draggingTileIds: interactions.draggingTileIds,
-    mergeTargetTileId: interactions.mergeTargetTileId,
-    expandedTileId: interactions.expandedTileId,
+    mergeTargetTileId: interactions.folderGroupingPreview?.targetTileId ?? null,
   });
 
   const totalTileCount = workspace.cards.length;
-  const visibleTileCount = filteredTiles.length;
+  const visibleTileCount = layout.rootTiles.length;
   const hasActiveSearch = deferredSearchQuery.trim().length > 0;
   const zoomPct = Math.round(workspace.viewport.zoom * 100);
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : "No folder selected";
@@ -273,6 +278,13 @@ export default function App() {
             <button
               className="hud-chip"
               type="button"
+              onClick={toggleTheme}
+            >
+              <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
+            </button>
+            <button
+              className="hud-chip"
+              type="button"
               onClick={() => canvas.zoomToBounds(layout.allTilesBounds)}
               disabled={!layout.allTilesBounds}
             >
@@ -290,7 +302,7 @@ export default function App() {
               {workspaceHudLabel}
             </span>
           </div>
-          <p className="canvas-hud__hint">Scroll to zoom, Ctrl+V add, Ctrl+K search, Ctrl or Cmd + drag to multi-select.</p>
+          <p className="canvas-hud__hint">Scroll to zoom, middle-drag to pan, Ctrl or Cmd + drag or right-drag to multi-select.</p>
         </div>
 
         {showSearchHud ? (
@@ -327,67 +339,7 @@ export default function App() {
         ) : null}
 
         <div className="canvas-hud canvas-hud--bottom-center">
-          <div className="note-dock" aria-label="Note types">
-            <button
-              id="note-dock-note-1"
-              className="note-dock__item"
-              type="button"
-              onClick={commands.createNoteOne}
-              disabled={!folderPath}
-              title="Create note 1"
-            >
-              <span className="note-dock__tooltip">Note 1</span>
-              <span className="note-dock__icon note-dock__icon--note-one" aria-hidden="true">
-                <span className="note-dock__line" />
-                <span className="note-dock__line" />
-                <span className="note-dock__line note-dock__line--short" />
-              </span>
-            </button>
-            <button
-              id="note-dock-note-2"
-              className="note-dock__item"
-              type="button"
-              onClick={commands.createNoteTwo}
-              disabled={!folderPath}
-              title="Create note 2"
-            >
-              <span className="note-dock__tooltip">Note 2</span>
-              <span className="note-dock__icon note-dock__icon--note-two" aria-hidden="true">
-                <span className="note-dock__line" />
-                <span className="note-dock__line" />
-                <span className="note-dock__line" />
-              </span>
-            </button>
-            <button
-              id="note-dock-note-3"
-              className="note-dock__item"
-              type="button"
-              onClick={commands.createNoteThree}
-              disabled={!folderPath}
-              title="Create note 3"
-            >
-              <span className="note-dock__tooltip">Note 3</span>
-              <span className="note-dock__icon note-dock__icon--note-three" aria-hidden="true">
-                <span className="note-dock__quote-mark note-dock__quote-mark--left">&ldquo;</span>
-                <span className="note-dock__quote-mark note-dock__quote-mark--right">&rdquo;</span>
-              </span>
-            </button>
-            <button
-              id="note-dock-folder-note"
-              className="note-dock__item"
-              type="button"
-              onClick={commands.createFolderTile}
-              disabled={!folderPath}
-              title="Create folder note"
-            >
-              <span className="note-dock__tooltip">Folder</span>
-              <span className="note-dock__icon note-dock__icon--folder" aria-hidden="true">
-                <span className="note-dock__folder-tab" />
-                <span className="note-dock__folder-sheet note-dock__folder-sheet--rear" />
-                <span className="note-dock__folder-sheet note-dock__folder-sheet--front" />
-              </span>
-            </button>
-          </div>
+          <CanvasDock commands={commands} />
         </div>
 
         <div
@@ -396,6 +348,7 @@ export default function App() {
           className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}`}
           tabIndex={-1}
           onPointerDown={interactions.handleCanvasPointerDown}
+          onContextMenu={interactions.handleCanvasContextMenu}
           onWheel={canvas.handleCanvasWheel}
           onClick={(event) => {
             if (!isEditableElement(event.target)) {
@@ -405,13 +358,16 @@ export default function App() {
         >
           <div className="canvas__grid" style={canvas.gridStyleVars} />
           <div className="canvas__content" style={canvas.contentStyleVars}>
-            {filteredTiles.map((card) => (
+            {layout.rootTiles.map((card) => (
               <Card
                 key={card.id}
                 card={card}
                 tileMeta={layout.tileMetaById[card.id]}
                 viewportZoom={workspace.viewport.zoom}
                 isExpanded={interactions.expandedTileId === card.id}
+                childTiles={layout.folderChildTilesByFolderId[card.id] ?? []}
+                folderState={layout.openFolderState?.folderId === card.id ? layout.openFolderState : null}
+                expandedTileId={interactions.expandedTileId}
                 onBeginDrag={interactions.beginTileDrag}
                 onContextMenu={interactions.handleTileContextMenu}
                 onHoverChange={interactions.handleTileHoverChange}
@@ -424,6 +380,7 @@ export default function App() {
                 onRetry={commands.retryTilePreview}
                 onTextChange={commands.updateTile}
                 onToggleExpanded={interactions.toggleExpandedTile}
+                onToggleFolderOpen={commands.toggleFolder}
               />
             ))}
           </div>

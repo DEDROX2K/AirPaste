@@ -283,14 +283,6 @@ function migrateWorkspace(rawWorkspace) {
   return nextWorkspace;
 }
 
-function getFolderChildIdSet(cards) {
-  return new Set(
-    cards
-      .filter((card) => card.type === FOLDER_CARD_TYPE)
-      .flatMap((card) => card.childIds),
-  );
-}
-
 function updateFolderChildren(folderCard, nextChildIds, nextChildLayouts = folderCard.childLayouts) {
   return normalizeCard({
     ...folderCard,

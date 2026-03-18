@@ -33,6 +33,16 @@ export function useTileLayoutSystem({
     () => renderableEntries.filter((entry) => entry.containerType === "canvas"),
     [renderableEntries],
   );
+  const folderChildTilesByFolderId = useMemo(() => Object.fromEntries(
+    tiles
+      .filter((tile) => tile.type === FOLDER_CARD_TYPE)
+      .map((folderTile) => [
+        folderTile.id,
+        folderTile.childIds
+          .map((childId) => tiles.find((tile) => tile.id === childId))
+          .filter(Boolean),
+      ]),
+  ), [tiles]);
   const openFolderChildEntries = useMemo(
     () => renderableEntries.filter((entry) => entry.containerType === "folder"),
     [renderableEntries],
@@ -172,6 +182,7 @@ export function useTileLayoutSystem({
 
   return {
     allTilesBounds,
+    folderChildTilesByFolderId,
     openFolderState,
     rootTiles: rootTileEntries.map((entry) => entry.tile),
     selectedTileIdSet,

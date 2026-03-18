@@ -46,7 +46,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [onViewportChange]);
 
   const beginCanvasPan = useCallback((event) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 && event.button !== 1) {
       return false;
     }
 

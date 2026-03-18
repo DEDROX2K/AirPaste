@@ -23,6 +23,8 @@ export default function TileShell({
     tileMeta?.isEditing ? "card--editing" : "",
     tileMeta?.isDragging ? "card--dragging" : "",
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
+    tileMeta?.isGroupingTarget ? "card--folder-group-target" : "",
+    tileMeta?.isGroupingArmed ? "card--folder-group-armed" : "",
     className,
   ]
     .filter(Boolean)
