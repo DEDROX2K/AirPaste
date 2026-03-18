@@ -1,9 +1,16 @@
 export const NOTE_FOLDER_CARD_TYPE = "note-folder";
 export const FOLDER_CARD_TYPE = "folder";
+export const RACK_CARD_TYPE = "rack";
 export const NOTE_STYLE_ONE = "notes-1";
 export const NOTE_STYLE_TWO = "notes-2";
 export const NOTE_STYLE_THREE = "notes-3";
-export const WORKSPACE_SCHEMA_VERSION = 3;
+export const WORKSPACE_SCHEMA_VERSION = 4;
+export const RACK_MIN_SLOTS = 3;
+export const RACK_SLOT_WIDTH = 216;
+export const RACK_LEFT_CAP_WIDTH = 94;
+export const RACK_RIGHT_CAP_WIDTH = 94;
+export const RACK_HEIGHT = 126;
+export const RACK_TILE_BASELINE = 44;
 
 const DEFAULT_VIEWPORT = Object.freeze({
   x: 180,
@@ -36,10 +43,17 @@ const FOLDER_CARD_SIZE = Object.freeze({
   height: 236,
 });
 
+const RACK_CARD_SIZE = Object.freeze({
+  width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
+  height: RACK_HEIGHT,
+});
+
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
 const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
 const FOLDER_DEFAULT_TITLE = "Folder";
 const FOLDER_DEFAULT_DESCRIPTION = "Grouped tiles";
+const RACK_DEFAULT_TITLE = "Rack";
+const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 
 function nowIso() {
   return new Date().toISOString();
@@ -52,6 +66,10 @@ function firstString(...values) {
 function getCardType(card) {
   if (card?.type === "link") {
     return "link";
+  }
+
+  if (card?.type === RACK_CARD_TYPE) {
+    return RACK_CARD_TYPE;
   }
 
   if (card?.type === FOLDER_CARD_TYPE) {
@@ -108,6 +126,12 @@ function normalizeFolderChildIds(childIds) {
     : [];
 }
 
+function normalizeRackTileIds(tileIds) {
+  return Array.isArray(tileIds)
+    ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
+    : [];
+}
+
 function normalizeFolderChildLayouts(childIds, childLayouts) {
   const safeLayouts = childLayouts && typeof childLayouts === "object" ? childLayouts : {};
 
@@ -154,6 +178,10 @@ function getCardSize(type, noteStyle = "") {
     return LINK_CARD_SIZE;
   }
 
+  if (type === RACK_CARD_TYPE) {
+    return RACK_CARD_SIZE;
+  }
+
   if (type === FOLDER_CARD_TYPE) {
     return FOLDER_CARD_SIZE;
   }
@@ -181,6 +209,39 @@ export function createEmptyWorkspace() {
   };
 }
 
+export function getRackSlotCount(rackCard) {
+  return Math.max(
+    Number.isFinite(rackCard?.minSlots) ? rackCard.minSlots : RACK_MIN_SLOTS,
+    Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0,
+  );
+}
+
+export function getRackSize(rackCard) {
+  return {
+    width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (getRackSlotCount(rackCard) * RACK_SLOT_WIDTH),
+    height: RACK_HEIGHT,
+  };
+}
+
+export function getRackTileWorldPosition(rackCard, tile, rackIndex = tile?.rackIndex ?? 0) {
+  const normalizedIndex = Number.isFinite(rackIndex) ? rackIndex : 0;
+  const slotLeft = rackCard.x + RACK_LEFT_CAP_WIDTH + (normalizedIndex * RACK_SLOT_WIDTH);
+  const centeredOffset = (RACK_SLOT_WIDTH - tile.width) / 2;
+
+  return {
+    x: slotLeft + centeredOffset,
+    y: rackCard.y + RACK_TILE_BASELINE - tile.height,
+  };
+}
+
+export function canAttachTileToRack(tile) {
+  return Boolean(
+    tile
+    && tile.type !== RACK_CARD_TYPE
+    && tile.type !== FOLDER_CARD_TYPE,
+  );
+}
+
 export function normalizeCard(card, fallbackIndex = 0) {
   const type = getCardType(card);
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
@@ -190,18 +251,25 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
+  const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
   const childIds = type === FOLDER_CARD_TYPE ? normalizeFolderChildIds(card?.childIds) : [];
   const childLayouts = type === FOLDER_CARD_TYPE
     ? normalizeFolderChildLayouts(childIds, card?.childLayouts)
     : {};
+  const rackSize = type === RACK_CARD_TYPE
+    ? getRackSize({
+      minSlots: Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS),
+      tileIds: rackTileIds,
+    })
+    : null;
 
   return {
     id: typeof card?.id === "string" ? card.id : `card-${fallbackIndex}-${Date.now()}`,
     type,
     x: Number.isFinite(card?.x) ? card.x : 120,
     y: Number.isFinite(card?.y) ? card.y : 120,
-    width: Number.isFinite(card?.width) ? card.width : size.width,
-    height: Number.isFinite(card?.height) ? card.height : size.height,
+    width: type === RACK_CARD_TYPE ? rackSize.width : Number.isFinite(card?.width) ? card.width : size.width,
+    height: type === RACK_CARD_TYPE ? rackSize.height : Number.isFinite(card?.height) ? card.height : size.height,
     text: type === "text" ? String(card?.text ?? "") : "",
     secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
     noteStyle: type === "text" ? noteStyle : "",
@@ -209,6 +277,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
     url: type === "link" ? String(card?.url ?? "") : "",
     title: type === "link"
       ? String(card?.title ?? "")
+      : type === RACK_CARD_TYPE
+        ? firstString(card?.title, RACK_DEFAULT_TITLE)
       : type === FOLDER_CARD_TYPE
         ? firstString(card?.title, FOLDER_DEFAULT_TITLE)
       : type === NOTE_FOLDER_CARD_TYPE
@@ -216,6 +286,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
         : "",
     description: type === "link"
       ? String(card?.description ?? "")
+      : type === RACK_CARD_TYPE
+        ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
       : type === FOLDER_CARD_TYPE
         ? firstString(card?.description, FOLDER_DEFAULT_DESCRIPTION)
       : type === NOTE_FOLDER_CARD_TYPE
@@ -228,8 +300,18 @@ export function normalizeCard(card, fallbackIndex = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    tileIds: rackTileIds,
+    minSlots: type === RACK_CARD_TYPE
+      ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
+      : null,
     childIds,
     childLayouts,
+    parentRackId: type !== RACK_CARD_TYPE && typeof card?.parentRackId === "string" && card.parentRackId.trim().length > 0
+      ? card.parentRackId
+      : null,
+    rackIndex: type !== RACK_CARD_TYPE && Number.isFinite(card?.rackIndex)
+      ? Math.max(0, Math.round(card.rackIndex))
+      : null,
     notes,
     createdAt,
     updatedAt,
@@ -280,6 +362,13 @@ function migrateWorkspace(rawWorkspace) {
     };
   }
 
+  if (version < 4) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 4,
+    };
+  }
+
   return nextWorkspace;
 }
 
@@ -289,6 +378,49 @@ function updateFolderChildren(folderCard, nextChildIds, nextChildLayouts = folde
     childIds: nextChildIds,
     childLayouts: nextChildLayouts,
     updatedAt: nowIso(),
+  });
+}
+
+function updateRackTiles(rackCard, nextTileIds) {
+  return normalizeCard({
+    ...rackCard,
+    tileIds: nextTileIds,
+    updatedAt: nowIso(),
+  });
+}
+
+function syncRackChildren(cards, rackId, nextTileIds) {
+  const timestamp = nowIso();
+  const tileSet = new Set(nextTileIds);
+
+  return cards.map((card) => {
+    if (card.id === rackId && card.type === RACK_CARD_TYPE) {
+      return normalizeCard({
+        ...card,
+        tileIds: nextTileIds,
+        updatedAt: timestamp,
+      });
+    }
+
+    if (tileSet.has(card.id)) {
+      return normalizeCard({
+        ...card,
+        parentRackId: rackId,
+        rackIndex: nextTileIds.indexOf(card.id),
+        updatedAt: timestamp,
+      });
+    }
+
+    if (card.parentRackId === rackId) {
+      return normalizeCard({
+        ...card,
+        parentRackId: null,
+        rackIndex: null,
+        updatedAt: timestamp,
+      });
+    }
+
+    return card;
   });
 }
 
@@ -307,6 +439,17 @@ function detachTileFromFolders(cards, tileId) {
   });
 }
 
+function detachTileFromRacks(cards, tileId) {
+  const sourceRack = cards.find((card) => card.type === RACK_CARD_TYPE && card.tileIds.includes(tileId));
+
+  if (!sourceRack) {
+    return cards;
+  }
+
+  const nextTileIds = sourceRack.tileIds.filter((attachedTileId) => attachedTileId !== tileId);
+  return syncRackChildren(cards, sourceRack.id, nextTileIds);
+}
+
 function intersects(a, b) {
   return !(
     a.x + a.width < b.x
@@ -316,8 +459,18 @@ function intersects(a, b) {
   );
 }
 
+function getCanvasCollisionCards(cards) {
+  const folderChildIds = new Set(
+    cards
+      .filter((card) => card.type === FOLDER_CARD_TYPE)
+      .flatMap((card) => card.childIds),
+  );
+
+  return cards.filter((card) => !folderChildIds.has(card.id) && !card.parentRackId);
+}
+
 function hasCollision(cards, candidate) {
-  return cards.some((card) =>
+  return getCanvasCollisionCards(cards).some((card) =>
     intersects(candidate, {
       x: card.x,
       y: card.y,
@@ -465,6 +618,33 @@ export function createFolderCard(cards, viewport, preferredCenter = null, option
   });
 }
 
+export function createRackCard(cards, viewport, preferredCenter = null, options = {}) {
+  const title = firstString(options?.title, RACK_DEFAULT_TITLE);
+  const description = firstString(options?.description, RACK_DEFAULT_DESCRIPTION);
+  const tileIds = normalizeRackTileIds(options?.tileIds);
+  const minSlots = Math.max(
+    RACK_MIN_SLOTS,
+    Number.isFinite(options?.minSlots) ? options.minSlots : RACK_MIN_SLOTS,
+  );
+  const position = getNextCardPosition(cards, viewport, RACK_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: RACK_CARD_TYPE,
+    title,
+    description,
+    tileIds,
+    minSlots,
+    x: position.x,
+    y: position.y,
+    width: position.width,
+    height: position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function createLinkCard(cards, viewport, url, preferredCenter = null) {
   const position = getNextCardPosition(cards, viewport, "link", preferredCenter);
   const timestamp = nowIso();
@@ -579,6 +759,10 @@ export function getFolderByChildId(cards, childId) {
   return cards.find((card) => card.type === FOLDER_CARD_TYPE && card.childIds.includes(childId)) ?? null;
 }
 
+export function getRackByTileId(cards, tileId) {
+  return cards.find((card) => card.type === RACK_CARD_TYPE && card.tileIds.includes(tileId)) ?? null;
+}
+
 export function createFolderFromTiles(cards, sourceCardId, targetCardId) {
   if (!sourceCardId || !targetCardId || sourceCardId === targetCardId) {
     return null;
@@ -587,7 +771,13 @@ export function createFolderFromTiles(cards, sourceCardId, targetCardId) {
   const sourceCard = cards.find((card) => card.id === sourceCardId);
   const targetCard = cards.find((card) => card.id === targetCardId);
 
-  if (!sourceCard || !targetCard || sourceCard.type === FOLDER_CARD_TYPE) {
+  if (
+    !sourceCard
+    || !targetCard
+    || sourceCard.type === FOLDER_CARD_TYPE
+    || sourceCard.type === RACK_CARD_TYPE
+    || targetCard.type === RACK_CARD_TYPE
+  ) {
     return null;
   }
 
@@ -595,7 +785,13 @@ export function createFolderFromTiles(cards, sourceCardId, targetCardId) {
     return addTileToFolder(cards, sourceCardId, targetCardId);
   }
 
-  const cleanedCards = detachTileFromFolders(detachTileFromFolders(cards, sourceCardId), targetCardId);
+  const cleanedCards = detachTileFromRacks(
+    detachTileFromRacks(
+      detachTileFromFolders(detachTileFromFolders(cards, sourceCardId), targetCardId),
+      sourceCardId,
+    ),
+    targetCardId,
+  );
   const timestamp = nowIso();
   const folderCard = normalizeCard({
     id: crypto.randomUUID(),
@@ -629,11 +825,11 @@ export function addTileToFolder(cards, tileId, folderId, folderPosition = null) 
   const tile = cards.find((card) => card.id === tileId);
   const folderCard = cards.find((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE);
 
-  if (!tile || !folderCard || tile.type === FOLDER_CARD_TYPE || folderCard.childIds.includes(tileId)) {
+  if (!tile || !folderCard || tile.type === FOLDER_CARD_TYPE || tile.type === RACK_CARD_TYPE || folderCard.childIds.includes(tileId)) {
     return null;
   }
 
-  const cleanedCards = detachTileFromFolders(cards, tileId);
+  const cleanedCards = detachTileFromRacks(detachTileFromFolders(cards, tileId), tileId);
   const latestFolderCard = cleanedCards.find((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE);
 
   if (!latestFolderCard) {
@@ -700,6 +896,76 @@ export function removeTileFromFolder(cards, tileId, folderId, dropPosition = nul
   };
 }
 
+export function addTileToRack(cards, tileId, rackId, slotIndex = null) {
+  if (!tileId || !rackId || tileId === rackId) {
+    return null;
+  }
+
+  const tile = cards.find((card) => card.id === tileId);
+  const rackCard = cards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE);
+
+  if (!tile || !rackCard || !canAttachTileToRack(tile) || rackCard.tileIds.includes(tileId)) {
+    return null;
+  }
+
+  const cleanedCards = detachTileFromRacks(detachTileFromFolders(cards, tileId), tileId);
+  const latestRackCard = cleanedCards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE);
+
+  if (!latestRackCard) {
+    return null;
+  }
+
+  const insertionIndex = Number.isFinite(slotIndex)
+    ? Math.max(0, Math.min(latestRackCard.tileIds.length, Math.round(slotIndex)))
+    : latestRackCard.tileIds.length;
+  const nextTileIds = [...latestRackCard.tileIds];
+  nextTileIds.splice(insertionIndex, 0, tileId);
+  const nextCards = syncRackChildren(cleanedCards, rackId, nextTileIds);
+  const nextRackCard = nextCards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE) ?? latestRackCard;
+
+  return {
+    cards: nextCards,
+    rackCard: nextRackCard,
+  };
+}
+
+export function removeTileFromRack(cards, tileId, rackId, dropPosition = null) {
+  if (!tileId || !rackId) {
+    return null;
+  }
+
+  const rackCard = cards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE);
+  const tile = cards.find((card) => card.id === tileId);
+
+  if (!rackCard || !tile || !rackCard.tileIds.includes(tileId)) {
+    return null;
+  }
+
+  const nextTileIds = rackCard.tileIds.filter((attachedTileId) => attachedTileId !== tileId);
+  const nextCards = syncRackChildren(cards, rackId, nextTileIds).map((card) => {
+    if (card.id !== tileId) {
+      return card;
+    }
+
+    return normalizeCard({
+      ...card,
+      x: Number.isFinite(dropPosition?.x) ? dropPosition.x : card.x,
+      y: Number.isFinite(dropPosition?.y) ? dropPosition.y : card.y,
+      parentRackId: null,
+      rackIndex: null,
+      updatedAt: nowIso(),
+    });
+  });
+  const nextRackCard = nextCards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE) ?? rackCard;
+  const nextTile = nextCards.find((card) => card.id === tileId) ?? tile;
+
+  return {
+    cards: nextCards,
+    rackCard: nextRackCard,
+    tile: nextTile,
+  };
+}
+
 export function replaceCards(cards, nextCards) {
   if (!Array.isArray(nextCards)) {
     return cards;
@@ -743,9 +1009,42 @@ export function removeCard(cards, cardId) {
     }
   }
 
+  const removedRackMap = new Map(
+    cards
+      .filter((card) => idsToRemove.has(card.id) && card.type === RACK_CARD_TYPE)
+      .map((card) => [card.id, card]),
+  );
+
   return cards
     .filter((card) => !idsToRemove.has(card.id))
     .map((card) => {
+      const removedRack = card.parentRackId ? removedRackMap.get(card.parentRackId) : null;
+
+      if (removedRack) {
+        const detachedPosition = getRackTileWorldPosition(
+          removedRack,
+          card,
+          Number.isFinite(card.rackIndex) ? card.rackIndex : removedRack.tileIds.indexOf(card.id),
+        );
+
+        return normalizeCard({
+          ...card,
+          x: detachedPosition.x,
+          y: detachedPosition.y,
+          parentRackId: null,
+          rackIndex: null,
+          updatedAt: nowIso(),
+        });
+      }
+
+      if (card.type === RACK_CARD_TYPE) {
+        const nextTileIds = card.tileIds.filter((tileId) => !idsToRemove.has(tileId));
+
+        return nextTileIds.length === card.tileIds.length
+          ? card
+          : updateRackTiles(card, nextTileIds);
+      }
+
       if (card.type !== FOLDER_CARD_TYPE) {
         return card;
       }
@@ -790,6 +1089,11 @@ export function formatCardSubtitle(card) {
   if (card.type === FOLDER_CARD_TYPE) {
     const childCount = card.childIds.length;
     return `${childCount} ${childCount === 1 ? "tile" : "tiles"}`;
+  }
+
+  if (card.type === RACK_CARD_TYPE) {
+    const tileCount = card.tileIds.length;
+    return `${tileCount} ${tileCount === 1 ? "tile" : "tiles"} on rack`;
   }
 
   if (card.type === NOTE_FOLDER_CARD_TYPE) {

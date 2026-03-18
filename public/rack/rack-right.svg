@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="94" height="126" viewBox="0 0 94 126" fill="none">
+  <defs>
+    <linearGradient id="rackRightWood" x1="6" y1="18" x2="82" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6F4728"/>
+      <stop offset="0.44" stop-color="#A06B3A"/>
+      <stop offset="1" stop-color="#452816"/>
+    </linearGradient>
+    <linearGradient id="rackRightGlow" x1="62" y1="8" x2="62" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7D9AA" stop-opacity="0.56"/>
+      <stop offset="1" stop-color="#F7D9AA" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 4H61C72.598 4 82 13.402 82 25V102C82 107.523 77.523 112 72 112H8V4Z" fill="url(#rackRightWood)"/>
+  <path d="M8 17H66C69.866 17 73 20.134 73 24V97C73 100.866 69.866 104 66 104H8V17Z" fill="rgba(0,0,0,0.08)"/>
+  <path d="M56 8H64C69.523 8 74 12.477 74 18V102C74 107.523 69.523 112 64 112H56V8Z" fill="url(#rackRightGlow)" opacity="0.52"/>
+  <path d="M8 18H74V28H8Z" fill="rgba(255,255,255,0.12)"/>
+  <path d="M8 88H74" stroke="rgba(64,35,14,0.42)" stroke-width="2"/>
+  <path d="M8 64H74" stroke="rgba(64,35,14,0.24)" stroke-width="2"/>
+  <path d="M8 40H74" stroke="rgba(64,35,14,0.18)" stroke-width="2"/>
+</svg>

@@ -4,6 +4,7 @@ import {
   createEmptyWorkspace,
   createLinkCard,
   createNoteFolderCard,
+  createRackCard,
   createTextCard,
   mergeCardIntoNoteFolder,
   normalizeWorkspace,
@@ -147,6 +148,22 @@ export function AppProvider({ children }) {
       ...currentWorkspace,
       cards: updateCards(currentWorkspace.cards, updatesById),
     }));
+  }, [patchWorkspace]);
+
+  const createNewRackCard = useCallback((preferredCenter = null, options = {}) => {
+    const card = createRackCard(
+      workspaceRef.current.cards,
+      workspaceRef.current.viewport,
+      preferredCenter,
+      options,
+    );
+
+    patchWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      cards: [...currentWorkspace.cards, card],
+    }));
+
+    return card;
   }, [patchWorkspace]);
 
   const replaceWorkspaceCards = useCallback((nextCards) => {
@@ -293,6 +310,7 @@ export function AppProvider({ children }) {
     setViewport,
     createNewTextCard,
     createNewNoteFolderCard,
+    createNewRackCard,
     createNewLinkCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,
@@ -310,6 +328,7 @@ export function AppProvider({ children }) {
     setViewport,
     createNewTextCard,
     createNewNoteFolderCard,
+    createNewRackCard,
     createNewLinkCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,

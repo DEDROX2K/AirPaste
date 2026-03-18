@@ -67,6 +67,33 @@ function isFiniteNumber(value, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function normalizeExternalUrl(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    // Fall through and try an https-prefixed variant.
+  }
+
+  try {
+    return new URL(`https://${trimmed}`).toString();
+  } catch {
+    return "";
+  }
+}
+
 function defaultCardSize(type) {
   if (type === "link") {
     return { width: 340, height: 280 };
@@ -1150,11 +1177,13 @@ ipcMain.handle("airpaste:saveWorkspace", async (_event, folderPath, data) => {
 });
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {
-  if (typeof url !== "string" || url.trim().length === 0) {
+  const normalizedUrl = normalizeExternalUrl(url);
+
+  if (!normalizedUrl) {
     return { opened: false };
   }
 
-  await shell.openExternal(url);
+  await shell.openExternal(normalizedUrl);
   return { opened: true };
 });
 

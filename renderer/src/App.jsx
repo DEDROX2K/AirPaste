@@ -68,6 +68,7 @@ export default function App() {
     setViewport,
     createNewLinkCard,
     createNewNoteFolderCard,
+    createNewRackCard,
     createNewTextCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,
@@ -91,6 +92,7 @@ export default function App() {
     openFolderDialog: openFolder,
     createNewLinkCard,
     createNewNoteFolderCard,
+    createNewRackCard,
     createNewTextCard,
     deleteExistingCard,
     mergeExistingNoteCardIntoFolder,
@@ -198,6 +200,7 @@ export default function App() {
     tiles: filteredTiles,
     openFolderId: commands.openFolderId,
     folderGroupingPreview: interactions.folderGroupingPreview,
+    rackDropPreview: interactions.rackDropPreview,
     selectedTileIds: interactions.selectedTileIds,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
@@ -365,8 +368,9 @@ export default function App() {
                 tileMeta={layout.tileMetaById[card.id]}
                 viewportZoom={workspace.viewport.zoom}
                 isExpanded={interactions.expandedTileId === card.id}
-                childTiles={layout.folderChildTilesByFolderId[card.id] ?? []}
+                childTiles={layout.folderChildTilesByFolderId[card.id] ?? layout.rackTileChildrenByRackId[card.id] ?? []}
                 folderState={layout.openFolderState?.folderId === card.id ? layout.openFolderState : null}
+                rackState={layout.rackStateById[card.id] ?? null}
                 expandedTileId={interactions.expandedTileId}
                 onBeginDrag={interactions.beginTileDrag}
                 onContextMenu={interactions.handleTileContextMenu}

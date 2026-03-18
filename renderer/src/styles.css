@@ -142,6 +142,20 @@ a {
   font: inherit;
 }
 
+.app-shell,
+.app-shell * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-shell input,
+.app-shell textarea,
+.app-shell [contenteditable="true"],
+.app-shell [contenteditable="plaintext-only"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -942,6 +956,95 @@ a {
   filter: drop-shadow(0 24px 42px rgba(66, 186, 255, 0.28));
 }
 
+/* Attached rack tiles use a pronounced perspective transform to create a
+mounted / leaning display pose. The severe converging projection is
+intentional so the top edge reads much shorter than the bottom edge. */
+.card--rack-attached {
+  /* Rack pose controls:
+     --rack-perspective: camera depth for the mounted pose
+     --rack-rest-rotate-x: main backward slant at rest
+     --rack-rest-rotate-y: side yaw at rest, keep 0deg for flat-facing tiles
+     --rack-rest-skew-x: planar skew at rest, keep 0deg for flat-facing tiles
+     --rack-rest-scale-y: vertical compression for perspective exaggeration
+     --rack-hover-rotate-x: slant when hovered
+     --rack-hover-rotate-y: side yaw on hover
+     --rack-hover-skew-x: skew on hover
+     --rack-hover-scale-y: vertical compression on hover
+     --rack-hover-lift: vertical lift on hover
+     --rack-card-scale: base slot-fit scale, usually set by layout
+     --rack-hover-card-scale: slot-fit scale while hovered
+     --rack-shadow-rest / --rack-shadow-hover: depth shadow tuning
+  */
+  --rack-perspective: 1380px;
+  --rack-rest-rotate-x: 46deg;
+  --rack-rest-rotate-y: 0deg;
+  --rack-rest-skew-x: 0deg;
+  --rack-rest-scale-y: 0.96;
+  --rack-hover-rotate-x: 32deg;
+  --rack-hover-rotate-y: 0deg;
+  --rack-hover-skew-x: 0deg;
+  --rack-hover-scale-y: 0.99;
+  --rack-hover-lift: -10px;
+  --rack-shadow-rest: 0 24px 34px rgba(0, 0, 0, 0.24);
+  --rack-shadow-hover: 0 32px 46px rgba(0, 0, 0, 0.3);
+  gap: 6px;
+}
+
+.card--rack-attached .card__toolbar {
+  margin-bottom: -4px;
+  transform: translateY(8px);
+}
+
+.card--rack-attached .card__label {
+  color: color-mix(in srgb, var(--text) 88%, white 12%);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+.card--rack-attached.card--link .card__toolbar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card--rack-attached .card__surface-frame {
+  transform-origin: center bottom;
+  transform-style: preserve-3d;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform:
+    perspective(var(--rack-perspective, 1280px))
+    rotateX(var(--rack-rest-rotate-x, 64deg))
+    rotateY(var(--rack-rest-rotate-y, 0deg))
+    skewX(var(--rack-rest-skew-x, 0deg))
+    scale(var(--rack-card-scale, 1))
+    scaleY(var(--rack-rest-scale-y, 0.86));
+  filter: drop-shadow(var(--rack-shadow-rest, 0 28px 40px rgba(0, 0, 0, 0.28)));
+}
+
+.card--rack-attached.card--hovered .card__surface-frame,
+.card--rack-attached.card--focused .card__surface-frame,
+.card--rack-attached.card--selected .card__surface-frame {
+  transform:
+    translateY(var(--rack-hover-lift, -16px))
+    perspective(var(--rack-perspective, 1280px))
+    rotateX(var(--rack-hover-rotate-x, 48deg))
+    rotateY(var(--rack-hover-rotate-y, 0deg))
+    skewX(var(--rack-hover-skew-x, 0deg))
+    scale(var(--rack-hover-card-scale, var(--rack-card-scale, 1)))
+    scaleY(var(--rack-hover-scale-y, 0.92));
+  filter: drop-shadow(var(--rack-shadow-hover, 0 42px 58px rgba(0, 0, 0, 0.36)));
+}
+
+.card--rack-attached.card--dragging .card__surface-frame {
+  transform:
+    perspective(1500px)
+    rotateX(18deg)
+    rotateY(0deg)
+    skewX(0deg)
+    scale(var(--rack-hover-card-scale, var(--rack-card-scale, 1)))
+    scaleY(0.98);
+}
+
 @keyframes mergePulse {
   0%,
   100% {
@@ -983,6 +1086,173 @@ a {
   color: inherit;
 }
 
+.card__surface--rack {
+  position: relative;
+  display: block;
+  height: var(--tile-height);
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+.card__surface--rack::before {
+  content: "";
+  position: absolute;
+  left: 30px;
+  right: 30px;
+  bottom: -16px;
+  height: 34px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0));
+  filter: blur(14px);
+  opacity: 0.76;
+  transform: scaleX(0.88);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.card__surface--rack::after {
+  content: "";
+  position: absolute;
+  inset: 10px 10px 8px;
+  border-radius: 26px;
+  border: 1px solid transparent;
+  box-shadow: 0 0 0 0 transparent;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+.card__surface-frame--rack-drop-target .card__surface--rack::after,
+.card--rack-drop-target .card__surface--rack::after {
+  border-color: color-mix(in srgb, var(--accent) 56%, white 16%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent),
+    0 0 0 12px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.card__surface-frame--selected .card__surface--rack::after {
+  border-color: color-mix(in srgb, var(--accent) 42%, white 12%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 0 0 8px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.card__surface--rack-target::before {
+  opacity: 0.94;
+  transform: scaleX(1);
+}
+
+.card__rack-copy {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 16px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.card__rack-kicker {
+  color: rgba(255, 236, 211, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.card__rack-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.card__rack-title {
+  color: rgba(255, 244, 233, 0.98);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-shadow: 0 2px 10px rgba(43, 23, 10, 0.3);
+}
+
+.card__rack-count {
+  color: rgba(255, 231, 200, 0.72);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.card__rack-slot-strip {
+  position: absolute;
+  top: 10px;
+  left: 26px;
+  right: 26px;
+  z-index: 3;
+  display: flex;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.card__rack-slot {
+  flex: 1 1 0;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 228, 188, 0.24);
+  background: linear-gradient(180deg, rgba(255, 248, 238, 0.12), rgba(46, 19, 5, 0.08));
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.card__rack-slot--occupied {
+  border-color: rgba(255, 230, 197, 0.14);
+  background: linear-gradient(180deg, rgba(255, 244, 228, 0.08), rgba(29, 14, 3, 0.08));
+}
+
+.card__rack-slot--preview {
+  border-color: color-mix(in srgb, var(--accent) 70%, white 12%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 34%, white 10%), color-mix(in srgb, var(--accent) 18%, transparent));
+  transform: scaleY(1.14);
+}
+
+.card__rack-wood {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr) 94px;
+  align-items: stretch;
+  z-index: 2;
+  filter:
+    drop-shadow(0 18px 26px rgba(47, 24, 10, 0.24))
+    drop-shadow(0 2px 0 rgba(255, 237, 208, 0.08));
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card__surface-frame--rack-drop-target .card__rack-wood,
+.card--rack-drop-target .card__rack-wood,
+.card--hovered.card--rack .card__rack-wood {
+  transform: translateY(-3px);
+  filter:
+    drop-shadow(0 24px 34px rgba(47, 24, 10, 0.3))
+    drop-shadow(0 2px 0 rgba(255, 237, 208, 0.12));
+}
+
+.card__rack-slice {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  pointer-events: none;
+}
+
+.card__rack-slice-center {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .card__link-actions {
   position: absolute;
   top: 12px;
@@ -1007,15 +1277,17 @@ a {
 }
 
 .card__link-action {
-  min-height: 30px;
-  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   color: var(--text);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   backdrop-filter: blur(14px);
   box-shadow:
     0 8px 20px color-mix(in srgb, var(--shadow) 72%, transparent),
@@ -1043,6 +1315,15 @@ a {
 .card__link-action--primary:hover {
   background: color-mix(in srgb, var(--accent) 24%, var(--bg-hover) 76%);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border) 58%);
+}
+
+.card__link-action-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
 }
 
 .card__surface--music {

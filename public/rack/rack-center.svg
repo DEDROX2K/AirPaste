@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="216" height="126" viewBox="0 0 216 126" fill="none">
+  <defs>
+    <linearGradient id="rackCenterWood" x1="0" y1="8" x2="216" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6E4728"/>
+      <stop offset="0.38" stop-color="#9A6638"/>
+      <stop offset="0.72" stop-color="#A9723F"/>
+      <stop offset="1" stop-color="#57351E"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="4" width="216" height="108" rx="10" fill="url(#rackCenterWood)"/>
+  <path d="M0 18H216" stroke="rgba(255,255,255,0.14)" stroke-width="3"/>
+  <path d="M0 92H216" stroke="rgba(58,29,10,0.38)" stroke-width="2"/>
+  <path d="M0 68H216" stroke="rgba(58,29,10,0.22)" stroke-width="2"/>
+  <path d="M0 42H216" stroke="rgba(58,29,10,0.18)" stroke-width="2"/>
+  <path d="M18 6V110" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
+  <path d="M108 6V110" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+  <path d="M198 6V110" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+</svg>

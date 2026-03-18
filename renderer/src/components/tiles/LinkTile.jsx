@@ -16,8 +16,16 @@ function getCardLabel(card) {
   return card.title.trim() || formatCardSubtitle(card);
 }
 
+function resolveIconPath(relativePath) {
+  return `${import.meta.env.BASE_URL}${relativePath}`;
+}
+
 function stopTileActionEvent(event) {
   event.preventDefault();
+  event.stopPropagation();
+}
+
+function stopTileActionPointerEvent(event) {
   event.stopPropagation();
 }
 
@@ -76,7 +84,12 @@ export default function LinkTile({
   });
   const handleOpenLinkClick = async (event) => {
     stopTileActionEvent(event);
-    await onOpenLink?.(card);
+
+    try {
+      await onOpenLink?.(card);
+    } catch {
+      toast("error", "Could not open link");
+    }
   };
   const handleCopyLinkClick = async (event) => {
     stopTileActionEvent(event);
@@ -111,19 +124,29 @@ export default function LinkTile({
               className="card__link-action"
               type="button"
               aria-label={`Copy link for ${linkTitle}`}
-              onPointerDown={stopTileActionEvent}
+              onPointerDown={stopTileActionPointerEvent}
+              onPointerUp={stopTileActionPointerEvent}
               onClick={handleCopyLinkClick}
             >
-              Copy link
+              <img
+                src={resolveIconPath("icons/copylink.png")}
+                alt=""
+                className="card__link-action-icon"
+              />
             </button>
             <button
               className="card__link-action card__link-action--primary"
               type="button"
               aria-label={`Open ${linkTitle}`}
-              onPointerDown={stopTileActionEvent}
+              onPointerDown={stopTileActionPointerEvent}
+              onPointerUp={stopTileActionPointerEvent}
               onClick={handleOpenLinkClick}
             >
-              Open link
+              <img
+                src={resolveIconPath("icons/openlink.png")}
+                alt=""
+                className="card__link-action-icon"
+              />
             </button>
           </div>
           <a

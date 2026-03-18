@@ -4,7 +4,7 @@ const DOCK_ITEMS = [
   { id: "paper", label: "Paper", src: "icons/paper.png", actionKey: "createNoteThree" },
   { id: "folder", label: "Folder", src: "icons/folder.png", actionKey: "createFolderTile" },
   { id: "separator", type: "separator", src: "icons/rope.png", label: "Divider" },
-  { id: "stamp", label: "Stamp", src: "icons/stamp.png" },
+  { id: "rack", label: "Rack", src: "icons/stamp.png", actionKey: "createRack" },
   { id: "caution-tape", label: "Caution tape", src: "icons/cautiontape.png" },
   { id: "highlighter", label: "Highlighter", src: "icons/highlighter.png" },
   { id: "link", label: "Link", src: "icons/link.png" },

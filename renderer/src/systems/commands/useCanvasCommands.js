@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addTileToFolder,
+  addTileToRack,
   createFolderFromTiles,
   FOLDER_CARD_TYPE,
   getFolderByChildId,
+  getRackByTileId,
   isUrl,
   NOTE_FOLDER_CARD_TYPE,
   NOTE_STYLE_ONE,
   NOTE_STYLE_THREE,
   NOTE_STYLE_TWO,
   removeTileFromFolder,
+  removeTileFromRack,
+  RACK_CARD_TYPE,
 } from "../../lib/workspace";
 import { desktop } from "../../lib/desktop";
 
@@ -50,6 +54,34 @@ function getImageDimensions(src) {
     image.onerror = () => reject(new Error("Unable to decode pasted image."));
     image.src = src;
   });
+}
+
+function normalizeExternalUrl(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    // Fall through and try an https-prefixed variant.
+  }
+
+  try {
+    return new URL(`https://${trimmed}`).toString();
+  } catch {
+    return "";
+  }
 }
 
 async function readClipboardImage(clipboardData) {
@@ -142,6 +174,7 @@ export function useCanvasCommands({
   openFolderDialog,
   createNewLinkCard,
   createNewNoteFolderCard,
+  createNewRackCard,
   createNewTextCard,
   deleteExistingCard,
   mergeExistingNoteCardIntoFolder,
@@ -254,6 +287,21 @@ export function useCanvasCommands({
     return card;
   }, [createNewNoteFolderCard, folderPath, getViewportCenter, log, toast]);
 
+  const createRack = useCallback(() => {
+    if (!folderPath) {
+      log("warn", "New rack blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = getViewportCenter();
+    const rack = createNewRackCard(centerPoint);
+
+    log("success", "New rack created in canvas center", centerPoint);
+    toast("success", "Rack dropped into the center.");
+    return rack;
+  }, [createNewRackCard, folderPath, getViewportCenter, log, toast]);
+
   const updateTile = useCallback((tileId, updates) => {
     updateExistingCard(tileId, updates);
   }, [updateExistingCard]);
@@ -288,6 +336,10 @@ export function useCanvasCommands({
         return;
       }
 
+      if (origin.containerType === "rack" || origin.containerType === "rack-preview") {
+        return;
+      }
+
       updatesById[tileId] = {
         x: origin.x + delta.x,
         y: origin.y + delta.y,
@@ -298,7 +350,10 @@ export function useCanvasCommands({
   }, [updateExistingCards, workspace.cards]);
 
   const bringTilesToFront = useCallback((tileIds) => {
-    const rootTileIds = tileIds.filter((tileId) => !getFolderByChildId(workspace.cards, tileId));
+    const rootTileIds = tileIds.filter((tileId) => (
+      !getFolderByChildId(workspace.cards, tileId)
+      && !getRackByTileId(workspace.cards, tileId)
+    ));
 
     if (rootTileIds.length > 0) {
       reorderExistingCards(rootTileIds);
@@ -360,6 +415,62 @@ export function useCanvasCommands({
 
     replaceWorkspaceCards(result.cards);
     log("info", "Tile removed from folder", { tileId, folderId, dropPosition });
+    return result.tile;
+  }, [log, replaceWorkspaceCards, workspace.cards]);
+
+  const addTileToRackCommand = useCallback((tileId, rackId, slotIndex = null) => {
+    const result = addTileToRack(workspace.cards, tileId, rackId, slotIndex);
+
+    if (!result?.rackCard) {
+      return null;
+    }
+
+    replaceWorkspaceCards(result.cards);
+    log("success", "Tile attached to rack", { tileId, rackId, slotIndex });
+    toast("success", "Tile mounted on rack.");
+    return result.rackCard;
+  }, [log, replaceWorkspaceCards, toast, workspace.cards]);
+
+  const addTilesToRackCommand = useCallback((tileIds, rackId) => {
+    const normalizedTileIds = Array.isArray(tileIds)
+      ? [...new Set(tileIds.filter(Boolean))]
+      : [];
+
+    if (!rackId || normalizedTileIds.length === 0) {
+      return null;
+    }
+
+    let nextCards = workspace.cards;
+    let nextRackCard = null;
+
+    normalizedTileIds.forEach((tileId) => {
+      const result = addTileToRack(nextCards, tileId, rackId);
+
+      if (result?.rackCard) {
+        nextCards = result.cards;
+        nextRackCard = result.rackCard;
+      }
+    });
+
+    if (!nextRackCard) {
+      return null;
+    }
+
+    replaceWorkspaceCards(nextCards);
+    log("success", "Tiles attached to rack", { rackId, tileIds: normalizedTileIds });
+    toast("success", normalizedTileIds.length === 1 ? "Tile mounted on rack." : `${normalizedTileIds.length} tiles mounted on rack.`);
+    return nextRackCard;
+  }, [log, replaceWorkspaceCards, toast, workspace.cards]);
+
+  const removeTileFromRackCommand = useCallback((tileId, rackId, dropPosition) => {
+    const result = removeTileFromRack(workspace.cards, tileId, rackId, dropPosition);
+
+    if (!result?.tile) {
+      return null;
+    }
+
+    replaceWorkspaceCards(result.cards);
+    log("info", "Tile detached from rack", { tileId, rackId, dropPosition });
     return result.tile;
   }, [log, replaceWorkspaceCards, workspace.cards]);
 
@@ -454,7 +565,7 @@ export function useCanvasCommands({
       });
     }
 
-    if (tile.type === FOLDER_CARD_TYPE) {
+    if (tile.type === FOLDER_CARD_TYPE || tile.type === RACK_CARD_TYPE) {
       return null;
     }
 
@@ -516,7 +627,13 @@ export function useCanvasCommands({
       return;
     }
 
-    await desktop.shell.openExternal(tile.url);
+    const externalUrl = normalizeExternalUrl(tile.url);
+
+    if (!externalUrl) {
+      throw new Error("Invalid link");
+    }
+
+    await desktop.shell.openExternal(externalUrl);
   }, []);
 
   const pasteFromClipboard = useCallback(async (event) => {
@@ -625,6 +742,14 @@ export function useCanvasCommands({
       });
     }
 
+    if (definition.type === RACK_CARD_TYPE) {
+      return createNewRackCard(definition.preferredCenter ?? getViewportCenter(), {
+        title: definition.title,
+        description: definition.description,
+        minSlots: definition.minSlots,
+      });
+    }
+
     if (definition.type === FOLDER_CARD_TYPE) {
       return null;
     }
@@ -639,6 +764,7 @@ export function useCanvasCommands({
   }, [
     createNewLinkCard,
     createNewNoteFolderCard,
+    createNewRackCard,
     createNewTextCard,
     getViewportCenter,
     updateExistingCard,
@@ -650,6 +776,7 @@ export function useCanvasCommands({
 
   return useMemo(() => ({
     openFolderId,
+    createRack,
     createFolderTile,
     createNoteOne,
     createNoteTwo,
@@ -657,7 +784,10 @@ export function useCanvasCommands({
     createTileFromDefinition,
     createFolderFromTiles: createFolderFromTileSet,
     addTileToFolder: addTileToFolderCommand,
+    addTileToRack: addTileToRackCommand,
+    addTilesToRack: addTilesToRackCommand,
     removeTileFromFolder: removeTileFromFolderCommand,
+    removeTileFromRack: removeTileFromRackCommand,
     openFolder,
     closeFolder,
     toggleFolder,
@@ -677,7 +807,10 @@ export function useCanvasCommands({
     updateTileFromMediaLoad,
   }), [
     addTileToFolderCommand,
+    addTileToRackCommand,
+    addTilesToRackCommand,
     closeFolder,
+    createRack,
     createFolderTile,
     createFolderFromTileSet,
     createNoteOne,
@@ -698,6 +831,7 @@ export function useCanvasCommands({
     bringTilesToFront,
     replaceTiles,
     removeTileFromFolderCommand,
+    removeTileFromRackCommand,
     retryTilePreview,
     toggleFolder,
     updateTile,
