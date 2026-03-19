@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { formatCardSubtitle } from "../../lib/workspace";
 import { useToast } from "../../hooks/useToast";
 import TileShell from "./TileShell";
@@ -64,7 +65,9 @@ export default function LinkTile({
   onRetry,
 }) {
   const { toast } = useToast();
+  const [hasImageError, setHasImageError] = useState(false);
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
+  const shouldRenderImage = Boolean(card.image) && !hasImageError;
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || "Untitled link";
   const surfaceFrameClassName = [
@@ -78,7 +81,6 @@ export default function LinkTile({
     .join(" ");
   const surfaceGesture = useTileGesture({
     card,
-    onActivate: onOpenLink,
     onDragStart: onBeginDrag,
     onPressStart,
   });
@@ -101,6 +103,10 @@ export default function LinkTile({
       toast("error", "Could not copy link");
     }
   };
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [card.id, card.image]);
 
   return (
     <TileShell
@@ -159,7 +165,7 @@ export default function LinkTile({
             draggable={false}
             onClick={(event) => event.preventDefault()}
           >
-            {isMusicCard ? (
+            {isMusicCard && shouldRenderImage ? (
               <div className="card__record-shell">
                 <div className="card__record-disc" aria-hidden="true" />
                 <div className="card__record-sleeve">
@@ -168,16 +174,18 @@ export default function LinkTile({
                     src={card.image}
                     alt={linkTitle}
                     draggable={false}
+                    onError={() => setHasImageError(true)}
                     onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
                   />
                 </div>
               </div>
-            ) : card.image ? (
+            ) : shouldRenderImage ? (
               <img
                 className="card__image"
                 src={card.image}
                 alt={linkTitle}
                 draggable={false}
+                onError={() => setHasImageError(true)}
                 onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
               />
             ) : (

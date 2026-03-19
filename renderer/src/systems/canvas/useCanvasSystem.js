@@ -33,6 +33,33 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     onViewportChange(getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom));
   }, [onViewportChange]);
 
+  const zoomAtCanvasPoint = useCallback((canvasPoint, nextZoom) => {
+    const worldPoint = {
+      x: (canvasPoint.x - viewport.x) / viewport.zoom,
+      y: (canvasPoint.y - viewport.y) / viewport.zoom,
+    };
+
+    zoomToWorldPoint(canvasPoint, worldPoint, nextZoom);
+  }, [viewport.x, viewport.y, viewport.zoom, zoomToWorldPoint]);
+
+  const zoomAtViewportCenter = useCallback((nextZoom) => {
+    const rect = getClientRect(containerRef.current);
+    const canvasPoint = rect
+      ? { x: rect.width / 2, y: rect.height / 2 }
+      : { x: 0, y: 0 };
+
+    zoomAtCanvasPoint(canvasPoint, nextZoom);
+  }, [zoomAtCanvasPoint]);
+
+  const setZoom = useCallback((nextZoom) => {
+    zoomAtViewportCenter(nextZoom);
+  }, [zoomAtViewportCenter]);
+
+  const zoomByStep = useCallback((direction) => {
+    const step = direction > 0 ? 1.2 : 1 / 1.2;
+    setZoom(viewport.zoom * step);
+  }, [setZoom, viewport.zoom]);
+
   const zoomToBounds = useCallback((worldBounds) => {
     const rect = getClientRect(containerRef.current);
     const nextViewport = getViewportForWorldBounds(rect, worldBounds);
@@ -131,6 +158,9 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     getViewportCenter,
     beginCanvasPan,
     handleCanvasWheel,
+    setZoom,
+    zoomIn: () => zoomByStep(1),
+    zoomOut: () => zoomByStep(-1),
     zoomToBounds,
   };
 }

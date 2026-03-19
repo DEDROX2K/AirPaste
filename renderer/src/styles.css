@@ -420,6 +420,138 @@ a {
   text-overflow: ellipsis;
 }
 
+.zoom-menu {
+  position: relative;
+  pointer-events: auto;
+}
+
+.zoom-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 94px;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+    color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  color: color-mix(in srgb, var(--accent) 76%, var(--text));
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  box-shadow:
+    0 18px 34px color-mix(in srgb, var(--shadow) 34%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.zoom-menu__trigger:hover,
+.zoom-menu__trigger--open {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent),
+    color-mix(in srgb, var(--bg-hover) 96%, transparent);
+}
+
+.zoom-menu__caret {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.zoom-menu__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(320px, calc(100vw - 36px));
+  padding: 14px 0;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
+    color-mix(in srgb, var(--panel-solid) 96%, transparent);
+  box-shadow:
+    0 28px 56px color-mix(in srgb, var(--shadow) 50%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.zoom-menu__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.zoom-menu__section + .zoom-menu__section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.zoom-menu__input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-base) 28%, transparent);
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.zoom-menu__input:focus {
+  border-color: color-mix(in srgb, var(--accent) 82%, white 8%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.zoom-menu__action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), transform 120ms ease;
+}
+
+.zoom-menu__action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-hover) 78%, transparent);
+  transform: translateX(2px);
+}
+
+.zoom-menu__action:disabled {
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.zoom-menu__action kbd {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+}
+
 .note-dock {
   display: flex;
   align-items: flex-end;
@@ -959,6 +1091,7 @@ a {
 /* Attached rack tiles use a pronounced perspective transform to create a
 mounted / leaning display pose. The severe converging projection is
 intentional so the top edge reads much shorter than the bottom edge. */
+.card--rack,
 .card--rack-attached {
   /* Rack pose controls:
      --rack-perspective: camera depth for the mounted pose
@@ -974,21 +1107,29 @@ intentional so the top edge reads much shorter than the bottom edge. */
      --rack-card-scale: base slot-fit scale, usually set by layout
      --rack-hover-card-scale: slot-fit scale while hovered
      --rack-shadow-rest / --rack-shadow-hover: depth shadow tuning
+     --rack-slot-gap: spacing between the subtle placement guides
+     --rack-body-inset-x: visual horizontal inset for the rack body
+     --rack-body-radius: corner radius of the rack body
   */
+  --rack-slot-gap: 16px;
+  --rack-body-inset-x: 0px;
+  --rack-body-radius: 32px;
   --rack-perspective: 1380px;
-  --rack-rest-rotate-x: 46deg;
+  --rack-rest-rotate-x: 20deg;
   --rack-rest-rotate-y: 0deg;
   --rack-rest-skew-x: 0deg;
-  --rack-rest-scale-y: 0.96;
-  --rack-hover-rotate-x: 32deg;
+  --rack-rest-scale-y: 0.97;
+  --rack-hover-rotate-x: 0deg;
   --rack-hover-rotate-y: 0deg;
   --rack-hover-skew-x: 0deg;
-  --rack-hover-scale-y: 0.99;
-  --rack-hover-lift: -10px;
+  --rack-hover-scale-y: 1;
+  --rack-hover-lift: -8px;
   --rack-shadow-rest: 0 24px 34px rgba(0, 0, 0, 0.24);
   --rack-shadow-hover: 0 32px 46px rgba(0, 0, 0, 0.3);
   gap: 6px;
 }
+
+
 
 .card--rack-attached .card__toolbar {
   margin-bottom: -4px;
@@ -1114,8 +1255,8 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__surface--rack::after {
   content: "";
   position: absolute;
-  inset: 10px 10px 8px;
-  border-radius: 26px;
+  inset: 6px calc(6px + var(--rack-body-inset-x, 0px));
+  border-radius: calc(var(--rack-body-radius, 32px) - 4px);
   border: 1px solid transparent;
   box-shadow: 0 0 0 0 transparent;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
@@ -1142,115 +1283,68 @@ intentional so the top edge reads much shorter than the bottom edge. */
   transform: scaleX(1);
 }
 
-.card__rack-copy {
+.card__rack-rect {
   position: absolute;
-  left: 26px;
-  right: 26px;
-  bottom: 16px;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  pointer-events: none;
-}
-
-.card__rack-kicker {
-  color: rgba(255, 236, 211, 0.72);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.card__rack-meta {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.card__rack-title {
-  color: rgba(255, 244, 233, 0.98);
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  text-shadow: 0 2px 10px rgba(43, 23, 10, 0.3);
-}
-
-.card__rack-count {
-  color: rgba(255, 231, 200, 0.72);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
+  inset: 0 var(--rack-body-inset-x, 0px);
+  z-index: 2;
+  border-radius: var(--rack-body-radius, 32px);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(210, 130, 54, 0.2), rgba(210, 130, 54, 0) 54%),
+    linear-gradient(135deg, #a56227 0%, #bc7431 46%, #a35e27 100%);
+  box-shadow:
+    inset 0 6px 14px rgba(255, 213, 157, 0.22),
+    inset 0 -8px 16px rgba(113, 59, 18, 0.18),
+    0 18px 26px rgba(47, 24, 10, 0.24),
+    0 2px 0 rgba(255, 237, 208, 0.08);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .card__rack-slot-strip {
   position: absolute;
-  top: 10px;
-  left: 26px;
-  right: 26px;
+  left: calc(38px + var(--rack-body-inset-x, 0px));
+  right: calc(38px + var(--rack-body-inset-x, 0px));
+  top: 52px;
   z-index: 3;
   display: flex;
-  gap: 14px;
+  gap: var(--rack-slot-gap, 16px);
   pointer-events: none;
 }
 
 .card__rack-slot {
   flex: 1 1 0;
-  height: 16px;
-  border-radius: 999px;
-  border: 1px dashed rgba(255, 228, 188, 0.24);
-  background: linear-gradient(180deg, rgba(255, 248, 238, 0.12), rgba(46, 19, 5, 0.08));
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+  height: 22px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(80, 41, 11, 0.12), rgba(46, 19, 5, 0.06));
+  box-shadow:
+    inset 0 2px 4px rgba(71, 34, 9, 0.12),
+    inset 0 1px 0 rgba(255, 229, 189, 0.08);
+  opacity: 0.42;
+  transition: opacity 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .card__rack-slot--occupied {
-  border-color: rgba(255, 230, 197, 0.14);
-  background: linear-gradient(180deg, rgba(255, 244, 228, 0.08), rgba(29, 14, 3, 0.08));
+  opacity: 0.18;
 }
 
 .card__rack-slot--preview {
-  border-color: color-mix(in srgb, var(--accent) 70%, white 12%);
+  opacity: 0.7;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 34%, white 10%), color-mix(in srgb, var(--accent) 18%, transparent));
-  transform: scaleY(1.14);
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, rgba(80, 41, 11, 0.14)), color-mix(in srgb, var(--accent) 8%, rgba(46, 19, 5, 0.08)));
+  box-shadow:
+    inset 0 2px 4px rgba(71, 34, 9, 0.08),
+    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-.card__rack-wood {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 94px minmax(0, 1fr) 94px;
-  align-items: stretch;
-  z-index: 2;
-  filter:
-    drop-shadow(0 18px 26px rgba(47, 24, 10, 0.24))
-    drop-shadow(0 2px 0 rgba(255, 237, 208, 0.08));
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.card__surface-frame--rack-drop-target .card__rack-wood,
-.card--rack-drop-target .card__rack-wood,
-.card--hovered.card--rack .card__rack-wood {
-  transform: translateY(-3px);
-  filter:
-    drop-shadow(0 24px 34px rgba(47, 24, 10, 0.3))
-    drop-shadow(0 2px 0 rgba(255, 237, 208, 0.12));
-}
-
-.card__rack-slice {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-  user-select: none;
-  pointer-events: none;
-}
-
-.card__rack-slice-center {
-  min-width: 0;
-  overflow: hidden;
+.card__surface-frame--rack-drop-target .card__rack-rect,
+.card--rack-drop-target .card__rack-rect,
+.card--hovered.card--rack .card__rack-rect {
+  transform: none;
+  box-shadow:
+    inset 0 6px 14px rgba(255, 213, 157, 0.24),
+    inset 0 -8px 16px rgba(113, 59, 18, 0.2),
+    0 24px 34px rgba(47, 24, 10, 0.3),
+    0 2px 0 rgba(255, 237, 208, 0.12);
 }
 
 .card__link-actions {

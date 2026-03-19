@@ -522,6 +522,31 @@ function isDirectImageUrl(url) {
   return /\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(url);
 }
 
+function isLikelyPreviewImageUrl(url) {
+  if (!url) {
+    return false;
+  }
+
+  const normalizedUrl = String(url).toLowerCase();
+
+  if (
+    normalizedUrl.includes(".mp4")
+    || normalizedUrl.includes(".m3u8")
+    || normalizedUrl.includes(".mov")
+    || normalizedUrl.includes("video.twimg.com/")
+    || normalizedUrl.includes("/amplify_video/")
+    || normalizedUrl.includes("/tweet_video/")
+  ) {
+    return false;
+  }
+
+  return isDirectImageUrl(normalizedUrl)
+    || normalizedUrl.includes("pbs.twimg.com/media/")
+    || normalizedUrl.includes("pbs.twimg.com/ext_tw_video_thumb/")
+    || normalizedUrl.includes("i.pinimg.com/")
+    || normalizedUrl.includes("i.ytimg.com/");
+}
+
 function isSpotifyHost(url) {
   return /(?:^|\.)spotify(?:\.com|\.link)$/i.test(getUrlHostname(url));
 }
@@ -776,15 +801,15 @@ async function fetchVxTwitterPreview(url) {
   }
 
   const mediaUrls = uniqueValues([
-    ...(Array.isArray(payload.mediaURLs) ? payload.mediaURLs : []),
     ...(Array.isArray(payload.media_extended)
       ? payload.media_extended.flatMap((media) => [
-        media?.url,
         media?.thumbnail_url,
         media?.image,
+        media?.url,
       ])
       : []),
-  ]);
+    ...(Array.isArray(payload.mediaURLs) ? payload.mediaURLs : []),
+  ]).filter((candidateUrl) => isLikelyPreviewImageUrl(candidateUrl));
 
   if (mediaUrls.length === 0) {
     return null;
@@ -831,12 +856,16 @@ async function fetchProviderPreview(url) {
 async function resolvePreviewImage(candidateUrls) {
   const uniqueCandidates = uniqueValues(candidateUrls)
     .map((candidateUrl) => upgradeArtworkUrl(candidateUrl))
-    .filter((candidateUrl) => candidateUrl && !isBlockedPreviewImageUrl(candidateUrl));
+    .filter((candidateUrl) => (
+      candidateUrl
+      && !isBlockedPreviewImageUrl(candidateUrl)
+      && isLikelyPreviewImageUrl(candidateUrl)
+    ));
 
   let remoteFallbackUrl = "";
 
   for (const candidateUrl of uniqueCandidates) {
-    if (!remoteFallbackUrl) {
+    if (!remoteFallbackUrl && isLikelyPreviewImageUrl(candidateUrl)) {
       remoteFallbackUrl = candidateUrl;
     }
 

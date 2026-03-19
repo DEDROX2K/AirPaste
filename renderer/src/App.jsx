@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Card from "./components/Card";
 import CanvasDock from "./components/CanvasDock";
+import CanvasZoomMenu from "./components/CanvasZoomMenu";
 import { DevConsole } from "./components/DevConsole";
 import NoteMagnifier from "./components/notes/NoteMagnifier";
 import TileContextMenu from "./components/TileContextMenu";
@@ -138,45 +139,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    function handleKeyDown(event) {
-      const activeElement = document.activeElement;
-      const editingAnotherField = isEditableElement(activeElement) && activeElement !== searchInputRef.current;
-
-      if (event.key === "Escape" && interactions.contextMenu) {
-        event.preventDefault();
-        interactions.closeContextMenu();
-        return;
-      }
-
-      if (editingAnotherField) {
-        return;
-      }
-
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        focusSearchInput();
-        return;
-      }
-
-      if (event.key === "Escape" && activeElement === searchInputRef.current) {
-        event.preventDefault();
-
-        if (searchQuery) {
-          setSearchQuery("");
-        } else {
-          searchInputRef.current.blur();
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [focusSearchInput, interactions, searchQuery]);
-
-  useEffect(() => {
     async function handlePaste(event) {
       if (isEditableElement(document.activeElement)) {
         return;
@@ -208,6 +170,83 @@ export default function App() {
     draggingTileIds: interactions.draggingTileIds,
     mergeTargetTileId: interactions.folderGroupingPreview?.targetTileId ?? null,
   });
+  const zoomToFitAll = useCallback(() => {
+    canvas.zoomToBounds(layout.allTilesBounds);
+  }, [canvas, layout.allTilesBounds]);
+  const zoomToFitSelection = useCallback(() => {
+    canvas.zoomToBounds(layout.selectedTilesBounds);
+  }, [canvas, layout.selectedTilesBounds]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      const activeElement = document.activeElement;
+      const activeElementIsEditable = isEditableElement(activeElement);
+      const editingAnotherField = activeElementIsEditable && activeElement !== searchInputRef.current;
+
+      if (event.key === "Escape" && interactions.contextMenu) {
+        event.preventDefault();
+        interactions.closeContextMenu();
+        return;
+      }
+
+      if (editingAnotherField) {
+        return;
+      }
+
+      if (event.key === "Delete" && !activeElementIsEditable && interactions.selectedTileIds.length > 0) {
+        event.preventDefault();
+        commands.deleteTiles(interactions.selectedTileIds);
+        interactions.closeContextMenu();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        focusSearchInput();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
+        event.preventDefault();
+        canvas.zoomIn();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === "-") {
+        event.preventDefault();
+        canvas.zoomOut();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === "0") {
+        event.preventDefault();
+        canvas.setZoom(1);
+        return;
+      }
+
+      if (event.shiftKey && event.key === "1") {
+        event.preventDefault();
+        zoomToFitAll();
+        return;
+      }
+
+      if (event.key === "Escape" && activeElement === searchInputRef.current) {
+        event.preventDefault();
+
+        if (searchQuery) {
+          setSearchQuery("");
+        } else {
+          searchInputRef.current.blur();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [canvas, commands, focusSearchInput, interactions, searchQuery, zoomToFitAll]);
 
   const totalTileCount = workspace.cards.length;
   const visibleTileCount = layout.rootTiles.length;
@@ -285,27 +324,24 @@ export default function App() {
             >
               <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
             </button>
-            <button
-              className="hud-chip"
-              type="button"
-              onClick={() => canvas.zoomToBounds(layout.allTilesBounds)}
-              disabled={!layout.allTilesBounds}
-            >
-              Fit All
-            </button>
-            <button
-              className="hud-chip"
-              type="button"
-              onClick={() => canvas.zoomToBounds(layout.selectedTilesBounds)}
-              disabled={!layout.selectedTilesBounds}
-            >
-              Fit Selection
-            </button>
             <span className="hud-stat" title={folderPath || workspaceHudLabel}>
               {workspaceHudLabel}
             </span>
           </div>
           <p className="canvas-hud__hint">Scroll to zoom, middle-drag to pan, Ctrl or Cmd + drag or right-drag to multi-select.</p>
+        </div>
+
+        <div className="canvas-hud canvas-hud--top-right">
+          <CanvasZoomMenu
+            zoom={workspace.viewport.zoom}
+            canFitAll={Boolean(layout.allTilesBounds)}
+            canFitSelection={Boolean(layout.selectedTilesBounds)}
+            onZoomIn={canvas.zoomIn}
+            onZoomOut={canvas.zoomOut}
+            onZoomToFitAll={zoomToFitAll}
+            onZoomToFitSelection={zoomToFitSelection}
+            onSetZoom={canvas.setZoom}
+          />
         </div>
 
         {showSearchHud ? (

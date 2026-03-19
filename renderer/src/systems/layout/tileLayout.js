@@ -356,6 +356,8 @@ export function getTileLayer(orderIndex, {
   isExpanded,
   isNested = false,
   isRackAttached = false,
+  isParentDragging = false,
+  isParentSelected = false,
 }) {
   let layer = orderIndex + 1;
 
@@ -365,6 +367,10 @@ export function getTileLayer(orderIndex, {
 
   if (isRackAttached) {
     layer += 180;
+  }
+
+  if (isParentSelected) {
+    layer += 220;
   }
 
   if (isSelected) {
@@ -385,6 +391,10 @@ export function getTileLayer(orderIndex, {
 
   if (isDragging) {
     layer += 1200;
+  }
+
+  if (isParentDragging) {
+    layer += 1400;
   }
 
   return layer;

@@ -108,15 +108,21 @@ export function useTileLayoutSystem({
       const isRackAttached = entry.containerType === "rack";
       const isGroupingTarget = folderGroupingPreview?.targetTileId === tile.id || mergeTargetTileId === tile.id;
       const isRackDropTarget = rackDropPreview?.rackId === tile.id;
+      const parentRackId = entry.rackId ?? null;
+      const parentRackDragging = Boolean(parentRackId && draggingTileIdSet.has(parentRackId));
+      const parentRackSelected = Boolean(parentRackId && selectedTileIdSet.has(parentRackId));
+      const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
       const flags = {
-        isDragging: draggingTileIdSet.has(tile.id),
+        isDragging: draggingTileIdSet.has(tile.id) || parentRackDragging,
         isEditing: editingTileId === tile.id,
-        isSelected: selectedTileIdSet.has(tile.id),
-        isFocused: focusedTileId === tile.id,
+        isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
+        isFocused: focusedTileId === tile.id || parentRackFocused,
         isHovered: hoveredTileId === tile.id,
         isMergeTarget: isGroupingTarget,
         isExpanded: openFolderId === tile.id,
         isRackAttached,
+        isParentDragging: parentRackDragging,
+        isParentSelected: parentRackSelected,
       };
       const interactionState = getTileInteractionState(flags);
       const zIndex = getTileLayer(index, flags);
