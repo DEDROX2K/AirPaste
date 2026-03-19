@@ -32,7 +32,7 @@ const MUSIC_HOSTS = Object.freeze([
   "www.deezer.com",
 ]);
 
-const WORKSPACE_SCHEMA_VERSION = 2;
+const WORKSPACE_SCHEMA_VERSION = 4;
 
 const DEFAULT_WORKSPACE = Object.freeze({
   version: WORKSPACE_SCHEMA_VERSION,
@@ -44,6 +44,8 @@ const DEFAULT_WORKSPACE = Object.freeze({
   cards: [],
 });
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
+const FOLDER_CARD_TYPE = "folder";
+const RACK_CARD_TYPE = "rack";
 const NOTE_STYLE_TWO = "notes-2";
 const NOTE_STYLE_THREE = "notes-3";
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
@@ -99,6 +101,14 @@ function defaultCardSize(type) {
     return { width: 340, height: 280 };
   }
 
+  if (type === RACK_CARD_TYPE) {
+    return { width: 694, height: 126 };
+  }
+
+  if (type === FOLDER_CARD_TYPE) {
+    return { width: 320, height: 220 };
+  }
+
   if (type === NOTE_FOLDER_CARD_TYPE) {
     return { width: 360, height: 284 };
   }
@@ -121,6 +131,14 @@ function firstString(...values) {
 function getCardType(card) {
   if (card?.type === "link") {
     return "link";
+  }
+
+  if (card?.type === RACK_CARD_TYPE) {
+    return RACK_CARD_TYPE;
+  }
+
+  if (card?.type === FOLDER_CARD_TYPE) {
+    return FOLDER_CARD_TYPE;
   }
 
   if (card?.type === NOTE_FOLDER_CARD_TYPE) {
@@ -183,6 +201,19 @@ function normalizeCard(card, index = 0) {
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
+  const tileIds = type === RACK_CARD_TYPE
+    ? (Array.isArray(card?.tileIds)
+      ? card.tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0)
+      : [])
+    : [];
+  const minSlots = type === RACK_CARD_TYPE
+    ? Math.max(3, isFiniteNumber(card?.minSlots, 3))
+    : null;
+  const childIds = type === FOLDER_CARD_TYPE
+    ? (Array.isArray(card?.childIds)
+      ? card.childIds.filter((childId) => typeof childId === "string" && childId.trim().length > 0)
+      : [])
+    : [];
 
   return {
     id: typeof card?.id === "string" ? card.id : `card-${index}-${Date.now()}`,
@@ -198,11 +229,19 @@ function normalizeCard(card, index = 0) {
     url: type === "link" ? String(card?.url ?? "") : "",
     title: type === "link"
       ? String(card?.title ?? "")
+      : type === RACK_CARD_TYPE
+        ? firstString(card?.title, "Rack")
+      : type === FOLDER_CARD_TYPE
+        ? firstString(card?.title, "Folder")
       : type === NOTE_FOLDER_CARD_TYPE
         ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
         : "",
     description: type === "link"
       ? String(card?.description ?? "")
+      : type === RACK_CARD_TYPE
+        ? firstString(card?.description, "Mounted display rack")
+      : type === FOLDER_CARD_TYPE
+        ? firstString(card?.description, "Grouped tiles")
       : type === NOTE_FOLDER_CARD_TYPE
         ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
         : "",
@@ -213,6 +252,18 @@ function normalizeCard(card, index = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    tileIds,
+    minSlots,
+    childIds,
+    childLayouts: type === FOLDER_CARD_TYPE && card?.childLayouts && typeof card.childLayouts === "object"
+      ? card.childLayouts
+      : {},
+    parentRackId: type !== RACK_CARD_TYPE && typeof card?.parentRackId === "string" && card.parentRackId.trim().length > 0
+      ? card.parentRackId
+      : null,
+    rackIndex: type !== RACK_CARD_TYPE && Number.isFinite(card?.rackIndex)
+      ? Math.max(0, Math.round(card.rackIndex))
+      : null,
     notes,
     createdAt,
     updatedAt,
@@ -255,6 +306,20 @@ function migrateWorkspace(rawWorkspace) {
     nextWorkspace = {
       ...nextWorkspace,
       version: 2,
+    };
+  }
+
+  if (version < 3) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 3,
+    };
+  }
+
+  if (version < 4) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 4,
     };
   }
 

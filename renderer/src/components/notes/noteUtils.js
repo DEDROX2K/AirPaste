@@ -1,5 +1,6 @@
 import {
   NOTE_STYLE_ONE,
+  NOTE_STYLE_QUICK,
   NOTE_STYLE_THREE,
 } from "../../lib/workspace";
 
@@ -25,6 +26,10 @@ export const DEFAULT_QUOTE_AUTHOR_PLACEHOLDER = "By who?";
 export function getTextNoteVariant(card) {
   if (card.noteStyle === NOTE_STYLE_ONE) {
     return "note1";
+  }
+
+  if (card.noteStyle === NOTE_STYLE_QUICK) {
+    return "quick";
   }
 
   if (card.noteStyle === NOTE_STYLE_THREE) {

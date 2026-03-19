@@ -787,6 +787,15 @@ export function useCanvasInteractionSystem({
     canvas.beginCanvasPan(event);
   }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, closeExpandedTile, commands]);
 
+  const handleCanvasDoubleClick = useCallback((event) => {
+    if (!isCanvasBackgroundTarget(event) || event.button !== 0) {
+      return;
+    }
+
+    const preferredCenter = canvas.clientToWorldPoint(event.clientX, event.clientY);
+    commands.createQuickNote(preferredCenter);
+  }, [canvas, commands]);
+
   const handleCanvasContextMenu = useCallback((event) => {
     if (!isCanvasBackgroundTarget(event)) {
       return;
@@ -816,6 +825,7 @@ export function useCanvasInteractionSystem({
     closeMagnifiedNote,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
+    handleCanvasDoubleClick,
     handleTileContextMenu,
     handleTileEditingChange,
     handleTileFocusIn,
@@ -839,6 +849,7 @@ export function useCanvasInteractionSystem({
     rackDropPreview,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
+    handleCanvasDoubleClick,
     handleTileContextMenu,
     handleTileEditingChange,
     handleTileFocusIn,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getMagnifiedTextNoteStyle, getTextNoteVariant } from "./noteUtils";
 import NoteVariantOne from "./NoteVariantOne";
+import NoteVariantQuick from "./NoteVariantQuick";
 import NoteVariantTwo from "./NoteVariantTwo";
 import NoteVariantThree from "./NoteVariantThree";
 
@@ -51,6 +52,8 @@ export default function NoteSurface({
     "card__surface--text",
     variant === "note1"
       ? "card__surface--text-note"
+      : variant === "quick"
+        ? "card__surface--text-quick"
       : variant === "note3"
         ? "card__surface--text-note3"
         : "card__surface--text-note2",
@@ -77,6 +80,14 @@ export default function NoteSurface({
     >
       {variant === "note1" ? (
         <NoteVariantOne
+          card={card}
+          isEditable={isEditable}
+          noteTimestamp={noteTimestamp}
+          headerProps={headerProps}
+          onTextChange={onTextChange}
+        />
+      ) : variant === "quick" ? (
+        <NoteVariantQuick
           card={card}
           isEditable={isEditable}
           noteTimestamp={noteTimestamp}

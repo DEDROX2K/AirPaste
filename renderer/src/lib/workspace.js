@@ -4,6 +4,7 @@ export const RACK_CARD_TYPE = "rack";
 export const NOTE_STYLE_ONE = "notes-1";
 export const NOTE_STYLE_TWO = "notes-2";
 export const NOTE_STYLE_THREE = "notes-3";
+export const NOTE_STYLE_QUICK = "notes-quick";
 export const WORKSPACE_SCHEMA_VERSION = 4;
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -26,6 +27,11 @@ const TEXT_CARD_SIZE = Object.freeze({
 const QUOTE_TEXT_CARD_SIZE = Object.freeze({
   width: 452,
   height: 468,
+});
+
+const QUICK_NOTE_CARD_SIZE = Object.freeze({
+  width: 360,
+  height: 260,
 });
 
 const LINK_CARD_SIZE = Object.freeze({
@@ -170,6 +176,10 @@ function cardToFolderNote(card) {
 }
 
 function getTextCardSize(noteStyle) {
+  if (noteStyle === NOTE_STYLE_QUICK) {
+    return QUICK_NOTE_CARD_SIZE;
+  }
+
   return noteStyle === NOTE_STYLE_THREE ? QUOTE_TEXT_CARD_SIZE : TEXT_CARD_SIZE;
 }
 

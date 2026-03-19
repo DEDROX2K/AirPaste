@@ -387,6 +387,7 @@ export default function App() {
           className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}`}
           tabIndex={-1}
           onPointerDown={interactions.handleCanvasPointerDown}
+          onDoubleClick={interactions.handleCanvasDoubleClick}
           onContextMenu={interactions.handleCanvasContextMenu}
           onWheel={canvas.handleCanvasWheel}
           onClick={(event) => {

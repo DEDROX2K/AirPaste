@@ -2192,14 +2192,110 @@ intentional so the top edge reads much shorter than the bottom edge. */
   color: rgba(118, 82, 77, 0.66);
 }
 
-.card__surface--text-draggable,
-.card__surface--text-draggable * {
+.card__surface--text-quick {
+  flex-direction: column;
+  border-radius: 30px;
+  border: 1px solid rgba(210, 223, 255, 0.92);
+  background:
+    linear-gradient(180deg, #91b2ff 0%, #91b2ff 16%, #c7d7ff 16%, #c7d7ff 100%);
+  box-shadow:
+    0 24px 44px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.card__surface-frame--selected .card__surface--text-quick {
+  box-shadow:
+    0 28px 48px rgba(0, 0, 0, 0.22),
+    0 0 0 2px rgba(241, 246, 255, 0.96),
+    0 0 0 7px rgba(137, 166, 255, 0.18);
+}
+
+.card__notequick-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.card__notequick-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 64px;
+  padding: 18px 22px 10px;
+  user-select: none;
+}
+
+.card__notequick-header--draggable {
   cursor: grab;
 }
 
-.card__surface--text-draggable:active,
-.card__surface--text-draggable:active * {
+.card__notequick-header--draggable:active {
   cursor: grabbing;
+}
+
+.card__notequick-day,
+.card__notequick-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #4d648f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card__notequick-day {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.card__notequick-body {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 18px 18px;
+}
+
+.card__notequick-body--editing {
+  cursor: text;
+}
+
+.card__notequick-editor,
+.card__notequick-text {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #2e3f67;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+  white-space: pre-wrap;
+}
+
+.card__notequick-editor::placeholder {
+  color: rgba(46, 63, 103, 0.38);
+}
+
+.card__notequick-text {
+  margin: 0;
+  overflow: hidden;
+}
+
+.card__notequick-text--placeholder {
+  color: rgba(46, 63, 103, 0.38);
+}
+
+.card__surface--text-draggable,
+.card__surface--text-draggable * {
+  cursor: grab;
 }
 
 .card__surface--text-draggable .card__note2-expand-button,

@@ -10,6 +10,7 @@ import {
   NOTE_FOLDER_CARD_TYPE,
   NOTE_STYLE_ONE,
   NOTE_STYLE_THREE,
+  NOTE_STYLE_QUICK,
   NOTE_STYLE_TWO,
   removeTileFromFolder,
   removeTileFromRack,
@@ -245,6 +246,21 @@ export function useCanvasCommands({
 
     log("success", logMessage, centerPoint);
     toast("success", successMessage);
+    return card;
+  }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
+
+  const createQuickNote = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "Quick note blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const card = createNewTextCard("", centerPoint, { noteStyle: NOTE_STYLE_QUICK });
+
+    log("success", "Quick note created from empty canvas double-tap", centerPoint);
+    toast("success", "Quick note added.");
     return card;
   }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
 
@@ -781,6 +797,7 @@ export function useCanvasCommands({
     createNoteOne,
     createNoteTwo,
     createNoteThree,
+    createQuickNote,
     createTileFromDefinition,
     createFolderFromTiles: createFolderFromTileSet,
     addTileToFolder: addTileToFolderCommand,
@@ -816,6 +833,7 @@ export function useCanvasCommands({
     createNoteOne,
     createNoteThree,
     createNoteTwo,
+    createQuickNote,
     createTileFromDefinition,
     deleteTile,
     deleteTiles,
