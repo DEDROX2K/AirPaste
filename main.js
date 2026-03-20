@@ -1,11 +1,11 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const workspaceService = require("./workspace-service");
 const openGraphScraper = require("open-graph-scraper");
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 const { chromium } = require("playwright");
 
-const DATA_FILE_NAME = "data.json";
 const CONFIG_FILE_NAME = "config.json";
 const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
@@ -32,17 +32,6 @@ const MUSIC_HOSTS = Object.freeze([
   "www.deezer.com",
 ]);
 
-const WORKSPACE_SCHEMA_VERSION = 4;
-
-const DEFAULT_WORKSPACE = Object.freeze({
-  version: WORKSPACE_SCHEMA_VERSION,
-  viewport: {
-    x: 180,
-    y: 120,
-    zoom: 1,
-  },
-  cards: [],
-});
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
 const FOLDER_CARD_TYPE = "folder";
 const RACK_CARD_TYPE = "rack";
@@ -56,10 +45,6 @@ const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
 let previewBrowserPromise = null;
-
-function cloneDefaultWorkspace() {
-  return JSON.parse(JSON.stringify(DEFAULT_WORKSPACE));
-}
 
 function nowIso() {
   return new Date().toISOString();
@@ -270,68 +255,8 @@ function normalizeCard(card, index = 0) {
   };
 }
 
-function normalizeWorkspace(rawWorkspace) {
-  const workspace = migrateWorkspace(rawWorkspace && typeof rawWorkspace === "object"
-    ? rawWorkspace
-    : cloneDefaultWorkspace());
-
-  const cards = Array.isArray(workspace.cards)
-    ? workspace.cards.map((card, index) => normalizeCard(card, index))
-    : [];
-
-  return {
-    version: WORKSPACE_SCHEMA_VERSION,
-    viewport: {
-      x: isFiniteNumber(workspace.viewport?.x, DEFAULT_WORKSPACE.viewport.x),
-      y: isFiniteNumber(workspace.viewport?.y, DEFAULT_WORKSPACE.viewport.y),
-      zoom: isFiniteNumber(workspace.viewport?.zoom, DEFAULT_WORKSPACE.viewport.zoom),
-    },
-    cards,
-  };
-}
-
-function migrateWorkspace(rawWorkspace) {
-  const safeWorkspace = rawWorkspace && typeof rawWorkspace === "object"
-    ? rawWorkspace
-    : cloneDefaultWorkspace();
-  const version = Number.isFinite(safeWorkspace.version) ? safeWorkspace.version : 1;
-
-  if (version >= WORKSPACE_SCHEMA_VERSION) {
-    return safeWorkspace;
-  }
-
-  let nextWorkspace = { ...safeWorkspace };
-
-  if (version < 2) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 2,
-    };
-  }
-
-  if (version < 3) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 3,
-    };
-  }
-
-  if (version < 4) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 4,
-    };
-  }
-
-  return nextWorkspace;
-}
-
 function getConfigPath() {
   return path.join(app.getPath("userData"), CONFIG_FILE_NAME);
-}
-
-function getWorkspaceFilePath(folderPath) {
-  return path.join(folderPath, DATA_FILE_NAME);
 }
 
 async function pathExists(targetPath) {
@@ -388,7 +313,9 @@ async function safeWriteJson(filePath, data) {
 }
 
 function withWorkspaceQueue(folderPath, task) {
-  const queueKey = getWorkspaceFilePath(folderPath);
+  const queueKey = typeof folderPath === "string" && folderPath
+    ? path.resolve(folderPath)
+    : "__invalid-workspace__";
   const previous = workspaceQueues.get(queueKey) ?? Promise.resolve();
   const next = previous
     .catch(() => {})
@@ -403,28 +330,6 @@ function withWorkspaceQueue(folderPath, task) {
   });
 }
 
-async function recoverWorkspaceArtifacts(folderPath) {
-  const filePath = getWorkspaceFilePath(folderPath);
-  const tempPath = `${filePath}${TEMP_SUFFIX}`;
-  const backupPath = `${filePath}${BACKUP_SUFFIX}`;
-
-  if (!(await pathExists(filePath)) && (await pathExists(tempPath))) {
-    await fs.rename(tempPath, filePath);
-  }
-
-  if (!(await pathExists(filePath)) && (await pathExists(backupPath))) {
-    await fs.rename(backupPath, filePath);
-  }
-
-  if (await pathExists(tempPath)) {
-    await fs.rm(tempPath, { force: true }).catch(() => {});
-  }
-
-  if (await pathExists(backupPath)) {
-    await fs.rm(backupPath, { force: true }).catch(() => {});
-  }
-}
-
 async function readConfig() {
   return readJsonFile(getConfigPath(), { lastFolder: null });
 }
@@ -437,27 +342,6 @@ async function writeConfig(config) {
 
 async function setLastFolder(lastFolder) {
   await writeConfig({ lastFolder });
-}
-
-async function ensureWorkspace(folderPath) {
-  if (!(await isDirectory(folderPath))) {
-    throw new Error("Selected folder is no longer available.");
-  }
-
-  await recoverWorkspaceArtifacts(folderPath);
-
-  const filePath = getWorkspaceFilePath(folderPath);
-  const existing = await readJsonFile(filePath, null);
-
-  if (!existing) {
-    const workspace = cloneDefaultWorkspace();
-    await safeWriteJson(filePath, workspace);
-    return workspace;
-  }
-
-  const workspace = normalizeWorkspace(existing);
-  await safeWriteJson(filePath, workspace);
-  return workspace;
 }
 
 function getDevServerUrl() {
@@ -1136,7 +1020,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     return null;
   }
 
-  const workspace = await ensureWorkspace(folderPath);
+  const workspace = await workspaceService.readWorkspaceDocument(folderPath);
   let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
 
   if (cardIndex === -1 && cardSnapshot && !cancelledPreviewJobs.has(jobKey)) {
@@ -1166,7 +1050,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   });
 
   workspace.cards.splice(cardIndex, 1, nextCard);
-  await safeWriteJson(getWorkspaceFilePath(folderPath), workspace);
+  await workspaceService.saveWorkspace(folderPath, workspace);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
@@ -1252,23 +1136,105 @@ ipcMain.handle("airpaste:getLastFolder", async () => {
 });
 
 ipcMain.handle("airpaste:loadWorkspace", async (_event, folderPath) => {
+  try {
+    return await withWorkspaceQueue(folderPath, async () => {
+      const payload = await workspaceService.loadWorkspace(folderPath);
+      await setLastFolder(folderPath);
+      return payload;
+    });
+  } catch (error) {
+    const config = await readConfig();
+
+    if (config.lastFolder === folderPath) {
+      await writeConfig({ lastFolder: null });
+    }
+
+    throw error;
+  }
+});
+
+ipcMain.handle("airpaste:createWorkspace", async (_event, folderPath) => {
   return withWorkspaceQueue(folderPath, async () => {
-    const workspace = await ensureWorkspace(folderPath);
+    const payload = await workspaceService.createWorkspace(folderPath);
     await setLastFolder(folderPath);
-    return {
-      folderPath,
-      workspace,
-    };
+    return payload;
   });
 });
 
 ipcMain.handle("airpaste:saveWorkspace", async (_event, folderPath, data) => {
   return withWorkspaceQueue(folderPath, async () => {
-    const workspace = normalizeWorkspace(data);
-    await safeWriteJson(getWorkspaceFilePath(folderPath), workspace);
-    return workspace;
+    return workspaceService.saveWorkspace(folderPath, data);
   });
 });
+
+const workspaceActionHandlers = Object.freeze({
+  "airpaste:createProject": (folderPath, name) =>
+    workspaceService.createProject(folderPath, name),
+  "airpaste:createSpace": (folderPath, projectId, name) =>
+    workspaceService.createSpace(folderPath, projectId, name),
+  "airpaste:createCanvas": (folderPath, projectId, spaceId, name) =>
+    workspaceService.createCanvas(folderPath, projectId, spaceId, name),
+  "airpaste:createPage": (folderPath, projectId, spaceId, name) =>
+    workspaceService.createPage(folderPath, projectId, spaceId, name),
+  "airpaste:listProjects": (folderPath) =>
+    workspaceService.listProjects(folderPath),
+  "airpaste:getProject": (folderPath, projectId) =>
+    workspaceService.getProject(folderPath, projectId),
+  "airpaste:listSpaces": (folderPath, projectId) =>
+    workspaceService.listSpaces(folderPath, projectId),
+  "airpaste:getSpace": (folderPath, projectId, spaceId) =>
+    workspaceService.getSpace(folderPath, projectId, spaceId),
+  "airpaste:listItems": (folderPath, projectId, spaceId) =>
+    workspaceService.listItems(folderPath, projectId, spaceId),
+  "airpaste:getHomeData": (folderPath) =>
+    workspaceService.getHomeData(folderPath),
+  "airpaste:getRecentItems": (folderPath) =>
+    workspaceService.getRecentItems(folderPath),
+  "airpaste:getStarredItems": (folderPath) =>
+    workspaceService.getStarredItems(folderPath),
+  "airpaste:getProjectsSummary": (folderPath) =>
+    workspaceService.getProjectsSummary(folderPath),
+  "airpaste:getProjectContents": (folderPath, projectId) =>
+    workspaceService.getProjectContents(folderPath, projectId),
+  "airpaste:getSpaceContents": (folderPath, projectId, spaceId) =>
+    workspaceService.getSpaceContents(folderPath, projectId, spaceId),
+  "airpaste:loadCanvas": (folderPath, projectId, spaceId, canvasId) =>
+    workspaceService.loadCanvas(folderPath, projectId, spaceId, canvasId),
+  "airpaste:saveCanvas": (folderPath, projectId, spaceId, canvasId, data) =>
+    workspaceService.saveCanvas(folderPath, projectId, spaceId, canvasId, data),
+  "airpaste:loadPage": (folderPath, projectId, spaceId, pageId) =>
+    workspaceService.loadPage(folderPath, projectId, spaceId, pageId),
+  "airpaste:savePage": (folderPath, projectId, spaceId, pageId, markdown) =>
+    workspaceService.savePage(folderPath, projectId, spaceId, pageId, markdown),
+  "airpaste:renameProject": (folderPath, projectId, name) =>
+    workspaceService.renameProject(folderPath, projectId, name),
+  "airpaste:renameSpace": (folderPath, projectId, spaceId, name) =>
+    workspaceService.renameSpace(folderPath, projectId, spaceId, name),
+  "airpaste:renameCanvas": (folderPath, projectId, spaceId, canvasId, name) =>
+    workspaceService.renameCanvas(folderPath, projectId, spaceId, canvasId, name),
+  "airpaste:renamePage": (folderPath, projectId, spaceId, pageId, name) =>
+    workspaceService.renamePage(folderPath, projectId, spaceId, pageId, name),
+  "airpaste:markItemStarred": (folderPath, itemId, starred) =>
+    workspaceService.markItemStarred(folderPath, itemId, starred),
+  "airpaste:loadUiState": (folderPath) =>
+    workspaceService.loadUiState(folderPath),
+  "airpaste:saveUiState": (folderPath, partialState) =>
+    workspaceService.saveUiState(folderPath, partialState),
+  "airpaste:deleteProject": (folderPath, projectId) =>
+    workspaceService.deleteProject(folderPath, projectId),
+  "airpaste:deleteSpace": (folderPath, projectId, spaceId) =>
+    workspaceService.deleteSpace(folderPath, projectId, spaceId),
+  "airpaste:deleteCanvas": (folderPath, projectId, spaceId, canvasId) =>
+    workspaceService.deleteCanvas(folderPath, projectId, spaceId, canvasId),
+  "airpaste:deletePage": (folderPath, projectId, spaceId, pageId) =>
+    workspaceService.deletePage(folderPath, projectId, spaceId, pageId),
+});
+
+for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
+  ipcMain.handle(channel, async (_event, folderPath, ...args) => (
+    withWorkspaceQueue(folderPath, () => handler(folderPath, ...args))
+  ));
+}
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {
   const normalizedUrl = normalizeExternalUrl(url);
