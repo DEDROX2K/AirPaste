@@ -1,5 +1,6 @@
 import Card from "../Card";
 import { formatCardSubtitle } from "../../lib/workspace";
+import TILE_TYPES from "../../tiles/tileTypes";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
@@ -8,7 +9,7 @@ function getPreviewLabel(tile) {
     return "";
   }
 
-  if (tile.type === "text") {
+  if (tile.type === TILE_TYPES.NOTE) {
     return tile.text.trim().split(/\r?\n/).find(Boolean) ?? "Text note";
   }
 

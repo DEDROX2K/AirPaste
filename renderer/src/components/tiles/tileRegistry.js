@@ -1,28 +1,28 @@
-import { FOLDER_CARD_TYPE, NOTE_FOLDER_CARD_TYPE, RACK_CARD_TYPE } from "../../lib/workspace";
 import FolderTile from "./FolderTile";
 import LinkTile from "./LinkTile";
 import NoteFolderTile from "./NoteFolderTile";
 import RackTile from "./RackTile";
 import TextTile from "./TextTile";
+import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
-  text: {
+  [TILE_TYPES.NOTE]: {
     Component: TextTile,
   },
-  link: {
+  [TILE_TYPES.LINK]: {
     Component: LinkTile,
   },
-  [FOLDER_CARD_TYPE]: {
+  [TILE_TYPES.FOLDER]: {
     Component: FolderTile,
   },
-  [NOTE_FOLDER_CARD_TYPE]: {
+  [TILE_TYPES.NOTE_FOLDER]: {
     Component: NoteFolderTile,
   },
-  [RACK_CARD_TYPE]: {
+  [TILE_TYPES.RACK]: {
     Component: RackTile,
   },
 };
 
 export function getTileRegistration(tileType) {
-  return tileRegistry[tileType] ?? tileRegistry.link;
+  return tileRegistry[tileType] ?? tileRegistry[TILE_TYPES.LINK];
 }

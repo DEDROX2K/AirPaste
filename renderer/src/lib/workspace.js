@@ -1,6 +1,8 @@
-export const NOTE_FOLDER_CARD_TYPE = "note-folder";
-export const FOLDER_CARD_TYPE = "folder";
-export const RACK_CARD_TYPE = "rack";
+import TILE_TYPES from "../tiles/tileTypes";
+
+export const NOTE_FOLDER_CARD_TYPE = TILE_TYPES.NOTE_FOLDER;
+export const FOLDER_CARD_TYPE = TILE_TYPES.FOLDER;
+export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
 export const NOTE_STYLE_ONE = "notes-1";
@@ -72,8 +74,8 @@ function firstString(...values) {
 }
 
 function getCardType(card) {
-  if (card?.type === "link") {
-    return "link";
+  if (card?.type === TILE_TYPES.LINK) {
+    return TILE_TYPES.LINK;
   }
 
   if (card?.type === RACK_CARD_TYPE) {
@@ -88,7 +90,7 @@ function getCardType(card) {
     return NOTE_FOLDER_CARD_TYPE;
   }
 
-  return "text";
+  return TILE_TYPES.NOTE;
 }
 
 function normalizeLinkContentKind(contentKind, asset = null) {
@@ -219,7 +221,7 @@ function getTextCardSize(noteStyle) {
 }
 
 function getCardSize(type, noteStyle = "") {
-  if (type === "link") {
+  if (type === TILE_TYPES.LINK) {
     return LINK_CARD_SIZE;
   }
 
@@ -604,12 +606,12 @@ export function createTextCard(cards, viewport, text = "", preferredCenter = nul
   const noteStyle = typeof options?.noteStyle === "string" ? options.noteStyle : NOTE_STYLE_TWO;
   const quoteAuthor = typeof options?.quoteAuthor === "string" ? options.quoteAuthor : "";
   const secondaryText = typeof options?.secondaryText === "string" ? options.secondaryText : "";
-  const position = getNextCardPosition(cards, viewport, "text", preferredCenter, noteStyle);
+  const position = getNextCardPosition(cards, viewport, TILE_TYPES.NOTE, preferredCenter, noteStyle);
   const timestamp = nowIso();
 
   return normalizeCard({
     id: crypto.randomUUID(),
-    type: "text",
+    type: TILE_TYPES.NOTE,
     text,
     secondaryText,
     noteStyle,
@@ -697,7 +699,7 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
 }
 
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, "link", preferredCenter);
+  const position = getNextCardPosition(cards, viewport, TILE_TYPES.LINK, preferredCenter);
   const timestamp = nowIso();
   const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
   const domain = getDomainLabel(url);
@@ -706,7 +708,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
 
   return normalizeCard({
     id: crypto.randomUUID(),
-    type: "link",
+    type: TILE_TYPES.LINK,
     url,
     contentKind,
     title: typeof options?.title === "string" ? options.title : "",

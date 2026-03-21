@@ -1,9 +1,10 @@
-import { FOLDER_CARD_TYPE, NOTE_FOLDER_CARD_TYPE, RACK_CARD_TYPE } from "../lib/workspace";
 import FolderTile from "../components/tiles/FolderTile";
 import LinkTile from "../components/tiles/LinkTile";
 import NoteFolderTile from "../components/tiles/NoteFolderTile";
 import RackTile from "../components/tiles/RackTile";
 import TextTile from "../components/tiles/TextTile";
+import TILE_TYPES from "./tileTypes";
+import validateTileRegistry from "./validateTileRegistry";
 
 function createPlaceholderTile(displayName) {
   function PlaceholderTile() {
@@ -21,14 +22,16 @@ const Model3DTile = createPlaceholderTile("3D Model");
 const PhysicsItemTile = createPlaceholderTile("Physics Item");
 
 const tileRegistry = {
-  text: {
-    type: "text",
+  [TILE_TYPES.NOTE]: {
+    type: TILE_TYPES.NOTE,
     displayName: "Note Tile",
+    status: "stable",
     component: TextTile,
     defaultSize: { width: 428, height: 540 },
     capabilities: {
       draggable: true,
-      resizable: true,
+      selectable: true,
+      resizable: false,
       editable: true,
       container: false,
       navigation: false,
@@ -36,14 +39,16 @@ const tileRegistry = {
       lazy: false,
     },
   },
-  link: {
-    type: "link",
+  [TILE_TYPES.LINK]: {
+    type: TILE_TYPES.LINK,
     displayName: "Link Tile",
+    status: "stable",
     component: LinkTile,
     defaultSize: { width: 340, height: 280 },
     capabilities: {
       draggable: true,
-      resizable: true,
+      selectable: true,
+      resizable: false,
       editable: false,
       container: false,
       navigation: false,
@@ -51,58 +56,66 @@ const tileRegistry = {
       lazy: false,
     },
   },
-  [FOLDER_CARD_TYPE]: {
-    type: FOLDER_CARD_TYPE,
+  [TILE_TYPES.FOLDER]: {
+    type: TILE_TYPES.FOLDER,
     displayName: "Folder Tile",
+    status: "stable",
     component: FolderTile,
     defaultSize: { width: 340, height: 236 },
     capabilities: {
       draggable: true,
-      resizable: true,
-      editable: true,
+      selectable: true,
+      resizable: false,
+      editable: false,
       container: true,
       navigation: false,
       physics: false,
       lazy: false,
     },
   },
-  [NOTE_FOLDER_CARD_TYPE]: {
-    type: NOTE_FOLDER_CARD_TYPE,
+  [TILE_TYPES.NOTE_FOLDER]: {
+    type: TILE_TYPES.NOTE_FOLDER,
     displayName: "Note Folder Tile",
+    status: "stable",
     component: NoteFolderTile,
     defaultSize: { width: 360, height: 284 },
     capabilities: {
       draggable: true,
-      resizable: true,
-      editable: true,
-      container: true,
+      selectable: true,
+      resizable: false,
+      editable: false,
+      container: false,
       navigation: false,
       physics: false,
       lazy: false,
     },
   },
-  [RACK_CARD_TYPE]: {
-    type: RACK_CARD_TYPE,
+  [TILE_TYPES.RACK]: {
+    type: TILE_TYPES.RACK,
     displayName: "Rack Tile",
+    status: "stable",
     component: RackTile,
     defaultSize: { width: 836, height: 126 },
     capabilities: {
       draggable: true,
-      resizable: true,
-      editable: true,
+      selectable: true,
+      resizable: false,
+      editable: false,
       container: true,
       navigation: false,
       physics: false,
       lazy: false,
     },
   },
-  "page-link": {
-    type: "page-link",
+  [TILE_TYPES.PAGE_LINK]: {
+    type: TILE_TYPES.PAGE_LINK,
     displayName: "Page Link Tile",
+    status: "planned",
     component: PageLinkTile,
     defaultSize: { width: 280, height: 180 },
     capabilities: {
       draggable: true,
+      selectable: true,
       resizable: true,
       editable: true,
       container: false,
@@ -111,13 +124,15 @@ const tileRegistry = {
       lazy: false,
     },
   },
-  "node-group": {
-    type: "node-group",
+  [TILE_TYPES.NODE_GROUP]: {
+    type: TILE_TYPES.NODE_GROUP,
     displayName: "Node Group Tile",
+    status: "planned",
     component: NodeGroupTile,
     defaultSize: { width: 420, height: 280 },
     capabilities: {
       draggable: true,
+      selectable: true,
       resizable: true,
       editable: true,
       container: true,
@@ -126,13 +141,15 @@ const tileRegistry = {
       lazy: false,
     },
   },
-  game: {
-    type: "game",
+  [TILE_TYPES.GAME]: {
+    type: TILE_TYPES.GAME,
     displayName: "Game Tile",
+    status: "planned",
     component: GameTile,
     defaultSize: { width: 480, height: 320 },
     capabilities: {
       draggable: true,
+      selectable: true,
       resizable: true,
       editable: false,
       container: false,
@@ -141,13 +158,15 @@ const tileRegistry = {
       lazy: true,
     },
   },
-  "3d-model": {
-    type: "3d-model",
+  [TILE_TYPES.MODEL_3D]: {
+    type: TILE_TYPES.MODEL_3D,
     displayName: "3D Model Tile",
+    status: "planned",
     component: Model3DTile,
     defaultSize: { width: 480, height: 320 },
     capabilities: {
       draggable: true,
+      selectable: true,
       resizable: true,
       editable: false,
       container: false,
@@ -156,13 +175,15 @@ const tileRegistry = {
       lazy: true,
     },
   },
-  "physics-item": {
-    type: "physics-item",
+  [TILE_TYPES.PHYSICS_ITEM]: {
+    type: TILE_TYPES.PHYSICS_ITEM,
     displayName: "Physics Item Tile",
+    status: "planned",
     component: PhysicsItemTile,
     defaultSize: { width: 240, height: 240 },
     capabilities: {
       draggable: true,
+      selectable: true,
       resizable: true,
       editable: false,
       container: false,
@@ -173,8 +194,12 @@ const tileRegistry = {
   },
 };
 
+if (import.meta.env.DEV) {
+  validateTileRegistry(tileRegistry);
+}
+
 export function getTileDefinition(tileType) {
-  return tileRegistry[tileType] ?? tileRegistry.link;
+  return tileRegistry[tileType] ?? tileRegistry[TILE_TYPES.LINK];
 }
 
 export default tileRegistry;

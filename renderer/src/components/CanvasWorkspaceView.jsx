@@ -16,6 +16,7 @@ import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
 import { useTheme } from "../hooks/useTheme";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
+import TILE_TYPES from "../tiles/tileTypes";
 
 function IconFolder() {
   return (
@@ -242,7 +243,7 @@ export default function CanvasWorkspaceView() {
     ? `${folderLabel} · ${currentEditor.name || "Canvas"} · ${tileCountLabel} · ${zoomPct}% zoom`
     : "Choose a local folder to start saving notes, links, and images.";
   const magnifiedNoteCard = interactions.magnifiedNoteState
-    ? workspace.cards.find((tile) => tile.id === interactions.magnifiedNoteState.cardId && tile.type === "text") ?? null
+    ? workspace.cards.find((tile) => tile.id === interactions.magnifiedNoteState.cardId && tile.type === TILE_TYPES.NOTE) ?? null
     : null;
 
   return (
