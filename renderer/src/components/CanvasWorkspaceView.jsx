@@ -11,6 +11,7 @@ import { isEditableElement } from "../lib/workspace";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
+import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
 import { useTheme } from "../hooks/useTheme";
 import { filterTiles } from "../utils/searchTiles";
@@ -68,6 +69,9 @@ export default function CanvasWorkspaceView() {
 
   const commands = useCanvasCommands({
     folderPath,
+    projectId: currentEditor.projectId,
+    spaceId: currentEditor.spaceId,
+    canvasId: currentEditor.itemId,
     workspace,
     getViewportCenter: canvas.getViewportCenter,
     openFolderDialog: openExistingWorkspace,
@@ -81,6 +85,13 @@ export default function CanvasWorkspaceView() {
     reorderExistingCards,
     updateExistingCard,
     updateExistingCards,
+    log,
+    toast,
+  });
+  const dropImport = useCanvasDropImport({
+    canvas,
+    commands,
+    folderPath,
     log,
     toast,
   });
@@ -323,8 +334,14 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
-        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}`}
+        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}`}
         tabIndex={-1}
+        onDragEnter={dropImport.handleDragEnter}
+        onDragOver={dropImport.handleDragOver}
+        onDragLeave={dropImport.handleDragLeave}
+        onDrop={(event) => {
+          void dropImport.handleDrop(event);
+        }}
         onPointerDown={interactions.handleCanvasPointerDown}
         onDoubleClick={interactions.handleCanvasDoubleClick}
         onContextMenu={interactions.handleCanvasContextMenu}

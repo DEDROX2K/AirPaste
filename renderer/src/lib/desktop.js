@@ -39,6 +39,8 @@ export const desktop = {
     deletePage: (...args) => airpasteBridge.deletePage?.(...args) ?? Promise.resolve({ deleted: false }),
     fetchLinkPreview: (...args) => airpasteBridge.fetchLinkPreview?.(...args) ?? Promise.resolve({ queued: false }),
     cancelLinkPreview: (...args) => airpasteBridge.cancelLinkPreview?.(...args) ?? Promise.resolve({ cancelled: false }),
+    importImageAsset: (...args) => airpasteBridge.importImageAsset?.(...args) ?? Promise.resolve(null),
+    resolveAssetUrl: (...args) => airpasteBridge.resolveAssetUrl?.(...args) ?? Promise.resolve(""),
     getLastFolder: (...args) => airpasteBridge.getLastFolder?.(...args) ?? Promise.resolve(null),
     onPreviewUpdated: (listener) => airpasteBridge.onPreviewUpdated?.(listener) ?? (() => {}),
   },

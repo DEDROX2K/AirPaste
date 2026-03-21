@@ -9,6 +9,7 @@ const INTERNAL_DIRECTORY_NAME = ".airpaste";
 const INDEX_FILE_NAME = "index.json";
 const UI_STATE_FILE_NAME = "ui-state.json";
 const PREVIEWS_DIRECTORY_NAME = "previews";
+const ASSETS_DIRECTORY_NAME = "assets";
 const PROJECTS_DIRECTORY_NAME = "projects";
 const PROJECT_FILE_NAME = "project.json";
 const SPACES_DIRECTORY_NAME = "spaces";
@@ -84,10 +85,27 @@ const HOME_SECTIONS = new Set(["overview", "recents", "projects", "resources", "
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
 const FOLDER_CARD_TYPE = "folder";
 const RACK_CARD_TYPE = "rack";
+const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
+const LINK_CONTENT_KIND_IMAGE = "image";
 const NOTE_STYLE_TWO = "notes-2";
 const NOTE_STYLE_THREE = "notes-3";
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
 const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
+const SUPPORTED_IMAGE_ASSET_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+]);
+const SUPPORTED_IMAGE_ASSET_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "svg",
+]);
 
 function cloneDefaultRendererWorkspace() {
   return JSON.parse(JSON.stringify(DEFAULT_RENDERER_WORKSPACE));
@@ -218,6 +236,53 @@ function getCardType(card) {
   return "text";
 }
 
+function getFileExtension(fileName) {
+  if (typeof fileName !== "string") {
+    return "";
+  }
+
+  const lastDotIndex = fileName.lastIndexOf(".");
+
+  if (lastDotIndex < 0 || lastDotIndex === fileName.length - 1) {
+    return "";
+  }
+
+  return fileName.slice(lastDotIndex + 1).toLowerCase();
+}
+
+function normalizeLinkContentKind(contentKind, asset = null) {
+  if (contentKind === LINK_CONTENT_KIND_IMAGE) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  if (asset?.relativePath) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  return LINK_CONTENT_KIND_BOOKMARK;
+}
+
+function normalizeLinkAsset(asset) {
+  if (!isPlainObject(asset)) {
+    return null;
+  }
+
+  const relativePath = typeof asset.relativePath === "string" ? asset.relativePath.trim() : "";
+
+  if (!relativePath) {
+    return null;
+  }
+
+  return {
+    relativePath,
+    fileName: typeof asset.fileName === "string" ? asset.fileName : "",
+    mimeType: typeof asset.mimeType === "string" ? asset.mimeType : "",
+    sizeBytes: clampNonNegativeNumber(asset.sizeBytes, 0),
+    width: clampNonNegativeNumber(asset.width, 0),
+    height: clampNonNegativeNumber(asset.height, 0),
+  };
+}
+
 function stripNoteLine(line) {
   return String(line ?? "")
     .trim()
@@ -330,6 +395,10 @@ function getFolderTitleFromNotes(notes) {
 
 function normalizeCard(card, index = 0) {
   const type = getCardType(card);
+  const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
+  const contentKind = type === "link"
+    ? normalizeLinkContentKind(card?.contentKind, linkAsset)
+    : "";
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
     ? card.noteStyle
     : NOTE_STYLE_TWO;
@@ -360,6 +429,7 @@ function normalizeCard(card, index = 0) {
     noteStyle: type === "text" ? noteStyle : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
     url: type === "link" ? String(card?.url ?? "") : "",
+    contentKind,
     title: type === "link"
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
@@ -385,6 +455,7 @@ function normalizeCard(card, index = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    asset: type === "link" ? linkAsset : null,
     tileIds,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(3, isFiniteNumber(card?.minSlots, 3))
@@ -1057,6 +1128,14 @@ function getSpaceCanvasesPath(folderPath, projectId, spaceId) {
   return path.join(getSpacePath(folderPath, projectId, spaceId), CANVASES_DIRECTORY_NAME);
 }
 
+function getSpaceAssetsPath(folderPath, projectId, spaceId) {
+  return path.join(getSpacePath(folderPath, projectId, spaceId), ASSETS_DIRECTORY_NAME);
+}
+
+function getCanvasAssetsPath(folderPath, projectId, spaceId, canvasId) {
+  return path.join(getSpaceAssetsPath(folderPath, projectId, spaceId), requireId(canvasId, "Canvas id"));
+}
+
 function getCanvasPath(folderPath, projectId, spaceId, canvasId) {
   return path.join(getSpaceCanvasesPath(folderPath, projectId, spaceId), `${canvasId}.json`);
 }
@@ -1081,6 +1160,25 @@ function resolveWorkspaceRelativePath(folderPath, relativePath) {
   }
 
   return path.join(folderPath, ...normalizedRelativePath.split("/"));
+}
+
+function sanitizeAssetFileName(fileName) {
+  const extension = getFileExtension(fileName);
+  const baseName = extension
+    ? String(fileName).slice(0, -(extension.length + 1))
+    : String(fileName ?? "");
+  const normalizedBaseName = baseName
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || "image";
+
+  return extension ? `${normalizedBaseName}.${extension}` : normalizedBaseName;
+}
+
+function isSupportedImageAsset({ fileName, mimeType }) {
+  return SUPPORTED_IMAGE_ASSET_MIME_TYPES.has(String(mimeType ?? "").toLowerCase())
+    || SUPPORTED_IMAGE_ASSET_EXTENSIONS.has(getFileExtension(fileName));
 }
 
 function getPhaseOneWorkspacePath(folderPath) {
@@ -1232,6 +1330,54 @@ async function resolveExistingRelativePath(folderPath, relativePath) {
 
   const stats = await statOrNull(filePath);
   return stats?.isFile() ? normalizeRelativePath(relativePath, null) : null;
+}
+
+function resolveWorkspaceAssetPath(folderPath, relativePath) {
+  return resolveWorkspaceRelativePath(folderPath, relativePath);
+}
+
+async function importImageAsset(folderPath, projectId, spaceId, canvasId, payload) {
+  await ensureWorkspaceReady(folderPath);
+  const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
+  const sourcePath = typeof payload?.sourcePath === "string" ? payload.sourcePath.trim() : "";
+  const fileName = firstString(payload?.fileName, path.basename(sourcePath));
+  const mimeType = typeof payload?.mimeType === "string" ? payload.mimeType.toLowerCase() : "";
+
+  if (!sourcePath) {
+    throw new Error(`"${fileName || "Dropped image"}" could not be imported because no local file path was available.`);
+  }
+
+  if (!isSupportedImageAsset({ fileName, mimeType })) {
+    throw new Error(`"${fileName}" (${mimeType || "unknown type"}) is not a supported image type for import.`);
+  }
+
+  const sourceStats = await statOrNull(sourcePath);
+
+  if (!sourceStats?.isFile()) {
+    throw new Error(`"${fileName}" could not be imported because the source file is no longer available.`);
+  }
+
+  const extension = getFileExtension(fileName) || getFileExtension(sourcePath);
+  const safeFileName = sanitizeAssetFileName(fileName || path.basename(sourcePath));
+  const storedFileName = extension
+    ? `${path.basename(safeFileName, `.${extension}`)}-${createId().slice(0, 8)}.${extension}`
+    : `${safeFileName}-${createId().slice(0, 8)}`;
+  const targetDirectory = getCanvasAssetsPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id);
+  const targetPath = path.join(targetDirectory, storedFileName);
+
+  await fs.mkdir(targetDirectory, { recursive: true });
+  await fs.copyFile(sourcePath, targetPath);
+
+  const relativePath = normalizeRelativePath(path.relative(folderPath, targetPath), null);
+
+  return {
+    relativePath,
+    fileName: fileName || storedFileName,
+    mimeType,
+    sizeBytes: sourceStats.size,
+    width: 0,
+    height: 0,
+  };
 }
 
 async function writeCanvasPreview(folderPath, canvasDocument) {
@@ -2430,6 +2576,10 @@ async function deleteCanvas(folderPath, projectId, spaceId, canvasId) {
   const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
   const existingItem = index.items.find((entry) => entry.id === canvas.id);
   await fs.rm(getCanvasPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id), { force: true });
+  await fs.rm(getCanvasAssetsPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id), {
+    recursive: true,
+    force: true,
+  }).catch(() => {});
   await removeRelativeFile(
     folderPath,
     existingItem?.thumbnailPath ?? getCanvasPreviewRelativePath(canvas.id),
@@ -3054,6 +3204,7 @@ module.exports = {
   loadUiState,
   loadWorkspace,
   markItemStarred,
+  importImageAsset,
   readWorkspaceDocument,
   rebuildIndex,
   recordRecentItem,
@@ -3061,6 +3212,7 @@ module.exports = {
   renamePage,
   renameProject,
   renameSpace,
+  resolveWorkspaceAssetPath,
   saveCanvas,
   saveIndex,
   savePage,

@@ -482,6 +482,19 @@ a {
   cursor: crosshair;
 }
 
+.canvas--drop-target::after {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 1.5px dashed rgba(126, 182, 255, 0.74);
+  border-radius: 28px;
+  background: rgba(126, 182, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
 .canvas__grid,
 .canvas__content {
   position: absolute;

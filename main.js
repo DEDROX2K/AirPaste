@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const workspaceService = require("./workspace-service");
 const openGraphScraper = require("open-graph-scraper");
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
@@ -35,6 +36,8 @@ const MUSIC_HOSTS = Object.freeze([
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
 const FOLDER_CARD_TYPE = "folder";
 const RACK_CARD_TYPE = "rack";
+const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
+const LINK_CONTENT_KIND_IMAGE = "image";
 const NOTE_STYLE_TWO = "notes-2";
 const NOTE_STYLE_THREE = "notes-3";
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
@@ -133,6 +136,39 @@ function getCardType(card) {
   return "text";
 }
 
+function normalizeLinkContentKind(contentKind, asset = null) {
+  if (contentKind === LINK_CONTENT_KIND_IMAGE) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  if (asset?.relativePath) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  return LINK_CONTENT_KIND_BOOKMARK;
+}
+
+function normalizeLinkAsset(asset) {
+  if (!asset || typeof asset !== "object") {
+    return null;
+  }
+
+  const relativePath = typeof asset.relativePath === "string" ? asset.relativePath.trim() : "";
+
+  if (!relativePath) {
+    return null;
+  }
+
+  return {
+    relativePath,
+    fileName: typeof asset.fileName === "string" ? asset.fileName : "",
+    mimeType: typeof asset.mimeType === "string" ? asset.mimeType : "",
+    sizeBytes: Number.isFinite(asset.sizeBytes) ? Math.max(0, asset.sizeBytes) : 0,
+    width: Number.isFinite(asset.width) ? Math.max(0, asset.width) : 0,
+    height: Number.isFinite(asset.height) ? Math.max(0, asset.height) : 0,
+  };
+}
+
 function stripNoteLine(line) {
   return String(line ?? "")
     .trim()
@@ -179,6 +215,10 @@ function getFolderTitleFromNotes(notes) {
 
 function normalizeCard(card, index = 0) {
   const type = getCardType(card);
+  const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
+  const contentKind = type === "link"
+    ? normalizeLinkContentKind(card?.contentKind, linkAsset)
+    : "";
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
     ? card.noteStyle
     : NOTE_STYLE_TWO;
@@ -212,6 +252,7 @@ function normalizeCard(card, index = 0) {
     noteStyle: type === "text" ? noteStyle : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
     url: type === "link" ? String(card?.url ?? "") : "",
+    contentKind,
     title: type === "link"
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
@@ -237,6 +278,7 @@ function normalizeCard(card, index = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    asset: type === "link" ? linkAsset : null,
     tileIds,
     minSlots,
     childIds,
@@ -1165,6 +1207,22 @@ ipcMain.handle("airpaste:saveWorkspace", async (_event, folderPath, data) => {
   return withWorkspaceQueue(folderPath, async () => {
     return workspaceService.saveWorkspace(folderPath, data);
   });
+});
+
+ipcMain.handle("airpaste:importImageAsset", async (_event, folderPath, projectId, spaceId, canvasId, payload) => {
+  return withWorkspaceQueue(folderPath, async () => (
+    workspaceService.importImageAsset(folderPath, projectId, spaceId, canvasId, payload)
+  ));
+});
+
+ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePath) => {
+  const assetPath = workspaceService.resolveWorkspaceAssetPath(folderPath, relativePath);
+
+  if (!assetPath) {
+    return "";
+  }
+
+  return pathToFileURL(assetPath).toString();
 });
 
 const workspaceActionHandlers = Object.freeze({

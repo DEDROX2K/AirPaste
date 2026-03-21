@@ -59,6 +59,10 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot),
   cancelLinkPreview: (folderPath, cardId) =>
     ipcRenderer.invoke("airpaste:cancelLinkPreview", folderPath, cardId),
+  importImageAsset: (folderPath, projectId, spaceId, canvasId, payload) =>
+    ipcRenderer.invoke("airpaste:importImageAsset", folderPath, projectId, spaceId, canvasId, payload),
+  resolveAssetUrl: (folderPath, relativePath) =>
+    ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
     const handler = (_event, payload) => listener(payload);

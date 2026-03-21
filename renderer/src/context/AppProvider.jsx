@@ -259,12 +259,13 @@ export function AppProvider({ children }) {
     return card;
   }, [patchWorkspace]);
 
-  const createNewLinkCard = useCallback((url, preferredCenter = null) => {
+  const createNewLinkCard = useCallback((url, preferredCenter = null, options = {}) => {
     const card = createLinkCard(
       workspaceRef.current.cards,
       workspaceRef.current.viewport,
       url,
       preferredCenter,
+      options,
     );
 
     patchWorkspace((currentWorkspace) => ({

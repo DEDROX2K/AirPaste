@@ -7,6 +7,8 @@ import {
   getFolderByChildId,
   getRackByTileId,
   isUrl,
+  LINK_CONTENT_KIND_BOOKMARK,
+  LINK_CONTENT_KIND_IMAGE,
   NOTE_FOLDER_CARD_TYPE,
   NOTE_STYLE_ONE,
   NOTE_STYLE_THREE,
@@ -17,15 +19,9 @@ import {
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
 import { desktop } from "../../lib/desktop";
-
-const IMAGE_CARD_PORTRAIT_MAX_WIDTH = 320;
-const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
-const IMAGE_CARD_SQUARE_MAX_WIDTH = 340;
-const IMAGE_CARD_SQUARE_MAX_HEIGHT = 380;
-const IMAGE_CARD_LANDSCAPE_MAX_WIDTH = 420;
-const IMAGE_CARD_LANDSCAPE_MAX_HEIGHT = 320;
-const IMAGE_CARD_MIN_WIDTH = 180;
-const IMAGE_CARD_MIN_HEIGHT = 140;
+import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
+import { getImageTileSize } from "../import/imageSizing";
+import { getDropSpreadCenters } from "../import/dropTileLayout";
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
@@ -108,68 +104,11 @@ async function readClipboardImage(clipboardData) {
   };
 }
 
-function getImageCardSize(width, height, previewKind = "default") {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return {
-      width: 340,
-      height: 280,
-    };
-  }
-
-  if (previewKind === "music") {
-    const side = Math.max(
-      IMAGE_CARD_MIN_WIDTH,
-      Math.min(IMAGE_CARD_SQUARE_MAX_WIDTH, Math.round(Math.min(width, height))),
-    );
-
-    return {
-      width: side,
-      height: side,
-    };
-  }
-
-  const aspectRatio = width / height;
-  const bounds = aspectRatio < 0.9
-    ? {
-      maxWidth: IMAGE_CARD_PORTRAIT_MAX_WIDTH,
-      maxHeight: IMAGE_CARD_PORTRAIT_MAX_HEIGHT,
-    }
-    : aspectRatio > 1.18
-      ? {
-        maxWidth: IMAGE_CARD_LANDSCAPE_MAX_WIDTH,
-        maxHeight: IMAGE_CARD_LANDSCAPE_MAX_HEIGHT,
-      }
-      : {
-        maxWidth: IMAGE_CARD_SQUARE_MAX_WIDTH,
-        maxHeight: IMAGE_CARD_SQUARE_MAX_HEIGHT,
-      };
-
-  let scale = Math.min(
-    bounds.maxWidth / width,
-    bounds.maxHeight / height,
-    1,
-  );
-  let nextWidth = width * scale;
-  let nextHeight = height * scale;
-
-  if (nextWidth < IMAGE_CARD_MIN_WIDTH && nextHeight < IMAGE_CARD_MIN_HEIGHT) {
-    const upscale = Math.max(
-      IMAGE_CARD_MIN_WIDTH / nextWidth,
-      IMAGE_CARD_MIN_HEIGHT / nextHeight,
-    );
-
-    nextWidth *= upscale;
-    nextHeight *= upscale;
-  }
-
-  return {
-    width: Math.round(nextWidth),
-    height: Math.round(nextHeight),
-  };
-}
-
 export function useCanvasCommands({
   folderPath,
+  projectId,
+  spaceId,
+  canvasId,
   workspace,
   getViewportCenter,
   openFolderDialog,
@@ -585,9 +524,8 @@ export function useCanvasCommands({
       return null;
     }
 
-    const clonedTile = createNewLinkCard(tile.url, preferredCenter);
-
-    updateExistingCard(clonedTile.id, {
+    const clonedTile = createNewLinkCard(tile.url, preferredCenter, {
+      contentKind: tile.contentKind,
       title: tile.title,
       description: tile.description,
       image: tile.image,
@@ -597,6 +535,7 @@ export function useCanvasCommands({
       status: tile.status,
       width: tile.width,
       height: tile.height,
+      asset: tile.asset,
     });
 
     return clonedTile;
@@ -604,7 +543,6 @@ export function useCanvasCommands({
     createNewLinkCard,
     createNewNoteFolderCard,
     createNewTextCard,
-    updateExistingCard,
   ]);
 
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
@@ -612,7 +550,7 @@ export function useCanvasCommands({
       return;
     }
 
-    const nextSize = getImageCardSize(mediaWidth, mediaHeight, tile.previewKind);
+    const nextSize = getImageTileSize(mediaWidth, mediaHeight, tile.previewKind);
 
     if (
       Math.abs(tile.width - nextSize.width) <= 1
@@ -677,7 +615,7 @@ export function useCanvasCommands({
         event.preventDefault();
 
         const imageTile = createNewLinkCard(pastedImage.dataUrl, centerPoint);
-        const imageTileSize = getImageCardSize(pastedImage.width, pastedImage.height);
+        const imageTileSize = getImageTileSize(pastedImage.width, pastedImage.height);
 
         updateExistingCard(imageTile.id, {
           url: pastedImage.dataUrl,
@@ -735,6 +673,122 @@ export function useCanvasCommands({
     queueLinkPreview,
     toast,
     updateExistingCard,
+  ]);
+
+  const importResolvedDrop = useCallback(async (resolvedDrop, dropWorldPoint) => {
+    if (!folderPath) {
+      log("warn", "Drop import blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return {
+        createdImageCount: 0,
+        createdBookmarkCount: 0,
+        rejectedItems: resolvedDrop?.rejectedItems ?? [],
+      };
+    }
+
+    if (!projectId || !spaceId || !canvasId) {
+      const message = "Drop import failed because the active canvas could not be resolved.";
+      log("error", "Drop import failed", message);
+      toast("error", message);
+      return {
+        createdImageCount: 0,
+        createdBookmarkCount: 0,
+        rejectedItems: resolvedDrop?.rejectedItems ?? [],
+      };
+    }
+
+    const acceptedItems = Array.isArray(resolvedDrop?.acceptedItems) ? resolvedDrop.acceptedItems : [];
+    const dropCenters = getDropSpreadCenters(dropWorldPoint ?? getViewportCenter(), acceptedItems.length);
+    const rejectedItems = [...(resolvedDrop?.rejectedItems ?? [])];
+    let createdImageCount = 0;
+    let createdBookmarkCount = 0;
+
+    for (let index = 0; index < acceptedItems.length; index += 1) {
+      const entry = acceptedItems[index];
+      const preferredCenter = dropCenters[index] ?? getViewportCenter();
+
+      if (entry.intent === "import-image") {
+        try {
+          const importedAsset = await desktop.workspace.importImageAsset(
+            folderPath,
+            projectId,
+            spaceId,
+            canvasId,
+            {
+              fileName: entry.item.name,
+              mimeType: entry.item.mimeType,
+              sourcePath: entry.item.sourcePath,
+              sizeBytes: entry.item.sizeBytes,
+            },
+          );
+          const nextSize = getImageTileSize(importedAsset.width, importedAsset.height);
+
+          createNewLinkCard("", preferredCenter, {
+            contentKind: LINK_CONTENT_KIND_IMAGE,
+            title: importedAsset.fileName || entry.item.name,
+            description: "",
+            image: importedAsset.relativePath,
+            siteName: "Image",
+            status: "ready",
+            width: nextSize.width,
+            height: nextSize.height,
+            asset: importedAsset,
+          });
+          createdImageCount += 1;
+        } catch (importError) {
+          const detail = importError?.message || `Unable to import "${entry.item.name}".`;
+          rejectedItems.push({
+            item: entry.item,
+            reason: "asset-import-failed",
+            detail,
+          });
+          log("error", "Image import failed", detail);
+        }
+
+        continue;
+      }
+
+      if (entry.intent === "create-bookmark") {
+        const tile = createNewLinkCard(entry.item.url, preferredCenter, {
+          contentKind: LINK_CONTENT_KIND_BOOKMARK,
+        });
+        createdBookmarkCount += 1;
+        void queueLinkPreview(tile);
+      }
+    }
+
+    const successMessage = formatDropSuccessMessage(createdImageCount, createdBookmarkCount);
+
+    if (successMessage) {
+      log("success", "Drop import completed", {
+        createdImageCount,
+        createdBookmarkCount,
+      });
+      toast("success", successMessage);
+    }
+
+    const rejectionMessage = formatDropRejectionMessage(rejectedItems);
+
+    if (rejectionMessage) {
+      log("warn", "Drop import completed with rejections", rejectionMessage);
+      toast(createdImageCount + createdBookmarkCount > 0 ? "warn" : "error", rejectionMessage);
+    }
+
+    return {
+      createdImageCount,
+      createdBookmarkCount,
+      rejectedItems,
+    };
+  }, [
+    canvasId,
+    createNewLinkCard,
+    folderPath,
+    getViewportCenter,
+    log,
+    projectId,
+    queueLinkPreview,
+    spaceId,
+    toast,
   ]);
 
   const createTileFromDefinition = useCallback((definition) => {
@@ -819,6 +873,7 @@ export function useCanvasCommands({
     mergeTilesIntoFolder,
     bringTilesToFront,
     replaceTiles,
+    importResolvedDrop,
     retryTilePreview,
     updateTile,
     updateTileFromMediaLoad,
@@ -841,6 +896,7 @@ export function useCanvasCommands({
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
+    importResolvedDrop,
     queueLinkPreview,
     moveTiles,
     mergeTilesIntoFolder,

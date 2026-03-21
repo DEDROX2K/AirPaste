@@ -1,6 +1,8 @@
 export const NOTE_FOLDER_CARD_TYPE = "note-folder";
 export const FOLDER_CARD_TYPE = "folder";
 export const RACK_CARD_TYPE = "rack";
+export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
+export const LINK_CONTENT_KIND_IMAGE = "image";
 export const NOTE_STYLE_ONE = "notes-1";
 export const NOTE_STYLE_TWO = "notes-2";
 export const NOTE_STYLE_THREE = "notes-3";
@@ -87,6 +89,39 @@ function getCardType(card) {
   }
 
   return "text";
+}
+
+function normalizeLinkContentKind(contentKind, asset = null) {
+  if (contentKind === LINK_CONTENT_KIND_IMAGE) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  if (asset?.relativePath) {
+    return LINK_CONTENT_KIND_IMAGE;
+  }
+
+  return LINK_CONTENT_KIND_BOOKMARK;
+}
+
+function normalizeLinkAsset(asset) {
+  if (!asset || typeof asset !== "object") {
+    return null;
+  }
+
+  const relativePath = typeof asset.relativePath === "string" ? asset.relativePath.trim() : "";
+
+  if (!relativePath) {
+    return null;
+  }
+
+  return {
+    relativePath,
+    fileName: typeof asset.fileName === "string" ? asset.fileName : "",
+    mimeType: typeof asset.mimeType === "string" ? asset.mimeType : "",
+    sizeBytes: Number.isFinite(asset.sizeBytes) ? Math.max(0, asset.sizeBytes) : 0,
+    width: Number.isFinite(asset.width) ? Math.max(0, asset.width) : 0,
+    height: Number.isFinite(asset.height) ? Math.max(0, asset.height) : 0,
+  };
 }
 
 function stripNoteLine(line) {
@@ -254,6 +289,10 @@ export function canAttachTileToRack(tile) {
 
 export function normalizeCard(card, fallbackIndex = 0) {
   const type = getCardType(card);
+  const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
+  const contentKind = type === "link"
+    ? normalizeLinkContentKind(card?.contentKind, linkAsset)
+    : "";
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
     ? card.noteStyle
     : NOTE_STYLE_TWO;
@@ -285,6 +324,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     noteStyle: type === "text" ? noteStyle : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
     url: type === "link" ? String(card?.url ?? "") : "",
+    contentKind,
     title: type === "link"
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
@@ -310,6 +350,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
+    asset: type === "link" ? linkAsset : null,
     tileIds: rackTileIds,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
@@ -655,26 +696,35 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-export function createLinkCard(cards, viewport, url, preferredCenter = null) {
+export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, "link", preferredCenter);
   const timestamp = nowIso();
+  const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
   const domain = getDomainLabel(url);
+  const image = typeof options?.image === "string" ? options.image : "";
+  const asset = normalizeLinkAsset(options?.asset);
 
   return normalizeCard({
     id: crypto.randomUUID(),
     type: "link",
     url,
-    title: "",
-    siteName: domain,
-    description: "",
-    image: "",
-    favicon: "",
-    previewKind: "default",
-    status: "loading",
+    contentKind,
+    title: typeof options?.title === "string" ? options.title : "",
+    siteName: typeof options?.siteName === "string" ? options.siteName : domain,
+    description: typeof options?.description === "string" ? options.description : "",
+    image,
+    favicon: typeof options?.favicon === "string" ? options.favicon : "",
+    previewKind: options?.previewKind === "music" ? "music" : "default",
+    status: contentKind === LINK_CONTENT_KIND_IMAGE
+      ? "ready"
+      : ["loading", "ready", "failed"].includes(options?.status)
+        ? options.status
+        : "loading",
+    asset,
     x: position.x,
     y: position.y,
-    width: position.width,
-    height: position.height,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -1083,6 +1133,14 @@ export function isUrl(value) {
   }
 }
 
+export function isImageLinkCard(card) {
+  return card?.type === "link" && card.contentKind === LINK_CONTENT_KIND_IMAGE;
+}
+
+export function isBookmarkLinkCard(card) {
+  return card?.type === "link" && !isImageLinkCard(card);
+}
+
 export function isEditableElement(element) {
   if (!(element instanceof HTMLElement)) {
     return false;
@@ -1109,6 +1167,10 @@ export function formatCardSubtitle(card) {
   if (card.type === NOTE_FOLDER_CARD_TYPE) {
     const noteCount = card.notes.length;
     return `${noteCount} ${noteCount === 1 ? "note" : "notes"}`;
+  }
+
+  if (isImageLinkCard(card)) {
+    return firstString(card.siteName, "Image");
   }
 
   return firstString(card.siteName, getDomainLabel(card.url), "Link");

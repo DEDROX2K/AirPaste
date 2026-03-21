@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { formatCardSubtitle } from "../../lib/workspace";
+import { formatCardSubtitle, LINK_CONTENT_KIND_IMAGE } from "../../lib/workspace";
+import { useAppContext } from "../../context/useAppContext";
 import { useToast } from "../../hooks/useToast";
+import { desktop } from "../../lib/desktop";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
@@ -65,11 +67,15 @@ export default function LinkTile({
   onRetry,
 }) {
   const { toast } = useToast();
+  const { folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
+  const [resolvedImageSrc, setResolvedImageSrc] = useState("");
+  const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
-  const shouldRenderImage = Boolean(card.image) && !hasImageError;
+  const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
+  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
   const label = getCardLabel(card);
-  const linkTitle = card.title || formatShortUrl(card.url) || "Untitled link";
+  const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
@@ -108,6 +114,101 @@ export default function LinkTile({
     setHasImageError(false);
   }, [card.id, card.image]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveImageSource() {
+      if (!isImageTile || !card.asset?.relativePath || !folderPath) {
+        setResolvedImageSrc("");
+        return;
+      }
+
+      try {
+        const assetUrl = await desktop.workspace.resolveAssetUrl(folderPath, card.asset.relativePath);
+
+        if (!cancelled) {
+          setResolvedImageSrc(assetUrl || "");
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedImageSrc("");
+        }
+      }
+    }
+
+    void resolveImageSource();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [card.asset?.relativePath, folderPath, isImageTile]);
+
+  const mediaMarkup = (
+    <>
+      {isImageTile ? null : (
+        <div className="card__link-actions" aria-label="Link actions">
+          <button
+            className="card__link-action"
+            type="button"
+            aria-label={`Copy link for ${linkTitle}`}
+            onPointerDown={stopTileActionPointerEvent}
+            onPointerUp={stopTileActionPointerEvent}
+            onClick={handleCopyLinkClick}
+          >
+            <img
+              src={resolveIconPath("icons/copylink.png")}
+              alt=""
+              className="card__link-action-icon"
+            />
+          </button>
+          <button
+            className="card__link-action card__link-action--primary"
+            type="button"
+            aria-label={`Open ${linkTitle}`}
+            onPointerDown={stopTileActionPointerEvent}
+            onPointerUp={stopTileActionPointerEvent}
+            onClick={handleOpenLinkClick}
+          >
+            <img
+              src={resolveIconPath("icons/openlink.png")}
+              alt=""
+              className="card__link-action-icon"
+            />
+          </button>
+        </div>
+      )}
+      {isMusicCard && shouldRenderImage ? (
+        <div className="card__record-shell">
+          <div className="card__record-disc" aria-hidden="true" />
+          <div className="card__record-sleeve">
+            <img
+              className="card__image card__image--music"
+              src={mediaSrc}
+              alt={linkTitle}
+              draggable={false}
+              onError={() => setHasImageError(true)}
+              onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+            />
+          </div>
+        </div>
+      ) : shouldRenderImage ? (
+        <img
+          className="card__image"
+          src={mediaSrc}
+          alt={linkTitle}
+          draggable={false}
+          onError={() => setHasImageError(true)}
+          onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+        />
+      ) : (
+        <div className="card__placeholder">
+          <p className="card__placeholder-title">{linkTitle}</p>
+          <p className="card__placeholder-subtitle">{isImageTile ? (card.asset?.fileName || "Imported image") : formatShortUrl(card.url)}</p>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <TileShell
       card={card}
@@ -125,79 +226,31 @@ export default function LinkTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <div className="card__link-actions" aria-label="Link actions">
-            <button
-              className="card__link-action"
-              type="button"
-              aria-label={`Copy link for ${linkTitle}`}
-              onPointerDown={stopTileActionPointerEvent}
-              onPointerUp={stopTileActionPointerEvent}
-              onClick={handleCopyLinkClick}
+          {isImageTile ? (
+            <div
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
+              title={linkTitle}
+              aria-label={linkTitle}
             >
-              <img
-                src={resolveIconPath("icons/copylink.png")}
-                alt=""
-                className="card__link-action-icon"
-              />
-            </button>
-            <button
-              className="card__link-action card__link-action--primary"
-              type="button"
+              {mediaMarkup}
+            </div>
+          ) : (
+            <a
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
+              href={card.url}
+              target="_blank"
+              rel="noreferrer"
+              title={linkTitle}
               aria-label={`Open ${linkTitle}`}
-              onPointerDown={stopTileActionPointerEvent}
-              onPointerUp={stopTileActionPointerEvent}
-              onClick={handleOpenLinkClick}
+              draggable={false}
+              onClick={(event) => event.preventDefault()}
             >
-              <img
-                src={resolveIconPath("icons/openlink.png")}
-                alt=""
-                className="card__link-action-icon"
-              />
-            </button>
-          </div>
-          <a
-            className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
-            href={card.url}
-            target="_blank"
-            rel="noreferrer"
-            title={linkTitle}
-            aria-label={`Open ${linkTitle}`}
-            draggable={false}
-            onClick={(event) => event.preventDefault()}
-          >
-            {isMusicCard && shouldRenderImage ? (
-              <div className="card__record-shell">
-                <div className="card__record-disc" aria-hidden="true" />
-                <div className="card__record-sleeve">
-                  <img
-                    className="card__image card__image--music"
-                    src={card.image}
-                    alt={linkTitle}
-                    draggable={false}
-                    onError={() => setHasImageError(true)}
-                    onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
-                  />
-                </div>
-              </div>
-            ) : shouldRenderImage ? (
-              <img
-                className="card__image"
-                src={card.image}
-                alt={linkTitle}
-                draggable={false}
-                onError={() => setHasImageError(true)}
-                onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
-              />
-            ) : (
-              <div className="card__placeholder">
-                <p className="card__placeholder-title">{linkTitle}</p>
-                <p className="card__placeholder-subtitle">{formatShortUrl(card.url)}</p>
-              </div>
-            )}
-          </a>
+              {mediaMarkup}
+            </a>
+          )}
         </div>
 
-        {card.status === "failed" ? (
+        {!isImageTile && card.status === "failed" ? (
           <button
             className="card__retry"
             type="button"
