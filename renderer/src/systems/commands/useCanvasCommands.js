@@ -23,6 +23,22 @@ import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 
+const NOTE_VARIANTS = {
+  standard: { noteStyle: NOTE_STYLE_TWO },
+  "notes-1": { noteStyle: NOTE_STYLE_ONE },
+  "notes-2": { noteStyle: NOTE_STYLE_TWO },
+  "notes-3": { noteStyle: NOTE_STYLE_THREE },
+  quick: { noteStyle: NOTE_STYLE_QUICK },
+};
+
+const QUICK_NOTE_THEMES = [
+  "theme-blue-red",
+  "theme-yellow-purple",
+  "theme-green-pink",
+  "theme-cream-orange",
+  "theme-lilac-mint",
+];
+
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
     return "No folder";
@@ -173,59 +189,48 @@ export function useCanvasCommands({
     }
   }, [log, openFolderDialog, toast]);
 
-  const createNoteVariant = useCallback((noteStyle, successMessage, logMessage, text = "") => {
+  const createNote = useCallback((variant = "standard", text = "", preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New note blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
-    const centerPoint = getViewportCenter();
-    const card = createNewTextCard(text, centerPoint, { noteStyle });
-
-    log("success", logMessage, centerPoint);
-    toast("success", successMessage);
-    return card;
-  }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
-
-  const createQuickNote = useCallback((preferredCenter = null) => {
-    if (!folderPath) {
-      log("warn", "Quick note blocked because no folder is open");
-      toast("warn", "Open a folder first.");
-      return null;
+    const config = NOTE_VARIANTS[variant] || NOTE_VARIANTS.standard;
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    
+    let colorTheme = "";
+    if (variant === "quick") {
+      colorTheme = QUICK_NOTE_THEMES[Math.floor(Math.random() * QUICK_NOTE_THEMES.length)];
     }
 
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    const card = createNewTextCard("", centerPoint, { noteStyle: NOTE_STYLE_QUICK });
+    const card = createNewTextCard(text, centerPoint, { 
+      noteStyle: config.noteStyle,
+      colorTheme
+    });
 
-    log("success", "Quick note created from empty canvas double-tap", centerPoint);
-    toast("success", "Quick note added.");
+    log("success", `New blank note created in canvas center`, centerPoint);
+    toast("success", "Note dropped into the center.");
     return card;
   }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
 
-  const createNoteOne = useCallback(() => (
-    createNoteVariant(
-      NOTE_STYLE_ONE,
-      "Note 1 dropped into the center.",
-      "New blank note 1 card created in canvas center",
-    )
-  ), [createNoteVariant]);
+  /** @deprecated Use createNote(variant, text) */
+  const createNoteVariant = useCallback((noteStyle, successMessage, logMessage, text = "") => {
+    const variantKey = Object.keys(NOTE_VARIANTS).find(key => NOTE_VARIANTS[key].noteStyle === noteStyle) || "standard";
+    return createNote(variantKey, text);
+  }, [createNote]);
 
-  const createNoteTwo = useCallback(() => (
-    createNoteVariant(
-      NOTE_STYLE_TWO,
-      "Note 2 dropped into the center.",
-      "New blank note 2 card created in canvas center",
-    )
-  ), [createNoteVariant]);
+  /** @deprecated Use createNote("quick", "", preferredCenter) */
+  const createQuickNote = useCallback((preferredCenter = null) => {
+    return createNote("quick", "", preferredCenter);
+  }, [createNote]);
 
-  const createNoteThree = useCallback(() => (
-    createNoteVariant(
-      NOTE_STYLE_THREE,
-      "Note 3 dropped into the center.",
-      "New blank note 3 card created in canvas center",
-    )
-  ), [createNoteVariant]);
+  /** @deprecated Use createNote("notes-1") */
+  const createNoteOne = useCallback(() => createNote("notes-1"), [createNote]);
+  /** @deprecated Use createNote("notes-2") */
+  const createNoteTwo = useCallback(() => createNote("notes-2"), [createNote]);
+  /** @deprecated Use createNote("notes-3") */
+  const createNoteThree = useCallback(() => createNote("notes-3"), [createNote]);
 
   const createFolderTile = useCallback(() => {
     if (!folderPath) {
@@ -658,15 +663,10 @@ export function useCanvasCommands({
       return;
     }
 
-    createNoteVariant(
-      NOTE_STYLE_TWO,
-      "Text note dropped into the center of the canvas.",
-      "Pasted text note into canvas center",
-      text,
-    );
+    createNote("notes-2", text);
   }, [
     createNewLinkCard,
-    createNoteVariant,
+    createNote,
     folderPath,
     getViewportCenter,
     log,
@@ -848,6 +848,7 @@ export function useCanvasCommands({
     openFolderId,
     createRack,
     createFolderTile,
+    createNote,
     createNoteOne,
     createNoteTwo,
     createNoteThree,
@@ -885,6 +886,7 @@ export function useCanvasCommands({
     createRack,
     createFolderTile,
     createFolderFromTileSet,
+    createNote,
     createNoteOne,
     createNoteThree,
     createNoteTwo,

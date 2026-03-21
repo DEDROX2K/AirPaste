@@ -1,5 +1,6 @@
 import TILE_TYPES from "../tiles/tileTypes";
 
+/** @deprecated Replaced by standard folders containing text tiles. */
 export const NOTE_FOLDER_CARD_TYPE = TILE_TYPES.NOTE_FOLDER;
 export const FOLDER_CARD_TYPE = TILE_TYPES.FOLDER;
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
@@ -324,6 +325,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     text: type === "text" ? String(card?.text ?? "") : "",
     secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
     noteStyle: type === "text" ? noteStyle : "",
+    colorTheme: type === "text" && noteStyle === NOTE_STYLE_QUICK ? String(card?.colorTheme ?? "") : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
     url: type === "link" ? String(card?.url ?? "") : "",
     contentKind,
@@ -606,6 +608,7 @@ export function createTextCard(cards, viewport, text = "", preferredCenter = nul
   const noteStyle = typeof options?.noteStyle === "string" ? options.noteStyle : NOTE_STYLE_TWO;
   const quoteAuthor = typeof options?.quoteAuthor === "string" ? options.quoteAuthor : "";
   const secondaryText = typeof options?.secondaryText === "string" ? options.secondaryText : "";
+  const colorTheme = typeof options?.colorTheme === "string" ? options.colorTheme : "";
   const position = getNextCardPosition(cards, viewport, TILE_TYPES.NOTE, preferredCenter, noteStyle);
   const timestamp = nowIso();
 
@@ -615,6 +618,7 @@ export function createTextCard(cards, viewport, text = "", preferredCenter = nul
     text,
     secondaryText,
     noteStyle,
+    colorTheme,
     quoteAuthor,
     x: position.x,
     y: position.y,
@@ -625,6 +629,8 @@ export function createTextCard(cards, viewport, text = "", preferredCenter = nul
   });
 }
 
+/** @deprecated Replaced by standard folders containing text tiles. Use `createFolderCard` and populate with `createNote` instead. */
+/** @deprecated Replaced by standard folders containing text tiles. Use `createFolderCard` and populate with `createNote` instead. */
 export function createNoteFolderCard(cards, viewport, preferredCenter = null, options = {}) {
   const title = firstString(options?.title, NOTE_FOLDER_DEFAULT_TITLE);
   const description = firstString(options?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION);

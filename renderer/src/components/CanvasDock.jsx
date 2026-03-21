@@ -1,7 +1,7 @@
 const DOCK_ITEMS = [
-  { id: "sticky-note", label: "Sticky note", src: "icons/stickeynote.png", actionKey: "createNoteOne" },
-  { id: "todo", label: "Todo", src: "icons/todo.png", actionKey: "createNoteTwo" },
-  { id: "paper", label: "Paper", src: "icons/paper.png", actionKey: "createNoteThree" },
+  { id: "sticky-note", label: "Sticky note", src: "icons/stickeynote.png", actionKey: "createNote", actionVariant: "notes-1" },
+  { id: "todo", label: "Todo", src: "icons/todo.png", actionKey: "createNote", actionVariant: "notes-2" },
+  { id: "paper", label: "Paper", src: "icons/paper.png", actionKey: "createNote", actionVariant: "notes-3" },
   { id: "folder", label: "Folder", src: "icons/folder.png", actionKey: "createFolderTile" },
   { id: "separator", type: "separator", src: "icons/rope.png", label: "Divider" },
   { id: "rack", label: "Rack", src: "icons/stamp.png", actionKey: "createRack" },
@@ -35,7 +35,7 @@ export default function CanvasDock({ commands }) {
             className={`note-dock__item${action ? "" : " note-dock__item--placeholder"}`}
             type="button"
             title={item.label}
-            onClick={action}
+            onClick={item.actionVariant ? () => action(item.actionVariant) : action}
           >
             <span className="note-dock__tooltip">{item.label}</span>
             <span className="note-dock__icon" aria-hidden="true">

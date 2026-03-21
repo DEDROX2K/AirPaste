@@ -793,7 +793,7 @@ export function useCanvasInteractionSystem({
     }
 
     const preferredCenter = canvas.clientToWorldPoint(event.clientX, event.clientY);
-    commands.createQuickNote(preferredCenter);
+    commands.createNote("quick", "", preferredCenter);
   }, [canvas, commands]);
 
   const handleCanvasContextMenu = useCallback((event) => {

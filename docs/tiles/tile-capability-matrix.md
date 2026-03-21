@@ -2,10 +2,10 @@
 
 | Tile Name | Type ID | Exists in code? | Registered in foundation registry? | Draggable | Selectable | Editable | Resizable | Can contain children | Can live in folder | Can live in rack | Can join node group | Physics-enabled | Has custom render loop | Heavy / lazy-load candidate | Persistence complexity | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Note Tile | `text` | yes | yes | yes | yes | yes | no | no | yes | yes | no | no | no | no | low | stable |
+| Note Tile (Base) | `text` | yes | yes | yes | yes | yes | no | no | yes | yes | no | no | no | no | low | stable |
 | Link Tile | `link` | yes | yes | yes | yes | no | no | no | yes | yes | no | no | no | no | medium | stable |
 | Folder Tile | `folder` | yes | yes | yes | yes | no | no | yes | no | no | no | no | no | no | medium | stable |
-| Note Folder Tile | `note-folder` | yes | yes | yes | yes | no | no | no | yes | yes | no | no | no | no | medium | stable |
+| Note Folder Tile | `note-folder` | yes | yes | yes | yes | no | no | no | yes | yes | no | no | no | no | medium | deprecated |
 | Rack Tile | `rack` | yes | yes | yes | yes | no | no | yes | no | no | no | no | no | no | medium | stable |
 | Page Link Tile | `page-link` | no | yes | yes | yes | yes | yes | no | yes | yes | yes | no | no | no | low | planned |
 | Node Group Tile | `node-group` | no | yes | yes | yes | yes | yes | yes | no | no | yes | no | no | no | medium | planned |
@@ -33,9 +33,16 @@
 ## Tile families
 
 ### Core content tiles
-- Includes: Note Tile, Link Tile
+- Includes: Note Tile (Base), Link Tile
 - Shared rules: must support standard drag/select flows, fit the common shell, and persist simple card data cleanly.
 - Optional: rich editing, preview modes, import-specific metadata, content-specific toolbars.
+
+### Note family (Unified)
+- Includes: Base Note Tile (`text`) with variants:
+  - Canonical: Quick Note (`notes-quick`)
+  - Supported Legacy Styles: Sticky Note (`notes-1`), Todo Note (`notes-2`), Paper Note (`notes-3`)
+- Shared rules: All note variants must use the base `text` tile type. Interaction mode (drag vs edit) is determined contextually by viewport zoom level.
+- Deprecated: `note-folder` (Standard folders should be used to group base Note tiles instead).
 
 ### Container tiles
 - Includes: Folder Tile, Rack Tile, future Node Group Tile
