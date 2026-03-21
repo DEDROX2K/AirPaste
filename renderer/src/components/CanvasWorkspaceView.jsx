@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Card from "./Card";
-import CanvasDock from "./CanvasDock";
+import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import NoteMagnifier from "./notes/NoteMagnifier";
 import TileContextMenu from "./TileContextMenu";
@@ -13,7 +13,6 @@ import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
 import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
-import { useTheme } from "../hooks/useTheme";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
 import TILE_TYPES from "../tiles/tileTypes";
@@ -40,7 +39,6 @@ export default function CanvasWorkspaceView() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const { theme, toggleTheme } = useTheme();
   const {
     currentEditor,
     folderLoading,
@@ -89,6 +87,7 @@ export default function CanvasWorkspaceView() {
     log,
     toast,
   });
+
   const dropImport = useCanvasDropImport({
     canvas,
     commands,
@@ -111,35 +110,25 @@ export default function CanvasWorkspaceView() {
 
   const focusSearchInput = useCallback(() => {
     const input = searchInputRef.current;
-
-    if (!input) {
-      return;
-    }
-
+    if (!input) return;
     input.focus();
     input.select();
   }, []);
 
   useEffect(() => {
     async function handlePaste(event) {
-      if (isEditableElement(document.activeElement)) {
-        return;
-      }
-
+      if (isEditableElement(document.activeElement)) return;
       await commands.pasteFromClipboard(event);
     }
-
     window.addEventListener("paste", handlePaste);
-
-    return () => {
-      window.removeEventListener("paste", handlePaste);
-    };
+    return () => window.removeEventListener("paste", handlePaste);
   }, [commands]);
 
   const filteredTiles = useMemo(
     () => filterTiles(workspace.cards, deferredSearchQuery),
     [deferredSearchQuery, workspace.cards],
   );
+
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
     openFolderId: commands.openFolderId,
@@ -152,9 +141,11 @@ export default function CanvasWorkspaceView() {
     draggingTileIds: interactions.draggingTileIds,
     mergeTargetTileId: interactions.folderGroupingPreview?.targetTileId ?? null,
   });
+
   const zoomToFitAll = useCallback(() => {
     canvas.zoomToBounds(layout.allTilesBounds);
   }, [canvas, layout.allTilesBounds]);
+
   const zoomToFitSelection = useCallback(() => {
     canvas.zoomToBounds(layout.selectedTilesBounds);
   }, [canvas, layout.selectedTilesBounds]);
@@ -171,9 +162,7 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
-      if (editingAnotherField) {
-        return;
-      }
+      if (editingAnotherField) return;
 
       if (event.key === "Delete" && !activeElementIsEditable && interactions.selectedTileIds.length > 0) {
         event.preventDefault();
@@ -214,7 +203,6 @@ export default function CanvasWorkspaceView() {
 
       if (event.key === "Escape" && activeElement === searchInputRef.current) {
         event.preventDefault();
-
         if (searchQuery) {
           setSearchQuery("");
         } else {
@@ -224,114 +212,105 @@ export default function CanvasWorkspaceView() {
     }
 
     window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [canvas, commands, focusSearchInput, interactions, searchQuery, zoomToFitAll]);
 
   const totalTileCount = workspace.cards.length;
   const visibleTileCount = layout.rootTiles.length;
   const hasActiveSearch = deferredSearchQuery.trim().length > 0;
-  const zoomPct = Math.round(workspace.viewport.zoom * 100);
-  const folderLabel = folderPath ? folderNameFromPath(folderPath) : "No folder selected";
-  const showSearchHud = Boolean(folderPath || totalTileCount > 0);
-  const tileCountLabel = hasActiveSearch
-    ? `${visibleTileCount} of ${totalTileCount} tiles`
-    : `${totalTileCount} ${totalTileCount === 1 ? "tile" : "tiles"}`;
-  const workspaceHudLabel = folderPath
-    ? `${folderLabel} · ${currentEditor.name || "Canvas"} · ${tileCountLabel} · ${zoomPct}% zoom`
-    : "Choose a local folder to start saving notes, links, and images.";
+  const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
+  const canvasName = currentEditor.name || "Canvas";
   const magnifiedNoteCard = interactions.magnifiedNoteState
     ? workspace.cards.find((tile) => tile.id === interactions.magnifiedNoteState.cardId && tile.type === TILE_TYPES.NOTE) ?? null
     : null;
 
   return (
     <main className="canvas-stage">
-      <div className="canvas-hud canvas-hud--top-left">
-        <div className="canvas-hud__actions">
+      {/* ── Top bar ── */}
+      <header className="canvas-topbar">
+        <div className="canvas-topbar__left">
           <button
-            className="hud-chip hud-chip--action"
+            className="canvas-topbar__crumb canvas-topbar__crumb--home"
             type="button"
+            title="Go to Home"
             onClick={() => void showHome()}
           >
             <IconHome />
             <span>Home</span>
           </button>
-          <button
-            id="canvas-open-folder-hud"
-            className="hud-chip hud-chip--action"
-            type="button"
-            onClick={commands.openWorkspaceFolder}
-            disabled={folderLoading}
-          >
-            <IconFolder />
-            <span>{folderLoading ? "Opening..." : "Switch Workspace"}</span>
-          </button>
-          <button
-            className="hud-chip"
-            type="button"
-            onClick={toggleTheme}
-          >
-            <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
-          </button>
-          <span className="hud-stat" title={folderPath || workspaceHudLabel}>
-            {workspaceHudLabel}
-          </span>
+          {folderLabel && (
+            <>
+              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+              <button
+                className="canvas-topbar__crumb"
+                type="button"
+                title="Switch workspace folder"
+                disabled={folderLoading}
+                onClick={commands.openWorkspaceFolder}
+              >
+                <IconFolder />
+                <span className="canvas-topbar__crumb-text">
+                  {folderLoading ? "Opening\u2026" : folderLabel}
+                </span>
+              </button>
+              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+              <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
+                {canvasName}
+              </span>
+            </>
+          )}
         </div>
-        <p className="canvas-hud__hint">Scroll to zoom, middle-drag to pan, Ctrl or Cmd + drag or right-drag to multi-select.</p>
-      </div>
 
-      <div className="canvas-hud canvas-hud--top-right">
-        <CanvasZoomMenu
-          zoom={workspace.viewport.zoom}
-          canFitAll={Boolean(layout.allTilesBounds)}
-          canFitSelection={Boolean(layout.selectedTilesBounds)}
-          onZoomIn={canvas.zoomIn}
-          onZoomOut={canvas.zoomOut}
-          onZoomToFitAll={zoomToFitAll}
-          onZoomToFitSelection={zoomToFitSelection}
-          onSetZoom={canvas.setZoom}
-        />
-      </div>
-
-      {showSearchHud ? (
-        <div className="canvas-hud canvas-hud--top-center">
-          <div className="search-panel">
-            <div className="search-shell">
-              <input
-                id="tile-search"
-                ref={searchInputRef}
-                className="search-shell__input"
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search"
-                aria-label="Search tiles"
-              />
-              {searchQuery ? (
-                <button
-                  className="search-shell__clear"
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery("");
-                    focusSearchInput();
-                  }}
-                >
-                  Clear
-                </button>
-              ) : (
-                <span className="search-shell__meta">Ctrl+K</span>
-              )}
-            </div>
+        <div className="canvas-topbar__center">
+          <div className="canvas-search">
+            <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              id="tile-search"
+              ref={searchInputRef}
+              className="canvas-search__input"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search tiles\u2026"
+              aria-label="Search tiles"
+            />
+            {searchQuery ? (
+              <button
+                className="canvas-search__clear"
+                type="button"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchQuery("");
+                  focusSearchInput();
+                }}
+              >
+                &times;
+              </button>
+            ) : (
+              <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
+            )}
           </div>
         </div>
-      ) : null}
 
-      <div className="canvas-hud canvas-hud--bottom-center">
-        <CanvasDock commands={commands} />
-      </div>
+        <div className="canvas-topbar__right">
+          <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
+          <CanvasZoomMenu
+            zoom={workspace.viewport.zoom}
+            canFitAll={Boolean(layout.allTilesBounds)}
+            canFitSelection={Boolean(layout.selectedTilesBounds)}
+            onZoomIn={canvas.zoomIn}
+            onZoomOut={canvas.zoomOut}
+            onZoomToFitAll={zoomToFitAll}
+            onZoomToFitSelection={zoomToFitSelection}
+            onSetZoom={canvas.setZoom}
+          />
+        </div>
+      </header>
 
+      {/* ── Canvas board ── */}
       <div
         ref={canvas.containerRef}
         id="canvas-board"
@@ -340,9 +319,7 @@ export default function CanvasWorkspaceView() {
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
-        onDrop={(event) => {
-          void dropImport.handleDrop(event);
-        }}
+        onDrop={(event) => { void dropImport.handleDrop(event); }}
         onPointerDown={interactions.handleCanvasPointerDown}
         onDoubleClick={interactions.handleCanvasDoubleClick}
         onContextMenu={interactions.handleCanvasContextMenu}
@@ -387,26 +364,44 @@ export default function CanvasWorkspaceView() {
           <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
         ) : null}
 
-        {folderPath && totalTileCount === 0 ? (
-          <section className="canvas__callout canvas__callout--subtle">
-            <p className="canvas__eyebrow">Canvas ready</p>
-            <h2>Press Ctrl+V to drop your first link or note into the center.</h2>
-            <p>Use the bottom dock for note types. Scroll anywhere on the canvas to zoom.</p>
+        {/* Empty states */}
+        {!folderPath ? (
+          <section className="canvas__empty">
+            <div className="canvas__empty-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <h2 className="canvas__empty-title">No workspace open</h2>
+            <p className="canvas__empty-description">Open a local folder to start saving notes, links, and media.</p>
+            <button className="canvas__empty-action" type="button" onClick={commands.openWorkspaceFolder}>
+              Open Folder
+            </button>
           </section>
-        ) : null}
-
-        {folderPath && totalTileCount > 0 && hasActiveSearch && visibleTileCount === 0 ? (
-          <section className="canvas__callout canvas__callout--subtle">
-            <p className="canvas__eyebrow">Search</p>
-            <h2>No tiles match &ldquo;{deferredSearchQuery.trim()}&rdquo;.</h2>
-            <p>Try a title, URL, note snippet, site name, or tile type.</p>
+        ) : totalTileCount === 0 ? (
+          <section className="canvas__empty">
+            <div className="canvas__empty-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </div>
+            <h2 className="canvas__empty-title">Canvas is empty</h2>
+            <p className="canvas__empty-description">Use the <strong>Add</strong> button in the top-right to create a note, folder, or rack. Paste a URL or image to import directly.</p>
+          </section>
+        ) : hasActiveSearch && visibleTileCount === 0 ? (
+          <section className="canvas__empty">
+            <div className="canvas__empty-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </div>
+            <h2 className="canvas__empty-title">No results for &ldquo;{deferredSearchQuery.trim()}&rdquo;</h2>
+            <p className="canvas__empty-description">Try a title, URL, note snippet, or tile type.</p>
             <button
-              className="button"
+              className="canvas__empty-action"
               type="button"
-              onClick={() => {
-                setSearchQuery("");
-                focusSearchInput();
-              }}
+              onClick={() => { setSearchQuery(""); focusSearchInput(); }}
             >
               Clear Search
             </button>

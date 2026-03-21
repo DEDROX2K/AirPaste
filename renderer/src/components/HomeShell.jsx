@@ -11,6 +11,22 @@ import {
   resolveWorkspaceAssetUrl,
   sortEntriesByPreference,
 } from "../lib/home";
+import {
+  AppDialog,
+  AppDialogContent,
+  AppDialogDescription,
+  AppDialogHeader,
+  AppDialogTitle,
+  AppDialogFooter,
+  AppButton,
+  AppInput,
+  AppDropdownMenu,
+  AppDropdownMenuContent,
+  AppDropdownMenuItem,
+  AppDropdownMenuLabel,
+  AppDropdownMenuSeparator,
+  AppDropdownMenuTrigger,
+} from "./ui/app";
 
 const HOME_SECTIONS = Object.freeze([
   { id: "overview", label: "Home" },
@@ -189,9 +205,9 @@ function EmptyState({ eyebrow, title, description, actionLabel, onAction }) {
       <h2 className="home-empty-state__title">{title}</h2>
       <p className="home-empty-state__description">{description}</p>
       {actionLabel && onAction ? (
-        <button className="home-button home-button--primary" type="button" onClick={onAction}>
+        <AppButton variant="default" onClick={onAction}>
           {actionLabel}
-        </button>
+        </AppButton>
       ) : null}
     </section>
   );
@@ -206,9 +222,9 @@ function HomeSection({ title, description, actionLabel, onAction, children }) {
           {description ? <p className="home-section__description">{description}</p> : null}
         </div>
         {actionLabel && onAction ? (
-          <button className="home-button home-button--ghost" type="button" onClick={onAction}>
+          <AppButton variant="ghost" onClick={onAction}>
             {actionLabel}
-          </button>
+          </AppButton>
         ) : null}
       </header>
       {children}
@@ -222,9 +238,10 @@ function CardActions({ children }) {
 
 function ActionButton({ title, active = false, onClick, children }) {
   return (
-    <button
-      className={active ? "home-card-action home-card-action--active" : "home-card-action"}
-      type="button"
+    <AppButton
+      variant={active ? "secondary" : "ghost"}
+      size="icon"
+      className="h-8 w-8 text-ap-text-secondary hover:text-ap-text-primary"
       title={title}
       onClick={(event) => {
         event.stopPropagation();
@@ -232,7 +249,7 @@ function ActionButton({ title, active = false, onClick, children }) {
       }}
     >
       {children}
-    </button>
+    </AppButton>
   );
 }
 
@@ -378,68 +395,63 @@ function TextPromptDialog({
   onCancel,
   onConfirm,
 }) {
-  if (!title) {
-    return null;
-  }
-
   return (
-    <div className="home-dialog-backdrop" role="presentation" onClick={onCancel}>
-      <div className="home-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <p className="home-dialog__eyebrow">{eyebrow}</p>
-        <h2 className="home-dialog__title">{title}</h2>
-        <p className="home-dialog__description">{description}</p>
-        <input
-          className="home-dialog__input"
-          type="text"
-          value={value}
-          autoFocus
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !disabled) {
-              event.preventDefault();
-              onConfirm();
-            }
-
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onCancel();
-            }
-          }}
-        />
-        <div className="home-dialog__actions">
-          <button className="home-button home-button--ghost" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="home-button home-button--primary" type="button" disabled={disabled} onClick={onConfirm}>
-            {confirmLabel}
-          </button>
+    <AppDialog open={!!title} onOpenChange={(open) => !open && onCancel()}>
+      <AppDialogContent>
+        <AppDialogHeader>
+          <div className="text-xs uppercase tracking-wider text-ap-text-secondary font-medium mb-1">
+            {eyebrow}
+          </div>
+          <AppDialogTitle>{title}</AppDialogTitle>
+          <AppDialogDescription>{description}</AppDialogDescription>
+        </AppDialogHeader>
+        <div className="py-4">
+          <AppInput
+            value={value}
+            autoFocus
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !disabled) {
+                event.preventDefault();
+                onConfirm();
+              }
+            }}
+          />
         </div>
-      </div>
-    </div>
+        <AppDialogFooter>
+          <AppButton variant="ghost" onClick={onCancel}>
+            Cancel
+          </AppButton>
+          <AppButton variant="default" disabled={disabled} onClick={onConfirm}>
+            {confirmLabel}
+          </AppButton>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
   );
 }
 
 function ConfirmDialog({ title, description, confirmLabel, onCancel, onConfirm, disabled }) {
-  if (!title) {
-    return null;
-  }
-
   return (
-    <div className="home-dialog-backdrop" role="presentation" onClick={onCancel}>
-      <div className="home-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <p className="home-dialog__eyebrow">Delete</p>
-        <h2 className="home-dialog__title">{title}</h2>
-        <p className="home-dialog__description">{description}</p>
-        <div className="home-dialog__actions">
-          <button className="home-button home-button--ghost" type="button" onClick={onCancel}>
+    <AppDialog open={!!title} onOpenChange={(open) => !open && onCancel()}>
+      <AppDialogContent>
+        <AppDialogHeader>
+          <div className="text-xs uppercase tracking-wider text-ap-text-secondary font-medium mb-1">
+            Delete
+          </div>
+          <AppDialogTitle>{title}</AppDialogTitle>
+          <AppDialogDescription>{description}</AppDialogDescription>
+        </AppDialogHeader>
+        <AppDialogFooter>
+          <AppButton variant="ghost" onClick={onCancel}>
             Cancel
-          </button>
-          <button className="home-button home-button--danger" type="button" disabled={disabled} onClick={onConfirm}>
+          </AppButton>
+          <AppButton variant="destructive" disabled={disabled} onClick={onConfirm}>
             {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </AppButton>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
   );
 }
 
@@ -1275,171 +1287,222 @@ export default function HomeShell() {
   ]);
 
   return (
-    <main className="home-shell">
-      <aside className="home-sidebar">
-        <div className="home-sidebar__top">
-          <button
-            className={`home-sidebar__home-button ${navigation.mode === "home" && navigation.selectedSection === "overview" ? "home-sidebar__home-button--active" : ""}`}
-            type="button"
-            onClick={() => navigateToHomeSection("overview")}
+    <main className="home-shell flex h-full">
+      <aside className="home-sidebar bg-ap-surface-shell flex flex-col h-full border-r border-ap-border-subtle w-60 flex-shrink-0">
+        {/* Sidebar Header with Wordmark */}
+        <div className="home-sidebar__header h-14 px-4 flex items-center justify-between border-b border-ap-border-subtle">
+          <div className="home-sidebar__wordmark flex items-center gap-1.5">
+            <span className="font-bold text-base tracking-tight text-ap-text-primary">Air</span>
+            <span className="text-ap-text-secondary text-base">Paste</span>
+          </div>
+          <AppButton
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-ap-text-secondary hover:text-ap-text-primary"
+            onClick={() => void openExistingWorkspace()}
+            title="Switch workspace folder"
           >
-            <IconHome />
-            <span>Home</span>
-          </button>
-
-          <label className="home-sidebar__search">
-            <span className="home-sidebar__search-label">Search</span>
-            <input
-              type="search"
-              value={searchValue}
-              placeholder="Search coming soon"
-              onChange={(event) => setSearchValue(event.target.value)}
-            />
-          </label>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12V4" />
+              <path d="M4 20v-4" />
+              <path d="M12 20v-8" />
+              <path d="M12 8V4" />
+              <path d="M20 20v-2" />
+              <path d="M20 14V4" />
+              <circle cx="4" cy="14" r="2" />
+              <circle cx="12" cy="10" r="2" />
+              <circle cx="20" cy="16" r="2" />
+            </svg>
+          </AppButton>
         </div>
 
-        <nav className="home-sidebar__nav" aria-label="Home">
-          <div className="home-sidebar__group">
-            {HOME_SECTIONS.filter((section) => section.id !== "overview").map((section) => (
-              <button
-                key={section.id}
-                className={`home-sidebar__nav-button ${navigation.mode === "home" && navigation.selectedSection === section.id ? "home-sidebar__nav-button--active" : ""}`}
-                type="button"
-                onClick={() => navigateToHomeSection(section.id)}
-              >
-                <span>{section.label}</span>
-                <IconChevron />
-              </button>
-            ))}
+        {/* Sidebar Search */}
+        <div className="px-3 mt-3 mb-2">
+          <div className="relative">
+            <svg className="absolute left-3 top-2.5 h-3.5 w-3.5 text-ap-text-secondary opacity-50" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="search"
+              className="w-full pl-8 pr-3 py-1.5 bg-ap-surface-muted/30 border border-ap-border-subtle rounded-md text-sm placeholder-ap-text-secondary/60 focus:outline-none focus:border-accent"
+              placeholder="Search items..."
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Sidebar Nav */}
+        <nav className="home-sidebar__nav flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-4" aria-label="Home">
+          <div className="flex flex-col gap-0.5">
+            {HOME_SECTIONS.filter((s) => s.id !== "overview").map((section) => {
+              const isActive = navigation.mode === "home" && navigation.selectedSection === section.id;
+              return (
+                <AppButton
+                  key={section.id}
+                  variant={isActive ? "secondary" : "ghost"}
+                  className="w-full justify-start gap-2 h-9 px-2 text-sm font-medium"
+                  onClick={() => navigateToHomeSection(section.id)}
+                >
+                  <span className={isActive ? "text-ap-text-primary" : "text-ap-text-secondary"}><IconHome /></span>
+                  <span className={isActive ? "text-ap-text-primary" : "text-ap-text-secondary"}>{section.label}</span>
+                </AppButton>
+              );
+            })}
           </div>
 
-          <div className="home-sidebar__group">
-            <p className="home-sidebar__group-title">Projects</p>
+          <div className="flex flex-col gap-1">
+            <p className="px-2 text-[10px] font-semibold text-ap-text-secondary uppercase tracking-wider mb-1">Projects</p>
             {sortedProjects.length > 0 ? (
-              sortedProjects.map((project) => (
-                <div key={project.id} className="home-sidebar__project">
-                  <button
-                    className={`home-sidebar__project-button ${navigation.selectedProjectId === project.id && navigation.mode !== "home" ? "home-sidebar__project-button--active" : ""}`}
-                    type="button"
-                    onClick={() => navigateToProject(project.id)}
-                  >
-                    <span className="home-sidebar__project-icon"><IconProject /></span>
-                    <span className="home-sidebar__project-name">{project.name}</span>
-                  </button>
+              <div className="flex flex-col gap-0.5">
+                {sortedProjects.map((project) => {
+                  const isActive = navigation.selectedProjectId === project.id && navigation.mode !== "home";
+                  const spaces = selectedProjectSpaces;
+                  return (
+                    <div key={project.id} className="flex flex-col gap-0.5">
+                      <AppButton
+                        variant={isActive ? "secondary" : "ghost"}
+                        className="w-full justify-start gap-2 h-9 px-2 text-sm text-left"
+                        onClick={() => navigateToProject(project.id)}
+                      >
+                        <span className="text-ap-text-secondary"><IconProject /></span>
+                        <span className="truncate flex-1">{project.name}</span>
+                      </AppButton>
 
-                  {navigation.selectedProjectId === project.id && selectedProjectSpaces.length > 0 ? (
-                    <div className="home-sidebar__space-list">
-                      {selectedProjectSpaces.map((space) => (
-                        <button
-                          key={space.id}
-                          className={`home-sidebar__space-button ${navigation.selectedSpaceId === space.id && navigation.mode === "space" ? "home-sidebar__space-button--active" : ""}`}
-                          type="button"
-                          onClick={() => navigateToSpace(project.id, space.id)}
-                        >
-                          <span className="home-sidebar__project-icon"><IconSpace /></span>
-                          <span className="home-sidebar__project-name">{space.name}</span>
-                        </button>
-                      ))}
+                      {isActive && spaces.length > 0 && (
+                        <div className="flex flex-col gap-0.5 pl-3 ml-2.5 border-l border-ap-border-subtle/60">
+                          {spaces.map((space) => {
+                            const isSpaceActive = navigation.selectedSpaceId === space.id && navigation.mode === "space";
+                            return (
+                              <AppButton
+                                key={space.id}
+                                variant={isSpaceActive ? "secondary" : "ghost"}
+                                className="w-full justify-start gap-1.5 h-8 px-1.5 text-xs text-left"
+                                onClick={() => navigateToSpace(project.id, space.id)}
+                              >
+                                <span><IconSpace /></span>
+                                <span className="truncate">{space.name}</span>
+                              </AppButton>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  ) : null}
-                </div>
-              ))
+                  );
+                })}
+              </div>
             ) : (
-              <p className="home-sidebar__placeholder">No projects yet.</p>
+              <p className="px-2 text-xs text-ap-text-secondary italic">No projects yet.</p>
             )}
           </div>
 
-          <div className="home-sidebar__group">
-            <p className="home-sidebar__group-title">Starred</p>
+          <div className="flex flex-col gap-1">
+            <p className="px-2 text-[10px] font-semibold text-ap-text-secondary uppercase tracking-wider mb-1">Starred</p>
             {homeData.starredItems.length > 0 ? (
-              homeData.starredItems.slice(0, 6).map((item) => (
-                <button
-                  key={item.id}
-                  className="home-sidebar__starred-button"
-                  type="button"
-                  onClick={() => void openItemFromHome(item)}
-                >
-                  <span className="home-sidebar__project-icon">{renderItemIcon(item.type)}</span>
-                  <span className="home-sidebar__project-name">{item.name}</span>
-                </button>
-              ))
+              <div className="flex flex-col gap-0.5">
+                {homeData.starredItems.slice(0, 6).map((item) => (
+                  <AppButton
+                    key={item.id}
+                    variant="ghost"
+                    className="w-full justify-start gap-2 h-9 px-2 text-sm text-left"
+                    onClick={() => void openItemFromHome(item)}
+                  >
+                    <span className="text-ap-text-secondary">{renderItemIcon(item.type)}</span>
+                    <span className="truncate flex-1">{item.name}</span>
+                  </AppButton>
+                ))}
+              </div>
             ) : (
-              <p className="home-sidebar__placeholder">No starred items.</p>
+              <p className="px-2 text-xs text-ap-text-secondary italic">No starred items.</p>
             )}
           </div>
         </nav>
 
-        <div className="home-sidebar__footer">
-          <div className="home-sidebar__workspace">
-            <span className="home-sidebar__workspace-title">{homeData.workspace?.name ?? folderNameFromPath(folderPath)}</span>
-            <span className="home-sidebar__workspace-meta">{folderNameFromPath(folderPath)}</span>
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-ap-border-subtle bg-ap-surface-shell mt-auto">
+          <div className="flex flex-col gap-0.5 mb-3">
+            <span className="text-sm font-semibold truncate text-ap-text-primary">
+              {homeData.workspace?.name || folderNameFromPath(folderPath)}
+            </span>
+            <span className="text-[10px] text-ap-text-secondary truncate">
+              {folderPath}
+            </span>
           </div>
-          <div className="home-sidebar__footer-actions">
-            <button className="home-button home-button--ghost" type="button" onClick={toggleTheme}>
+          <div className="flex gap-1.5">
+            <AppButton variant="ghost" size="sm" className="flex-1 h-8 text-xs font-medium" onClick={toggleTheme}>
               {theme === "dark" ? "Dark" : "Light"}
-            </button>
-            <button className="home-button home-button--ghost" type="button" onClick={() => void openExistingWorkspace()}>
+            </AppButton>
+            <AppButton variant="ghost" size="sm" className="flex-1 h-8 text-xs font-medium" onClick={() => void openExistingWorkspace()}>
               Switch
-            </button>
+            </AppButton>
           </div>
         </div>
       </aside>
 
-      <section className="home-content">
-        <header className="home-toolbar">
-          <div className="home-toolbar__breadcrumbs" aria-label="Breadcrumb">
+      <section className="home-content flex-1 flex flex-col h-full bg-ap-surface-shell">
+        <header className="home-toolbar h-14 px-6 flex items-center justify-between border-b border-ap-border-subtle bg-ap-surface-shell/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-1.5 text-sm" aria-label="Breadcrumb">
             {breadcrumbItems.map((item, index) => (
-              <button key={item.id} className="home-toolbar__crumb" type="button" onClick={item.onClick}>
-                {index > 0 ? <IconChevron /> : null}
-                <span>{item.label}</span>
-              </button>
+              <div key={item.id} className="flex items-center gap-1.5">
+                {index > 0 && <span className="text-ap-text-secondary opacity-40"><IconChevron /></span>}
+                <button 
+                  className={`hover:text-ap-text-primary transition-colors text-sm ${index === breadcrumbItems.length - 1 ? "font-semibold text-ap-text-primary" : "text-ap-text-secondary"}`} 
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </button>
+              </div>
             ))}
           </div>
 
-          <div className="home-toolbar__controls">
-            <div className="home-create-menu">
-              <button
-                className="home-button home-button--primary"
-                type="button"
-                onClick={() => setCreateMenuOpen((currentValue) => !currentValue)}
-              >
-                <IconPlus />
-                <span>Create</span>
-              </button>
-
-              {createMenuOpen ? (
-                <div className="home-create-menu__panel">
-                  {Object.entries(CREATE_ACTIONS).map(([actionKey, action]) => (
-                    <button
+          <div className="flex items-center gap-2">
+            <AppDropdownMenu>
+              <AppDropdownMenuTrigger asChild>
+                <AppButton variant="default" size="sm" className="gap-1 px-3.5 h-8">
+                  <IconPlus />
+                  <span className="font-semibold text-xs tracking-wide">CREATE</span>
+                </AppButton>
+              </AppDropdownMenuTrigger>
+              <AppDropdownMenuContent align="end" className="w-48" sideOffset={8}>
+                {Object.entries(CREATE_ACTIONS).map(([actionKey, action]) => {
+                  const state = createActionState[actionKey];
+                  return (
+                    <AppDropdownMenuItem
                       key={actionKey}
-                      className="home-create-menu__item"
-                      type="button"
-                      disabled={createActionState[actionKey].disabled || folderLoading}
-                      title={createActionState[actionKey].reason}
-                      onClick={() => openCreateDialog(actionKey)}
+                      disabled={state.disabled || folderLoading}
+                      onSelect={() => openCreateDialog(actionKey)}
+                      className="flex flex-col items-start gap-0.5"
                     >
-                      <span>{action.label}</span>
-                      {createActionState[actionKey].reason ? (
-                        <span className="home-create-menu__reason">{createActionState[actionKey].reason}</span>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+                      <span className="font-medium text-sm">{action.label}</span>
+                      {state.reason && <span className="text-[10px] text-ap-text-secondary">{state.reason}</span>}
+                    </AppDropdownMenuItem>
+                  );
+                })}
+              </AppDropdownMenuContent>
+            </AppDropdownMenu>
 
-            <label className="home-toolbar__select-shell">
-              <span>Sort</span>
-              <select value={homePreferences.sortBy} onChange={(event) => updateHomePreference({ sortBy: event.target.value })}>
-                <option value="updatedAt">Last modified</option>
+            <div className="h-4 w-px bg-ap-border-subtle/70 mx-1" />
+
+            <label className="text-ap-text-secondary text-xs flex items-center gap-1 border border-ap-border-subtle rounded-md px-2 h-8 bg-ap-surface-muted/30">
+              <span className="opacity-70">Sort</span>
+              <select 
+                value={homePreferences.sortBy} 
+                onChange={(e) => updateHomePreference({ sortBy: e.target.value })}
+                className="bg-transparent border-none outline-none font-semibold text-ap-text-primary text-xs cursor-pointer focus:ring-0"
+              >
+                <option value="updatedAt">Modified</option>
                 <option value="name">Name</option>
                 <option value="type">Type</option>
               </select>
             </label>
 
-            <label className="home-toolbar__select-shell">
-              <span>Filter</span>
-              <select value={homePreferences.filter} onChange={(event) => updateHomePreference({ filter: event.target.value })}>
+            <label className="text-ap-text-secondary text-xs flex items-center gap-1 border border-ap-border-subtle rounded-md px-2 h-8 bg-ap-surface-muted/30">
+              <span className="opacity-70">Filter</span>
+              <select 
+                value={homePreferences.filter} 
+                onChange={(e) => updateHomePreference({ filter: e.target.value })}
+                className="bg-transparent border-none outline-none font-semibold text-ap-text-primary text-xs cursor-pointer focus:ring-0"
+              >
                 <option value="all">All</option>
                 <option value="canvases">Canvases</option>
                 <option value="pages">Pages</option>
@@ -1447,26 +1510,28 @@ export default function HomeShell() {
               </select>
             </label>
 
-            <div className="home-toolbar__view-toggle" role="group" aria-label="View mode">
-              <button
-                className={homePreferences.viewMode === "grid" ? "home-toolbar__view-toggle-button home-toolbar__view-toggle-button--active" : "home-toolbar__view-toggle-button"}
-                type="button"
+            <div className="flex bg-ap-surface-muted/50 p-0.5 rounded-md border border-ap-border-subtle h-8">
+              <AppButton
+                variant={homePreferences.viewMode === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-full px-2 text-xs font-semibold rounded-sm"
                 onClick={() => updateHomePreference({ viewMode: "grid" })}
               >
                 Grid
-              </button>
-              <button
-                className={homePreferences.viewMode === "list" ? "home-toolbar__view-toggle-button home-toolbar__view-toggle-button--active" : "home-toolbar__view-toggle-button"}
-                type="button"
+              </AppButton>
+              <AppButton
+                variant={homePreferences.viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-full px-2 text-xs font-semibold rounded-sm"
                 onClick={() => updateHomePreference({ viewMode: "list" })}
               >
                 List
-              </button>
+              </AppButton>
             </div>
           </div>
         </header>
 
-        <div ref={bodyRef} className="home-content__body" onScroll={handleBodyScroll}>
+        <div ref={bodyRef} className="home-content__body flex-1 overflow-y-auto p-6" onScroll={handleBodyScroll}>
           {mainContent}
         </div>
       </section>

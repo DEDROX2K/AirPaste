@@ -6,6 +6,11 @@ export default defineConfig({
   root: path.resolve("renderer"),
   publicDir: path.resolve("public"),
   base: "./",
+  resolve: {
+    alias: {
+      "@": path.resolve("renderer/src"),
+    },
+  },
   plugins: [react()],
   server: {
     host: "127.0.0.1", // Forces Vite to use IPv4 so Electron can connect

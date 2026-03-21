@@ -185,7 +185,7 @@ export default function App() {
       {currentEditor.kind === "home" ? <HomeShell /> : null}
 
       <ToastStack />
-      <DevConsole />
+      {import.meta.env.DEV && <DevConsole />}
     </div>
   );
 }

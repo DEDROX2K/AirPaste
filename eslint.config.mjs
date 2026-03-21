@@ -54,6 +54,17 @@ export default [
           allowConstantExport: true,
         },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/components/ui/*", "!@/components/ui/app"],
+              message: "Please import from the AirPaste @/components/ui/app wrappers instead of raw shadcn primitives."
+            }
+          ]
+        }
+      ],
     },
     settings: {
       react: {

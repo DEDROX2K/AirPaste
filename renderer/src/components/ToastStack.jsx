@@ -1,4 +1,5 @@
 import { useToast } from "../hooks/useToast";
+import { AppButton } from "./ui/app";
 
 const ICONS = {
   success: (
@@ -44,14 +45,15 @@ export function ToastStack() {
         >
           <span className="toast-item__icon">{ICONS[t.level] ?? ICONS.info}</span>
           <span className="toast-item__msg">{t.message}</span>
-          <button
-            type="button"
-            className="toast-item__close"
+          <AppButton
+            variant="ghost"
+            size="icon"
+            className="toast-item__close h-5 w-5 shrink-0 text-ap-text-secondary hover:text-ap-text-primary"
             onClick={() => dismiss(t.id)}
             aria-label="Dismiss"
           >
             ×
-          </button>
+          </AppButton>
         </div>
       ))}
     </div>

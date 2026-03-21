@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { DemoShadcn } from "./DemoShadcn";
 import { useLog } from "../hooks/useLog";
+import { AppButton } from "./ui/app";
 
 const LEVEL_META = {
   info:    { label: "INFO",    color: "var(--dc-info)"    },
@@ -65,26 +67,28 @@ export function DevConsole() {
           <div className="dev-console__header">
             <div className="dev-console__filters">
               {["all", "info", "success", "warn", "error"].map((lvl) => (
-                <button
+                <AppButton
                   key={lvl}
-                  type="button"
-                  className={`dev-console__filter-btn ${filter === lvl ? "dev-console__filter-btn--active" : ""}`}
+                  size="sm"
+                  variant={filter === lvl ? "secondary" : "ghost"}
+                  className="h-6 px-2 text-xs capitalize"
                   onClick={() => setFilter(lvl)}
                 >
                   {lvl}
-                </button>
+                </AppButton>
               ))}
             </div>
             <div className="dev-console__header-actions">
               <span className="dev-console__count">{entries.length} entries</span>
-              <button
-                type="button"
-                className="dev-console__clear-btn"
+              <AppButton
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs"
                 onClick={clearLog}
                 title="Clear log"
               >
                 Clear
-              </button>
+              </AppButton>
             </div>
           </div>
 
@@ -114,6 +118,7 @@ export function DevConsole() {
           </div>
         </div>
       )}
+      <DemoShadcn />
     </div>
   );
 }
