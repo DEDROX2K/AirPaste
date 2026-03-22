@@ -29,6 +29,12 @@ export function useTheme() {
     rootElement.dataset.theme = theme;
     rootElement.style.colorScheme = theme;
 
+    if (theme === "dark") {
+      rootElement.classList.add("dark");
+    } else {
+      rootElement.classList.remove("dark");
+    }
+
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {

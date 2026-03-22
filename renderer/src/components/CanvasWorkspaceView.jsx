@@ -13,6 +13,7 @@ import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
 import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
+import { AppEmptyState } from "./ui/app";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
 import TILE_TYPES from "../tiles/tileTypes";
@@ -379,33 +380,27 @@ export default function CanvasWorkspaceView() {
             </button>
           </section>
         ) : totalTileCount === 0 ? (
-          <section className="canvas__empty">
-            <div className="canvas__empty-icon" aria-hidden="true">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <AppEmptyState
+            title="Canvas is empty"
+            description="Use the Add button in the top-right to create a note, folder, or rack. Paste a URL or image to import directly."
+            icon={
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </div>
-            <h2 className="canvas__empty-title">Canvas is empty</h2>
-            <p className="canvas__empty-description">Use the <strong>Add</strong> button in the top-right to create a note, folder, or rack. Paste a URL or image to import directly.</p>
-          </section>
+            }
+          />
         ) : hasActiveSearch && visibleTileCount === 0 ? (
-          <section className="canvas__empty">
-            <div className="canvas__empty-icon" aria-hidden="true">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
+          <AppEmptyState
+            title={`No results for "${deferredSearchQuery.trim()}"`}
+            description="Try a title, URL, note snippet, or tile type."
+            actionLabel="Clear Search"
+            onAction={() => { setSearchQuery(""); focusSearchInput(); }}
+            icon={
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
               </svg>
-            </div>
-            <h2 className="canvas__empty-title">No results for &ldquo;{deferredSearchQuery.trim()}&rdquo;</h2>
-            <p className="canvas__empty-description">Try a title, URL, note snippet, or tile type.</p>
-            <button
-              className="canvas__empty-action"
-              type="button"
-              onClick={() => { setSearchQuery(""); focusSearchInput(); }}
-            >
-              Clear Search
-            </button>
-          </section>
+            }
+          />
         ) : null}
       </div>
 

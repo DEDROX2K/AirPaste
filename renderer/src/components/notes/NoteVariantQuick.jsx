@@ -14,8 +14,8 @@ export default function NoteVariantQuick({
     <div className={`card__notequick-shell ${themeClass}`}>
       <div className="card__notequick-paper" ref={paperRef}>
         {isEditable && (
-          <div 
-            className="card__notequick-move-handle" 
+          <div
+            className="card__notequick-move-handle"
             title="Drag to move"
             {...(headerProps ?? {})}
           >
@@ -28,7 +28,7 @@ export default function NoteVariantQuick({
           <span className="card__notequick-time">{noteTimestamp.timeLabel}</span>
         </div>
 
-        <div 
+        <div
           className={`card__notequick-body${isEditable ? " card__notequick-body--editing" : ""}`}
           data-replicated-value={card.text + " "}
         >

@@ -26,6 +26,7 @@ import {
   AppDropdownMenuLabel,
   AppDropdownMenuSeparator,
   AppDropdownMenuTrigger,
+  AppEmptyState,
 } from "./ui/app";
 
 const HOME_SECTIONS = Object.freeze([
@@ -198,20 +199,7 @@ function normalizeNavigationState(homeData) {
   };
 }
 
-function EmptyState({ eyebrow, title, description, actionLabel, onAction }) {
-  return (
-    <section className="home-empty-state">
-      <p className="home-empty-state__eyebrow">{eyebrow}</p>
-      <h2 className="home-empty-state__title">{title}</h2>
-      <p className="home-empty-state__description">{description}</p>
-      {actionLabel && onAction ? (
-        <AppButton variant="default" onClick={onAction}>
-          {actionLabel}
-        </AppButton>
-      ) : null}
-    </section>
-  );
-}
+
 
 function HomeSection({ title, description, actionLabel, onAction, children }) {
   return (
@@ -1025,7 +1013,7 @@ export default function HomeShell() {
                 {spaceItems.map(renderItemCard)}
               </div>
             ) : (
-              <EmptyState
+              <AppEmptyState
                 eyebrow="No items"
                 title="This space is empty."
                 description="Create a canvas or page to start collecting material here."
@@ -1080,7 +1068,7 @@ export default function HomeShell() {
                 ))}
               </div>
             ) : (
-              <EmptyState
+              <AppEmptyState
                 eyebrow="No spaces"
                 title="This project does not have any spaces yet."
                 description="Create the first space so canvases and pages have somewhere to live."
@@ -1098,7 +1086,7 @@ export default function HomeShell() {
                 {projectItems.map(renderItemCard)}
               </div>
             ) : (
-              <EmptyState
+              <AppEmptyState
                 eyebrow="No items"
                 title="This project has no canvases or pages yet."
                 description="Open a space and create the first working surface."
@@ -1121,7 +1109,7 @@ export default function HomeShell() {
               {overviewRecentItems.map(renderItemCard)}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No recents"
               title="Nothing has been opened recently."
               description="Open a canvas or page from Home and it will appear here."
@@ -1139,7 +1127,7 @@ export default function HomeShell() {
               {overviewStarredItems.map(renderItemCard)}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No starred items"
               title="Nothing has been starred yet."
               description="Use the star action on any card to keep it close at hand."
@@ -1171,7 +1159,7 @@ export default function HomeShell() {
               ))}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No projects"
               title="This workspace is still empty."
               description="Create the first project to begin organizing spaces, canvases, and pages."
@@ -1185,7 +1173,7 @@ export default function HomeShell() {
 
     if (navigation.selectedSection === "resources") {
       return (
-        <EmptyState
+        <AppEmptyState
           eyebrow="Resources"
           title="Resources will live here."
           description="This placeholder is reserved for future shared references and reusable assets."
@@ -1195,7 +1183,7 @@ export default function HomeShell() {
 
     if (navigation.selectedSection === "trash") {
       return (
-        <EmptyState
+        <AppEmptyState
           eyebrow="Trash"
           title="Trash is not wired yet."
           description="Deletion and recovery flows will land here in a later phase."
@@ -1211,7 +1199,7 @@ export default function HomeShell() {
               {overviewRecentItems.map(renderItemCard)}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No recents"
               title="Open a canvas or page to build your recent history."
               description="AirPaste reads this from the index layer so Home stays fast."
@@ -1239,7 +1227,7 @@ export default function HomeShell() {
               ))}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No projects"
               title="Create a project to start structuring this workspace."
               description="Once a project exists, you can add spaces, canvases, and pages from the same Home shell."
@@ -1255,7 +1243,7 @@ export default function HomeShell() {
               {overviewStarredItems.map(renderItemCard)}
             </div>
           ) : (
-            <EmptyState
+            <AppEmptyState
               eyebrow="No starred items"
               title="Starred items will collect here."
               description="Use the star action on any card to build a quick-access surface."
@@ -1287,7 +1275,7 @@ export default function HomeShell() {
   ]);
 
   return (
-    <main className="home-shell flex h-full">
+    <main className="home-shell bg-background flex h-full text-foreground">
       <aside className="home-sidebar bg-ap-surface-shell flex flex-col h-full border-r border-ap-border-subtle w-60 flex-shrink-0">
         {/* Sidebar Header with Wordmark */}
         <div className="home-sidebar__header h-14 px-4 flex items-center justify-between border-b border-ap-border-subtle">
