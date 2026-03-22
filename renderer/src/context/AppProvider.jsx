@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContext } from "./AppContext";
+import { useTabs } from "./useTabs";
 import {
   createEmptyWorkspace,
   createLinkCard,
@@ -28,17 +29,7 @@ function createHomeState() {
   };
 }
 
-function createEditorState(nextEditor = {}) {
-  return {
-    kind: "home",
-    itemId: null,
-    itemType: null,
-    name: "",
-    projectId: null,
-    spaceId: null,
-    ...nextEditor,
-  };
-}
+// No longer needed, view state is managed by active tab now
 
 function canvasDocumentToWorkspace(canvasDocument) {
   return normalizeWorkspace({
@@ -49,38 +40,76 @@ function canvasDocumentToWorkspace(canvasDocument) {
 }
 
 export function AppProvider({ children }) {
+  const { tabs, activeTabId, activeTab, openTab, renameTabForEntity, closeTabsForEntity, showHomeTab } = useTabs();
+  
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
-  const [workspace, setWorkspace] = useState(createEmptyWorkspace());
   const [homeData, setHomeData] = useState(createHomeState());
-  const [currentEditor, setCurrentEditor] = useState(createEditorState());
-  const [currentPage, setCurrentPage] = useState(null);
   const [folderLoading, setFolderLoading] = useState(false);
   const [error, setError] = useState("");
-  const workspaceRef = useRef(workspace);
-  const currentPageRef = useRef(currentPage);
-  const skipSaveRef = useRef(true);
-  const skipPageSaveRef = useRef(true);
+  
+  // Domain data caches
+  const [workspacesById, setWorkspacesById] = useState({});
+  const [pagesById, setPagesById] = useState({});
+  
+  // Derived current state based on active tab
+  const currentEditor = useMemo(() => {
+    if (!activeTab || activeTab.type === "home") {
+      return { kind: "home" };
+    }
+    return {
+      kind: activeTab.type,
+      itemId: activeTab.entityId,
+      itemType: activeTab.type,
+      name: activeTab.title,
+      projectId: activeTab.projectId,
+      spaceId: activeTab.spaceId,
+    };
+  }, [activeTab]);
+
+  const workspace = useMemo(() => {
+    if (activeTab?.type === "canvas" && activeTab.entityId) {
+      return workspacesById[activeTab.entityId] || createEmptyWorkspace();
+    }
+    return createEmptyWorkspace();
+  }, [activeTab, workspacesById]);
+
+  const currentPage = useMemo(() => {
+    if (activeTab?.type === "page" && activeTab.entityId) {
+      return pagesById[activeTab.entityId] || null;
+    }
+    return null;
+  }, [activeTab, pagesById]);
+
+  const activeWorkspaceIdRef = useRef(null);
+  const workspacesByIdRef = useRef(workspacesById);
+  const activePageIdRef = useRef(null);
+  const pagesByIdRef = useRef(pagesById);
+  
+  const skipSaveRef = useRef({});
+  const skipPageSaveRef = useRef({});
   const saveTimeoutRef = useRef(null);
   const pageSaveTimeoutRef = useRef(null);
 
   useEffect(() => {
-    workspaceRef.current = workspace;
-  }, [workspace]);
+    workspacesByIdRef.current = workspacesById;
+    activeWorkspaceIdRef.current = activeTab?.type === "canvas" ? activeTab.entityId : null;
+  }, [workspacesById, activeTab]);
 
   useEffect(() => {
-    currentPageRef.current = currentPage;
-  }, [currentPage]);
+    pagesByIdRef.current = pagesById;
+    activePageIdRef.current = activeTab?.type === "page" ? activeTab.entityId : null;
+  }, [pagesById, activeTab]);
 
   const resetWorkspaceState = useCallback(() => {
-    skipSaveRef.current = true;
-    skipPageSaveRef.current = true;
+    skipSaveRef.current = {};
+    skipPageSaveRef.current = {};
     setFolderPath(null);
-    setWorkspace(createEmptyWorkspace());
+    setWorkspacesById({});
     setHomeData(createHomeState());
-    setCurrentPage(null);
-    setCurrentEditor(createEditorState());
-  }, []);
+    setPagesById({});
+    showHomeTab();
+  }, [showHomeTab]);
 
   const applyHomeData = useCallback((nextHomeData) => {
     setHomeData({
@@ -93,38 +122,36 @@ export function AppProvider({ children }) {
   }, []);
 
   const applyWorkspacePayload = useCallback((payload) => {
-    skipSaveRef.current = true;
-    skipPageSaveRef.current = true;
     setFolderPath(payload.folderPath);
-    setCurrentPage(null);
-    setWorkspace(normalizeWorkspace(payload.workspace));
+    // Home route doesn't have an active file to load automatically
   }, []);
 
   const openCanvasDocument = useCallback((canvasDocument) => {
-    skipSaveRef.current = true;
-    setWorkspace(canvasDocumentToWorkspace(canvasDocument));
-    setCurrentEditor(createEditorState({
-      kind: "canvas",
-      itemId: canvasDocument.id,
-      itemType: "canvas",
-      name: canvasDocument.name,
+    const ws = canvasDocumentToWorkspace(canvasDocument);
+    setWorkspacesById((prev) => ({ ...prev, [canvasDocument.id]: ws }));
+    skipSaveRef.current[canvasDocument.id] = true;
+    
+    openTab({
+      type: "canvas",
+      entityId: canvasDocument.id,
+      title: canvasDocument.name,
       projectId: canvasDocument.projectId,
       spaceId: canvasDocument.spaceId,
-    }));
-  }, []);
+    });
+  }, [openTab]);
 
   const openPageDocument = useCallback((pageDocument) => {
-    skipPageSaveRef.current = true;
-    setCurrentPage(pageDocument);
-    setCurrentEditor(createEditorState({
-      kind: "page",
-      itemId: pageDocument.id,
-      itemType: "page",
-      name: pageDocument.name,
+    setPagesById((prev) => ({ ...prev, [pageDocument.id]: pageDocument }));
+    skipPageSaveRef.current[pageDocument.id] = true;
+    
+    openTab({
+      type: "page",
+      entityId: pageDocument.id,
+      title: pageDocument.name,
       projectId: pageDocument.projectId,
       spaceId: pageDocument.spaceId,
-    }));
-  }, []);
+    });
+  }, [openTab]);
 
   const refreshHomeData = useCallback(async (targetFolderPath = folderPath) => {
     if (!targetFolderPath) {
@@ -152,7 +179,7 @@ export function AppProvider({ children }) {
 
       applyWorkspacePayload(workspacePayload);
       applyHomeData(nextHomeData);
-      setCurrentEditor(createEditorState({ kind: "home" }));
+      showHomeTab();
       return {
         ...workspacePayload,
         homeData: nextHomeData,
@@ -198,7 +225,7 @@ export function AppProvider({ children }) {
 
       applyWorkspacePayload(payload);
       applyHomeData(nextHomeData);
-      setCurrentEditor(createEditorState({ kind: "home" }));
+      showHomeTab();
       return payload.folderPath;
     } catch (createError) {
       setError(createError.message || "Unable to create a workspace in that folder.");
@@ -209,13 +236,60 @@ export function AppProvider({ children }) {
     }
   }, [applyHomeData, applyWorkspacePayload, resetWorkspaceState]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function attemptBoot() {
+      try {
+        const payload = await desktop.workspace.restoreLastWorkspace();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (payload?.folderPath) {
+          const nextHomeData = await desktop.workspace.getHomeData(payload.folderPath);
+
+          if (cancelled) {
+            return;
+          }
+
+          applyWorkspacePayload(payload);
+          applyHomeData(nextHomeData);
+          showHomeTab();
+        }
+      } catch (bootLocalError) {
+        if (!cancelled) {
+          setError(bootLocalError.message || "Unable to load previous workspace.");
+        }
+      } finally {
+        if (!cancelled) {
+          setBooting(false);
+        }
+      }
+    }
+
+    void attemptBoot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyHomeData, applyWorkspacePayload, showHomeTab]);
+
   const patchWorkspace = useCallback((updater) => {
-    setWorkspace((currentWorkspace) => {
+    const activeId = activeWorkspaceIdRef.current;
+    if (!activeId) return;
+
+    setWorkspacesById((currentCaches) => {
+      const currentWorkspace = currentCaches[activeId] || createEmptyWorkspace();
       const nextWorkspace = typeof updater === "function"
         ? updater(currentWorkspace)
         : updater;
 
-      return normalizeWorkspace(nextWorkspace);
+      return {
+        ...currentCaches,
+        [activeId]: normalizeWorkspace(nextWorkspace)
+      };
     });
   }, []);
 
@@ -227,9 +301,10 @@ export function AppProvider({ children }) {
   }, [patchWorkspace]);
 
   const createNewTextCard = useCallback((text = "", preferredCenter = null, options = {}) => {
+    const ws = workspace;
     const card = createTextCard(
-      workspaceRef.current.cards,
-      workspaceRef.current.viewport,
+      ws.cards,
+      ws.viewport,
       text,
       preferredCenter,
       options,
@@ -241,12 +316,13 @@ export function AppProvider({ children }) {
     }));
 
     return card;
-  }, [patchWorkspace]);
+  }, [patchWorkspace, workspace]);
 
   const createNewNoteFolderCard = useCallback((preferredCenter = null, options = {}) => {
+    const ws = workspace;
     const card = createNoteFolderCard(
-      workspaceRef.current.cards,
-      workspaceRef.current.viewport,
+      ws.cards,
+      ws.viewport,
       preferredCenter,
       options,
     );
@@ -257,12 +333,13 @@ export function AppProvider({ children }) {
     }));
 
     return card;
-  }, [patchWorkspace]);
+  }, [patchWorkspace, workspace]);
 
   const createNewLinkCard = useCallback((url, preferredCenter = null, options = {}) => {
+    const ws = workspace;
     const card = createLinkCard(
-      workspaceRef.current.cards,
-      workspaceRef.current.viewport,
+      ws.cards,
+      ws.viewport,
       url,
       preferredCenter,
       options,
@@ -274,7 +351,7 @@ export function AppProvider({ children }) {
     }));
 
     return card;
-  }, [patchWorkspace]);
+  }, [patchWorkspace, workspace]);
 
   const updateExistingCard = useCallback((cardId, updates) => {
     patchWorkspace((currentWorkspace) => ({
@@ -291,9 +368,10 @@ export function AppProvider({ children }) {
   }, [patchWorkspace]);
 
   const createNewRackCard = useCallback((preferredCenter = null, options = {}) => {
+    const ws = workspace;
     const card = createRackCard(
-      workspaceRef.current.cards,
-      workspaceRef.current.viewport,
+      ws.cards,
+      ws.viewport,
       preferredCenter,
       options,
     );
@@ -304,7 +382,7 @@ export function AppProvider({ children }) {
     }));
 
     return card;
-  }, [patchWorkspace]);
+  }, [patchWorkspace, workspace]);
 
   const replaceWorkspaceCards = useCallback((nextCards) => {
     patchWorkspace((currentWorkspace) => ({
@@ -321,22 +399,22 @@ export function AppProvider({ children }) {
   }, [patchWorkspace]);
 
   const mergeExistingNoteCardIntoFolder = useCallback((sourceCardId, targetCardId) => {
-    const mergeResult = mergeCardIntoNoteFolder(workspaceRef.current.cards, sourceCardId, targetCardId);
+    const ws = workspace;
+    const mergeResult = mergeCardIntoNoteFolder(ws.cards, sourceCardId, targetCardId);
 
     if (!mergeResult) {
       return null;
     }
 
     const nextWorkspace = {
-      ...workspaceRef.current,
+      ...ws,
       cards: mergeResult.cards,
     };
 
-    workspaceRef.current = nextWorkspace;
     patchWorkspace(nextWorkspace);
 
     return mergeResult.folderCard;
-  }, [patchWorkspace]);
+  }, [patchWorkspace, workspace]);
 
   const deleteExistingCard = useCallback((cardId) => {
     if (!cardId) {
@@ -356,7 +434,7 @@ export function AppProvider({ children }) {
   }, [folderPath, patchWorkspace]);
 
   const showHome = useCallback(async () => {
-    setCurrentEditor(createEditorState({ kind: "home" }));
+    showHomeTab();
 
     if (folderPath) {
       try {
@@ -422,14 +500,21 @@ export function AppProvider({ children }) {
   }, [openCanvasItem, openPageItem]);
 
   const updateCurrentPageMarkdown = useCallback((markdown) => {
-    setCurrentPage((currentValue) => {
+    const activeId = activePageIdRef.current;
+    if (!activeId) return;
+
+    setPagesById((currentCaches) => {
+      const currentValue = currentCaches[activeId];
       if (!currentValue) {
-        return currentValue;
+        return currentCaches;
       }
 
       return {
-        ...currentValue,
-        markdown,
+        ...currentCaches,
+        [activeId]: {
+          ...currentValue,
+          markdown,
+        }
       };
     });
   }, []);
@@ -599,19 +684,21 @@ export function AppProvider({ children }) {
         ? await desktop.workspace.renamePage(folderPath, item.projectId, item.spaceId, item.id, name)
         : await desktop.workspace.renameCanvas(folderPath, item.projectId, item.spaceId, item.id, name);
 
-      if (renamedItem?.id && currentEditor.itemId === renamedItem.id) {
-        setCurrentEditor((currentValue) => ({
-          ...currentValue,
-          name: renamedItem.name,
-        }));
-        setCurrentPage((currentValue) => (
-          currentValue?.id === renamedItem.id
-            ? {
-              ...currentValue,
-              name: renamedItem.name,
+      if (renamedItem?.id) {
+        renameTabForEntity(renamedItem.id, renamedItem.name);
+        
+        // Also update local cache if it exists
+        if (renamedItem.type === "canvas" && workspacesByIdRef.current[renamedItem.id]) {
+           // We don't strictly need to rename inside the workspace cache, but keeping it synced is clean.
+        } else if (renamedItem.type === "page" && pagesByIdRef.current[renamedItem.id]) {
+          setPagesById(prev => ({
+            ...prev,
+            [renamedItem.id]: {
+              ...prev[renamedItem.id],
+              name: renamedItem.name
             }
-            : currentValue
-        ));
+          }));
+        }
       }
 
       await refreshHomeData(folderPath);
@@ -678,6 +765,8 @@ export function AppProvider({ children }) {
       } else {
         await desktop.workspace.deleteCanvas(folderPath, item.projectId, item.spaceId, item.id);
       }
+
+      closeTabsForEntity(item.id);
 
       await refreshHomeData(folderPath);
       return true;
@@ -764,20 +853,25 @@ export function AppProvider({ children }) {
     return unsubscribe;
   }, [folderPath, patchWorkspace]);
 
+  // Auto-save active workspace
   useEffect(() => {
-    if (!folderPath) {
+    const activeWsId = activeWorkspaceIdRef.current;
+    if (!folderPath || !activeWsId) {
       return undefined;
     }
 
-    if (skipSaveRef.current) {
-      skipSaveRef.current = false;
+    if (skipSaveRef.current[activeWsId]) {
+      skipSaveRef.current[activeWsId] = false;
       return undefined;
     }
+
+    const activeWorkspaceData = workspacesByIdRef.current[activeWsId];
+    if (!activeWorkspaceData) return undefined;
 
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await desktop.workspace.saveWorkspace(folderPath, workspaceRef.current);
+        await desktop.workspace.saveWorkspace(folderPath, activeWorkspaceData);
       } catch (saveError) {
         setError(saveError.message || "Unable to save the current canvas.");
       }
@@ -788,19 +882,21 @@ export function AppProvider({ children }) {
     };
   }, [folderPath, workspace]);
 
+  // Auto-save active page
   useEffect(() => {
-    if (!folderPath || !currentPage) {
+    const activePgId = activePageIdRef.current;
+    if (!folderPath || !activePgId) {
       return undefined;
     }
 
-    if (skipPageSaveRef.current) {
-      skipPageSaveRef.current = false;
+    if (skipPageSaveRef.current[activePgId]) {
+      skipPageSaveRef.current[activePgId] = false;
       return undefined;
     }
 
     clearTimeout(pageSaveTimeoutRef.current);
     pageSaveTimeoutRef.current = setTimeout(async () => {
-      const page = currentPageRef.current;
+      const page = pagesByIdRef.current[activePgId];
 
       if (!page) {
         return;
@@ -814,16 +910,20 @@ export function AppProvider({ children }) {
           page.id,
           page.markdown,
         );
-        skipPageSaveRef.current = true;
-        setCurrentPage((currentValue) => {
-          if (!currentValue || currentValue.id !== savedPage.id) {
-            return currentValue;
+        skipPageSaveRef.current[activePgId] = true;
+        setPagesById((currentCaches) => {
+          const currentValue = currentCaches[activePgId];
+          if (!currentValue) {
+            return currentCaches;
           }
 
           return {
-            ...currentValue,
-            name: savedPage.name,
-            updatedAt: savedPage.updatedAt,
+            ...currentCaches,
+            [activePgId]: {
+              ...currentValue,
+              name: savedPage.name,
+              updatedAt: savedPage.updatedAt,
+            }
           };
         });
       } catch (saveError) {

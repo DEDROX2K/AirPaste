@@ -14,6 +14,7 @@ import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInt
 import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
 import { AppEmptyState } from "./ui/app";
+import { useTheme } from "../hooks/useTheme";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
 import TILE_TYPES from "../tiles/tileTypes";
@@ -61,6 +62,7 @@ export default function CanvasWorkspaceView() {
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -229,38 +231,7 @@ export default function CanvasWorkspaceView() {
     <main className="canvas-stage">
       {/* ── Top bar ── */}
       <header className="canvas-topbar">
-        <div className="canvas-topbar__left">
-          <button
-            className="canvas-topbar__crumb canvas-topbar__crumb--home"
-            type="button"
-            title="Go to Home"
-            onClick={() => void showHome()}
-          >
-            <IconHome />
-            <span>Home</span>
-          </button>
-          {folderLabel && (
-            <>
-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-              <button
-                className="canvas-topbar__crumb"
-                type="button"
-                title="Switch workspace folder"
-                disabled={folderLoading}
-                onClick={commands.openWorkspaceFolder}
-              >
-                <IconFolder />
-                <span className="canvas-topbar__crumb-text">
-                  {folderLoading ? "Opening\u2026" : folderLabel}
-                </span>
-              </button>
-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-              <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
-                {canvasName}
-              </span>
-            </>
-          )}
-        </div>
+        <div className="canvas-topbar__left" />
 
         <div className="canvas-topbar__center">
           <div className="canvas-search">
@@ -297,6 +268,14 @@ export default function CanvasWorkspaceView() {
         </div>
 
         <div className="canvas-topbar__right">
+          <button
+            type="button"
+            className="canvas-topbar__theme-toggle"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
           <CanvasZoomMenu
             zoom={workspace.viewport.zoom}

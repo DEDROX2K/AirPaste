@@ -91,7 +91,7 @@ export default function FolderTile({
               <div className="card__canvas-folder-tab" />
               <div className="card__canvas-folder-front">
                 <div>
-                  <p className="card__canvas-folder-kicker">Folder</p>
+                  {/* <p className="card__canvas-folder-kicker">Folder</p> */}
                   <h3 className="card__canvas-folder-title">{card.title || "Folder"}</h3>
                   <p className="card__canvas-folder-subtitle">{card.description || "Grouped tiles"}</p>
                 </div>

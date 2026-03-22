@@ -1,0 +1,181 @@
+diff --git a/renderer/src/components/CanvasWorkspaceView.jsx b/renderer/src/components/CanvasWorkspaceView.jsx
+index 0d14842..93bac92 100644
+--- a/renderer/src/components/CanvasWorkspaceView.jsx
++++ b/renderer/src/components/CanvasWorkspaceView.jsx
+@@ -14,6 +14,7 @@ import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInt
+ import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
+ import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
+ import { AppEmptyState } from "./ui/app";
++import { useTheme } from "../hooks/useTheme";
+ import { filterTiles } from "../utils/searchTiles";
+ import { folderNameFromPath } from "../lib/home";
+ import TILE_TYPES from "../tiles/tileTypes";
+@@ -61,6 +62,7 @@ export default function CanvasWorkspaceView() {
+   } = useAppContext();
+   const { log } = useLog();
+   const { toast } = useToast();
++  const { theme, toggleTheme } = useTheme();
+ 
+   const canvas = useCanvasSystem({
+     viewport: workspace.viewport,
+@@ -229,38 +231,7 @@ export default function CanvasWorkspaceView() {
+     <main className="canvas-stage">
+       {/* ── Top bar ── */}
+       <header className="canvas-topbar">
+-        <div className="canvas-topbar__left">
+-          <button
+-            className="canvas-topbar__crumb canvas-topbar__crumb--home"
+-            type="button"
+-            title="Go to Home"
+-            onClick={() => void showHome()}
+-          >
+-            <IconHome />
+-            <span>Home</span>
+-          </button>
+-          {folderLabel && (
+-            <>
+-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+-              <button
+-                className="canvas-topbar__crumb"
+-                type="button"
+-                title="Switch workspace folder"
+-                disabled={folderLoading}
+-                onClick={commands.openWorkspaceFolder}
+-              >
+-                <IconFolder />
+-                <span className="canvas-topbar__crumb-text">
+-                  {folderLoading ? "Opening\u2026" : folderLabel}
+-                </span>
+-              </button>
+-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+-              <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
+-                {canvasName}
+-              </span>
+-            </>
+-          )}
+-        </div>
++        <div className="canvas-topbar__left" />
+ 
+         <div className="canvas-topbar__center">
+           <div className="canvas-search">
+@@ -297,6 +268,14 @@ export default function CanvasWorkspaceView() {
+         </div>
+ 
+         <div className="canvas-topbar__right">
++          <button
++            type="button"
++            className="canvas-topbar__theme-toggle"
++            onClick={toggleTheme}
++            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
++          >
++            {theme === "dark" ? "☀️" : "🌙"}
++          </button>
+           <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
+           <CanvasZoomMenu
+             zoom={workspace.viewport.zoom}
+diff --git a/renderer/src/components/HomeShell.jsx b/renderer/src/components/HomeShell.jsx
+index 6a135b3..86a20bd 100644
+--- a/renderer/src/components/HomeShell.jsx
++++ b/renderer/src/components/HomeShell.jsx
+@@ -1428,21 +1428,7 @@ export default function HomeShell() {
+       </aside>
+ 
+       <section className="home-content flex-1 flex flex-col h-full bg-ap-surface-shell">
+-        <header className="home-toolbar h-14 px-6 flex items-center justify-between border-b border-ap-border-subtle bg-ap-surface-shell/80 backdrop-blur-md sticky top-0 z-10">
+-          <div className="flex items-center gap-1.5 text-sm" aria-label="Breadcrumb">
+-            {breadcrumbItems.map((item, index) => (
+-              <div key={item.id} className="flex items-center gap-1.5">
+-                {index > 0 && <span className="text-ap-text-secondary opacity-40"><IconChevron /></span>}
+-                <button 
+-                  className={`hover:text-ap-text-primary transition-colors text-sm ${index === breadcrumbItems.length - 1 ? "font-semibold text-ap-text-primary" : "text-ap-text-secondary"}`} 
+-                  onClick={item.onClick}
+-                >
+-                  {item.label}
+-                </button>
+-              </div>
+-            ))}
+-          </div>
+-
++        <header className="home-toolbar h-14 px-6 flex items-center justify-end border-b border-ap-border-subtle bg-ap-surface-shell/80 backdrop-blur-md sticky top-0 z-10">
+           <div className="flex items-center gap-2">
+             <AppDropdownMenu>
+               <AppDropdownMenuTrigger asChild>
+diff --git a/renderer/src/components/PageEditorView.jsx b/renderer/src/components/PageEditorView.jsx
+index df4ffb7..19491f3 100644
+--- a/renderer/src/components/PageEditorView.jsx
++++ b/renderer/src/components/PageEditorView.jsx
+@@ -1,18 +1,6 @@
+ import { useMemo } from "react";
+ import { useAppContext } from "../context/useAppContext";
+ import { useTheme } from "../hooks/useTheme";
+-import { folderNameFromPath, formatRelativeTime } from "../lib/home";
+-
+-function IconHome() {
+-  return (
+-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+-      <path d="M3 10.5L12 3l9 7.5" />
+-      <path d="M5 9.8V21h14V9.8" />
+-      <path d="M9.5 21v-6h5v6" />
+-    </svg>
+-  );
+-}
+-
+ function IconFolder() {
+   return (
+     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+@@ -33,7 +21,7 @@ export default function PageEditorView() {
+   const { theme, toggleTheme } = useTheme();
+ 
+   const workspaceLabel = useMemo(
+-    () => folderNameFromPath(folderPath),
++    () => folderPath ? folderPath.split("/").pop() : "",
+     [folderPath],
+   );
+ 
+@@ -50,33 +38,6 @@ export default function PageEditorView() {
+ 
+   return (
+     <main className="page-editor">
+-      <header className="page-editor__toolbar">
+-        <div className="page-editor__actions">
+-          <button className="hud-chip hud-chip--action" type="button" onClick={() => void showHome()}>
+-            <IconHome />
+-            <span>Home</span>
+-          </button>
+-          <button
+-            className="hud-chip hud-chip--action"
+-            type="button"
+-            onClick={() => void openExistingWorkspace()}
+-            disabled={folderLoading}
+-          >
+-            <IconFolder />
+-            <span>{folderLoading ? "Opening..." : "Switch Workspace"}</span>
+-          </button>
+-          <button className="hud-chip" type="button" onClick={toggleTheme}>
+-            <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
+-          </button>
+-        </div>
+-
+-        <div className="page-editor__meta">
+-          <p className="page-editor__eyebrow">{workspaceLabel}</p>
+-          <h1 className="page-editor__title">{currentPage.name}</h1>
+-          <p className="page-editor__subtitle">Last edited {formatRelativeTime(currentPage.updatedAt)}</p>
+-        </div>
+-      </header>
+-
+       <section className="page-editor__body">
+         <textarea
+           className="page-editor__textarea"
+diff --git a/renderer/src/components/tiles/FolderTile.jsx b/renderer/src/components/tiles/FolderTile.jsx
+index f9b3149..50ae8df 100644
+--- a/renderer/src/components/tiles/FolderTile.jsx
++++ b/renderer/src/components/tiles/FolderTile.jsx
+@@ -91,7 +91,7 @@ export default function FolderTile({
+               <div className="card__canvas-folder-tab" />
+               <div className="card__canvas-folder-front">
+                 <div>
+-                  <p className="card__canvas-folder-kicker">Folder</p>
++                  {/* <p className="card__canvas-folder-kicker">Folder</p> */}
+                   <h3 className="card__canvas-folder-title">{card.title || "Folder"}</h3>
+                   <p className="card__canvas-folder-subtitle">{card.description || "Grouped tiles"}</p>
+                 </div>

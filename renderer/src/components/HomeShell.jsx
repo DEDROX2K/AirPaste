@@ -1428,21 +1428,7 @@ export default function HomeShell() {
       </aside>
 
       <section className="home-content flex-1 flex flex-col h-full bg-ap-surface-shell">
-        <header className="home-toolbar h-14 px-6 flex items-center justify-between border-b border-ap-border-subtle bg-ap-surface-shell/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-1.5 text-sm" aria-label="Breadcrumb">
-            {breadcrumbItems.map((item, index) => (
-              <div key={item.id} className="flex items-center gap-1.5">
-                {index > 0 && <span className="text-ap-text-secondary opacity-40"><IconChevron /></span>}
-                <button 
-                  className={`hover:text-ap-text-primary transition-colors text-sm ${index === breadcrumbItems.length - 1 ? "font-semibold text-ap-text-primary" : "text-ap-text-secondary"}`} 
-                  onClick={item.onClick}
-                >
-                  {item.label}
-                </button>
-              </div>
-            ))}
-          </div>
-
+        <header className="home-toolbar h-14 px-6 flex items-center justify-end border-b border-ap-border-subtle bg-ap-surface-shell/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <AppDropdownMenu>
               <AppDropdownMenuTrigger asChild>

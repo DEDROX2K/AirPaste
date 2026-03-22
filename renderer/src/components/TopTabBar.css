@@ -1,0 +1,138 @@
+.top-tab-bar {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  background-color: var(--color-gray-900);
+  border-bottom: 1px solid var(--color-gray-800);
+  overflow: hidden;
+  user-select: none;
+  -webkit-app-region: drag; /* Support drag on desktop electron */
+  position: relative;
+  z-index: 100;
+  color: var(--color-gray-200);
+}
+
+.top-tab-bar--custom-titlebar {
+  height: 48px;
+}
+
+.top-tab-bar__scroll-container {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -webkit-app-region: no-drag;
+}
+
+.top-tab-bar__scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.top-tab-bar__tab {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px;
+  min-width: 120px;
+  max-width: 240px;
+  border-right: 1px solid var(--color-gray-800);
+  background-color: var(--color-gray-900);
+  color: var(--color-gray-400);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.top-tab-bar__tab:hover {
+  background-color: var(--color-gray-800);
+  color: var(--color-gray-200);
+}
+
+.top-tab-bar__tab--active {
+  background-color: var(--color-gray-800);
+  color: var(--color-white);
+  border-top: 2px solid var(--color-blue-500);
+  /* Adjusting for the 2px border so text doesn't shift */
+  padding-top: 0;
+}
+
+.top-tab-bar__tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.top-tab-bar__tab-label {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.top-tab-bar__tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  margin-left: 8px;
+  background: transparent;
+  color: var(--color-gray-500);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.top-tab-bar__tab:hover .top-tab-bar__tab-close {
+  opacity: 1;
+}
+
+.top-tab-bar__tab--active .top-tab-bar__tab-close {
+  opacity: 1;
+  color: var(--color-gray-400);
+}
+
+.top-tab-bar__tab-close:hover {
+  background-color: var(--color-gray-700);
+  color: var(--color-white);
+}
+
+.top-tab-bar__actions {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.top-tab-bar__icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.top-tab-bar__icon-btn:hover {
+  background-color: var(--color-gray-800);
+  color: var(--color-gray-200);
+}
+
+.top-tab-bar__icon-btn--close:hover {
+  background-color: var(--color-red-500);
+  color: var(--color-white);
+}

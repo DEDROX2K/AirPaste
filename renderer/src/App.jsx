@@ -3,6 +3,7 @@ import CanvasWorkspaceView from "./components/CanvasWorkspaceView";
 import { DevConsole } from "./components/DevConsole";
 import HomeShell from "./components/HomeShell";
 import PageEditorView from "./components/PageEditorView";
+import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
@@ -177,12 +178,14 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"}`}>
-      <WindowTitlebar usesCustomTitlebar={usesCustomTitlebar} />
-
-      {currentEditor.kind === "canvas" ? <CanvasWorkspaceView /> : null}
-      {currentEditor.kind === "page" ? <PageEditorView /> : null}
-      {currentEditor.kind === "home" ? <HomeShell /> : null}
+    <div className={`app-shell app-shell--with-tabs ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"}`}>
+      <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
+      
+      <div className="app-shell__view-container">
+        {currentEditor.kind === "canvas" ? <CanvasWorkspaceView /> : null}
+        {currentEditor.kind === "page" ? <PageEditorView /> : null}
+        {currentEditor.kind === "home" ? <HomeShell /> : null}
+      </div>
 
       <ToastStack />
       {import.meta.env.DEV && <DevConsole />}

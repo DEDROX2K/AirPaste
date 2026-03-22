@@ -1,18 +1,6 @@
 import { useMemo } from "react";
 import { useAppContext } from "../context/useAppContext";
 import { useTheme } from "../hooks/useTheme";
-import { folderNameFromPath, formatRelativeTime } from "../lib/home";
-
-function IconHome() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 10.5L12 3l9 7.5" />
-      <path d="M5 9.8V21h14V9.8" />
-      <path d="M9.5 21v-6h5v6" />
-    </svg>
-  );
-}
-
 function IconFolder() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -33,7 +21,7 @@ export default function PageEditorView() {
   const { theme, toggleTheme } = useTheme();
 
   const workspaceLabel = useMemo(
-    () => folderNameFromPath(folderPath),
+    () => folderPath ? folderPath.split("/").pop() : "",
     [folderPath],
   );
 
@@ -50,33 +38,6 @@ export default function PageEditorView() {
 
   return (
     <main className="page-editor">
-      <header className="page-editor__toolbar">
-        <div className="page-editor__actions">
-          <button className="hud-chip hud-chip--action" type="button" onClick={() => void showHome()}>
-            <IconHome />
-            <span>Home</span>
-          </button>
-          <button
-            className="hud-chip hud-chip--action"
-            type="button"
-            onClick={() => void openExistingWorkspace()}
-            disabled={folderLoading}
-          >
-            <IconFolder />
-            <span>{folderLoading ? "Opening..." : "Switch Workspace"}</span>
-          </button>
-          <button className="hud-chip" type="button" onClick={toggleTheme}>
-            <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
-          </button>
-        </div>
-
-        <div className="page-editor__meta">
-          <p className="page-editor__eyebrow">{workspaceLabel}</p>
-          <h1 className="page-editor__title">{currentPage.name}</h1>
-          <p className="page-editor__subtitle">Last edited {formatRelativeTime(currentPage.updatedAt)}</p>
-        </div>
-      </header>
-
       <section className="page-editor__body">
         <textarea
           className="page-editor__textarea"
