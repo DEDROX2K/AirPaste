@@ -478,10 +478,6 @@ a {
   overflow: hidden;
   outline: none;
   cursor: grab;
-  background:
-    radial-gradient(circle at 24% 12%, var(--canvas-wash-a), transparent 28%),
-    radial-gradient(circle at 82% 20%, var(--canvas-wash-b), transparent 34%),
-    var(--bg-base);
 }
 
 .canvas:active {
@@ -497,7 +493,7 @@ a {
   content: "";
   position: absolute;
   inset: 18px;
-  border: 1.5px dashed rgba(126, 182, 255, 0.74);
+  border: 1.5px dashed rgba(0, 0, 0, 0.74);
   border-radius: 28px;
   background: rgba(126, 182, 255, 0.08);
   box-shadow:
@@ -3121,7 +3117,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   box-shadow: none;
   border-radius: 0;
 
-  filter: drop-shadow(0 28px 44px rgba(52, 52, 52, 0.22));
+  /* filter: drop-shadow(0 28px 44px rgba(52, 52, 52, 0.22)); */
 }
 
 .card--folder-group-target .card__canvas-folder-front {
