@@ -76,5 +76,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
   usesCustomTitlebar: true,
-  usesTitleBarOverlay: process.platform === "win32",
 });

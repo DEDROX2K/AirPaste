@@ -1105,9 +1105,6 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
 }
 
 async function createWindow() {
-  const useTitleBarOverlay = process.platform === "win32";
-  const titleBarHeight = 38;
-
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -1116,15 +1113,10 @@ async function createWindow() {
     backgroundColor: "#1e1e1e",
     frame: false,
     titleBarStyle: "hidden",
-    titleBarOverlay: useTitleBarOverlay
-      ? {
-          color: "#1e1e1e",
-          height: titleBarHeight,
-          symbolColor: "#cccccc",
-        }
-      : undefined,
+    thickFrame: false,
     show: false,
     title: "AirPaste",
+    icon: path.join(__dirname, "public", "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

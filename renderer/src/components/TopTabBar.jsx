@@ -39,12 +39,6 @@ function IconLayout() {
 }
 
 function TitleBarControls() {
-  const usesOverlay = desktop.window.usesTitleBarOverlay;
-
-  if (usesOverlay) {
-    return null;
-  }
-
   return (
     <div className="titlebar-controls">
       <button

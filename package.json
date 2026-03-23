@@ -71,7 +71,8 @@
       "signAndEditExecutable": false,
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "public/logo.png"
     },
     "mac": {
       "target": [

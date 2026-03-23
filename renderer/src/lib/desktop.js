@@ -52,6 +52,5 @@ export const desktop = {
     maximize: () => electronBridge.maximize?.(),
     close: () => electronBridge.close?.(),
     usesCustomTitlebar: electronBridge.usesCustomTitlebar === true,
-    usesTitleBarOverlay: electronBridge.usesTitleBarOverlay === true,
   },
 };

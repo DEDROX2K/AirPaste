@@ -82,9 +82,10 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     }
 
     panStateRef.current = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      viewport: { ...viewportRef.current },
+      startX: event.clientX,
+      startY: event.clientY,
+      startViewportX: viewportRef.current.x,
+      startViewportY: viewportRef.current.y,
     };
     setIsPanning(true);
     return true;
@@ -125,13 +126,13 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         return;
       }
 
-      const deltaX = event.clientX - panStateRef.current.pointerX;
-      const deltaY = event.clientY - panStateRef.current.pointerY;
+      const deltaX = event.clientX - panStateRef.current.startX;
+      const deltaY = event.clientY - panStateRef.current.startY;
 
       onViewportChange({
-        ...panStateRef.current.viewport,
-        x: panStateRef.current.viewport.x + deltaX,
-        y: panStateRef.current.viewport.y + deltaY,
+        ...viewportRef.current,
+        x: panStateRef.current.startViewportX + deltaX,
+        y: panStateRef.current.startViewportY + deltaY,
       });
     }
 
