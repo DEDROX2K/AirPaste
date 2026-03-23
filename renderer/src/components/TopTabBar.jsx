@@ -87,9 +87,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
         desktop.window?.maximize?.();
       }}
     >
-      <div className="titlebar-left" />
-
-      <div className="titlebar-center">
+      <div className="titlebar-left">
         <div className="titlebar-tabs">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
@@ -114,7 +112,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
                   {isHome ? <IconHome /> : tab.type === "page" ? <IconFile /> : <IconLayout />}
                 </span>
                 <span className="titlebar-tab-label">{tab.title}</span>
-                
+
                 {tab.closable && (
                   <button
                     className="titlebar-tab-close"
@@ -134,7 +132,10 @@ export function TopTabBar({ usesCustomTitlebar }) {
         </div>
       </div>
 
+      <div id="titlebar-center-slot" />
+
       <div className="titlebar-right">
+        <div id="titlebar-right-slot" />
         <TitleBarControls />
       </div>
     </div>

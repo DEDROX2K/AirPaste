@@ -1,5 +1,6 @@
 .titlebar-root {
   display: flex;
+  justify-content: space-between;
   align-items: stretch;
   height: 38px;
   background-color: #1e1e1e;
@@ -7,11 +8,23 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: drag;
+  position: relative;
+}
+
+.titlebar-middle {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 100%;
 }
 
 .titlebar-left {
-  flex-shrink: 0;
-  width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  height: 100%;
+  flex: 1;
 }
 
 .titlebar-center {
@@ -111,6 +124,71 @@
   align-items: center;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
+}
+
+#titlebar-center-slot {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 101;
+}
+
+#titlebar-center-slot > * {
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+#titlebar-right-slot {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+#titlebar-right-slot > * {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+/* Minimalistic overrides for tools in the titlebar */
+#titlebar-right-slot button,
+#titlebar-right-slot .zoom-menu__trigger {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  height: 100% !important;
+  padding: 0 12px !important;
+  color: #8b8b8b !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  transition: background-color 0.1s ease, color 0.1s ease !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#titlebar-right-slot button:hover,
+#titlebar-right-slot .zoom-menu__trigger:hover {
+  background-color: #3d3d3d !important;
+  color: #cccccc !important;
+}
+
+#titlebar-right-slot .zoom-menu__trigger {
+  gap: 4px;
+}
+
+#titlebar-right-slot .zoom-menu__caret {
+  font-size: 10px;
+  opacity: 0.6;
 }
 
 .titlebar-controls {

@@ -1,4 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
@@ -229,6 +230,68 @@ export default function CanvasWorkspaceView() {
 
   return (
     <main className="canvas-stage">
+      {/* ── Search Portal ── */}
+      {createPortal(
+        <div className="canvas-search">
+          <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            id="tile-search"
+            ref={searchInputRef}
+            className="canvas-search__input"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search tiles\u2026"
+            aria-label="Search tiles"
+          />
+          {searchQuery ? (
+            <button
+              className="canvas-search__clear"
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setSearchQuery("");
+                focusSearchInput();
+              }}
+            >
+              &times;
+            </button>
+          ) : (
+            <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
+          )}
+        </div>,
+        document.getElementById("titlebar-center-slot") || document.body
+      )}
+
+      {/* ── Right Tools Portal ── */}
+      {createPortal(
+        <>
+          <button
+            type="button"
+            className="canvas-topbar__theme-toggle"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
+          <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
+          <CanvasZoomMenu
+            zoom={workspace.viewport.zoom}
+            canFitAll={Boolean(layout.allTilesBounds)}
+            canFitSelection={Boolean(layout.selectedTilesBounds)}
+            onZoomIn={canvas.zoomIn}
+            onZoomOut={canvas.zoomOut}
+            onZoomToFitAll={zoomToFitAll}
+            onZoomToFitSelection={zoomToFitSelection}
+            onSetZoom={canvas.setZoom}
+          />
+        </>,
+        document.getElementById("titlebar-right-slot") || document.body
+      )}
+
       {/* ── Top bar ── */}
       <header className="canvas-topbar">
         <div className="canvas-topbar__left">
@@ -264,61 +327,9 @@ export default function CanvasWorkspaceView() {
           )}
         </div>
 
-        <div className="canvas-topbar__center">
-          <div className="canvas-search">
-            <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              id="tile-search"
-              ref={searchInputRef}
-              className="canvas-search__input"
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search tiles\u2026"
-              aria-label="Search tiles"
-            />
-            {searchQuery ? (
-              <button
-                className="canvas-search__clear"
-                type="button"
-                aria-label="Clear search"
-                onClick={() => {
-                  setSearchQuery("");
-                  focusSearchInput();
-                }}
-              >
-                &times;
-              </button>
-            ) : (
-              <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
-            )}
-          </div>
-        </div>
+        <div className="canvas-topbar__center" />
 
-        <div className="canvas-topbar__right">
-          <button
-            type="button"
-            className="canvas-topbar__theme-toggle"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? "☀️" : "🌙"}
-          </button>
-          <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
-          <CanvasZoomMenu
-            zoom={workspace.viewport.zoom}
-            canFitAll={Boolean(layout.allTilesBounds)}
-            canFitSelection={Boolean(layout.selectedTilesBounds)}
-            onZoomIn={canvas.zoomIn}
-            onZoomOut={canvas.zoomOut}
-            onZoomToFitAll={zoomToFitAll}
-            onZoomToFitSelection={zoomToFitSelection}
-            onSetZoom={canvas.setZoom}
-          />
-        </div>
+        <div className="canvas-topbar__right" />
       </header>
 
       {/* ── Canvas board ── */}
