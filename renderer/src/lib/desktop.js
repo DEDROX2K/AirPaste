@@ -42,6 +42,14 @@ export const desktop = {
     importImageAsset: (...args) => airpasteBridge.importImageAsset?.(...args) ?? Promise.resolve(null),
     resolveAssetUrl: (...args) => airpasteBridge.resolveAssetUrl?.(...args) ?? Promise.resolve(""),
     getLastFolder: (...args) => airpasteBridge.getLastFolder?.(...args) ?? Promise.resolve(null),
+    restoreLastWorkspace: async () => {
+      const folderPath = await airpasteBridge.getLastFolder?.();
+      if (folderPath) {
+        const payload = await airpasteBridge.loadWorkspace?.(folderPath);
+        return payload;
+      }
+      return null;
+    },
     onPreviewUpdated: (listener) => airpasteBridge.onPreviewUpdated?.(listener) ?? (() => { }),
   },
   shell: {

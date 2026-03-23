@@ -49,6 +49,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.4.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.17",
     "vite": "^7.1.11",

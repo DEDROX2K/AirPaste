@@ -1113,7 +1113,6 @@ async function createWindow() {
     backgroundColor: "#1e1e1e",
     frame: false,
     titleBarStyle: "hidden",
-    thickFrame: false,
     show: false,
     title: "AirPaste",
     icon: path.join(__dirname, "build", "icon.ico"),
