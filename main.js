@@ -1116,7 +1116,7 @@ async function createWindow() {
     thickFrame: false,
     show: false,
     title: "AirPaste",
-    icon: path.join(__dirname, "public", "logo.png"),
+    icon: path.join(__dirname, "build", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
