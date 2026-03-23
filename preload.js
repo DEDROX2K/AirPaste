@@ -72,8 +72,9 @@ contextBridge.exposeInMainWorld("airpaste", {
 });
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  minimize:  () => ipcRenderer.send("window:minimize"),
-  maximize:  () => ipcRenderer.send("window:maximize"),
-  close:     () => ipcRenderer.send("window:close"),
-  usesCustomTitlebar: process.platform === "darwin",
+  minimize: () => ipcRenderer.send("window:minimize"),
+  maximize: () => ipcRenderer.send("window:maximize"),
+  close: () => ipcRenderer.send("window:close"),
+  usesCustomTitlebar: true,
+  usesTitleBarOverlay: process.platform === "win32",
 });

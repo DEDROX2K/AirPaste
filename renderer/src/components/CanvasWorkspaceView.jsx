@@ -231,7 +231,38 @@ export default function CanvasWorkspaceView() {
     <main className="canvas-stage">
       {/* ── Top bar ── */}
       <header className="canvas-topbar">
-        <div className="canvas-topbar__left" />
+        <div className="canvas-topbar__left">
+          <button
+            className="canvas-topbar__crumb canvas-topbar__crumb--home"
+            type="button"
+            title="Go to Home"
+            onClick={() => void showHome()}
+          >
+            <IconHome />
+            <span>Home</span>
+          </button>
+          {folderLabel && (
+            <>
+              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+              <button
+                className="canvas-topbar__crumb"
+                type="button"
+                title="Switch workspace folder"
+                disabled={folderLoading}
+                onClick={commands.openWorkspaceFolder}
+              >
+                <IconFolder />
+                <span className="canvas-topbar__crumb-text">
+                  {folderLoading ? "Opening\u2026" : folderLabel}
+                </span>
+              </button>
+              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+              <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
+                {canvasName}
+              </span>
+            </>
+          )}
+        </div>
 
         <div className="canvas-topbar__center">
           <div className="canvas-search">
@@ -303,7 +334,6 @@ export default function CanvasWorkspaceView() {
         onPointerDown={interactions.handleCanvasPointerDown}
         onDoubleClick={interactions.handleCanvasDoubleClick}
         onContextMenu={interactions.handleCanvasContextMenu}
-        onWheel={canvas.handleCanvasWheel}
         onClick={(event) => {
           if (!isEditableElement(event.target)) {
             event.currentTarget.focus({ preventScroll: true });

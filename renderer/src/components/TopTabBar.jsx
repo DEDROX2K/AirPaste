@@ -38,90 +38,111 @@ function IconLayout() {
   );
 }
 
+function TitleBarControls() {
+  const usesOverlay = desktop.window.usesTitleBarOverlay;
+
+  if (usesOverlay) {
+    return null;
+  }
+
+  return (
+    <div className="titlebar-controls">
+      <button
+        className="titlebar-btn titlebar-btn--minimize"
+        type="button"
+        title="Minimize"
+        onClick={() => desktop.window.minimize()}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <rect y="4.5" width="10" height="1" rx="0.5" />
+        </svg>
+      </button>
+      <button
+        className="titlebar-btn titlebar-btn--maximize"
+        type="button"
+        title="Maximize"
+        onClick={() => desktop.window.maximize()}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
+          <rect x="0.5" y="0.5" width="9" height="9" rx="1" />
+        </svg>
+      </button>
+      <button
+        className="titlebar-btn titlebar-btn--close"
+        type="button"
+        title="Close"
+        onClick={() => desktop.window.close()}
+      >
+        <IconClose />
+      </button>
+    </div>
+  );
+}
+
 export function TopTabBar({ usesCustomTitlebar }) {
   const { tabs, activeTabId, setActiveTab, closeTab } = useTabs();
 
-  // Scroll active tab into view when it changes, but this is optional UI polish
+  if (!usesCustomTitlebar) {
+    return null;
+  }
 
   return (
     <div
-      className={`top-tab-bar ${usesCustomTitlebar ? "top-tab-bar--custom-titlebar" : ""}`}
+      className="titlebar-root"
       onDoubleClick={() => {
-        // Example: double click empty space in tab bar to maximize window if native frame is hidden
-        if (usesCustomTitlebar) {
-          desktop.window?.maximize?.();
-        }
+        desktop.window?.maximize?.();
       }}
     >
-      {/* Draggable region for custom titlebar on native desktop */}
-      <div className="top-tab-bar__drag-region" />
-      
-      <div className="top-tab-bar__scroll-container">
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTabId;
-          const isHome = tab.id === "home";
+      <div className="titlebar-left" />
 
-          return (
-            <div
-              key={tab.id}
-              className={`top-tab-bar__tab ${isActive ? "top-tab-bar__tab--active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setActiveTab(tab.id);
-                }
-              }}
-              title={tab.title}
-            >
-              <div className="top-tab-bar__tab-icon">
-                {isHome ? <IconHome /> : tab.type === "page" ? <IconFile /> : <IconLayout />}
+      <div className="titlebar-center">
+        <div className="titlebar-tabs">
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            const isHome = tab.id === "home";
+
+            return (
+              <div
+                key={tab.id}
+                className={`titlebar-tab ${isActive ? "titlebar-tab--active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveTab(tab.id);
+                  }
+                }}
+                title={tab.title}
+              >
+                <span className="titlebar-tab-icon">
+                  {isHome ? <IconHome /> : tab.type === "page" ? <IconFile /> : <IconLayout />}
+                </span>
+                <span className="titlebar-tab-label">{tab.title}</span>
+                
+                {tab.closable && (
+                  <button
+                    className="titlebar-tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeTab(tab.id);
+                    }}
+                    title="Close tab"
+                    aria-label="Close tab"
+                  >
+                    <IconClose />
+                  </button>
+                )}
               </div>
-              <span className="top-tab-bar__tab-label">{tab.title}</span>
-              
-              {tab.closable && (
-                <button
-                  className="top-tab-bar__tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(tab.id);
-                  }}
-                  title="Close tab"
-                  aria-label="Close tab"
-                >
-                  <IconClose />
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Keep the titlebar actions (minimize, close) inside the layout if using custom titlebar */}
-      {usesCustomTitlebar && (
-        <div className="top-tab-bar__actions">
-          <button
-             className="top-tab-bar__icon-btn top-tab-bar__icon-btn--min"
-             type="button"
-             title="Minimize"
-             onClick={() => desktop.window.minimize()}
-          >
-             <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-               <rect y="4.5" width="10" height="1" rx="0.5" />
-             </svg>
-          </button>
-          <button
-             className="top-tab-bar__icon-btn top-tab-bar__icon-btn--close"
-             type="button"
-             title="Close"
-             onClick={() => desktop.window.close()}
-          >
-             <IconClose />
-          </button>
+            );
+          })}
         </div>
-      )}
+      </div>
+
+      <div className="titlebar-right">
+        <TitleBarControls />
+      </div>
     </div>
   );
 }

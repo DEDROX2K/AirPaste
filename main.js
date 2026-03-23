@@ -257,20 +257,20 @@ function normalizeCard(card, index = 0) {
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.title, "Rack")
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.title, "Folder")
-      : type === NOTE_FOLDER_CARD_TYPE
-        ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
-        : "",
+        : type === FOLDER_CARD_TYPE
+          ? firstString(card?.title, "Folder")
+          : type === NOTE_FOLDER_CARD_TYPE
+            ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
+            : "",
     description: type === "link"
       ? String(card?.description ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.description, "Mounted display rack")
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.description, "Grouped tiles")
-      : type === NOTE_FOLDER_CARD_TYPE
-        ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
-        : "",
+        : type === FOLDER_CARD_TYPE
+          ? firstString(card?.description, "Grouped tiles")
+          : type === NOTE_FOLDER_CARD_TYPE
+            ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
+            : "",
     image: type === "link" ? String(card?.image ?? "") : "",
     favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
@@ -351,7 +351,7 @@ async function safeWriteJson(filePath, data) {
   }
 
   await fs.rename(tempPath, filePath);
-  await fs.rm(backupPath, { force: true }).catch(() => {});
+  await fs.rm(backupPath, { force: true }).catch(() => { });
 }
 
 function withWorkspaceQueue(folderPath, task) {
@@ -360,7 +360,7 @@ function withWorkspaceQueue(folderPath, task) {
     : "__invalid-workspace__";
   const previous = workspaceQueues.get(queueKey) ?? Promise.resolve();
   const next = previous
-    .catch(() => {})
+    .catch(() => { })
     .then(task);
 
   workspaceQueues.set(queueKey, next);
@@ -932,7 +932,7 @@ async function capturePreviewScreenshot(url) {
     page.setDefaultTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
 
     await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: PREVIEW_NETWORK_IDLE_TIMEOUT_MS }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: PREVIEW_NETWORK_IDLE_TIMEOUT_MS }).catch(() => { });
     await page.addStyleTag({
       content: [
         "*, *::before, *::after {",
@@ -942,7 +942,7 @@ async function capturePreviewScreenshot(url) {
         "  caret-color: transparent !important;",
         "}",
       ].join("\n"),
-    }).catch(() => {});
+    }).catch(() => { });
 
     const screenshot = await page.screenshot({
       type: "jpeg",
@@ -954,7 +954,7 @@ async function capturePreviewScreenshot(url) {
   } catch {
     return "";
   } finally {
-    await context?.close().catch(() => {});
+    await context?.close().catch(() => { });
   }
 }
 
@@ -1029,13 +1029,13 @@ async function fetchPreviewData(url) {
   const finalImage = image || await capturePreviewScreenshot(url);
   const hasPreviewData = Boolean(
     providerPreview?.title
-      || providerPreview?.description
-      || providerPreview?.siteName
-      || metadata.title
-      || metadata.description
-      || metadata.siteName
-      || metadata.favicon
-      || finalImage,
+    || providerPreview?.description
+    || providerPreview?.siteName
+    || metadata.title
+    || metadata.description
+    || metadata.siteName
+    || metadata.favicon
+    || finalImage,
   );
 
   return {
@@ -1105,16 +1105,24 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
 }
 
 async function createWindow() {
-  const useCustomTitlebar = process.platform === "darwin";
+  const useTitleBarOverlay = process.platform === "win32";
+  const titleBarHeight = 38;
 
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: "#0d0d0d",
-    frame: !useCustomTitlebar,
-    titleBarStyle: useCustomTitlebar ? "hidden" : "default",
+    backgroundColor: "#1e1e1e",
+    frame: false,
+    titleBarStyle: "hidden",
+    titleBarOverlay: useTitleBarOverlay
+      ? {
+          color: "#1e1e1e",
+          height: titleBarHeight,
+          symbolColor: "#cccccc",
+        }
+      : undefined,
     show: false,
     title: "AirPaste",
     webPreferences: {

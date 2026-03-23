@@ -10,22 +10,6 @@ import { useLog } from "./hooks/useLog";
 import { useToast } from "./hooks/useToast";
 import { desktop } from "./lib/desktop";
 
-function IconMinus() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-      <rect y="4.5" width="10" height="1" rx="0.5" />
-    </svg>
-  );
-}
-
-function IconClose() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const STARTUP_SPLASH_IMAGE_SRC = encodeURI("/Splash screen/Keyboard keycap with _airpaste_ text.png");
 
 const STARTUP_ACTIONS = [
@@ -40,38 +24,6 @@ const STARTUP_ACTIONS = [
     description: "Initialize a folder on this machine as a fresh AirPaste workspace.",
   },
 ];
-
-function WindowTitlebar({ usesCustomTitlebar }) {
-  if (!usesCustomTitlebar) {
-    return null;
-  }
-
-  return (
-    <header className="titlebar">
-      <div className="titlebar__spacer" />
-      <div className="titlebar__actions">
-        <button
-          id="titlebar-minimize"
-          className="titlebar__icon-btn titlebar__icon-btn--min"
-          type="button"
-          title="Minimize"
-          onClick={() => desktop.window.minimize()}
-        >
-          <IconMinus />
-        </button>
-        <button
-          id="titlebar-close"
-          className="titlebar__icon-btn titlebar__icon-btn--close"
-          type="button"
-          title="Close"
-          onClick={() => desktop.window.close()}
-        >
-          <IconClose />
-        </button>
-      </div>
-    </header>
-  );
-}
 
 function StartupSplash({ isLoading, onCreateNewWorkspace, onOpenExistingWorkspace }) {
   const actionHandlers = {
@@ -164,8 +116,8 @@ export default function App() {
 
   if (!folderPath) {
     return (
-      <div className={`app-shell app-shell--startup ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"}`}>
-        <WindowTitlebar usesCustomTitlebar={usesCustomTitlebar} />
+      <div className="app-shell app-shell--startup">
+        <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
         <StartupSplash
           isLoading={folderLoading}
           onCreateNewWorkspace={createNewWorkspace}

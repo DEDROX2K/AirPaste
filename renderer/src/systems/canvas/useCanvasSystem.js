@@ -15,32 +15,36 @@ import {
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const containerRef = useRef(null);
   const panStateRef = useRef(null);
+  const viewportRef = useRef(viewport);
   const [isPanning, setIsPanning] = useState(false);
+
+  viewportRef.current = viewport;
 
   const toCanvasPoint = useCallback((clientX, clientY) => (
     clientToCanvasPoint(containerRef.current, clientX, clientY)
   ), []);
 
   const toWorldPoint = useCallback((clientX, clientY) => (
-    clientToWorldPoint(containerRef.current, viewport, clientX, clientY)
-  ), [viewport]);
+    clientToWorldPoint(containerRef.current, viewportRef.current, clientX, clientY)
+  ), []);
 
   const getViewportCenter = useCallback(() => (
-    getViewportCenterPoint(containerRef.current, viewport)
-  ), [viewport]);
+    getViewportCenterPoint(containerRef.current, viewportRef.current)
+  ), []);
 
   const zoomToWorldPoint = useCallback((canvasPoint, worldPoint, nextZoom) => {
     onViewportChange(getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom));
   }, [onViewportChange]);
 
   const zoomAtCanvasPoint = useCallback((canvasPoint, nextZoom) => {
+    const vp = viewportRef.current;
     const worldPoint = {
-      x: (canvasPoint.x - viewport.x) / viewport.zoom,
-      y: (canvasPoint.y - viewport.y) / viewport.zoom,
+      x: (canvasPoint.x - vp.x) / vp.zoom,
+      y: (canvasPoint.y - vp.y) / vp.zoom,
     };
 
     zoomToWorldPoint(canvasPoint, worldPoint, nextZoom);
-  }, [viewport.x, viewport.y, viewport.zoom, zoomToWorldPoint]);
+  }, [zoomToWorldPoint]);
 
   const zoomAtViewportCenter = useCallback((nextZoom) => {
     const rect = getClientRect(containerRef.current);
@@ -57,8 +61,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
   const zoomByStep = useCallback((direction) => {
     const step = direction > 0 ? 1.2 : 1 / 1.2;
-    setZoom(viewport.zoom * step);
-  }, [setZoom, viewport.zoom]);
+    setZoom(viewportRef.current.zoom * step);
+  }, [setZoom]);
 
   const zoomToBounds = useCallback((worldBounds) => {
     const rect = getClientRect(containerRef.current);
@@ -80,32 +84,40 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     panStateRef.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
-      viewport,
+      viewport: { ...viewportRef.current },
     };
     setIsPanning(true);
     return true;
-  }, [viewport]);
+  }, []);
 
-  const handleCanvasWheel = useCallback((event) => {
-    event.preventDefault();
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
-    const worldPoint = toWorldPoint(event.clientX, event.clientY);
-    const rect = getClientRect(containerRef.current);
-    const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    const normalizedDelta = normalizeWheelZoomDelta(
-      dominantDelta,
-      event.deltaMode,
-      rect?.height ?? 800,
-    );
-    const nextZoom = clampViewportZoom(viewport.zoom * Math.exp(-normalizedDelta * 0.0015));
+    function handleWheel(event) {
+      event.preventDefault();
 
-    if (Math.abs(nextZoom - viewport.zoom) < 0.0001) {
-      return;
+      const vp = viewportRef.current;
+      const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
+      const worldPoint = {
+        x: (canvasPoint.x - vp.x) / vp.zoom,
+        y: (canvasPoint.y - vp.y) / vp.zoom,
+      };
+      const rect = getClientRect(container);
+      const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      const normalizedDelta = normalizeWheelZoomDelta(
+        dominantDelta,
+        event.deltaMode,
+        rect?.height ?? 800,
+      );
+      const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-normalizedDelta * 0.0015));
+
+      zoomToWorldPoint(canvasPoint, worldPoint, nextZoom);
     }
 
-    zoomToWorldPoint(canvasPoint, worldPoint, nextZoom);
-  }, [toCanvasPoint, toWorldPoint, viewport.zoom, zoomToWorldPoint]);
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [onViewportChange, toCanvasPoint, zoomToWorldPoint]);
 
   useEffect(() => {
     function handlePointerMove(event) {
@@ -157,7 +169,6 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     clientToWorldPoint: toWorldPoint,
     getViewportCenter,
     beginCanvasPan,
-    handleCanvasWheel,
     setZoom,
     zoomIn: () => zoomByStep(1),
     zoomOut: () => zoomByStep(-1),

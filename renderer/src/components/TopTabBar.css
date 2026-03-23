@@ -1,3 +1,151 @@
+.titlebar-root {
+  display: flex;
+  align-items: stretch;
+  height: 38px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333333;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.titlebar-left {
+  flex-shrink: 0;
+  width: 0;
+}
+
+.titlebar-center {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  padding: 0 4px;
+}
+
+.titlebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 12px;
+  min-width: 120px;
+  max-width: 240px;
+  background-color: #2d2d2d;
+  color: #9d9d9d;
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.titlebar-tab:hover {
+  background-color: #383838;
+  color: #cccccc;
+}
+
+.titlebar-tab--active {
+  background-color: #1e1e1e;
+  color: #ffffff;
+}
+
+.titlebar-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.titlebar-tab-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.titlebar-tab-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titlebar-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  margin-left: 4px;
+  background: transparent;
+  color: #6d6d6d;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
+}
+
+.titlebar-tab:hover .titlebar-tab-close {
+  opacity: 1;
+}
+
+.titlebar-tab--active .titlebar-tab-close {
+  opacity: 1;
+  color: #8d8d8d;
+}
+
+.titlebar-tab-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #cccccc;
+}
+
+.titlebar-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #8b8b8b;
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.titlebar-btn:hover {
+  background-color: #3d3d3d;
+  color: #cccccc;
+}
+
+.titlebar-btn--close:hover {
+  background-color: #c42b1c;
+  color: #ffffff;
+}
+
+.titlebar-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
 .top-tab-bar {
   display: flex;
   align-items: center;
@@ -6,7 +154,7 @@
   border-bottom: 1px solid var(--color-gray-800);
   overflow: hidden;
   user-select: none;
-  -webkit-app-region: drag; /* Support drag on desktop electron */
+  -webkit-app-region: drag;
   position: relative;
   z-index: 100;
   color: var(--color-gray-200);
@@ -22,12 +170,12 @@
   height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
   -webkit-app-region: no-drag;
 }
 
 .top-tab-bar__scroll-container::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
 }
 
 .top-tab-bar__tab {
@@ -53,7 +201,6 @@
   background-color: var(--color-gray-800);
   color: var(--color-white);
   border-top: 2px solid var(--color-blue-500);
-  /* Adjusting for the 2px border so text doesn't shift */
   padding-top: 0;
 }
 
