@@ -70,6 +70,8 @@ const DEFAULT_UI_STATE = Object.freeze({
   selectedProjectId: null,
   selectedSpaceId: null,
   homeScrollTop: 0,
+  canvasSnapToGrid: false,
+  canvasSnapGridSize: 32,
   lastHomeRoute: {
     mode: "home",
     selectedSection: "overview",
@@ -1058,6 +1060,12 @@ function normalizeUiState(rawState, index, fallbackSelection = {}) {
         ? safeState.lastOpenedSpaceId
         : null,
     homeScrollTop: clampNonNegativeNumber(safeState.homeScrollTop, DEFAULT_UI_STATE.homeScrollTop),
+    canvasSnapToGrid: typeof safeState.canvasSnapToGrid === "boolean"
+      ? safeState.canvasSnapToGrid
+      : DEFAULT_UI_STATE.canvasSnapToGrid,
+    canvasSnapGridSize: Number.isFinite(safeState.canvasSnapGridSize) && safeState.canvasSnapGridSize > 0
+      ? Math.round(safeState.canvasSnapGridSize)
+      : DEFAULT_UI_STATE.canvasSnapGridSize,
     lastHomeRoute: {
       ...fallbackHomeRoute,
       mode: normalizeHomeMode(rawHomeRoute?.mode ?? safeState.homeMode),

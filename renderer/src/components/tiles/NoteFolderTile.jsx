@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import TileShell from "./TileShell";
 import { getFolderNotePreview } from "../notes/noteUtils";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
@@ -26,10 +26,12 @@ function IconGear() {
   );
 }
 
-export default function NoteFolderTile({
+function NoteFolderTile({
   card,
   tileMeta,
   isExpanded,
+  dragVisualDelta,
+  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -64,6 +66,7 @@ export default function NoteFolderTile({
     <TileShell
       card={card}
       tileMeta={{ ...tileMeta, isExpanded }}
+      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
@@ -121,3 +124,5 @@ export default function NoteFolderTile({
     </TileShell>
   );
 }
+
+export default memo(NoteFolderTile);

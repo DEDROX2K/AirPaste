@@ -9,7 +9,6 @@ import {
   formatRelativeTime,
   normalizeHomeNavigation,
   normalizeHomePreferences,
-  resolveWorkspaceAssetUrl,
   sortEntriesByPreference,
 } from "../lib/home";
 import {
@@ -198,48 +197,50 @@ function SummaryCard({ kind, entry, onOpen, onRename, onDelete }) {
 }
 
 function CanvasPreview({ item, folderPath }) {
-  const previewUrl = useMemo(() => resolveWorkspaceAssetUrl(folderPath, item.thumbnailPath), [folderPath, item.thumbnailPath]);
+  const thumbnailPath = typeof item.thumbnailUrl === "string" && item.thumbnailUrl.trim()
+    ? item.thumbnailUrl.trim()
+    : typeof item.thumbnailPath === "string" && item.thumbnailPath.trim()
+      ? item.thumbnailPath.trim()
+      : "";
+  const [previewUrl, setPreviewUrl] = useState("");
   const [previewFailed, setPreviewFailed] = useState(false);
-  const [svgContent, setSvgContent] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    setPreviewFailed(false);
-    setSvgContent(null);
-    setLoading(true);
-  }, [previewUrl]);
 
   useEffect(() => {
-    if (!previewUrl) {
-      setLoading(false);
-      return;
-    }
-    
-    if (previewUrl.startsWith("file://")) {
-      desktop.workspace.resolveAssetUrl(folderPath, item.thumbnailPath).then((resolvedUrl) => {
-        if (resolvedUrl) {
-          setSvgContent(resolvedUrl);
-        } else {
-          setPreviewFailed(true);
+    let cancelled = false;
+
+    async function resolvePreviewUrl() {
+      setLoading(true);
+      setPreviewFailed(false);
+      setPreviewUrl("");
+
+      if (!folderPath || !thumbnailPath) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const resolvedUrl = await desktop.workspace.resolveAssetUrl(folderPath, thumbnailPath);
+
+        if (!cancelled) {
+          setPreviewUrl(resolvedUrl || "");
+          setPreviewFailed(!resolvedUrl);
+          setLoading(false);
         }
-        setLoading(false);
-      }).catch(() => {
-        setPreviewFailed(true);
-        setLoading(false);
-      });
-    } else {
-      fetch(previewUrl)
-        .then(res => res.text())
-        .then(text => {
-          setSvgContent(text);
-          setLoading(false);
-        })
-        .catch(() => {
+      } catch {
+        if (!cancelled) {
           setPreviewFailed(true);
           setLoading(false);
-        });
+        }
+      }
     }
-  }, [previewUrl, folderPath, item.thumbnailPath]);
+
+    void resolvePreviewUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderPath, thumbnailPath]);
 
   if (loading) {
     return (
@@ -249,21 +250,15 @@ function CanvasPreview({ item, folderPath }) {
     );
   }
 
-  if (svgContent && !previewFailed) {
-    if (svgContent.startsWith("data:") || svgContent.startsWith("http")) {
-      return (
-        <img 
-          className="home-item-card__preview-image"
-          src={svgContent}
-          alt="Canvas preview"
-          onError={() => setPreviewFailed(true)}
-        />
-      );
-    }
+  if (previewUrl && !previewFailed) {
     return (
-      <div 
-        className="home-item-card__preview-image home-item-card__preview-svg"
-        dangerouslySetInnerHTML={{ __html: svgContent }} 
+      <img
+        className="home-item-card__preview-image"
+        src={previewUrl}
+        alt={`Preview of ${item.name || "canvas"}`}
+        loading="lazy"
+        decoding="async"
+        onError={() => setPreviewFailed(true)}
       />
     );
   }

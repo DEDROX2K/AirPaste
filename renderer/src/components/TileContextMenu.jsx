@@ -7,12 +7,15 @@ const PRIMARY_ACTIONS = [
 export default function TileContextMenu({
   menu,
   onAction,
+  onToggleSnapping,
   onDelete,
+  snapEnabled,
 }) {
   if (!menu) {
     return null;
   }
 
+  const isCanvasMenu = menu.kind === "canvas";
   const deleteLabel = menu.selectionIds?.length > 1
     ? `Delete ${menu.selectionIds.length} tiles`
     : "Delete tile";
@@ -29,9 +32,16 @@ export default function TileContextMenu({
     onDelete(menu);
   }
 
+  function handleSnappingClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleSnapping?.();
+  }
+
   return (
     <div
       className="tile-context-menu"
+      data-context-menu-root="true"
       style={{
         "--context-menu-x": `${menu.x}px`,
         "--context-menu-y": `${menu.y}px`,
@@ -42,32 +52,49 @@ export default function TileContextMenu({
       onClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div className="tile-context-menu__group">
-        {PRIMARY_ACTIONS.map((action) => (
+      {isCanvasMenu ? (
+        <div className="tile-context-menu__group">
           <button
-            key={action.id}
             className="tile-context-menu__item"
             type="button"
-            role="menuitem"
-            onClick={(event) => handleActionClick(event, action.id)}
+            role="menuitemcheckbox"
+            aria-checked={snapEnabled === true}
+            onClick={handleSnappingClick}
           >
-            <span className={`tile-context-menu__icon tile-context-menu__icon--${action.id}`} aria-hidden="true" />
-            <span>{action.label}</span>
+            <span className="tile-context-menu__icon tile-context-menu__icon--snap" aria-hidden="true" />
+            <span>{snapEnabled ? "Disable snapping" : "Enable snapping"}</span>
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className="tile-context-menu__group">
+            {PRIMARY_ACTIONS.map((action) => (
+              <button
+                key={action.id}
+                className="tile-context-menu__item"
+                type="button"
+                role="menuitem"
+                onClick={(event) => handleActionClick(event, action.id)}
+              >
+                <span className={`tile-context-menu__icon tile-context-menu__icon--${action.id}`} aria-hidden="true" />
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </div>
 
-      <div className="tile-context-menu__footer">
-        <button
-          className="tile-context-menu__item tile-context-menu__item--danger"
-          type="button"
-          role="menuitem"
-          onClick={handleDeleteClick}
-        >
-          <span className="tile-context-menu__icon tile-context-menu__icon--delete" aria-hidden="true" />
-          <span>{deleteLabel}</span>
-        </button>
-      </div>
+          <div className="tile-context-menu__footer">
+            <button
+              className="tile-context-menu__item tile-context-menu__item--danger"
+              type="button"
+              role="menuitem"
+              onClick={handleDeleteClick}
+            >
+              <span className="tile-context-menu__icon tile-context-menu__icon--delete" aria-hidden="true" />
+              <span>{deleteLabel}</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

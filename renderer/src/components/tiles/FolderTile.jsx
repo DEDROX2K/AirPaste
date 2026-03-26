@@ -1,3 +1,4 @@
+import { memo } from "react";
 import Card from "../Card";
 import { formatCardSubtitle } from "../../lib/workspace";
 import TILE_TYPES from "../../tiles/tileTypes";
@@ -16,13 +17,16 @@ function getPreviewLabel(tile) {
   return tile.title?.trim() || formatCardSubtitle(tile);
 }
 
-export default function FolderTile({
+function FolderTile({
   card,
   tileMeta,
   childTiles = [],
   folderState = null,
   expandedTileId,
   viewportZoom,
+  dragVisualDelta,
+  dragVisualTileIdSet,
+  performanceMode,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -58,6 +62,7 @@ export default function FolderTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
+      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className={folderState ? "card--folder-open" : ""}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
@@ -73,7 +78,7 @@ export default function FolderTile({
                   key={tile.id}
                   className={`card__canvas-folder-peek card__canvas-folder-peek--${index + 1}`}
                 >
-                  {tile.image ? (
+                  {tile.image && !performanceMode?.imagesOff ? (
                     <img
                       className="card__canvas-folder-peek-image"
                       src={tile.image}
@@ -138,6 +143,9 @@ export default function FolderTile({
                   tileMeta={folderState.childTileMetaById[childTile.id]}
                   viewportZoom={viewportZoom}
                   isExpanded={expandedTileId === childTile.id}
+                  dragVisualDelta={dragVisualDelta}
+                  dragVisualTileIdSet={dragVisualTileIdSet}
+                  performanceMode={performanceMode}
                   onBeginDrag={onBeginDrag}
                   onContextMenu={onContextMenu}
                   onHoverChange={onHoverChange}
@@ -160,3 +168,5 @@ export default function FolderTile({
     </TileShell>
   );
 }
+
+export default memo(FolderTile);

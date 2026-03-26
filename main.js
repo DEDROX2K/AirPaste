@@ -1133,6 +1133,10 @@ async function createWindow() {
     return { action: "deny" };
   });
 
+  mainWindow.webContents.on("context-menu", (event) => {
+    event.preventDefault();
+  });
+
   mainWindow.webContents.on("will-navigate", (event, url) => {
     const currentUrl = mainWindow.webContents.getURL();
     const isInternalDevServer = !app.isPackaged && url.startsWith(getDevServerUrl());

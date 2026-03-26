@@ -10,7 +10,9 @@ export const NOTE_STYLE_ONE = "notes-1";
 export const NOTE_STYLE_TWO = "notes-2";
 export const NOTE_STYLE_THREE = "notes-3";
 export const NOTE_STYLE_QUICK = "notes-quick";
-export const WORKSPACE_SCHEMA_VERSION = 4;
+export const TEXT_CONTENT_MODEL_NOTE = "note";
+export const TEXT_CONTENT_MODEL_RICH = "rich-text";
+export const WORKSPACE_SCHEMA_VERSION = 5;
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
 export const RACK_LEFT_CAP_WIDTH = 94;
@@ -27,6 +29,11 @@ const DEFAULT_VIEWPORT = Object.freeze({
 const TEXT_CARD_SIZE = Object.freeze({
   width: 428,
   height: 540,
+});
+
+const RICH_TEXT_CARD_SIZE = Object.freeze({
+  width: 420,
+  height: 240,
 });
 
 const QUOTE_TEXT_CARD_SIZE = Object.freeze({
@@ -143,6 +150,57 @@ function getTextCardHeadline(text) {
     .find(Boolean) ?? "";
 }
 
+function stripRichTextHtml(value) {
+  return String(value ?? "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, "\"")
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeTextAlign(value) {
+  return ["left", "center", "right", "justify"].includes(value) ? value : "left";
+}
+
+function normalizeRichTextHtml(html, fallbackText = "") {
+  const trimmedHtml = typeof html === "string" ? html.trim() : "";
+
+  if (trimmedHtml) {
+    return trimmedHtml;
+  }
+
+  const trimmedText = String(fallbackText ?? "").trim();
+
+  if (!trimmedText) {
+    return "<p></p>";
+  }
+
+  return trimmedText
+    .split(/\r?\n/)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("");
+}
+
 function normalizeFolderNote(note, fallbackIndex = 0) {
   const createdAt = typeof note?.createdAt === "string" ? note.createdAt : nowIso();
   const updatedAt = typeof note?.updatedAt === "string" ? note.updatedAt : createdAt;
@@ -213,7 +271,11 @@ function cardToFolderNote(card) {
   });
 }
 
-function getTextCardSize(noteStyle) {
+function getTextCardSize(noteStyle, contentModel = TEXT_CONTENT_MODEL_NOTE) {
+  if (contentModel === TEXT_CONTENT_MODEL_RICH) {
+    return RICH_TEXT_CARD_SIZE;
+  }
+
   if (noteStyle === NOTE_STYLE_QUICK) {
     return QUICK_NOTE_CARD_SIZE;
   }
@@ -221,7 +283,7 @@ function getTextCardSize(noteStyle) {
   return noteStyle === NOTE_STYLE_THREE ? QUOTE_TEXT_CARD_SIZE : TEXT_CARD_SIZE;
 }
 
-function getCardSize(type, noteStyle = "") {
+function getCardSize(type, noteStyle = "", contentModel = TEXT_CONTENT_MODEL_NOTE) {
   if (type === TILE_TYPES.LINK) {
     return LINK_CARD_SIZE;
   }
@@ -238,7 +300,7 @@ function getCardSize(type, noteStyle = "") {
     return NOTE_FOLDER_CARD_SIZE;
   }
 
-  return getTextCardSize(noteStyle);
+  return getTextCardSize(noteStyle, contentModel);
 }
 
 export function getDomainLabel(url) {
@@ -296,10 +358,13 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const contentKind = type === "link"
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
+  const contentModel = type === "text" && card?.contentModel === TEXT_CONTENT_MODEL_RICH
+    ? TEXT_CONTENT_MODEL_RICH
+    : TEXT_CONTENT_MODEL_NOTE;
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
     ? card.noteStyle
     : NOTE_STYLE_TWO;
-  const size = getCardSize(type, noteStyle);
+  const size = getCardSize(type, noteStyle, contentModel);
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
@@ -322,11 +387,28 @@ export function normalizeCard(card, fallbackIndex = 0) {
     y: Number.isFinite(card?.y) ? card.y : 120,
     width: type === RACK_CARD_TYPE ? rackSize.width : Number.isFinite(card?.width) ? card.width : size.width,
     height: type === RACK_CARD_TYPE ? rackSize.height : Number.isFinite(card?.height) ? card.height : size.height,
-    text: type === "text" ? String(card?.text ?? "") : "",
+    text: type === "text"
+      ? contentModel === TEXT_CONTENT_MODEL_RICH
+        ? stripRichTextHtml(card?.textHtml ?? card?.text ?? "")
+        : String(card?.text ?? "")
+      : "",
+    textHtml: type === "text" && contentModel === TEXT_CONTENT_MODEL_RICH
+      ? normalizeRichTextHtml(card?.textHtml, card?.text)
+      : "",
+    contentModel: type === "text" ? contentModel : "",
     secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
     noteStyle: type === "text" ? noteStyle : "",
     colorTheme: type === "text" && noteStyle === NOTE_STYLE_QUICK ? String(card?.colorTheme ?? "") : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
+    textStylePreset: type === "text" && contentModel === TEXT_CONTENT_MODEL_RICH
+      ? firstString(card?.textStylePreset, "simple")
+      : "",
+    fontSize: type === "text" && contentModel === TEXT_CONTENT_MODEL_RICH
+      ? String(card?.fontSize ?? "16")
+      : "",
+    textAlign: type === "text" && contentModel === TEXT_CONTENT_MODEL_RICH
+      ? normalizeTextAlign(card?.textAlign)
+      : "left",
     url: type === "link" ? String(card?.url ?? "") : "",
     contentKind,
     title: type === "link"
@@ -421,6 +503,13 @@ function migrateWorkspace(rawWorkspace) {
     nextWorkspace = {
       ...nextWorkspace,
       version: 4,
+    };
+  }
+
+  if (version < 5) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 5,
     };
   }
 
@@ -534,8 +623,8 @@ function hasCollision(cards, candidate) {
     }));
 }
 
-function getCenteredCardPosition(cards, preferredCenter, type, noteStyle = "") {
-  const size = getCardSize(type, noteStyle);
+function getCenteredCardPosition(cards, preferredCenter, type, noteStyle = "", contentModel = TEXT_CONTENT_MODEL_NOTE) {
+  const size = getCardSize(type, noteStyle, contentModel);
   const startX = Math.round(preferredCenter.x - size.width / 2);
   const startY = Math.round(preferredCenter.y - size.height / 2);
   const stepX = Math.max(48, Math.round(size.width * 0.42));
@@ -570,12 +659,19 @@ function getCenteredCardPosition(cards, preferredCenter, type, noteStyle = "") {
   };
 }
 
-export function getNextCardPosition(cards, viewport, type, preferredCenter = null, noteStyle = "") {
+export function getNextCardPosition(
+  cards,
+  viewport,
+  type,
+  preferredCenter = null,
+  noteStyle = "",
+  contentModel = TEXT_CONTENT_MODEL_NOTE,
+) {
   if (preferredCenter && Number.isFinite(preferredCenter.x) && Number.isFinite(preferredCenter.y)) {
-    return getCenteredCardPosition(cards, preferredCenter, type, noteStyle);
+    return getCenteredCardPosition(cards, preferredCenter, type, noteStyle, contentModel);
   }
 
-  const size = getCardSize(type, noteStyle);
+  const size = getCardSize(type, noteStyle, contentModel);
   const startX = Math.max(72, Math.round((-viewport.x + 120) / viewport.zoom));
   const startY = Math.max(72, Math.round((-viewport.y + 160) / viewport.zoom));
   const gapX = 28;
@@ -606,20 +702,28 @@ export function getNextCardPosition(cards, viewport, type, preferredCenter = nul
 
 export function createTextCard(cards, viewport, text = "", preferredCenter = null, options = {}) {
   const noteStyle = typeof options?.noteStyle === "string" ? options.noteStyle : NOTE_STYLE_TWO;
+  const contentModel = options?.contentModel === TEXT_CONTENT_MODEL_RICH
+    ? TEXT_CONTENT_MODEL_RICH
+    : TEXT_CONTENT_MODEL_NOTE;
   const quoteAuthor = typeof options?.quoteAuthor === "string" ? options.quoteAuthor : "";
   const secondaryText = typeof options?.secondaryText === "string" ? options.secondaryText : "";
   const colorTheme = typeof options?.colorTheme === "string" ? options.colorTheme : "";
-  const position = getNextCardPosition(cards, viewport, TILE_TYPES.NOTE, preferredCenter, noteStyle);
+  const position = getNextCardPosition(cards, viewport, TILE_TYPES.NOTE, preferredCenter, noteStyle, contentModel);
   const timestamp = nowIso();
 
   return normalizeCard({
     id: crypto.randomUUID(),
     type: TILE_TYPES.NOTE,
     text,
+    textHtml: normalizeRichTextHtml(options?.textHtml, text),
+    contentModel,
     secondaryText,
     noteStyle,
     colorTheme,
     quoteAuthor,
+    textStylePreset: typeof options?.textStylePreset === "string" ? options.textStylePreset : "simple",
+    fontSize: options?.fontSize != null ? String(options.fontSize) : "16",
+    textAlign: normalizeTextAlign(options?.textAlign),
     x: position.x,
     y: position.y,
     width: position.width,

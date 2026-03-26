@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { recordInteractionCommit, recordPointerMoveSample } from "../../lib/perf";
 import {
   clampViewportZoom,
-  clientToCanvasPoint,
   clientToWorldPoint,
   getCanvasContentStyleVars,
   getCanvasGridStyleVars,
@@ -14,23 +14,96 @@ import {
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const containerRef = useRef(null);
+  const containerRectRef = useRef(null);
   const panStateRef = useRef(null);
   const viewportRef = useRef(viewport);
+  const [liveViewport, setLiveViewport] = useState(null);
   const [isPanning, setIsPanning] = useState(false);
 
-  viewportRef.current = viewport;
+  const effectiveViewport = liveViewport ?? viewport;
 
-  const toCanvasPoint = useCallback((clientX, clientY) => (
-    clientToCanvasPoint(containerRef.current, clientX, clientY)
-  ), []);
+  useEffect(() => {
+    if (!panStateRef.current) {
+      setLiveViewport(null);
+    }
+  }, [viewport]);
 
-  const toWorldPoint = useCallback((clientX, clientY) => (
-    clientToWorldPoint(containerRef.current, viewportRef.current, clientX, clientY)
-  ), []);
+  viewportRef.current = effectiveViewport;
+
+  const measureContainerRect = useCallback(() => {
+    containerRectRef.current = getClientRect(containerRef.current);
+    return containerRectRef.current;
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return undefined;
+    }
+
+    measureContainerRect();
+
+    let resizeObserver = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        measureContainerRect();
+      });
+      resizeObserver.observe(container);
+    }
+
+    function handleWindowResize() {
+      measureContainerRect();
+    }
+
+    window.addEventListener("resize", handleWindowResize);
+    window.addEventListener("scroll", handleWindowResize, true);
+
+    return () => {
+      resizeObserver?.disconnect?.();
+      window.removeEventListener("resize", handleWindowResize);
+      window.removeEventListener("scroll", handleWindowResize, true);
+    };
+  }, [measureContainerRect]);
+
+  const toCanvasPoint = useCallback((clientX, clientY) => {
+    const rect = containerRectRef.current ?? measureContainerRect();
+
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }, [measureContainerRect]);
+
+  const toWorldPoint = useCallback((clientX, clientY) => {
+    const rect = containerRectRef.current ?? measureContainerRect();
+
+    return clientToWorldPoint(rect, viewportRef.current, clientX, clientY);
+  }, [measureContainerRect]);
 
   const getViewportCenter = useCallback(() => (
-    getViewportCenterPoint(containerRef.current, viewportRef.current)
-  ), []);
+    getViewportCenterPoint(containerRectRef.current ?? measureContainerRect(), viewportRef.current)
+  ), [measureContainerRect]);
+
+  const getVisibleWorldRect = useCallback((padding = 0) => {
+    const rect = containerRectRef.current ?? measureContainerRect();
+
+    if (!rect) {
+      return null;
+    }
+
+    return {
+      left: (-viewportRef.current.x - padding) / viewportRef.current.zoom,
+      top: (-viewportRef.current.y - padding) / viewportRef.current.zoom,
+      right: (rect.width - viewportRef.current.x + padding) / viewportRef.current.zoom,
+      bottom: (rect.height - viewportRef.current.y + padding) / viewportRef.current.zoom,
+    };
+  }, [measureContainerRect]);
 
   const zoomToWorldPoint = useCallback((canvasPoint, worldPoint, nextZoom) => {
     onViewportChange(getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom));
@@ -126,14 +199,20 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         return;
       }
 
+      const moveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
       const deltaX = event.clientX - panStateRef.current.startX;
       const deltaY = event.clientY - panStateRef.current.startY;
 
-      onViewportChange({
+      const nextViewport = {
         ...viewportRef.current,
         x: panStateRef.current.startViewportX + deltaX,
         y: panStateRef.current.startViewportY + deltaY,
-      });
+      };
+
+      panStateRef.current.lastViewport = nextViewport;
+      setLiveViewport(nextViewport);
+      const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      recordPointerMoveSample(moveEnd - moveStart);
     }
 
     function stopPanning() {
@@ -141,8 +220,21 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         return;
       }
 
+      const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const { lastViewport } = panStateRef.current;
+
       panStateRef.current = null;
+      setLiveViewport(null);
       setIsPanning(false);
+
+      if (lastViewport) {
+        onViewportChange(lastViewport);
+      }
+
+      const commitEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      recordInteractionCommit("pan", commitEnd - commitStart, {
+        committed: Boolean(lastViewport),
+      });
     }
 
     window.addEventListener("pointermove", handlePointerMove, true);
@@ -158,17 +250,20 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     };
   }, [onViewportChange]);
 
-  const gridStyleVars = useMemo(() => getCanvasGridStyleVars(viewport), [viewport]);
-  const contentStyleVars = useMemo(() => getCanvasContentStyleVars(viewport), [viewport]);
+  const gridStyleVars = useMemo(() => getCanvasGridStyleVars(effectiveViewport), [effectiveViewport]);
+  const contentStyleVars = useMemo(() => getCanvasContentStyleVars(effectiveViewport), [effectiveViewport]);
 
   return {
     containerRef,
     isPanning,
+    viewport: effectiveViewport,
+    containerRect: containerRectRef.current,
     gridStyleVars,
     contentStyleVars,
     clientToCanvasPoint: toCanvasPoint,
     clientToWorldPoint: toWorldPoint,
     getViewportCenter,
+    getVisibleWorldRect,
     beginCanvasPan,
     setZoom,
     zoomIn: () => zoomByStep(1),

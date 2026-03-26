@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { formatCardSubtitle, LINK_CONTENT_KIND_IMAGE } from "../../lib/workspace";
 import { useAppContext } from "../../context/useAppContext";
 import { useToast } from "../../hooks/useToast";
 import { desktop } from "../../lib/desktop";
+import { recordImageSample } from "../../lib/perf";
 import TileShell from "./TileShell";
+import TileImageReveal from "./TileImageReveal";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
 function formatShortUrl(url) {
@@ -53,9 +55,12 @@ async function copyTextToClipboard(text) {
   }
 }
 
-export default function LinkTile({
+function LinkTile({
   card,
   tileMeta,
+  dragVisualDelta,
+  dragVisualTileIdSet,
+  performanceMode,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -73,7 +78,8 @@ export default function LinkTile({
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
-  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
+  const shouldRenderImage = !performanceMode?.imagesOff && Boolean(mediaSrc) && !hasImageError;
+  const enableReveal = !performanceMode?.effectsOff && !performanceMode?.simplifyDuringMotion;
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const surfaceFrameClassName = [
@@ -143,6 +149,30 @@ export default function LinkTile({
     };
   }, [card.asset?.relativePath, folderPath, isImageTile]);
 
+  const handleMediaLoad = (event) => {
+    const renderedWidth = event.currentTarget.clientWidth;
+    const renderedHeight = event.currentTarget.clientHeight;
+    const naturalWidth = event.currentTarget.naturalWidth;
+    const naturalHeight = event.currentTarget.naturalHeight;
+    const oversizeRatio = Math.max(
+      naturalWidth / Math.max(1, renderedWidth || 1),
+      naturalHeight / Math.max(1, renderedHeight || 1),
+    );
+
+    recordImageSample({
+      cardId: card.id,
+      cardType: card.type,
+      naturalWidth,
+      naturalHeight,
+      renderedWidth,
+      renderedHeight,
+      oversizeRatio,
+      src: mediaSrc,
+    });
+
+    onMediaLoad?.(card, naturalWidth, naturalHeight);
+  };
+
   const mediaMarkup = (
     <>
       {isImageTile ? null : (
@@ -181,24 +211,24 @@ export default function LinkTile({
         <div className="card__record-shell">
           <div className="card__record-disc" aria-hidden="true" />
           <div className="card__record-sleeve">
-            <img
+            <TileImageReveal
               className="card__image card__image--music"
               src={mediaSrc}
               alt={linkTitle}
-              draggable={false}
+              enableReveal={enableReveal}
               onError={() => setHasImageError(true)}
-              onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+              onLoad={handleMediaLoad}
             />
           </div>
         </div>
       ) : shouldRenderImage ? (
-        <img
+        <TileImageReveal
           className="card__image"
           src={mediaSrc}
           alt={linkTitle}
-          draggable={false}
+          enableReveal={enableReveal}
           onError={() => setHasImageError(true)}
-          onLoad={(event) => onMediaLoad?.(card, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+          onLoad={handleMediaLoad}
         />
       ) : (
         <div className="card__placeholder">
@@ -213,6 +243,7 @@ export default function LinkTile({
     <TileShell
       card={card}
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
+      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className={isMusicCard ? "card--music" : ""}
       toolbar={(
         <div className="card__toolbar" {...surfaceGesture}>
@@ -263,3 +294,5 @@ export default function LinkTile({
     </TileShell>
   );
 }
+
+export default memo(LinkTile);

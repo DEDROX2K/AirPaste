@@ -1,22 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAttachTileToRack, isEditableElement } from "../../lib/workspace";
 import {
+  recordHitTestSample,
+  readPointerMoveStats,
+  recordInteractionCommit,
+  recordPointerMoveSample,
+} from "../../lib/perf";
+import {
   findFolderGroupingTarget,
   findRackDropTarget,
   getBoxStyleVars,
   getFolderZoneRect,
   getRenderableTileEntries,
   getRenderableTileEntryById,
+  getTileByIdMap,
   getSelectedTileIdsInRect,
   MARQUEE_DRAG_THRESHOLD,
   normalizeRect,
   pointInsideRect,
 } from "../layout/tileLayout";
+import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 
-const MENU_WIDTH = 376;
-const MENU_HEIGHT = 340;
 const VIEWPORT_PADDING = 16;
 const FOLDER_GROUP_HOLD_DELAY_MS = 2000;
+const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
 
 function isSelectionModifierPressed(event) {
   return event.ctrlKey || event.metaKey;
@@ -27,11 +34,17 @@ function isCanvasBackgroundTarget(event) {
     || event.target.classList?.contains("canvas__content");
 }
 
+function isTextToolbarTarget(element, tileId) {
+  return element instanceof Element
+    && element.closest?.(`[data-text-toolbar-for="${tileId}"]`);
+}
+
 export function useCanvasInteractionSystem({
   cards,
   canvas,
   commands,
   resetKey,
+  snapSettings,
   viewportZoom,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
@@ -40,6 +53,7 @@ export function useCanvasInteractionSystem({
   const [focusedTileId, setFocusedTileId] = useState(null);
   const [editingTileId, setEditingTileId] = useState(null);
   const [draggingTileIds, setDraggingTileIds] = useState([]);
+  const [dragVisualDelta, setDragVisualDelta] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
   const [folderGroupingPreview, setFolderGroupingPreview] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
@@ -50,13 +64,21 @@ export function useCanvasInteractionSystem({
   const marqueeStateRef = useRef(null);
   const folderGroupingIntentRef = useRef(null);
   const cardsRef = useRef(cards);
+  const tileByIdRef = useRef(getTileByIdMap(cards));
   const folderGroupingPreviewRef = useRef(folderGroupingPreview);
   const rackDropPreviewRef = useRef(rackDropPreview);
+  const snapSettingsRef = useRef(snapSettings);
+  const pointerMoveMetricsRef = useRef({
+    count: 0,
+    totalMs: 0,
+  });
+  const suppressCanvasContextMenuRef = useRef(false);
 
   const selectedTileIdSet = useMemo(() => new Set(selectedTileIds), [selectedTileIds]);
 
   useEffect(() => {
     cardsRef.current = cards;
+    tileByIdRef.current = getTileByIdMap(cards);
   }, [cards]);
 
   useEffect(() => {
@@ -66,6 +88,10 @@ export function useCanvasInteractionSystem({
   useEffect(() => {
     rackDropPreviewRef.current = rackDropPreview;
   }, [rackDropPreview]);
+
+  useEffect(() => {
+    snapSettingsRef.current = snapSettings;
+  }, [snapSettings]);
 
   const clearFolderGroupingPreview = useCallback(() => {
     if (folderGroupingIntentRef.current?.timeoutId) {
@@ -103,6 +129,7 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(null);
     setEditingTileId(null);
     setDraggingTileIds([]);
+    setDragVisualDelta(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
     marqueeStateRef.current = null;
@@ -125,7 +152,7 @@ export function useCanvasInteractionSystem({
     setEditingTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
     setExpandedTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
 
-    if (contextMenu?.card && !cards.some((tile) => tile.id === contextMenu.card.id)) {
+    if (contextMenu?.kind === "tile" && contextMenu.card && !cards.some((tile) => tile.id === contextMenu.card.id)) {
       setContextMenu(null);
     }
 
@@ -136,7 +163,7 @@ export function useCanvasInteractionSystem({
 
   useEffect(() => {
     const renderableTileIds = new Set(
-      getRenderableTileEntries(cards, commands.openFolderId).map((entry) => entry.tile.id),
+      getRenderableTileEntries(cards, commands.openFolderId, tileByIdRef.current).map((entry) => entry.tile.id),
     );
 
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => renderableTileIds.has(tileId)));
@@ -174,8 +201,22 @@ export function useCanvasInteractionSystem({
       return undefined;
     }
 
+    if (contextMenu.kind === "canvas" || contextMenu.kind === "tile") {
+      function closeOnWindowChange() {
+        setContextMenu(null);
+      }
+
+      window.addEventListener("resize", closeOnWindowChange);
+      window.addEventListener("wheel", closeOnWindowChange, { passive: true });
+
+      return () => {
+        window.removeEventListener("resize", closeOnWindowChange);
+        window.removeEventListener("wheel", closeOnWindowChange);
+      };
+    }
+
     function closeOnPointerDown(event) {
-      if (event.target instanceof Element && event.target.closest(".tile-context-menu")) {
+      if (event.target instanceof Element && event.target.closest("[data-context-menu-root='true']")) {
         return;
       }
 
@@ -188,13 +229,11 @@ export function useCanvasInteractionSystem({
 
     window.addEventListener("pointerdown", closeOnPointerDown, true);
     window.addEventListener("resize", closeOnWindowChange);
-    window.addEventListener("blur", closeOnWindowChange);
     window.addEventListener("wheel", closeOnWindowChange, { passive: true });
 
     return () => {
       window.removeEventListener("pointerdown", closeOnPointerDown, true);
       window.removeEventListener("resize", closeOnWindowChange);
-      window.removeEventListener("blur", closeOnWindowChange);
       window.removeEventListener("wheel", closeOnWindowChange);
     };
   }, [contextMenu]);
@@ -263,22 +302,18 @@ export function useCanvasInteractionSystem({
 
     selectTile(tile.id);
 
-    const nextX = Math.min(
-      event.clientX,
-      window.innerWidth - MENU_WIDTH - VIEWPORT_PADDING,
-    );
-    const nextY = Math.min(
-      event.clientY,
-      window.innerHeight - MENU_HEIGHT - VIEWPORT_PADDING,
-    );
+    const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
 
     setContextMenu({
+      kind: "tile",
+      id: `${Date.now()}-${tile.id}-${Math.round(event.clientX)}-${Math.round(event.clientY)}`,
       card: tile,
       selectionIds,
-      x: Math.max(VIEWPORT_PADDING, nextX),
-      y: Math.max(VIEWPORT_PADDING, nextY),
+      x: Math.max(VIEWPORT_PADDING, event.clientX),
+      y: Math.max(VIEWPORT_PADDING, event.clientY),
+      worldPoint,
     });
-  }, [selectedTileIdSet, selectedTileIds, selectTile]);
+  }, [canvas, selectedTileIdSet, selectedTileIds, selectTile]);
 
   const handleTileHoverChange = useCallback((tileId, isHovered) => {
     setHoveredTileId((currentId) => {
@@ -301,6 +336,12 @@ export function useCanvasInteractionSystem({
   const handleTileFocusOut = useCallback((tileId, event) => {
     const nextFocusedElement = event.relatedTarget;
 
+    if (isTextToolbarTarget(nextFocusedElement, tileId)) {
+      setFocusedTileId(tileId);
+      setEditingTileId(tileId);
+      return;
+    }
+
     if (event.currentTarget?.contains?.(nextFocusedElement)) {
       setEditingTileId(isEditableElement(nextFocusedElement) ? tileId : null);
       return;
@@ -320,6 +361,16 @@ export function useCanvasInteractionSystem({
     });
   }, []);
 
+  const activateTileEditor = useCallback((tileId) => {
+    if (!tileId) {
+      return;
+    }
+
+    setSelectedTileIds([tileId]);
+    setFocusedTileId(tileId);
+    setEditingTileId(tileId);
+  }, []);
+
   const beginCanvasMarqueeSelection = useCallback((event) => {
     const startCanvasPoint = canvas.clientToCanvasPoint(event.clientX, event.clientY);
 
@@ -329,6 +380,7 @@ export function useCanvasInteractionSystem({
       startClientY: event.clientY,
       currentClientX: event.clientX,
       currentClientY: event.clientY,
+      startedWithSecondaryButton: event.button === 2,
     };
 
     setMarqueeBox({
@@ -400,7 +452,12 @@ export function useCanvasInteractionSystem({
     event.preventDefault();
     event.stopPropagation();
 
-    const anchorEntry = getRenderableTileEntryById(cardsRef.current, commands.openFolderId, tile.id);
+    const anchorEntry = getRenderableTileEntryById(
+      cardsRef.current,
+      commands.openFolderId,
+      tile.id,
+      tileByIdRef.current,
+    );
 
     if (!anchorEntry) {
       return;
@@ -412,7 +469,12 @@ export function useCanvasInteractionSystem({
         ? selectedTileIds
         : [tile.id];
     const dragEntries = candidateTileIds
-      .map((tileId) => getRenderableTileEntryById(cardsRef.current, commands.openFolderId, tileId))
+      .map((tileId) => getRenderableTileEntryById(
+        cardsRef.current,
+        commands.openFolderId,
+        tileId,
+        tileByIdRef.current,
+      ))
       .filter((entry) => (
         entry
         && entry.containerType === anchorEntry.containerType
@@ -469,16 +531,32 @@ export function useCanvasInteractionSystem({
 
     commands.bringTilesToFront(dragTileIds);
 
+    const dragTargetRootTiles = getRenderableTileEntries(
+      cardsRef.current,
+      commands.openFolderId,
+      tileByIdRef.current,
+    )
+      .filter((entry) => entry.containerType === "canvas")
+      .map((entry) => entry.tile);
+    const dragTileIdSet = new Set(dragTileIds);
+
     dragStateRef.current = {
       tileId: tile.id,
       tileIds: dragTileIds,
+      tileIdSet: dragTileIdSet,
       pointerX: event.clientX,
       pointerY: event.clientY,
       lastDelta: { x: 0, y: 0 },
       origins: dragOrigins,
       hasMoved: false,
+      targetCache: {
+        rootTiles: dragTargetRootTiles,
+        openFolderTile: dragTargetRootTiles.find((entryTile) => entryTile.id === commands.openFolderId) ?? null,
+        draggedTile: tileByIdRef.current[tile.id] ?? tile,
+      },
     };
     setDraggingTileIds(dragTileIds);
+    setDragVisualDelta({ x: 0, y: 0 });
   }, [
     clearFolderGroupingPreview,
     clearRackDropPreview,
@@ -530,6 +608,13 @@ export function useCanvasInteractionSystem({
       const dragDistanceX = Math.abs(marqueeState.currentClientX - marqueeState.startClientX);
       const dragDistanceY = Math.abs(marqueeState.currentClientY - marqueeState.startClientY);
 
+      if (
+        marqueeState.startedWithSecondaryButton
+        && (dragDistanceX >= MARQUEE_DRAG_THRESHOLD || dragDistanceY >= MARQUEE_DRAG_THRESHOLD)
+      ) {
+        suppressCanvasContextMenuRef.current = true;
+      }
+
       marqueeStateRef.current = null;
       setMarqueeBox(null);
 
@@ -552,7 +637,12 @@ export function useCanvasInteractionSystem({
         endWorldPoint.y,
       );
 
-      setSelectedTileIds(getSelectedTileIdsInRect(cardsRef.current, selectionWorldRect, commands.openFolderId));
+      setSelectedTileIds(getSelectedTileIdsInRect(
+        cardsRef.current,
+        selectionWorldRect,
+        commands.openFolderId,
+        tileByIdRef.current,
+      ));
     }
 
     function cancelMarquee() {
@@ -587,6 +677,7 @@ export function useCanvasInteractionSystem({
         return;
       }
 
+      const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
       const activeFolderPreview = folderGroupingPreviewRef.current;
       const activeRackPreview = rackDropPreviewRef.current;
       const dragDelta = dragState.lastDelta ?? { x: 0, y: 0 };
@@ -612,7 +703,7 @@ export function useCanvasInteractionSystem({
           }
         } else if ((activeFolderPreview.kind === "folder-tile" || activeFolderPreview.kind === "folder-zone") && activeFolderPreview.folderId) {
           const sourceOrigin = dragState.origins[dragState.tileId];
-          const targetFolder = cardsRef.current.find((tile) => tile.id === activeFolderPreview.folderId);
+          const targetFolder = tileByIdRef.current[activeFolderPreview.folderId] ?? null;
 
           if (sourceOrigin && targetFolder) {
             const zoneRect = getFolderZoneRect(targetFolder);
@@ -638,7 +729,7 @@ export function useCanvasInteractionSystem({
             return false;
           }
 
-          const sourceFolder = cardsRef.current.find((tile) => tile.id === origin.folderId);
+          const sourceFolder = tileByIdRef.current[origin.folderId] ?? null;
 
           if (!sourceFolder) {
             return false;
@@ -662,7 +753,37 @@ export function useCanvasInteractionSystem({
 
         if (extractedTileIds.length > 0) {
           nextSelectedIds = extractedTileIds;
+          wasHandled = true;
         }
+      }
+
+      if (!wasHandled && event && (dragDelta.x !== 0 || dragDelta.y !== 0)) {
+        commands.moveTiles(dragState.tileIds, dragState.origins, dragDelta);
+        wasHandled = true;
+      }
+
+      const commitEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+      recordInteractionCommit("drag", commitEnd - commitStart, {
+        movedTileCount: dragState.tileIds.length,
+        deltaX: dragDelta.x,
+        deltaY: dragDelta.y,
+      });
+
+      const pointerStats = readPointerMoveStats();
+
+      if (pointerMoveMetricsRef.current.count > 0) {
+        console.debug("[perf] drag pointermove handler", {
+          count: pointerMoveMetricsRef.current.count,
+          avgMs: pointerMoveMetricsRef.current.totalMs / pointerMoveMetricsRef.current.count,
+          globalAvgMs: pointerStats?.avgMs ?? null,
+          globalMaxMs: pointerStats?.maxMs ?? null,
+        });
+        pointerMoveMetricsRef.current = { count: 0, totalMs: 0 };
+      }
+
+      if (dragState.tileIds.length > 0) {
+        setDragVisualDelta(null);
       }
 
       dragStateRef.current = null;
@@ -679,41 +800,82 @@ export function useCanvasInteractionSystem({
         return;
       }
 
-      const worldDelta = {
+      const moveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const rawWorldDelta = {
         x: (event.clientX - dragState.pointerX) / viewportZoom,
         y: (event.clientY - dragState.pointerY) / viewportZoom,
       };
+      const snapResolution = resolveSnappedDragDelta({
+        dragOrigins: dragState.origins,
+        anchorTileId: dragState.tileId,
+        rawDelta: rawWorldDelta,
+        snapSettings: snapSettingsRef.current,
+      });
+      const worldDelta = snapResolution.appliedDelta;
+
+      if (SNAP_DEBUG_LOG_ENABLED) {
+        console.debug("[canvas-snap]", {
+          snapEnabled: snapResolution.snapEnabled,
+          gridSize: snapResolution.gridSize,
+          rawDelta: rawWorldDelta,
+          origin: snapResolution.origin,
+          candidate: snapResolution.candidate,
+          snapped: snapResolution.snapped,
+          appliedDelta: snapResolution.appliedDelta,
+        });
+      }
 
       dragState.hasMoved = true;
       dragState.lastDelta = worldDelta;
-      commands.moveTiles(dragState.tileIds, dragState.origins, worldDelta);
+      setDragVisualDelta((currentDelta) => {
+        if (currentDelta?.x === worldDelta.x && currentDelta?.y === worldDelta.y) {
+          return currentDelta;
+        }
+
+        return worldDelta;
+      });
 
       const canDropOnRack = dragState.tileIds.every((tileId) => {
         const origin = dragState.origins[tileId];
-        const draggedTile = cardsRef.current.find((tile) => tile.id === tileId);
+        const draggedTile = tileByIdRef.current[tileId] ?? null;
 
         return origin?.containerType === "canvas" && canAttachTileToRack(draggedTile);
       });
 
       if (canDropOnRack) {
-        setRackDropPreview(findRackDropTarget({
+        const rackHitTestMetrics = {};
+        const rackHitTestStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const nextRackDropPreview = findRackDropTarget({
           tiles: cardsRef.current,
           dragTileIds: dragState.tileIds,
+          dragTileIdSet: dragState.tileIdSet,
           dragOrigins: dragState.origins,
           dragDelta: worldDelta,
           clientToWorldPoint: canvas.clientToWorldPoint,
           pointerClientX: event.clientX,
           pointerClientY: event.clientY,
-        }));
+          rootTiles: dragState.targetCache.rootTiles,
+          metrics: rackHitTestMetrics,
+        });
+        const rackHitTestEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+        recordHitTestSample("rack-drop", rackHitTestEnd - rackHitTestStart, rackHitTestMetrics);
+        setRackDropPreview(nextRackDropPreview);
       } else {
         clearRackDropPreview();
       }
 
       if (dragState.tileIds.length !== 1 || rackDropPreviewRef.current?.rackId) {
         clearFolderGroupingPreview();
+        const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const durationMs = moveEnd - moveStart;
+        pointerMoveMetricsRef.current.count += 1;
+        pointerMoveMetricsRef.current.totalMs += durationMs;
+        recordPointerMoveSample(durationMs);
         return;
       }
 
+      const folderHitTestMetrics = {};
+      const folderHitTestStart = typeof performance !== "undefined" ? performance.now() : Date.now();
       const groupingTarget = findFolderGroupingTarget({
         tiles: cardsRef.current,
         dragTileId: dragState.tileId,
@@ -723,13 +885,25 @@ export function useCanvasInteractionSystem({
         clientToWorldPoint: canvas.clientToWorldPoint,
         pointerClientX: event.clientX,
         pointerClientY: event.clientY,
+        rootTiles: dragState.targetCache.rootTiles,
+        openFolderTile: dragState.targetCache.openFolderTile,
+        draggedTile: dragState.targetCache.draggedTile,
+        metrics: folderHitTestMetrics,
       });
+      const folderHitTestEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      recordHitTestSample("folder-group", folderHitTestEnd - folderHitTestStart, folderHitTestMetrics);
 
       if (groupingTarget) {
         queueFolderGroupingTarget(dragState.tileId, groupingTarget);
       } else {
         clearFolderGroupingPreview();
       }
+
+      const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const durationMs = moveEnd - moveStart;
+      pointerMoveMetricsRef.current.count += 1;
+      pointerMoveMetricsRef.current.totalMs += durationMs;
+      recordPointerMoveSample(durationMs);
     }
 
     function handlePointerUp(event) {
@@ -767,15 +941,21 @@ export function useCanvasInteractionSystem({
     closeContextMenu();
     closeExpandedTile();
     commands.closeFolder();
+    setHoveredTileId(null);
     setFocusedTileId(null);
     setEditingTileId(null);
+    suppressCanvasContextMenuRef.current = false;
 
-    const shouldBeginMarquee = isSelectionModifierPressed(event) || event.button === 2;
+    const shouldBeginMarquee = isSelectionModifierPressed(event);
 
     if (shouldBeginMarquee) {
       event.preventDefault();
       event.stopPropagation();
       beginCanvasMarqueeSelection(event);
+      return;
+    }
+
+    if (event.button === 2) {
       return;
     }
 
@@ -802,7 +982,23 @@ export function useCanvasInteractionSystem({
     }
 
     event.preventDefault();
-  }, []);
+
+    if (suppressCanvasContextMenuRef.current) {
+      suppressCanvasContextMenuRef.current = false;
+      return;
+    }
+
+    const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+
+    setContextMenu({
+      kind: "canvas",
+      id: `${Date.now()}-${Math.round(event.clientX)}-${Math.round(event.clientY)}`,
+      x: event.clientX,
+      y: event.clientY,
+      worldPoint,
+      selectionIds: [...selectedTileIds],
+    });
+  }, [canvas, selectedTileIds]);
 
   const marqueeStyleVars = useMemo(() => getBoxStyleVars(marqueeBox), [marqueeBox]);
 
@@ -814,12 +1010,14 @@ export function useCanvasInteractionSystem({
     focusedTileId,
     editingTileId,
     draggingTileIds,
+    dragVisualDelta,
     folderGroupingPreview,
     rackDropPreview,
     magnifiedNoteState,
     expandedTileId,
     marqueeBox,
     marqueeStyleVars,
+    activateTileEditor,
     beginTileDrag,
     closeContextMenu,
     closeMagnifiedNote,
@@ -841,12 +1039,14 @@ export function useCanvasInteractionSystem({
     closeContextMenu,
     closeMagnifiedNote,
     contextMenu,
+    dragVisualDelta,
     draggingTileIds,
     editingTileId,
     expandedTileId,
     focusedTileId,
     folderGroupingPreview,
     rackDropPreview,
+    activateTileEditor,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
     handleCanvasDoubleClick,

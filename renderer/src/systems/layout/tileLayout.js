@@ -120,9 +120,20 @@ export function getRackAttachedIdSet(tiles) {
   );
 }
 
-export function getRootTiles(tiles) {
+export function getTileByIdMap(tiles) {
+  return Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
+}
+
+export function getRootTiles(tiles, metrics = null) {
   const folderChildIdSet = getFolderChildIdSet(tiles);
   const rackAttachedIdSet = getRackAttachedIdSet(tiles);
+
+  if (metrics) {
+    metrics.totalTileCount = tiles.length;
+    metrics.getRootTilesPasses = 3;
+    metrics.folderChildCount = folderChildIdSet.size;
+    metrics.rackAttachedCount = rackAttachedIdSet.size;
+  }
 
   return tiles.filter((tile) => !folderChildIdSet.has(tile.id) && !rackAttachedIdSet.has(tile.id));
 }
@@ -241,7 +252,7 @@ export function getRackAttachedTileEntry(rackTile, childTile, index) {
   };
 }
 
-export function getRenderableTileEntries(tiles, openFolderId = null) {
+export function getRenderableTileEntries(tiles, openFolderId = null, tileById = getTileByIdMap(tiles)) {
   const rootTiles = getRootTiles(tiles);
   const entries = [];
 
@@ -264,7 +275,7 @@ export function getRenderableTileEntries(tiles, openFolderId = null) {
       });
 
       tile.tileIds
-        .map((childId) => tiles.find((childTile) => childTile.id === childId))
+        .map((childId) => tileById[childId] ?? null)
         .filter(Boolean)
         .forEach((childTile, index) => {
           entries.push(getRackAttachedTileEntry(tile, childTile, index));
@@ -299,7 +310,7 @@ export function getRenderableTileEntries(tiles, openFolderId = null) {
   }
 
   openFolderTile.childIds
-    .map((childId) => tiles.find((tile) => tile.id === childId))
+    .map((childId) => tileById[childId] ?? null)
     .filter(Boolean)
     .forEach((childTile, index) => {
       entries.push(getFolderChildEntry(openFolderTile, childTile, index));
@@ -308,12 +319,12 @@ export function getRenderableTileEntries(tiles, openFolderId = null) {
   return entries;
 }
 
-export function getRenderableTileEntryById(tiles, openFolderId, tileId) {
-  return getRenderableTileEntries(tiles, openFolderId).find((entry) => entry.tile.id === tileId) ?? null;
+export function getRenderableTileEntryById(tiles, openFolderId, tileId, tileById = getTileByIdMap(tiles)) {
+  return getRenderableTileEntries(tiles, openFolderId, tileById).find((entry) => entry.tile.id === tileId) ?? null;
 }
 
-export function getSelectedTileIdsInRect(tiles, selectionRect, openFolderId = null) {
-  return getRenderableTileEntries(tiles, openFolderId)
+export function getSelectedTileIdsInRect(tiles, selectionRect, openFolderId = null, tileById = getTileByIdMap(tiles)) {
+  return getRenderableTileEntries(tiles, openFolderId, tileById)
     .filter((entry) => rectsIntersect(selectionRect, entry.rect))
     .map((entry) => entry.tile.id);
 }
@@ -473,42 +484,63 @@ export function findFolderGroupingTarget({
   clientToWorldPoint,
   pointerClientX,
   pointerClientY,
+  rootTiles = null,
+  openFolderTile = null,
+  draggedTile = null,
+  metrics = null,
 }) {
   const draggedRect = getDraggedRect(dragOrigins, dragTileId, dragDelta);
   const dragOrigin = dragOrigins[dragTileId];
   const pointerWorldPoint = clientToWorldPoint(pointerClientX, pointerClientY);
-  const rootTiles = getRootTiles(tiles);
-  const draggedTile = tiles.find((tile) => tile.id === dragTileId);
+  const candidateRootTiles = rootTiles ?? getRootTiles(tiles, metrics);
+  const candidateDraggedTile = draggedTile ?? tiles.find((tile) => tile.id === dragTileId);
   let bestTarget = null;
   let bestScore = 0;
 
-  if (!draggedRect || !dragOrigin || draggedTile?.type === RACK_CARD_TYPE) {
+  if (metrics) {
+    metrics.pointerChecks = 0;
+    metrics.intersectionChecks = 0;
+    metrics.rootLoopCount = 0;
+  }
+
+  if (!draggedRect || !dragOrigin || candidateDraggedTile?.type === RACK_CARD_TYPE) {
     return null;
   }
 
   if (openFolderId) {
-    const openFolderTile = rootTiles.find((tile) => tile.id === openFolderId && tile.type === FOLDER_CARD_TYPE);
+    const candidateOpenFolderTile = openFolderTile ?? candidateRootTiles.find((tile) => tile.id === openFolderId && tile.type === FOLDER_CARD_TYPE);
 
-    if (openFolderTile && dragOrigin.folderId !== openFolderTile.id) {
-      const zoneRect = getFolderZoneRect(openFolderTile);
+    if (candidateOpenFolderTile && dragOrigin.folderId !== candidateOpenFolderTile.id) {
+      const zoneRect = getFolderZoneRect(candidateOpenFolderTile);
+      if (metrics) {
+        metrics.pointerChecks += 1;
+      }
 
       if (pointInsideRect(pointerWorldPoint, zoneRect)) {
         return {
           kind: "folder-zone",
-          folderId: openFolderTile.id,
-          targetTileId: openFolderTile.id,
+          folderId: candidateOpenFolderTile.id,
+          targetTileId: candidateOpenFolderTile.id,
           zoneRect,
         };
       }
     }
   }
 
-  for (const tile of rootTiles) {
+  for (const tile of candidateRootTiles) {
+    if (metrics) {
+      metrics.rootLoopCount += 1;
+    }
+
     if (tile.id === dragTileId || tile.type === RACK_CARD_TYPE) {
       continue;
     }
 
     const targetRect = getTileRect(tile, tile.width, tile.height);
+    if (metrics) {
+      metrics.intersectionChecks += 1;
+      metrics.pointerChecks += 1;
+    }
     const intersectionArea = getIntersectionArea(draggedRect, targetRect);
     const overlapScore = intersectionArea / Math.min(
       Math.max(1, draggedRect.width * draggedRect.height),
@@ -544,23 +576,41 @@ export function findRackDropTarget({
   clientToWorldPoint,
   pointerClientX,
   pointerClientY,
+  rootTiles = null,
+  dragTileIdSet = null,
+  metrics = null,
 }) {
   const draggedBounds = getDraggedBounds(dragOrigins, dragTileIds, dragDelta);
   const pointerWorldPoint = clientToWorldPoint(pointerClientX, pointerClientY);
-  const rootTiles = getRootTiles(tiles);
+  const candidateRootTiles = rootTiles ?? getRootTiles(tiles, metrics);
+  const candidateDragTileIdSet = dragTileIdSet ?? new Set(dragTileIds);
   let bestTarget = null;
   let bestScore = 0;
+
+  if (metrics) {
+    metrics.pointerChecks = 0;
+    metrics.intersectionChecks = 0;
+    metrics.rootLoopCount = 0;
+  }
 
   if (!draggedBounds) {
     return null;
   }
 
-  for (const tile of rootTiles) {
-    if (tile.type !== RACK_CARD_TYPE || dragTileIds.includes(tile.id)) {
+  for (const tile of candidateRootTiles) {
+    if (metrics) {
+      metrics.rootLoopCount += 1;
+    }
+
+    if (tile.type !== RACK_CARD_TYPE || candidateDragTileIdSet.has(tile.id)) {
       continue;
     }
 
     const rackDropRect = getRackDropRect(tile);
+    if (metrics) {
+      metrics.intersectionChecks += 1;
+      metrics.pointerChecks += 1;
+    }
     const intersectionArea = getIntersectionArea(draggedBounds, rackDropRect);
     const overlapScore = intersectionArea / Math.min(
       Math.max(1, draggedBounds.width * draggedBounds.height),

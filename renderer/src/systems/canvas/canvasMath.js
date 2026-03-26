@@ -1,6 +1,6 @@
 export const MIN_VIEWPORT_ZOOM = 0.2;
 export const MAX_VIEWPORT_ZOOM = 4;
-export const CANVAS_GRID_SIZE = 28;
+export const CANVAS_GRID_SIZE = 32;
 export const WHEEL_LINE_PIXELS = 16;
 export const DEFAULT_FIT_PADDING = 72;
 
@@ -24,8 +24,20 @@ export function getClientRect(element) {
   return element?.getBoundingClientRect?.() ?? null;
 }
 
-export function clientToCanvasPoint(element, clientX, clientY) {
-  const rect = getClientRect(element);
+function normalizeClientRect(source) {
+  if (!source) {
+    return null;
+  }
+
+  if (typeof source.left === "number" && typeof source.top === "number") {
+    return source;
+  }
+
+  return getClientRect(source);
+}
+
+export function clientToCanvasPoint(elementOrRect, clientX, clientY) {
+  const rect = normalizeClientRect(elementOrRect);
 
   if (!rect) {
     return { x: 0, y: 0 };
@@ -37,8 +49,8 @@ export function clientToCanvasPoint(element, clientX, clientY) {
   };
 }
 
-export function clientToWorldPoint(element, viewport, clientX, clientY) {
-  const canvasPoint = clientToCanvasPoint(element, clientX, clientY);
+export function clientToWorldPoint(elementOrRect, viewport, clientX, clientY) {
+  const canvasPoint = clientToCanvasPoint(elementOrRect, clientX, clientY);
 
   return {
     x: (canvasPoint.x - viewport.x) / viewport.zoom,
@@ -46,8 +58,8 @@ export function clientToWorldPoint(element, viewport, clientX, clientY) {
   };
 }
 
-export function getViewportCenterPoint(element, viewport) {
-  const rect = getClientRect(element);
+export function getViewportCenterPoint(elementOrRect, viewport) {
+  const rect = normalizeClientRect(elementOrRect);
 
   if (!rect) {
     return {

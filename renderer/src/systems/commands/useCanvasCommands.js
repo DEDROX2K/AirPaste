@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addTileToFolder,
   addTileToRack,
+  createFolderCard,
   createFolderFromTiles,
   FOLDER_CARD_TYPE,
   getFolderByChildId,
@@ -14,6 +15,7 @@ import {
   NOTE_STYLE_THREE,
   NOTE_STYLE_QUICK,
   NOTE_STYLE_TWO,
+  TEXT_CONTENT_MODEL_RICH,
   removeTileFromFolder,
   removeTileFromRack,
   RACK_CARD_TYPE,
@@ -214,12 +216,6 @@ export function useCanvasCommands({
     return card;
   }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
 
-  /** @deprecated Use createNote(variant, text) */
-  const createNoteVariant = useCallback((noteStyle, successMessage, logMessage, text = "") => {
-    const variantKey = Object.keys(NOTE_VARIANTS).find(key => NOTE_VARIANTS[key].noteStyle === noteStyle) || "standard";
-    return createNote(variantKey, text);
-  }, [createNote]);
-
   /** @deprecated Use createNote("quick", "", preferredCenter) */
   const createQuickNote = useCallback((preferredCenter = null) => {
     return createNote("quick", "", preferredCenter);
@@ -232,35 +228,58 @@ export function useCanvasCommands({
   /** @deprecated Use createNote("notes-3") */
   const createNoteThree = useCallback(() => createNote("notes-3"), [createNote]);
 
-  const createFolderTile = useCallback(() => {
+  const createFolderTile = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
-      log("warn", "New folder note blocked because no folder is open");
+      log("warn", "New folder blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
-    const centerPoint = getViewportCenter();
-    const card = createNewNoteFolderCard(centerPoint);
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const card = createFolderCard(workspace.cards, workspace.viewport, centerPoint, options);
+    replaceWorkspaceCards([...workspace.cards, card]);
+    setOpenFolderId(card.id);
 
-    log("success", "New note folder card created in canvas center", centerPoint);
-    toast("success", "Folder note dropped into the center.");
+    log("success", "New folder created on the canvas", centerPoint);
+    toast("success", "Folder dropped into place.");
     return card;
-  }, [createNewNoteFolderCard, folderPath, getViewportCenter, log, toast]);
+  }, [folderPath, getViewportCenter, log, replaceWorkspaceCards, toast, workspace.cards, workspace.viewport]);
 
-  const createRack = useCallback(() => {
+  const createRack = useCallback((preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New rack blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
-    const centerPoint = getViewportCenter();
+    const centerPoint = preferredCenter ?? getViewportCenter();
     const rack = createNewRackCard(centerPoint);
 
-    log("success", "New rack created in canvas center", centerPoint);
-    toast("success", "Rack dropped into the center.");
+    log("success", "New rack created on the canvas", centerPoint);
+    toast("success", "Rack dropped into place.");
     return rack;
   }, [createNewRackCard, folderPath, getViewportCenter, log, toast]);
+
+  const createRichTextTile = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New text tile blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const card = createNewTextCard("", centerPoint, {
+      contentModel: TEXT_CONTENT_MODEL_RICH,
+      textHtml: "<p></p>",
+      textStylePreset: "simple",
+      fontSize: "16",
+      textAlign: "left",
+    });
+
+    log("success", "New text tile created", centerPoint);
+    toast("success", "Text tile placed.");
+    return card;
+  }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
 
   const updateTile = useCallback((tileId, updates) => {
     updateExistingCard(tileId, updates);
@@ -352,6 +371,51 @@ export function useCanvasCommands({
     toast("success", "Folder created.");
     return result.folderCard;
   }, [log, replaceWorkspaceCards, toast, workspace.cards]);
+
+  const createFolderFromSelection = useCallback((tileIds, preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "Folder creation blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const normalizedTileIds = Array.isArray(tileIds)
+      ? [...new Set(tileIds.filter(Boolean))]
+      : [];
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const initialFolderCard = createFolderCard(workspace.cards, workspace.viewport, centerPoint);
+    let nextCards = [...workspace.cards, initialFolderCard];
+    let nextFolderCard = initialFolderCard;
+    let attachedCount = 0;
+
+    normalizedTileIds.forEach((tileId) => {
+      const result = addTileToFolder(nextCards, tileId, nextFolderCard.id);
+
+      if (!result?.folderCard) {
+        return;
+      }
+
+      nextCards = result.cards;
+      nextFolderCard = result.folderCard;
+      attachedCount += 1;
+    });
+
+    replaceWorkspaceCards(nextCards);
+    setOpenFolderId(nextFolderCard.id);
+
+    if (attachedCount > 0) {
+      log("success", "Created folder from selection", {
+        folderId: nextFolderCard.id,
+        attachedCount,
+      });
+      toast("success", attachedCount === 1 ? "Tile moved into a new folder." : `${attachedCount} tiles moved into a new folder.`);
+    } else {
+      log("success", "Created empty folder on the canvas", centerPoint);
+      toast("success", "Folder dropped into place.");
+    }
+
+    return nextFolderCard;
+  }, [folderPath, getViewportCenter, log, replaceWorkspaceCards, toast, workspace.cards, workspace.viewport]);
 
   const addTileToFolderCommand = useCallback((tileId, folderId, folderPosition = null) => {
     const result = addTileToFolder(workspace.cards, tileId, folderId, folderPosition);
@@ -511,9 +575,15 @@ export function useCanvasCommands({
 
     if (tile.type === "text") {
       return createNewTextCard(tile.text, preferredCenter, {
+        contentModel: tile.contentModel,
+        textHtml: tile.textHtml,
+        textStylePreset: tile.textStylePreset,
+        fontSize: tile.fontSize,
+        textAlign: tile.textAlign,
         noteStyle: tile.noteStyle,
         secondaryText: tile.secondaryText,
         quoteAuthor: tile.quoteAuthor,
+        colorTheme: tile.colorTheme,
       });
     }
 
@@ -619,11 +689,9 @@ export function useCanvasCommands({
       if (pastedImage?.dataUrl) {
         event.preventDefault();
 
-        const imageTile = createNewLinkCard(pastedImage.dataUrl, centerPoint);
         const imageTileSize = getImageTileSize(pastedImage.width, pastedImage.height);
-
-        updateExistingCard(imageTile.id, {
-          url: pastedImage.dataUrl,
+        createNewLinkCard("", centerPoint, {
+          contentKind: LINK_CONTENT_KIND_IMAGE,
           title: "Pasted image",
           description: "",
           image: pastedImage.dataUrl,
@@ -631,6 +699,7 @@ export function useCanvasCommands({
           status: "ready",
           width: imageTileSize.width,
           height: imageTileSize.height,
+          asset: null,
         });
 
         log("success", "Pasted image into canvas center", {
@@ -672,8 +741,37 @@ export function useCanvasCommands({
     log,
     queueLinkPreview,
     toast,
-    updateExistingCard,
   ]);
+
+  const createLinkFromClipboard = useCallback(async (preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New link blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    let clipboardText = "";
+
+    try {
+      clipboardText = await navigator.clipboard?.readText?.() ?? "";
+    } catch (clipboardError) {
+      const message = clipboardError?.message || "Could not read the clipboard.";
+      log("warn", "Clipboard read failed for link creation", message);
+      toast("warn", message);
+      return null;
+    }
+
+    if (!isUrl(clipboardText.trim())) {
+      toast("warn", "Copy a URL first, then try Link.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const tile = createNewLinkCard(clipboardText.trim(), centerPoint);
+    toast("info", "Link dropped into place. Fetching preview...");
+    void queueLinkPreview(tile);
+    return tile;
+  }, [createNewLinkCard, folderPath, getViewportCenter, log, queueLinkPreview, toast]);
 
   const importResolvedDrop = useCallback(async (resolvedDrop, dropWorldPoint) => {
     if (!folderPath) {
@@ -846,13 +944,16 @@ export function useCanvasCommands({
 
   return useMemo(() => ({
     openFolderId,
+    createRichTextTile,
     createRack,
     createFolderTile,
+    createFolderFromSelection,
     createNote,
     createNoteOne,
     createNoteTwo,
     createNoteThree,
     createQuickNote,
+    createLinkFromClipboard,
     createTileFromDefinition,
     createFolderFromTiles: createFolderFromTileSet,
     addTileToFolder: addTileToFolderCommand,
@@ -883,9 +984,12 @@ export function useCanvasCommands({
     addTileToRackCommand,
     addTilesToRackCommand,
     closeFolder,
+    createRichTextTile,
     createRack,
     createFolderTile,
+    createFolderFromSelection,
     createFolderFromTileSet,
+    createLinkFromClipboard,
     createNote,
     createNoteOne,
     createNoteThree,

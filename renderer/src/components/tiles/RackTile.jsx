@@ -1,3 +1,4 @@
+import { memo } from "react";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
@@ -5,10 +6,12 @@ function formatRackCount(tileCount) {
   return `${tileCount} ${tileCount === 1 ? "tile" : "tiles"}`;
 }
 
-export default function RackTile({
+function RackTile({
   card,
   tileMeta,
   rackState = null,
+  dragVisualDelta,
+  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -34,6 +37,7 @@ export default function RackTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
+      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
@@ -66,3 +70,5 @@ export default function RackTile({
     </TileShell>
   );
 }
+
+export default memo(RackTile);

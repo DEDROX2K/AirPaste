@@ -8,7 +8,12 @@ import {
   AppDropdownMenuTrigger,
 } from "./ui/app";
 
-export default function CanvasAddMenu({ commands, disabled }) {
+export default function CanvasAddMenu({
+  commands,
+  disabled,
+  textPlacementMode = false,
+  onSelectText = null,
+}) {
   return (
     <AppDropdownMenu>
       <AppDropdownMenuTrigger asChild>
@@ -29,6 +34,15 @@ export default function CanvasAddMenu({ commands, disabled }) {
         <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
           Notes
         </AppDropdownMenuLabel>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => onSelectText?.()}
+          className={textPlacementMode ? "bg-ap-surface-muted/70" : ""}
+        >
+          <TextIcon />
+          Text
+        </AppDropdownMenuItem>
+        <AppDropdownMenuSeparator />
         <AppDropdownMenuItem
           disabled={disabled}
           onSelect={() => commands.createNote("notes-1")}
@@ -113,6 +127,16 @@ function RackIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
+
+function TextIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <path d="M4 7V4h16v3" />
+      <path d="M9 20h6" />
+      <path d="M12 4v16" />
     </svg>
   );
 }

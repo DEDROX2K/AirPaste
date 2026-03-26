@@ -1,10 +1,13 @@
+import { memo, useMemo } from "react";
+
 function preventNativeDrag(event) {
   event.preventDefault();
 }
 
-export default function TileShell({
+function TileShell({
   card,
   tileMeta,
+  dragVisualDelta = null,
   className = "",
   toolbar = null,
   children,
@@ -13,7 +16,7 @@ export default function TileShell({
   onFocusIn,
   onFocusOut,
 }) {
-  const classNames = [
+  const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,
     tileMeta?.isExpanded ? "card--note-folder-open" : "",
@@ -30,13 +33,19 @@ export default function TileShell({
     className,
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(" "), [card.type, className, tileMeta]);
+
+  const style = useMemo(() => ({
+    ...(tileMeta?.styleVars ?? {}),
+    "--tile-drag-x": dragVisualDelta ? `${dragVisualDelta.x}px` : "0px",
+    "--tile-drag-y": dragVisualDelta ? `${dragVisualDelta.y}px` : "0px",
+  }), [dragVisualDelta, tileMeta]);
 
   return (
     <article
       className={classNames}
       data-interaction-state={tileMeta?.interactionState ?? "idle"}
-      style={tileMeta?.styleVars}
+      style={style}
       onContextMenu={(event) => onContextMenu(card, event)}
       onPointerEnter={() => onHoverChange(card.id, true)}
       onPointerLeave={() => onHoverChange(card.id, false)}
@@ -49,3 +58,5 @@ export default function TileShell({
     </article>
   );
 }
+
+export default memo(TileShell);
