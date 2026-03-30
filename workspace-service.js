@@ -1,3225 +1,928 @@
 /* global crypto, module, require */
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 
-const LEGACY_DATA_FILE_NAME = "data.json";
-const PHASE_ONE_WORKSPACE_FILE_NAME = "workspace.json";
-const WORKSPACE_METADATA_FILE_NAME = "airpaste.json";
-const INTERNAL_DIRECTORY_NAME = ".airpaste";
-const INDEX_FILE_NAME = "index.json";
-const UI_STATE_FILE_NAME = "ui-state.json";
-const PREVIEWS_DIRECTORY_NAME = "previews";
-const ASSETS_DIRECTORY_NAME = "assets";
-const PROJECTS_DIRECTORY_NAME = "projects";
-const PROJECT_FILE_NAME = "project.json";
-const SPACES_DIRECTORY_NAME = "spaces";
-const SPACE_FILE_NAME = "space.json";
-const CANVASES_DIRECTORY_NAME = "canvases";
-const PAGES_DIRECTORY_NAME = "pages";
+const LEGACY_FILES = ["workspace.json", "data.json"];
+const WORKSPACE_META_FILE = "airpaste.json";
+const INTERNAL_DIR = ".airpaste";
+const INDEX_FILE = "index.json";
+const UI_STATE_FILE = "ui-state.json";
+const PREVIEWS_DIR = "previews";
+const PROJECTS_DIR = "projects";
+const ASSETS_DIR = "assets";
+const CANVAS_SUFFIX = ".airpaste.json";
 const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
+const MAX_RECENTS = 25;
 
-const ROOT_METADATA_VERSION = 2;
-const INDEX_METADATA_VERSION = 4;
-const UI_STATE_VERSION = 2;
-const PROJECT_METADATA_VERSION = 1;
-const SPACE_METADATA_VERSION = 1;
-const CANVAS_FILE_VERSION = 1;
-const WORKSPACE_SCHEMA_VERSION = 4;
-const MAX_RECENT_ITEMS = 25;
+const INDEX_VERSION = 5;
+const UI_STATE_VERSION = 3;
 
-const DEFAULT_PROJECT_NAME = "Untitled Project";
-const DEFAULT_SPACE_NAME = "Main Space";
-const DEFAULT_CANVAS_NAME = "Main Canvas";
-const DEFAULT_PAGE_NAME = "Untitled Page";
-
-const DEFAULT_RENDERER_WORKSPACE = Object.freeze({
-  version: WORKSPACE_SCHEMA_VERSION,
-  viewport: {
-    x: 180,
-    y: 120,
-    zoom: 1,
-  },
+const DEFAULT_WORKSPACE_NAME = "Main Canvas";
+const DEFAULT_WORKSPACE = Object.freeze({
+  version: 5,
+  viewport: { x: 180, y: 120, zoom: 1 },
   cards: [],
-});
-
-const DEFAULT_INDEX_METADATA = Object.freeze({
-  version: INDEX_METADATA_VERSION,
-  workspace: {
-    name: "",
-    createdAt: null,
-    updatedAt: null,
-  },
-  projects: [],
-  spaces: [],
-  items: [],
-  recentItemIds: [],
-  starredItemIds: [],
 });
 
 const DEFAULT_UI_STATE = Object.freeze({
   version: UI_STATE_VERSION,
-  lastOpenedProjectId: null,
-  lastOpenedSpaceId: null,
-  lastOpenedItemId: null,
   homeView: "grid",
   sortBy: "updatedAt",
   filter: "all",
-  homeMode: "home",
-  selectedSection: "overview",
-  selectedProjectId: null,
-  selectedSpaceId: null,
+  selectedSection: "home",
+  currentFolderPath: "",
   homeScrollTop: 0,
   canvasSnapToGrid: false,
   canvasSnapGridSize: 32,
+  lastOpenedItemPath: null,
+  lastOpenedCanvasPath: null,
   lastHomeRoute: {
-    mode: "home",
-    selectedSection: "overview",
-    selectedProjectId: null,
-    selectedSpaceId: null,
+    selectedSection: "home",
+    currentFolderPath: "",
     scrollTop: 0,
   },
 });
 
-const HOME_UI_MODES = new Set(["home", "project", "space"]);
-const HOME_SECTIONS = new Set(["overview", "recents", "projects", "resources", "trash", "starred"]);
-
-const NOTE_FOLDER_CARD_TYPE = "note-folder";
-const FOLDER_CARD_TYPE = "folder";
-const RACK_CARD_TYPE = "rack";
-const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
-const LINK_CONTENT_KIND_IMAGE = "image";
-const NOTE_STYLE_TWO = "notes-2";
-const NOTE_STYLE_THREE = "notes-3";
-const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
-const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
-const SUPPORTED_IMAGE_ASSET_MIME_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-]);
-const SUPPORTED_IMAGE_ASSET_EXTENSIONS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "webp",
-  "gif",
-  "svg",
-]);
-
-function cloneDefaultRendererWorkspace() {
-  return JSON.parse(JSON.stringify(DEFAULT_RENDERER_WORKSPACE));
-}
-
-function cloneDefaultIndexMetadata() {
-  return JSON.parse(JSON.stringify(DEFAULT_INDEX_METADATA));
-}
-
-function cloneDefaultUiState() {
-  return JSON.parse(JSON.stringify(DEFAULT_UI_STATE));
-}
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
+const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
+const DOC_EXTS = new Set(["pdf"]);
+const SKIP_DIRS = new Set([INTERNAL_DIR, ".git", "node_modules", "dist", "dist-renderer", "release", "build"]);
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function clampNonNegativeNumber(value, fallback = 0) {
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
+function firstString(...values) {
+  return values.find((v) => typeof v === "string" && v.trim())?.trim() ?? "";
 }
 
-function normalizeCount(value) {
-  return Number.isInteger(value) && value >= 0 ? value : 0;
-}
-
-function truncateText(value, maxLength = 180) {
-  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
-
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
-function normalizeExcerpt(value) {
-  return truncateText(value, 220);
-}
-
-function escapeXml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&apos;");
-}
-
-function createId() {
-  return crypto.randomUUID();
-}
-
-function isPlainObject(value) {
+function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function firstString(...values) {
-  return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
-}
-
-function requireName(name, label) {
-  const normalized = firstString(name);
-
-  if (!normalized) {
-    throw new Error(`${label} name is required.`);
-  }
-
+function normalizeRel(value, fallback = "") {
+  const normalized = String(value ?? "").replaceAll("\\", "/").trim().replace(/^\/+/, "").replace(/\/+/g, "/");
+  if (!normalized || normalized === ".") return fallback;
   return normalized;
 }
 
-function requireId(value, label) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${label} is required.`);
-  }
-
-  return value.trim();
+function normalizeFolder(value) {
+  return normalizeRel(value, "").replace(/\/$/, "");
 }
 
-function isFiniteNumber(value, fallback) {
-  return Number.isFinite(value) ? value : fallback;
+function fileExt(fileName) {
+  const ext = path.extname(String(fileName ?? ""));
+  return ext ? ext.slice(1).toLowerCase() : "";
 }
 
-function defaultCardSize(type) {
-  if (type === "link") {
-    return { width: 340, height: 280 };
-  }
-
-  if (type === RACK_CARD_TYPE) {
-    return { width: 694, height: 126 };
-  }
-
-  if (type === FOLDER_CARD_TYPE) {
-    return { width: 320, height: 220 };
-  }
-
-  if (type === NOTE_FOLDER_CARD_TYPE) {
-    return { width: 360, height: 284 };
-  }
-
-  return { width: 428, height: 540 };
+function stripExt(fileName) {
+  const name = String(fileName ?? "");
+  return name.slice(0, name.length - path.extname(name).length);
 }
 
-function defaultTextCardSize(noteStyle) {
-  if (noteStyle === NOTE_STYLE_THREE) {
-    return { width: 452, height: 468 };
-  }
-
-  return { width: 428, height: 540 };
+function stripCanvasSuffix(fileName) {
+  const name = String(fileName ?? "");
+  return name.toLowerCase().endsWith(CANVAS_SUFFIX) ? name.slice(0, -CANVAS_SUFFIX.length) : stripExt(name);
 }
 
-function getCardType(card) {
-  if (card?.type === "link") {
-    return "link";
-  }
-
-  if (card?.type === RACK_CARD_TYPE) {
-    return RACK_CARD_TYPE;
-  }
-
-  if (card?.type === FOLDER_CARD_TYPE) {
-    return FOLDER_CARD_TYPE;
-  }
-
-  if (card?.type === NOTE_FOLDER_CARD_TYPE) {
-    return NOTE_FOLDER_CARD_TYPE;
-  }
-
-  return "text";
-}
-
-function getFileExtension(fileName) {
-  if (typeof fileName !== "string") {
-    return "";
-  }
-
-  const lastDotIndex = fileName.lastIndexOf(".");
-
-  if (lastDotIndex < 0 || lastDotIndex === fileName.length - 1) {
-    return "";
-  }
-
-  return fileName.slice(lastDotIndex + 1).toLowerCase();
-}
-
-function normalizeLinkContentKind(contentKind, asset = null) {
-  if (contentKind === LINK_CONTENT_KIND_IMAGE) {
-    return LINK_CONTENT_KIND_IMAGE;
-  }
-
-  if (asset?.relativePath) {
-    return LINK_CONTENT_KIND_IMAGE;
-  }
-
-  return LINK_CONTENT_KIND_BOOKMARK;
-}
-
-function normalizeLinkAsset(asset) {
-  if (!isPlainObject(asset)) {
-    return null;
-  }
-
-  const relativePath = typeof asset.relativePath === "string" ? asset.relativePath.trim() : "";
-
-  if (!relativePath) {
-    return null;
-  }
-
-  return {
-    relativePath,
-    fileName: typeof asset.fileName === "string" ? asset.fileName : "",
-    mimeType: typeof asset.mimeType === "string" ? asset.mimeType : "",
-    sizeBytes: clampNonNegativeNumber(asset.sizeBytes, 0),
-    width: clampNonNegativeNumber(asset.width, 0),
-    height: clampNonNegativeNumber(asset.height, 0),
-  };
-}
-
-function stripNoteLine(line) {
-  return String(line ?? "")
+function sanitizeName(name, fallback = "untitled") {
+  const withoutControls = Array.from(String(name ?? ""))
+    .map((char) => (char.charCodeAt(0) < 32 ? " " : char))
+    .join("");
+  const normalized = withoutControls
     .trim()
-    .replace(/^#+\s*/, "")
-    .replace(/^(?:[-*•]\s*)?\[(?:\s|x|X)\]\s+/, "")
-    .replace(/^(?:[-*•]\s+)/, "")
+    .replace(/[<>:"/\\|?*]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+/, "")
     .trim();
+  return normalized || fallback;
 }
 
-function getTextCardHeadline(text) {
-  return String(text ?? "")
-    .split(/\r?\n/)
-    .map(stripNoteLine)
-    .find(Boolean) ?? "";
+function workspaceMetaPath(root) {
+  return path.join(root, WORKSPACE_META_FILE);
 }
 
-function getCardPreviewText(card) {
-  return truncateText(firstString(
-    card?.title,
-    getTextCardHeadline(card?.text),
-    card?.description,
-    card?.secondaryText,
-    card?.url,
-    card?.type === "link" ? "Link" : "Canvas card",
-  ), 42);
+function internalPath(root) {
+  return path.join(root, INTERNAL_DIR);
 }
 
-function extractMarkdownPreviewLines(markdown) {
-  const lines = [];
-  let inFence = false;
+function indexPath(root) {
+  return path.join(internalPath(root), INDEX_FILE);
+}
 
-  for (const rawLine of String(markdown ?? "").split(/\r?\n/)) {
-    const line = rawLine.trim();
+function uiStatePath(root) {
+  return path.join(internalPath(root), UI_STATE_FILE);
+}
 
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-      continue;
-    }
+function previewDirPath(root) {
+  return path.join(internalPath(root), PREVIEWS_DIR);
+}
 
-    if (inFence) {
-      continue;
-    }
+function assetsDirPath(root) {
+  return path.join(root, ASSETS_DIR);
+}
 
-    const normalizedLine = stripNoteLine(line)
-      .replace(/^>\s*/, "")
-      .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
-      .replace(/`([^`]+)`/g, "$1");
-
-    if (!normalizedLine) {
-      continue;
-    }
-
-    lines.push(normalizedLine);
+function ensureInside(root, target) {
+  const absRoot = path.resolve(root);
+  const absTarget = path.resolve(target);
+  const rel = path.relative(absRoot, absTarget);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("Path is outside the selected workspace.");
   }
-
-  return lines;
+  return absTarget;
 }
 
-function extractPageExcerpt(markdown) {
-  return normalizeExcerpt(extractMarkdownPreviewLines(markdown).slice(0, 3).join(" "));
+function resolveWorkspacePath(root, relativePath = "") {
+  return ensureInside(root, path.join(root, normalizeRel(relativePath, "")));
 }
 
-function normalizeHomeMode(value) {
-  return HOME_UI_MODES.has(value) ? value : DEFAULT_UI_STATE.homeMode;
+function toWorkspaceRel(root, value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) throw new Error("File path is required.");
+  const abs = path.isAbsolute(raw) ? ensureInside(root, raw) : resolveWorkspacePath(root, raw);
+  return normalizeRel(path.relative(root, abs), "");
 }
 
-function normalizeHomeSection(value) {
-  return HOME_SECTIONS.has(value) ? value : DEFAULT_UI_STATE.selectedSection;
-}
-
-function normalizeHomeRoute(rawRoute) {
-  const safeRoute = isPlainObject(rawRoute) ? rawRoute : {};
-
-  return {
-    mode: normalizeHomeMode(safeRoute.mode),
-    selectedSection: normalizeHomeSection(safeRoute.selectedSection),
-    selectedProjectId: typeof safeRoute.selectedProjectId === "string" ? safeRoute.selectedProjectId : null,
-    selectedSpaceId: typeof safeRoute.selectedSpaceId === "string" ? safeRoute.selectedSpaceId : null,
-    scrollTop: clampNonNegativeNumber(safeRoute.scrollTop, DEFAULT_UI_STATE.homeScrollTop),
-  };
-}
-
-function normalizeFolderNote(note, index = 0) {
-  const createdAt = typeof note?.createdAt === "string" ? note.createdAt : nowIso();
-  const updatedAt = typeof note?.updatedAt === "string" ? note.updatedAt : createdAt;
-
-  return {
-    id: typeof note?.id === "string" ? note.id : `note-${index}-${Date.now()}`,
-    text: String(note?.text ?? ""),
-    secondaryText: String(note?.secondaryText ?? ""),
-    noteStyle: typeof note?.noteStyle === "string" ? note.noteStyle : NOTE_STYLE_TWO,
-    quoteAuthor: String(note?.quoteAuthor ?? ""),
-    createdAt,
-    updatedAt,
-  };
-}
-
-function normalizeFolderNotes(notes) {
-  return Array.isArray(notes)
-    ? notes.map((note, index) => normalizeFolderNote(note, index))
-    : [];
-}
-
-function getFolderTitleFromNotes(notes) {
-  return firstString(
-    ...notes.map((note) => getTextCardHeadline(note.text)),
-    NOTE_FOLDER_DEFAULT_TITLE,
-  );
-}
-
-function normalizeCard(card, index = 0) {
-  const type = getCardType(card);
-  const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
-  const contentKind = type === "link"
-    ? normalizeLinkContentKind(card?.contentKind, linkAsset)
-    : "";
-  const noteStyle = type === "text" && typeof card?.noteStyle === "string"
-    ? card.noteStyle
-    : NOTE_STYLE_TWO;
-  const size = type === "text" ? defaultTextCardSize(noteStyle) : defaultCardSize(type);
-  const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
-  const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
-  const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
-  const tileIds = type === RACK_CARD_TYPE
-    ? (Array.isArray(card?.tileIds)
-      ? card.tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0)
-      : [])
-    : [];
-  const childIds = type === FOLDER_CARD_TYPE
-    ? (Array.isArray(card?.childIds)
-      ? card.childIds.filter((childId) => typeof childId === "string" && childId.trim().length > 0)
-      : [])
-    : [];
-
-  return {
-    id: typeof card?.id === "string" ? card.id : `card-${index}-${Date.now()}`,
-    type,
-    x: isFiniteNumber(card?.x, 120 + (index % 3) * 28),
-    y: isFiniteNumber(card?.y, 120 + index * 24),
-    width: isFiniteNumber(card?.width, size.width),
-    height: isFiniteNumber(card?.height, size.height),
-    text: type === "text" ? String(card?.text ?? "") : "",
-    secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
-    noteStyle: type === "text" ? noteStyle : "",
-    quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
-    url: type === "link" ? String(card?.url ?? "") : "",
-    contentKind,
-    title: type === "link"
-      ? String(card?.title ?? "")
-      : type === RACK_CARD_TYPE
-        ? firstString(card?.title, "Rack")
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.title, "Folder")
-      : type === NOTE_FOLDER_CARD_TYPE
-        ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
-        : "",
-    description: type === "link"
-      ? String(card?.description ?? "")
-      : type === RACK_CARD_TYPE
-        ? firstString(card?.description, "Mounted display rack")
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.description, "Grouped tiles")
-      : type === NOTE_FOLDER_CARD_TYPE
-        ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
-        : "",
-    image: type === "link" ? String(card?.image ?? "") : "",
-    favicon: type === "link" ? String(card?.favicon ?? "") : "",
-    siteName: type === "link" ? String(card?.siteName ?? "") : "",
-    previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
-    status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
-      ? card.status
-      : "idle",
-    asset: type === "link" ? linkAsset : null,
-    tileIds,
-    minSlots: type === RACK_CARD_TYPE
-      ? Math.max(3, isFiniteNumber(card?.minSlots, 3))
-      : null,
-    childIds,
-    childLayouts: type === FOLDER_CARD_TYPE && isPlainObject(card?.childLayouts)
-      ? card.childLayouts
-      : {},
-    parentRackId: type !== RACK_CARD_TYPE && typeof card?.parentRackId === "string" && card.parentRackId.trim().length > 0
-      ? card.parentRackId
-      : null,
-    rackIndex: type !== RACK_CARD_TYPE && Number.isFinite(card?.rackIndex)
-      ? Math.max(0, Math.round(card.rackIndex))
-      : null,
-    notes,
-    createdAt,
-    updatedAt,
-  };
-}
-
-function migrateRendererWorkspace(rawWorkspace) {
-  const safeWorkspace = isPlainObject(rawWorkspace)
-    ? rawWorkspace
-    : cloneDefaultRendererWorkspace();
-  const version = Number.isFinite(safeWorkspace.version) ? safeWorkspace.version : 1;
-
-  if (version >= WORKSPACE_SCHEMA_VERSION) {
-    return safeWorkspace;
-  }
-
-  let nextWorkspace = { ...safeWorkspace };
-
-  if (version < 2) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 2,
-    };
-  }
-
-  if (version < 3) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 3,
-    };
-  }
-
-  if (version < 4) {
-    nextWorkspace = {
-      ...nextWorkspace,
-      version: 4,
-    };
-  }
-
-  return nextWorkspace;
-}
-
-function normalizeRendererWorkspace(rawWorkspace) {
-  const workspace = migrateRendererWorkspace(rawWorkspace);
-
-  return {
-    version: WORKSPACE_SCHEMA_VERSION,
-    viewport: {
-      x: isFiniteNumber(workspace.viewport?.x, DEFAULT_RENDERER_WORKSPACE.viewport.x),
-      y: isFiniteNumber(workspace.viewport?.y, DEFAULT_RENDERER_WORKSPACE.viewport.y),
-      zoom: isFiniteNumber(workspace.viewport?.zoom, DEFAULT_RENDERER_WORKSPACE.viewport.zoom),
-    },
-    cards: Array.isArray(workspace.cards)
-      ? workspace.cards.map((card, index) => normalizeCard(card, index))
-      : [],
-  };
-}
-
-function normalizeWorkspaceMetadata(rawMetadata, folderPath) {
-  const createdAt = typeof rawMetadata?.createdAt === "string" ? rawMetadata.createdAt : nowIso();
-  const updatedAt = typeof rawMetadata?.updatedAt === "string" ? rawMetadata.updatedAt : createdAt;
-
-  return {
-    version: ROOT_METADATA_VERSION,
-    name: firstString(rawMetadata?.name, path.basename(folderPath)),
-    createdAt,
-    updatedAt,
-  };
-}
-
-function normalizeProjectMetadata(rawProject, projectId) {
-  const createdAt = typeof rawProject?.createdAt === "string" ? rawProject.createdAt : nowIso();
-  const updatedAt = typeof rawProject?.updatedAt === "string" ? rawProject.updatedAt : createdAt;
-
-  return {
-    version: PROJECT_METADATA_VERSION,
-    id: typeof rawProject?.id === "string" ? rawProject.id : projectId,
-    type: "project",
-    name: firstString(rawProject?.name, DEFAULT_PROJECT_NAME),
-    createdAt,
-    updatedAt,
-  };
-}
-
-function normalizeSpaceMetadata(rawSpace, projectId, spaceId) {
-  const createdAt = typeof rawSpace?.createdAt === "string" ? rawSpace.createdAt : nowIso();
-  const updatedAt = typeof rawSpace?.updatedAt === "string" ? rawSpace.updatedAt : createdAt;
-
-  return {
-    version: SPACE_METADATA_VERSION,
-    id: typeof rawSpace?.id === "string" ? rawSpace.id : spaceId,
-    projectId: typeof rawSpace?.projectId === "string" ? rawSpace.projectId : projectId,
-    type: "space",
-    name: firstString(rawSpace?.name, DEFAULT_SPACE_NAME),
-    createdAt,
-    updatedAt,
-  };
-}
-
-function normalizeItemType(value, fallback = "canvas") {
-  return value === "page" ? "page" : fallback;
-}
-
-function normalizeCanvasDocument(rawCanvas, projectId, spaceId, canvasId) {
-  const workspace = normalizeRendererWorkspace({
-    viewport: rawCanvas?.viewport,
-    cards: rawCanvas?.tiles,
-  });
-  const createdAt = typeof rawCanvas?.createdAt === "string" ? rawCanvas.createdAt : nowIso();
-  const updatedAt = typeof rawCanvas?.updatedAt === "string" ? rawCanvas.updatedAt : createdAt;
-
-  return {
-    version: CANVAS_FILE_VERSION,
-    id: typeof rawCanvas?.id === "string" ? rawCanvas.id : canvasId,
-    projectId: typeof rawCanvas?.projectId === "string" ? rawCanvas.projectId : projectId,
-    spaceId: typeof rawCanvas?.spaceId === "string" ? rawCanvas.spaceId : spaceId,
-    name: firstString(rawCanvas?.name, DEFAULT_CANVAS_NAME),
-    type: normalizeItemType(rawCanvas?.type, "canvas"),
-    viewport: workspace.viewport,
-    tiles: workspace.cards,
-    links: Array.isArray(rawCanvas?.links)
-      ? rawCanvas.links.filter((entry) => isPlainObject(entry))
-      : [],
-    createdAt,
-    updatedAt,
-  };
-}
-
-function canvasDocumentToRendererWorkspace(canvasDocument) {
-  return normalizeRendererWorkspace({
-    viewport: canvasDocument.viewport,
-    cards: canvasDocument.tiles,
-  });
-}
-
-function rendererWorkspaceToCanvasDocument(projectId, spaceId, canvasId, name, workspace, existingCanvas = null) {
-  const normalizedWorkspace = normalizeRendererWorkspace(workspace);
-  const createdAt = typeof existingCanvas?.createdAt === "string" ? existingCanvas.createdAt : nowIso();
-
-  return {
-    version: CANVAS_FILE_VERSION,
-    id: canvasId,
-    projectId,
-    spaceId,
-    name: firstString(name, existingCanvas?.name, DEFAULT_CANVAS_NAME),
-    type: "canvas",
-    viewport: normalizedWorkspace.viewport,
-    tiles: normalizedWorkspace.cards,
-    links: Array.isArray(existingCanvas?.links)
-      ? existingCanvas.links.filter((entry) => isPlainObject(entry))
-      : [],
-    createdAt,
-    updatedAt: nowIso(),
-  };
-}
-
-function normalizeRelativePath(value, fallback = null) {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim().replaceAll("\\", "/");
-  }
-
-  return fallback;
-}
-
-function getCanvasPreviewPalette(cardType) {
-  if (cardType === "link") {
-    return {
-      fill: "rgba(81, 122, 255, 0.28)",
-      stroke: "rgba(135, 163, 255, 0.52)",
-      accent: "#90a9ff",
-    };
-  }
-
-  if (cardType === NOTE_FOLDER_CARD_TYPE) {
-    return {
-      fill: "rgba(255, 182, 72, 0.22)",
-      stroke: "rgba(255, 203, 126, 0.46)",
-      accent: "#ffd08e",
-    };
-  }
-
-  if (cardType === FOLDER_CARD_TYPE || cardType === RACK_CARD_TYPE) {
-    return {
-      fill: "rgba(134, 240, 196, 0.18)",
-      stroke: "rgba(147, 240, 206, 0.4)",
-      accent: "#9ef0d3",
-    };
-  }
-
-  return {
-    fill: "rgba(244, 77, 39, 0.22)",
-    stroke: "rgba(255, 146, 118, 0.44)",
-    accent: "#ffb29f",
-  };
-}
-
-function getCanvasPreviewRelativePath(canvasId) {
-  return path.posix.join(INTERNAL_DIRECTORY_NAME, PREVIEWS_DIRECTORY_NAME, `${canvasId}.svg`);
-}
-
-function getPreviewBounds(tiles) {
-  const positionedTiles = Array.isArray(tiles)
-    ? tiles.filter((tile) => Number.isFinite(tile?.x) && Number.isFinite(tile?.y))
-    : [];
-
-  if (positionedTiles.length === 0) {
-    return null;
-  }
-
-  const minX = Math.min(...positionedTiles.map((tile) => tile.x));
-  const minY = Math.min(...positionedTiles.map((tile) => tile.y));
-  const maxX = Math.max(...positionedTiles.map((tile) => tile.x + isFiniteNumber(tile.width, 240)));
-  const maxY = Math.max(...positionedTiles.map((tile) => tile.y + isFiniteNumber(tile.height, 180)));
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    width: Math.max(1, maxX - minX),
-    height: Math.max(1, maxY - minY),
-  };
-}
-
-function generateCanvasPreviewSvg(canvasDocument) {
-  const width = 640;
-  const height = 400;
-  const inset = 32;
-  const tiles = Array.isArray(canvasDocument?.tiles) ? canvasDocument.tiles : [];
-  const bounds = getPreviewBounds(tiles);
-  const scale = bounds
-    ? Math.min(
-      (width - inset * 2) / Math.max(bounds.width, 240),
-      (height - inset * 2 - 54) / Math.max(bounds.height, 180),
-    )
-    : 1;
-  const contentWidth = bounds ? bounds.width * scale : 0;
-  const contentHeight = bounds ? bounds.height * scale : 0;
-  const offsetX = bounds ? (width - contentWidth) / 2 - bounds.minX * scale : inset;
-  const offsetY = bounds ? (height - contentHeight) / 2 - bounds.minY * scale + 20 : inset + 32;
-  const previewTiles = tiles.slice(0, 18);
-  const tileMarkup = previewTiles.map((tile) => {
-    const palette = getCanvasPreviewPalette(getCardType(tile));
-    const x = (isFiniteNumber(tile.x, 0) * scale) + offsetX;
-    const y = (isFiniteNumber(tile.y, 0) * scale) + offsetY;
-    const tileWidth = Math.max(40, isFiniteNumber(tile.width, 240) * scale);
-    const tileHeight = Math.max(34, isFiniteNumber(tile.height, 180) * scale);
-    const previewText = getCardPreviewText(tile);
-    const label = tileWidth >= 90 && tileHeight >= 44
-      ? `<text x="${(x + 14).toFixed(1)}" y="${(y + 24).toFixed(1)}" fill="${palette.accent}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600">${escapeXml(previewText)}</text>`
-      : "";
-
-    return [
-      `<g>`,
-      `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${tileWidth.toFixed(1)}" height="${tileHeight.toFixed(1)}" rx="18" fill="${palette.fill}" stroke="${palette.stroke}" stroke-width="1.4" />`,
-      `<rect x="${(x + 12).toFixed(1)}" y="${(y + 12).toFixed(1)}" width="${Math.max(18, tileWidth - 24).toFixed(1)}" height="${Math.min(8, Math.max(6, tileHeight - 24)).toFixed(1)}" rx="4" fill="rgba(255,255,255,0.08)" />`,
-      label,
-      `</g>`,
-    ].join("");
-  }).join("");
-  const emptyStateMarkup = previewTiles.length === 0
-    ? [
-      `<g opacity="0.9">`,
-      `<rect x="104" y="126" width="432" height="168" rx="32" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" stroke-dasharray="8 10" />`,
-      `<text x="320" y="192" text-anchor="middle" fill="#f7efe8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="24" font-weight="700">Empty canvas</text>`,
-      `<text x="320" y="226" text-anchor="middle" fill="rgba(255,255,255,0.58)" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14">Preview will appear after the first few cards are saved.</text>`,
-      `</g>`,
-    ].join("")
-    : "";
-
-  return [
-    `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none">`,
-    `<defs>`,
-    `<linearGradient id="bg" x1="64" y1="28" x2="576" y2="372" gradientUnits="userSpaceOnUse">`,
-    `<stop stop-color="#171517" />`,
-    `<stop offset="1" stop-color="#0f1012" />`,
-    `</linearGradient>`,
-    `<linearGradient id="glow" x1="120" y1="52" x2="488" y2="320" gradientUnits="userSpaceOnUse">`,
-    `<stop stop-color="rgba(244,77,39,0.34)" />`,
-    `<stop offset="1" stop-color="rgba(83,120,255,0.08)" />`,
-    `</linearGradient>`,
-    `</defs>`,
-    `<rect width="${width}" height="${height}" rx="36" fill="url(#bg)" />`,
-    `<rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="28" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" />`,
-    `<circle cx="92" cy="64" r="96" fill="url(#glow)" opacity="0.45" />`,
-    `<text x="42" y="52" fill="#f8f1eb" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="700">${escapeXml(truncateText(canvasDocument?.name ?? DEFAULT_CANVAS_NAME, 40))}</text>`,
-    `<text x="42" y="76" fill="rgba(255,255,255,0.56)" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" letter-spacing="1.6">CANVAS PREVIEW</text>`,
-    tileMarkup,
-    emptyStateMarkup,
-    `</svg>`,
-  ].join("");
-}
-
-function dedupeStringList(entries) {
-  const values = Array.isArray(entries) ? entries : [];
-  const nextEntries = [];
-  const seenEntries = new Set();
-
-  for (const entry of values) {
-    if (typeof entry !== "string" || entry.trim().length === 0 || seenEntries.has(entry)) {
-      continue;
-    }
-
-    seenEntries.add(entry);
-    nextEntries.push(entry);
-  }
-
-  return nextEntries;
-}
-
-function getProjectRelativePath(projectId) {
-  return path.posix.join(PROJECTS_DIRECTORY_NAME, projectId, PROJECT_FILE_NAME);
-}
-
-function getSpaceRelativePath(projectId, spaceId) {
-  return path.posix.join(
-    PROJECTS_DIRECTORY_NAME,
-    projectId,
-    SPACES_DIRECTORY_NAME,
-    spaceId,
-    SPACE_FILE_NAME,
-  );
-}
-
-function getCanvasRelativePath(projectId, spaceId, canvasId) {
-  return path.posix.join(
-    PROJECTS_DIRECTORY_NAME,
-    projectId,
-    SPACES_DIRECTORY_NAME,
-    spaceId,
-    CANVASES_DIRECTORY_NAME,
-    `${canvasId}.json`,
-  );
-}
-
-function getPageRelativePath(projectId, spaceId, pageId) {
-  return path.posix.join(
-    PROJECTS_DIRECTORY_NAME,
-    projectId,
-    SPACES_DIRECTORY_NAME,
-    spaceId,
-    PAGES_DIRECTORY_NAME,
-    `${pageId}.md`,
-  );
-}
-
-function normalizeWorkspaceIndexEntry(entry, workspaceMetadata) {
-  const createdAt = typeof entry?.createdAt === "string"
-    ? entry.createdAt
-    : workspaceMetadata.createdAt;
-  const updatedAt = typeof entry?.updatedAt === "string"
-    ? entry.updatedAt
-    : workspaceMetadata.updatedAt;
-
-  return {
-    name: firstString(entry?.name, workspaceMetadata.name),
-    createdAt,
-    updatedAt,
-  };
-}
-
-function normalizeProjectIndexEntry(entry) {
-  const id = requireId(entry?.id, "Project id");
-
-  return {
-    id,
-    type: "project",
-    name: firstString(entry?.name, DEFAULT_PROJECT_NAME),
-    relativePath: normalizeRelativePath(entry?.relativePath, getProjectRelativePath(id)),
-    updatedAt: typeof entry?.updatedAt === "string" ? entry.updatedAt : nowIso(),
-    spaceCount: normalizeCount(entry?.spaceCount),
-    itemCount: normalizeCount(entry?.itemCount),
-    canvasCount: normalizeCount(entry?.canvasCount),
-    pageCount: normalizeCount(entry?.pageCount),
-  };
-}
-
-function normalizeSpaceIndexEntry(entry) {
-  const id = requireId(entry?.id, "Space id");
-  const projectId = requireId(entry?.projectId, "Space project id");
-
-  return {
-    id,
-    projectId,
-    type: "space",
-    name: firstString(entry?.name, DEFAULT_SPACE_NAME),
-    relativePath: normalizeRelativePath(entry?.relativePath, getSpaceRelativePath(projectId, id)),
-    updatedAt: typeof entry?.updatedAt === "string" ? entry.updatedAt : nowIso(),
-    itemCount: normalizeCount(entry?.itemCount),
-    canvasCount: normalizeCount(entry?.canvasCount),
-    pageCount: normalizeCount(entry?.pageCount),
-  };
-}
-
-function normalizeItemIndexEntry(entry, starredItemIds = new Set()) {
-  const id = requireId(entry?.id, "Item id");
-  const projectId = requireId(entry?.projectId, "Item project id");
-  const spaceId = requireId(entry?.spaceId, "Item space id");
-  const type = entry?.type === "page" ? "page" : "canvas";
-
-  return {
-    id,
-    projectId,
-    spaceId,
-    type,
-    name: firstString(entry?.name, type === "page" ? DEFAULT_PAGE_NAME : DEFAULT_CANVAS_NAME),
-    relativePath: normalizeRelativePath(
-      entry?.relativePath,
-      type === "page"
-        ? getPageRelativePath(projectId, spaceId, id)
-        : getCanvasRelativePath(projectId, spaceId, id),
-    ),
-    updatedAt: typeof entry?.updatedAt === "string" ? entry.updatedAt : nowIso(),
-    starred: Boolean(entry?.starred) || starredItemIds.has(id),
-    thumbnailPath: normalizeRelativePath(entry?.thumbnailPath, null),
-    excerpt: normalizeExcerpt(entry?.excerpt),
-  };
-}
-
-function normalizeIndexMetadata(rawIndex, workspaceMetadata) {
-  const safeIndex = isPlainObject(rawIndex) ? rawIndex : cloneDefaultIndexMetadata();
-  const legacyRecentItemIds = Array.isArray(safeIndex.recentItemIds)
-    ? safeIndex.recentItemIds
-    : Array.isArray(safeIndex.recents)
-      ? safeIndex.recents
-      : [];
-  const legacyStarredItemIds = Array.isArray(safeIndex.starredItemIds)
-    ? safeIndex.starredItemIds
-    : Array.isArray(safeIndex.starred)
-      ? safeIndex.starred
-      : [];
-  const explicitStarredItemIds = new Set(dedupeStringList(legacyStarredItemIds));
-  const items = Array.isArray(safeIndex.items)
-    ? safeIndex.items.map((entry) => normalizeItemIndexEntry(entry, explicitStarredItemIds))
-    : [];
-  const validItemIds = new Set(items.map((entry) => entry.id));
-  const starredItemIds = dedupeStringList([
-    ...legacyStarredItemIds,
-    ...items.filter((entry) => entry.starred).map((entry) => entry.id),
-  ]).filter((entry) => validItemIds.has(entry));
-  const starredItemIdSet = new Set(starredItemIds);
-
-  return {
-    version: INDEX_METADATA_VERSION,
-    workspace: normalizeWorkspaceIndexEntry(safeIndex.workspace, workspaceMetadata),
-    projects: Array.isArray(safeIndex.projects)
-      ? safeIndex.projects.map(normalizeProjectIndexEntry)
-      : [],
-    spaces: Array.isArray(safeIndex.spaces)
-      ? safeIndex.spaces.map(normalizeSpaceIndexEntry)
-      : [],
-    items: items.map((entry) => ({
-      ...entry,
-      starred: starredItemIdSet.has(entry.id),
-    })),
-    recentItemIds: dedupeStringList(legacyRecentItemIds).filter((entry) => validItemIds.has(entry)),
-    starredItemIds,
-  };
-}
-
-function extractLegacySelection(rawIndex) {
-  return {
-    lastOpenedProjectId: typeof rawIndex?.currentProjectId === "string" ? rawIndex.currentProjectId : null,
-    lastOpenedSpaceId: typeof rawIndex?.currentSpaceId === "string" ? rawIndex.currentSpaceId : null,
-    lastOpenedItemId: typeof rawIndex?.currentCanvasId === "string" ? rawIndex.currentCanvasId : null,
-  };
-}
-
-function normalizeUiStateSelection(uiState, index) {
-  const validProjectIds = new Set(index.projects.map((entry) => entry.id));
-  const validSpaces = new Map(index.spaces.map((entry) => [entry.id, entry]));
-  const validItems = new Map(index.items.map((entry) => [entry.id, entry]));
-  const nextState = {
-    ...uiState,
-  };
-  const selectedItem = validItems.get(nextState.lastOpenedItemId);
-
-  if (selectedItem) {
-    nextState.lastOpenedProjectId = selectedItem.projectId;
-    nextState.lastOpenedSpaceId = selectedItem.spaceId;
-    return nextState;
-  }
-
-  nextState.lastOpenedItemId = null;
-
-  const selectedSpace = validSpaces.get(nextState.lastOpenedSpaceId);
-
-  if (selectedSpace) {
-    nextState.lastOpenedProjectId = selectedSpace.projectId;
-    return nextState;
-  }
-
-  nextState.lastOpenedSpaceId = null;
-
-  if (!validProjectIds.has(nextState.lastOpenedProjectId)) {
-    nextState.lastOpenedProjectId = null;
-  }
-
-  const selectedHomeSpace = validSpaces.get(nextState.selectedSpaceId);
-
-  if (selectedHomeSpace) {
-    nextState.selectedProjectId = selectedHomeSpace.projectId;
-  } else {
-    nextState.selectedSpaceId = null;
-  }
-
-  if (!validProjectIds.has(nextState.selectedProjectId)) {
-    nextState.selectedProjectId = null;
-  }
-
-  nextState.homeMode = normalizeHomeMode(nextState.homeMode);
-  nextState.selectedSection = normalizeHomeSection(nextState.selectedSection);
-  nextState.homeScrollTop = clampNonNegativeNumber(nextState.homeScrollTop, DEFAULT_UI_STATE.homeScrollTop);
-
-  if (nextState.homeMode === "space" && !nextState.selectedSpaceId) {
-    nextState.homeMode = nextState.selectedProjectId ? "project" : "home";
-  }
-
-  if (nextState.homeMode === "project" && !nextState.selectedProjectId) {
-    nextState.homeMode = "home";
-  }
-
-  const nextRoute = normalizeHomeRoute(nextState.lastHomeRoute);
-  const routeSpace = validSpaces.get(nextRoute.selectedSpaceId);
-
-  if (routeSpace) {
-    nextRoute.selectedProjectId = routeSpace.projectId;
-  } else {
-    nextRoute.selectedSpaceId = null;
-  }
-
-  if (!validProjectIds.has(nextRoute.selectedProjectId)) {
-    nextRoute.selectedProjectId = null;
-  }
-
-  if (nextRoute.mode === "space" && !nextRoute.selectedSpaceId) {
-    nextRoute.mode = nextRoute.selectedProjectId ? "project" : "home";
-  }
-
-  if (nextRoute.mode === "project" && !nextRoute.selectedProjectId) {
-    nextRoute.mode = "home";
-  }
-
-  nextState.lastHomeRoute = nextRoute;
-  return nextState;
-}
-
-function normalizeUiState(rawState, index, fallbackSelection = {}) {
-  const safeState = isPlainObject(rawState) ? rawState : cloneDefaultUiState();
-  const rawHomeRoute = isPlainObject(safeState.lastHomeRoute) ? safeState.lastHomeRoute : null;
-  const fallbackHomeRoute = normalizeHomeRoute(rawHomeRoute);
-
-  return normalizeUiStateSelection({
-    version: UI_STATE_VERSION,
-    lastOpenedProjectId: typeof safeState.lastOpenedProjectId === "string"
-      ? safeState.lastOpenedProjectId
-      : typeof fallbackSelection.lastOpenedProjectId === "string"
-        ? fallbackSelection.lastOpenedProjectId
-        : null,
-    lastOpenedSpaceId: typeof safeState.lastOpenedSpaceId === "string"
-      ? safeState.lastOpenedSpaceId
-      : typeof fallbackSelection.lastOpenedSpaceId === "string"
-        ? fallbackSelection.lastOpenedSpaceId
-        : null,
-    lastOpenedItemId: typeof safeState.lastOpenedItemId === "string"
-      ? safeState.lastOpenedItemId
-      : typeof fallbackSelection.lastOpenedItemId === "string"
-        ? fallbackSelection.lastOpenedItemId
-        : null,
-    homeView: firstString(safeState.homeView, DEFAULT_UI_STATE.homeView),
-    sortBy: firstString(safeState.sortBy, DEFAULT_UI_STATE.sortBy),
-    filter: typeof safeState.filter === "string"
-      ? safeState.filter
-      : DEFAULT_UI_STATE.filter,
-    homeMode: normalizeHomeMode(safeState.homeMode),
-    selectedSection: normalizeHomeSection(safeState.selectedSection),
-    selectedProjectId: typeof safeState.selectedProjectId === "string"
-      ? safeState.selectedProjectId
-      : typeof safeState.lastOpenedProjectId === "string"
-        ? safeState.lastOpenedProjectId
-        : null,
-    selectedSpaceId: typeof safeState.selectedSpaceId === "string"
-      ? safeState.selectedSpaceId
-      : typeof safeState.lastOpenedSpaceId === "string"
-        ? safeState.lastOpenedSpaceId
-        : null,
-    homeScrollTop: clampNonNegativeNumber(safeState.homeScrollTop, DEFAULT_UI_STATE.homeScrollTop),
-    canvasSnapToGrid: typeof safeState.canvasSnapToGrid === "boolean"
-      ? safeState.canvasSnapToGrid
-      : DEFAULT_UI_STATE.canvasSnapToGrid,
-    canvasSnapGridSize: Number.isFinite(safeState.canvasSnapGridSize) && safeState.canvasSnapGridSize > 0
-      ? Math.round(safeState.canvasSnapGridSize)
-      : DEFAULT_UI_STATE.canvasSnapGridSize,
-    lastHomeRoute: {
-      ...fallbackHomeRoute,
-      mode: normalizeHomeMode(rawHomeRoute?.mode ?? safeState.homeMode),
-      selectedSection: normalizeHomeSection(rawHomeRoute?.selectedSection ?? safeState.selectedSection),
-      selectedProjectId: typeof rawHomeRoute?.selectedProjectId === "string"
-        ? fallbackHomeRoute.selectedProjectId
-        : typeof safeState.selectedProjectId === "string"
-          ? safeState.selectedProjectId
-          : null,
-      selectedSpaceId: typeof rawHomeRoute?.selectedSpaceId === "string"
-        ? fallbackHomeRoute.selectedSpaceId
-        : typeof safeState.selectedSpaceId === "string"
-          ? safeState.selectedSpaceId
-          : null,
-      scrollTop: clampNonNegativeNumber(
-        rawHomeRoute?.scrollTop,
-        clampNonNegativeNumber(safeState.homeScrollTop, DEFAULT_UI_STATE.homeScrollTop),
-      ),
-    },
-  }, index);
-}
-
-function getWorkspaceMetadataPath(folderPath) {
-  return path.join(folderPath, WORKSPACE_METADATA_FILE_NAME);
-}
-
-function getWorkspaceIndexDirectoryPath(folderPath) {
-  return path.join(folderPath, INTERNAL_DIRECTORY_NAME);
-}
-
-function getWorkspaceIndexPath(folderPath) {
-  return path.join(getWorkspaceIndexDirectoryPath(folderPath), INDEX_FILE_NAME);
-}
-
-function getWorkspaceUiStatePath(folderPath) {
-  return path.join(getWorkspaceIndexDirectoryPath(folderPath), UI_STATE_FILE_NAME);
-}
-
-function getWorkspacePreviewsPath(folderPath) {
-  return path.join(getWorkspaceIndexDirectoryPath(folderPath), PREVIEWS_DIRECTORY_NAME);
-}
-
-function getProjectsPath(folderPath) {
-  return path.join(folderPath, PROJECTS_DIRECTORY_NAME);
-}
-
-function getProjectPath(folderPath, projectId) {
-  return path.join(getProjectsPath(folderPath), projectId);
-}
-
-function getProjectMetadataPath(folderPath, projectId) {
-  return path.join(getProjectPath(folderPath, projectId), PROJECT_FILE_NAME);
-}
-
-function getProjectSpacesPath(folderPath, projectId) {
-  return path.join(getProjectPath(folderPath, projectId), SPACES_DIRECTORY_NAME);
-}
-
-function getSpacePath(folderPath, projectId, spaceId) {
-  return path.join(getProjectSpacesPath(folderPath, projectId), spaceId);
-}
-
-function getSpaceMetadataPath(folderPath, projectId, spaceId) {
-  return path.join(getSpacePath(folderPath, projectId, spaceId), SPACE_FILE_NAME);
-}
-
-function getSpaceCanvasesPath(folderPath, projectId, spaceId) {
-  return path.join(getSpacePath(folderPath, projectId, spaceId), CANVASES_DIRECTORY_NAME);
-}
-
-function getSpaceAssetsPath(folderPath, projectId, spaceId) {
-  return path.join(getSpacePath(folderPath, projectId, spaceId), ASSETS_DIRECTORY_NAME);
-}
-
-function getCanvasAssetsPath(folderPath, projectId, spaceId, canvasId) {
-  return path.join(getSpaceAssetsPath(folderPath, projectId, spaceId), requireId(canvasId, "Canvas id"));
-}
-
-function getCanvasPath(folderPath, projectId, spaceId, canvasId) {
-  return path.join(getSpaceCanvasesPath(folderPath, projectId, spaceId), `${canvasId}.json`);
-}
-
-function getSpacePagesPath(folderPath, projectId, spaceId) {
-  return path.join(getSpacePath(folderPath, projectId, spaceId), PAGES_DIRECTORY_NAME);
-}
-
-function getPagePath(folderPath, projectId, spaceId, pageId) {
-  return path.join(getSpacePagesPath(folderPath, projectId, spaceId), `${pageId}.md`);
-}
-
-function getCanvasPreviewPath(folderPath, canvasId) {
-  return path.join(getWorkspacePreviewsPath(folderPath), `${canvasId}.svg`);
-}
-
-function resolveWorkspaceRelativePath(folderPath, relativePath) {
-  const normalizedRelativePath = normalizeRelativePath(relativePath, null);
-
-  if (!normalizedRelativePath) {
-    return null;
-  }
-
-  return path.join(folderPath, ...normalizedRelativePath.split("/"));
-}
-
-function sanitizeAssetFileName(fileName) {
-  const extension = getFileExtension(fileName);
-  const baseName = extension
-    ? String(fileName).slice(0, -(extension.length + 1))
-    : String(fileName ?? "");
-  const normalizedBaseName = baseName
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80) || "image";
-
-  return extension ? `${normalizedBaseName}.${extension}` : normalizedBaseName;
-}
-
-function isSupportedImageAsset({ fileName, mimeType }) {
-  return SUPPORTED_IMAGE_ASSET_MIME_TYPES.has(String(mimeType ?? "").toLowerCase())
-    || SUPPORTED_IMAGE_ASSET_EXTENSIONS.has(getFileExtension(fileName));
-}
-
-function getPhaseOneWorkspacePath(folderPath) {
-  return path.join(folderPath, PHASE_ONE_WORKSPACE_FILE_NAME);
-}
-
-function getLegacyDataPath(folderPath) {
-  return path.join(folderPath, LEGACY_DATA_FILE_NAME);
-}
-
-async function statOrNull(targetPath) {
+async function exists(target) {
   try {
-    return await fs.stat(targetPath);
+    await fs.access(target);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
-async function pathExists(targetPath) {
-  return Boolean(await statOrNull(targetPath));
-}
-
-async function isDirectory(targetPath) {
-  const stats = await statOrNull(targetPath);
-  return stats?.isDirectory() ?? false;
-}
-
-async function recoverFileArtifacts(filePath) {
-  const tempPath = `${filePath}${TEMP_SUFFIX}`;
-  const backupPath = `${filePath}${BACKUP_SUFFIX}`;
-
-  if (!(await pathExists(filePath)) && (await pathExists(tempPath))) {
-    await fs.rename(tempPath, filePath);
-  }
-
-  if (!(await pathExists(filePath)) && (await pathExists(backupPath))) {
-    await fs.rename(backupPath, filePath);
-  }
-
-  if (await pathExists(tempPath)) {
-    await fs.rm(tempPath, { force: true }).catch(() => {});
-  }
-
-  if (await pathExists(backupPath)) {
-    await fs.rm(backupPath, { force: true }).catch(() => {});
-  }
-}
-
-async function readJsonFile(filePath, fallbackValue) {
+async function isDirectory(dir) {
   try {
-    const content = await fs.readFile(filePath, "utf8");
-    return JSON.parse(content);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return fallbackValue;
-    }
+    return (await fs.stat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
+async function readJson(filePath, label) {
+  const raw = await fs.readFile(filePath, "utf8");
+  try {
+    const parsed = JSON.parse(raw);
+    if (!isObject(parsed)) throw new Error(`${label} must contain a JSON object.`);
+    return parsed;
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error(`${label} contains invalid JSON.`);
     throw error;
   }
 }
 
-async function readJsonObject(filePath, label) {
-  await recoverFileArtifacts(filePath);
-
-  let parsed;
-
-  try {
-    parsed = await readJsonFile(filePath, null);
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`${label} must contain valid JSON.`);
-    }
-
-    throw error;
-  }
-
-  if (!isPlainObject(parsed)) {
-    throw new Error(`${label} must contain a JSON object.`);
-  }
-
-  return parsed;
-}
-
-async function safeWriteJson(filePath, data) {
-  const directory = path.dirname(filePath);
-  const tempPath = `${filePath}${TEMP_SUFFIX}`;
-  const backupPath = `${filePath}${BACKUP_SUFFIX}`;
-  const payload = `${JSON.stringify(data, null, 2)}\n`;
-
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(tempPath, payload, "utf8");
-
-  try {
-    await fs.rm(backupPath, { force: true });
-  } catch {
-    // Ignore leftover backups from prior runs.
-  }
-
-  if (await pathExists(filePath)) {
-    await fs.rename(filePath, backupPath);
-  }
-
-  await fs.rename(tempPath, filePath);
-  await fs.rm(backupPath, { force: true }).catch(() => {});
-}
-
-async function readTextFile(filePath, fallbackValue = null) {
-  await recoverFileArtifacts(filePath);
-
+async function readText(filePath, fallback = "") {
   try {
     return await fs.readFile(filePath, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") {
-      return fallbackValue;
-    }
-
+    if (error.code === "ENOENT") return fallback;
     throw error;
   }
 }
 
 async function safeWriteText(filePath, text) {
-  const directory = path.dirname(filePath);
-  const tempPath = `${filePath}${TEMP_SUFFIX}`;
-  const backupPath = `${filePath}${BACKUP_SUFFIX}`;
-
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(tempPath, text, "utf8");
-
-  try {
-    await fs.rm(backupPath, { force: true });
-  } catch {
-    // Ignore leftover backups from prior runs.
-  }
-
-  if (await pathExists(filePath)) {
-    await fs.rename(filePath, backupPath);
-  }
-
-  await fs.rename(tempPath, filePath);
-  await fs.rm(backupPath, { force: true }).catch(() => {});
-}
-
-async function resolveExistingRelativePath(folderPath, relativePath) {
-  const filePath = resolveWorkspaceRelativePath(folderPath, relativePath);
-
-  if (!filePath) {
-    return null;
-  }
-
-  const stats = await statOrNull(filePath);
-  return stats?.isFile() ? normalizeRelativePath(relativePath, null) : null;
-}
-
-function resolveWorkspaceAssetPath(folderPath, relativePath) {
-  return resolveWorkspaceRelativePath(folderPath, relativePath);
-}
-
-async function importImageAsset(folderPath, projectId, spaceId, canvasId, payload) {
-  await ensureWorkspaceReady(folderPath);
-  const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
-  const sourcePath = typeof payload?.sourcePath === "string" ? payload.sourcePath.trim() : "";
-  const fileName = firstString(payload?.fileName, path.basename(sourcePath));
-  const mimeType = typeof payload?.mimeType === "string" ? payload.mimeType.toLowerCase() : "";
-
-  if (!sourcePath) {
-    throw new Error(`"${fileName || "Dropped image"}" could not be imported because no local file path was available.`);
-  }
-
-  if (!isSupportedImageAsset({ fileName, mimeType })) {
-    throw new Error(`"${fileName}" (${mimeType || "unknown type"}) is not a supported image type for import.`);
-  }
-
-  const sourceStats = await statOrNull(sourcePath);
-
-  if (!sourceStats?.isFile()) {
-    throw new Error(`"${fileName}" could not be imported because the source file is no longer available.`);
-  }
-
-  const extension = getFileExtension(fileName) || getFileExtension(sourcePath);
-  const safeFileName = sanitizeAssetFileName(fileName || path.basename(sourcePath));
-  const storedFileName = extension
-    ? `${path.basename(safeFileName, `.${extension}`)}-${createId().slice(0, 8)}.${extension}`
-    : `${safeFileName}-${createId().slice(0, 8)}`;
-  const targetDirectory = getCanvasAssetsPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id);
-  const targetPath = path.join(targetDirectory, storedFileName);
-
-  await fs.mkdir(targetDirectory, { recursive: true });
-  await fs.copyFile(sourcePath, targetPath);
-
-  const relativePath = normalizeRelativePath(path.relative(folderPath, targetPath), null);
-
-  return {
-    relativePath,
-    fileName: fileName || storedFileName,
-    mimeType,
-    sizeBytes: sourceStats.size,
-    width: 0,
-    height: 0,
-  };
-}
-
-async function writeCanvasPreview(folderPath, canvasDocument) {
-  const previewRelativePath = getCanvasPreviewRelativePath(canvasDocument.id);
-
-  try {
-    await safeWriteText(
-      getCanvasPreviewPath(folderPath, canvasDocument.id),
-      generateCanvasPreviewSvg(canvasDocument),
-    );
-    return previewRelativePath;
-  } catch {
-    return resolveExistingRelativePath(folderPath, previewRelativePath);
-  }
-}
-
-async function removeRelativeFile(folderPath, relativePath) {
-  const filePath = resolveWorkspaceRelativePath(folderPath, relativePath);
-
-  if (!filePath) {
-    return;
-  }
-
-  await fs.rm(filePath, { force: true }).catch(() => {});
-}
-
-function createValidationError(issues) {
-  return new Error(`Selected folder is not a valid AirPaste workspace. ${issues.join(" ")}`);
-}
-
-function upsertById(entries, nextEntry) {
-  const nextEntries = entries.filter((entry) => entry.id !== nextEntry.id);
-  nextEntries.push(nextEntry);
-  return nextEntries;
-}
-
-function removeById(entries, id) {
-  return entries.filter((entry) => entry.id !== id);
-}
-
-async function readWorkspaceMetadata(folderPath) {
-  const metadata = await readJsonObject(getWorkspaceMetadataPath(folderPath), "airpaste.json");
-  return normalizeWorkspaceMetadata(metadata, folderPath);
-}
-
-async function writeWorkspaceMetadata(folderPath, metadata) {
-  const normalizedMetadata = normalizeWorkspaceMetadata(metadata, folderPath);
-  await safeWriteJson(getWorkspaceMetadataPath(folderPath), normalizedMetadata);
-  return normalizedMetadata;
-}
-
-async function touchWorkspaceMetadata(folderPath) {
-  const metadata = await readWorkspaceMetadata(folderPath);
-  return writeWorkspaceMetadata(folderPath, {
-    ...metadata,
-    updatedAt: nowIso(),
-  });
-}
-
-function shouldRewriteIndexMetadata(rawIndex, normalizedIndex, workspaceMetadata) {
-  if (!isPlainObject(rawIndex) || rawIndex.version !== INDEX_METADATA_VERSION) {
-    return true;
-  }
-
-  if (!isPlainObject(rawIndex.workspace)) {
-    return true;
-  }
-
-  if (!Array.isArray(rawIndex.recentItemIds) || !Array.isArray(rawIndex.starredItemIds)) {
-    return true;
-  }
-
-  if (
-    rawIndex.currentProjectId !== undefined
-    || rawIndex.currentSpaceId !== undefined
-    || rawIndex.currentCanvasId !== undefined
-    || rawIndex.recents !== undefined
-    || rawIndex.starred !== undefined
-  ) {
-    return true;
-  }
-
-  if (
-    rawIndex.workspace.name !== normalizedIndex.workspace.name
-    || rawIndex.workspace.createdAt !== workspaceMetadata.createdAt
-    || rawIndex.workspace.updatedAt !== workspaceMetadata.updatedAt
-  ) {
-    return true;
-  }
-
-  if (rawIndex.projects?.some((entry) => typeof entry?.relativePath !== "string")) {
-    return true;
-  }
-
-  if (rawIndex.spaces?.some((entry) => typeof entry?.relativePath !== "string")) {
-    return true;
-  }
-
-  const invalidItemEntries = rawIndex.items?.some((entry) => (
-    typeof entry?.relativePath !== "string"
-    || typeof entry?.starred !== "boolean"
-    || (!Object.hasOwn(entry ?? {}, "thumbnailPath"))
-    || (!Object.hasOwn(entry ?? {}, "excerpt"))
-  )) ?? false;
-  const invalidProjectEntries = rawIndex.projects?.some((entry) => (
-    !Object.hasOwn(entry ?? {}, "spaceCount")
-    || !Object.hasOwn(entry ?? {}, "itemCount")
-    || !Object.hasOwn(entry ?? {}, "canvasCount")
-    || !Object.hasOwn(entry ?? {}, "pageCount")
-  )) ?? false;
-  const invalidSpaceEntries = rawIndex.spaces?.some((entry) => (
-    !Object.hasOwn(entry ?? {}, "itemCount")
-    || !Object.hasOwn(entry ?? {}, "canvasCount")
-    || !Object.hasOwn(entry ?? {}, "pageCount")
-  )) ?? false;
-
-  return invalidItemEntries || invalidProjectEntries || invalidSpaceEntries;
-}
-
-function shouldRebuildIndex(error) {
-  if (error?.code === "ENOENT" || error instanceof SyntaxError) {
-    return true;
-  }
-
-  return typeof error?.message === "string"
-    && error.message.startsWith(".airpaste/index.json");
-}
-
-async function readIndexMetadata(folderPath, workspaceMetadata) {
-  const indexPath = getWorkspaceIndexPath(folderPath);
-
-  await recoverFileArtifacts(indexPath);
-
-  const rawIndex = await readJsonFile(indexPath, null);
-
-  if (rawIndex == null) {
-    const missingError = new Error("Missing .airpaste/index.json.");
-    missingError.code = "ENOENT";
-    throw missingError;
-  }
-
-  if (!isPlainObject(rawIndex)) {
-    throw new Error(".airpaste/index.json must contain a JSON object.");
-  }
-
-  const normalizedIndex = normalizeIndexCollections(
-    normalizeIndexMetadata(rawIndex, workspaceMetadata),
-  );
-
-  if (shouldRewriteIndexMetadata(rawIndex, normalizedIndex, workspaceMetadata)) {
-    await safeWriteJson(indexPath, normalizedIndex);
-  }
-
-  return {
-    index: normalizedIndex,
-    legacySelection: extractLegacySelection(rawIndex),
-  };
-}
-
-async function writeIndexMetadata(folderPath, index, workspaceMetadata = null) {
-  const metadata = workspaceMetadata ?? await readWorkspaceMetadata(folderPath);
-  const normalizedIndex = normalizeIndexCollections(
-    normalizeIndexMetadata(index, metadata),
-  );
-  await safeWriteJson(getWorkspaceIndexPath(folderPath), normalizedIndex);
-  return normalizedIndex;
-}
-
-function shouldRewriteUiState(rawState) {
-  if (!isPlainObject(rawState) || rawState.version !== UI_STATE_VERSION) {
-    return true;
-  }
-
-  return (
-    !Object.hasOwn(rawState, "lastOpenedProjectId")
-    || !Object.hasOwn(rawState, "lastOpenedSpaceId")
-    || !Object.hasOwn(rawState, "lastOpenedItemId")
-    || !Object.hasOwn(rawState, "homeView")
-    || !Object.hasOwn(rawState, "sortBy")
-    || !Object.hasOwn(rawState, "filter")
-    || !Object.hasOwn(rawState, "homeMode")
-    || !Object.hasOwn(rawState, "selectedSection")
-    || !Object.hasOwn(rawState, "selectedProjectId")
-    || !Object.hasOwn(rawState, "selectedSpaceId")
-    || !Object.hasOwn(rawState, "homeScrollTop")
-    || !Object.hasOwn(rawState, "lastHomeRoute")
-  );
-}
-
-async function readUiStateMetadata(folderPath, index, fallbackSelection = {}) {
-  const uiStatePath = getWorkspaceUiStatePath(folderPath);
-
-  await recoverFileArtifacts(uiStatePath);
-
-  let rawState;
-
-  try {
-    rawState = await readJsonFile(uiStatePath, null);
-  } catch (error) {
-    if (!(error instanceof SyntaxError)) {
-      throw error;
-    }
-
-    rawState = null;
-  }
-
-  const normalizedUiState = normalizeUiState(rawState, index, fallbackSelection);
-
-  if (rawState == null || !isPlainObject(rawState) || shouldRewriteUiState(rawState)) {
-    await safeWriteJson(uiStatePath, normalizedUiState);
-  }
-
-  return normalizedUiState;
-}
-
-async function writeUiStateMetadata(folderPath, uiState, index) {
-  const normalizedUiState = normalizeUiState(uiState, index);
-  await safeWriteJson(getWorkspaceUiStatePath(folderPath), normalizedUiState);
-  return normalizedUiState;
-}
-
-async function ensureWorkspaceStructure(folderPath) {
-  if (!(await isDirectory(folderPath))) {
-    throw new Error("Selected folder is no longer available.");
-  }
-
-  const issues = [];
-  const metadataPath = getWorkspaceMetadataPath(folderPath);
-  const projectsPath = getProjectsPath(folderPath);
-  const indexDirectoryPath = getWorkspaceIndexDirectoryPath(folderPath);
-
-  const metadataStats = await statOrNull(metadataPath);
-  if (!metadataStats) {
-    issues.push("Missing airpaste.json.");
-  } else if (!metadataStats.isFile()) {
-    issues.push("airpaste.json must be a file.");
-  }
-
-  const projectsStats = await statOrNull(projectsPath);
-  if (!projectsStats) {
-    issues.push("Missing projects/ directory.");
-  } else if (!projectsStats.isDirectory()) {
-    issues.push("projects/ must be a directory.");
-  }
-
-  const indexDirectoryStats = await statOrNull(indexDirectoryPath);
-  if (indexDirectoryStats && !indexDirectoryStats.isDirectory()) {
-    issues.push(".airpaste must be a directory.");
-  }
-
-  if (issues.length > 0) {
-    throw createValidationError(issues);
-  }
-
-  if (!indexDirectoryStats) {
-    await fs.mkdir(indexDirectoryPath, { recursive: true });
-  }
-
-  return {
-    metadata: await readWorkspaceMetadata(folderPath),
-  };
-}
-
-async function isValidWorkspace(folderPath) {
-  if (!(await isDirectory(folderPath))) {
-    return false;
-  }
-
-  try {
-    await ensureWorkspaceStructure(folderPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function ensureWorkspacePrepared(folderPath) {
-  try {
-    return {
-      folderPath,
-      ...(await ensureWorkspaceStructure(folderPath)),
-    };
-  } catch (phaseTwoError) {
-    const migrated = await migrateLegacyWorkspaceToPhaseTwo(folderPath);
-
-    if (migrated) {
-      return {
-        folderPath,
-        ...(await ensureWorkspaceStructure(folderPath)),
-      };
-    }
-
-    throw phaseTwoError;
-  }
-}
-
-function createWorkspaceMetadataPayload(folderPath) {
-  const timestamp = nowIso();
-
-  return {
-    version: ROOT_METADATA_VERSION,
-    name: path.basename(folderPath),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-function createProjectMetadata(name, projectId) {
-  const timestamp = nowIso();
-
-  return {
-    version: PROJECT_METADATA_VERSION,
-    id: projectId,
-    type: "project",
-    name,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-function createSpaceMetadata(projectId, name, spaceId) {
-  const timestamp = nowIso();
-
-  return {
-    version: SPACE_METADATA_VERSION,
-    id: spaceId,
-    projectId,
-    type: "space",
-    name,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-function createCanvasDocument(projectId, spaceId, name, canvasId, workspace = cloneDefaultRendererWorkspace()) {
-  return rendererWorkspaceToCanvasDocument(projectId, spaceId, canvasId, name, workspace);
-}
-
-async function readProject(folderPath, projectId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const metadata = await readJsonObject(
-    getProjectMetadataPath(folderPath, normalizedProjectId),
-    `projects/${normalizedProjectId}/project.json`,
-  );
-  return normalizeProjectMetadata(metadata, normalizedProjectId);
-}
-
-async function writeProject(folderPath, project) {
-  const normalizedProject = normalizeProjectMetadata(project, project.id);
-  await safeWriteJson(getProjectMetadataPath(folderPath, normalizedProject.id), normalizedProject);
-  return normalizedProject;
-}
-
-async function ensureProject(folderPath, projectId) {
-  try {
-    return await readProject(folderPath, projectId);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      throw new Error(`Project "${projectId}" does not exist.`);
-    }
-    throw error;
-  }
-}
-
-async function readSpace(folderPath, projectId, spaceId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const metadata = await readJsonObject(
-    getSpaceMetadataPath(folderPath, normalizedProjectId, normalizedSpaceId),
-    `projects/${normalizedProjectId}/spaces/${normalizedSpaceId}/space.json`,
-  );
-  return normalizeSpaceMetadata(metadata, normalizedProjectId, normalizedSpaceId);
-}
-
-async function writeSpace(folderPath, space) {
-  const normalizedSpace = normalizeSpaceMetadata(space, space.projectId, space.id);
-  await safeWriteJson(
-    getSpaceMetadataPath(folderPath, normalizedSpace.projectId, normalizedSpace.id),
-    normalizedSpace,
-  );
-  return normalizedSpace;
-}
-
-async function ensureSpace(folderPath, projectId, spaceId) {
-  await ensureProject(folderPath, projectId);
-
-  try {
-    return await readSpace(folderPath, projectId, spaceId);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      throw new Error(`Space "${spaceId}" does not exist.`);
-    }
-    throw error;
-  }
-}
-
-async function readCanvas(folderPath, projectId, spaceId, canvasId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const normalizedCanvasId = requireId(canvasId, "Canvas id");
-  const document = await readJsonObject(
-    getCanvasPath(folderPath, normalizedProjectId, normalizedSpaceId, normalizedCanvasId),
-    `projects/${normalizedProjectId}/spaces/${normalizedSpaceId}/canvases/${normalizedCanvasId}.json`,
-  );
-  return normalizeCanvasDocument(document, normalizedProjectId, normalizedSpaceId, normalizedCanvasId);
-}
-
-async function writeCanvas(folderPath, canvasDocument) {
-  const normalizedCanvas = normalizeCanvasDocument(
-    canvasDocument,
-    canvasDocument.projectId,
-    canvasDocument.spaceId,
-    canvasDocument.id,
-  );
-  await safeWriteJson(
-    getCanvasPath(folderPath, normalizedCanvas.projectId, normalizedCanvas.spaceId, normalizedCanvas.id),
-    normalizedCanvas,
-  );
-  return normalizedCanvas;
-}
-
-async function ensureCanvas(folderPath, projectId, spaceId, canvasId) {
-  await ensureSpace(folderPath, projectId, spaceId);
-
-  try {
-    return await readCanvas(folderPath, projectId, spaceId, canvasId);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      throw new Error(`Canvas "${canvasId}" does not exist.`);
-    }
-    throw error;
-  }
-}
-
-async function touchProject(folderPath, projectId, updatedAt = nowIso()) {
-  const project = await ensureProject(folderPath, projectId);
-  const updatedProject = {
-    ...project,
-    updatedAt,
-  };
-
-  await writeProject(folderPath, updatedProject);
-  return updatedProject;
-}
-
-async function touchSpace(folderPath, projectId, spaceId, updatedAt = nowIso()) {
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const updatedSpace = {
-    ...space,
-    updatedAt,
-  };
-
-  await writeSpace(folderPath, updatedSpace);
-  return updatedSpace;
-}
-
-async function touchProjectAndSpace(folderPath, projectId, spaceId, updatedAt = nowIso()) {
-  const updatedSpace = await touchSpace(folderPath, projectId, spaceId, updatedAt);
-  const updatedProject = await touchProject(folderPath, projectId, updatedAt);
-
-  return {
-    updatedAt,
-    project: updatedProject,
-    space: updatedSpace,
-  };
-}
-
-function resolvePageName(markdown, fallbackName) {
-  const firstLine = String(markdown ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-
-  if (!firstLine) {
-    return firstString(fallbackName, DEFAULT_PAGE_NAME);
-  }
-
-  return firstString(firstLine.replace(/^#+\s*/, ""), fallbackName, DEFAULT_PAGE_NAME);
-}
-
-async function readPageMarkdown(folderPath, projectId, spaceId, pageId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const normalizedPageId = requireId(pageId, "Page id");
-  const markdown = await readTextFile(
-    getPagePath(folderPath, normalizedProjectId, normalizedSpaceId, normalizedPageId),
-  );
-
-  if (markdown == null) {
-    throw new Error(`Page "${normalizedPageId}" does not exist.`);
-  }
-
-  return markdown;
-}
-
-function updateIndexProject(index, project) {
-  return normalizeIndexMetadata({
-    ...index,
-    projects: upsertById(index.projects, {
-      id: project.id,
-      type: "project",
-      name: project.name,
-      relativePath: getProjectRelativePath(project.id),
-      updatedAt: project.updatedAt,
-    }),
-  }, index.workspace);
-}
-
-function updateIndexSpace(index, space) {
-  return normalizeIndexMetadata({
-    ...index,
-    spaces: upsertById(index.spaces, {
-      id: space.id,
-      projectId: space.projectId,
-      type: "space",
-      name: space.name,
-      relativePath: getSpaceRelativePath(space.projectId, space.id),
-      updatedAt: space.updatedAt,
-    }),
-  }, index.workspace);
-}
-
-function normalizeIndexCollections(index) {
-  const validItemIds = new Set(index.items.map((entry) => entry.id));
-  const starredItemIds = dedupeStringList([
-    ...index.starredItemIds,
-    ...index.items.filter((entry) => entry.starred).map((entry) => entry.id),
-  ]).filter((entry) => validItemIds.has(entry));
-  const starredItemIdSet = new Set(starredItemIds);
-  const projectCounts = new Map(index.projects.map((entry) => [entry.id, {
-    spaceCount: 0,
-    itemCount: 0,
-    canvasCount: 0,
-    pageCount: 0,
-  }]));
-  const spaceCounts = new Map(index.spaces.map((entry) => [entry.id, {
-    itemCount: 0,
-    canvasCount: 0,
-    pageCount: 0,
-  }]));
-
-  for (const space of index.spaces) {
-    const projectCount = projectCounts.get(space.projectId);
-
-    if (projectCount) {
-      projectCount.spaceCount += 1;
-    }
-  }
-
-  for (const item of index.items) {
-    const projectCount = projectCounts.get(item.projectId);
-    const spaceCount = spaceCounts.get(item.spaceId);
-
-    if (projectCount) {
-      projectCount.itemCount += 1;
-      projectCount[`${item.type}Count`] += 1;
-    }
-
-    if (spaceCount) {
-      spaceCount.itemCount += 1;
-      spaceCount[`${item.type}Count`] += 1;
-    }
-  }
-
-  return {
-    ...index,
-    projects: index.projects.map((entry) => ({
-      ...entry,
-      ...projectCounts.get(entry.id),
-    })),
-    spaces: index.spaces.map((entry) => ({
-      ...entry,
-      ...spaceCounts.get(entry.id),
-    })),
-    items: index.items.map((entry) => ({
-      ...entry,
-      starred: starredItemIdSet.has(entry.id),
-      thumbnailPath: normalizeRelativePath(entry.thumbnailPath, null),
-      excerpt: normalizeExcerpt(entry.excerpt),
-    })),
-    recentItemIds: dedupeStringList(index.recentItemIds)
-      .filter((entry) => validItemIds.has(entry))
-      .slice(0, MAX_RECENT_ITEMS),
-    starredItemIds,
-  };
-}
-
-function updateIndexItem(index, item) {
-  const existingItem = index.items.find((entry) => entry.id === item.id);
-  const relativePath = item.type === "page"
-    ? getPageRelativePath(item.projectId, item.spaceId, item.id)
-    : getCanvasRelativePath(item.projectId, item.spaceId, item.id);
-
-  return normalizeIndexCollections({
-    ...index,
-    items: upsertById(index.items, {
-      id: item.id,
-      projectId: item.projectId,
-      spaceId: item.spaceId,
-      type: item.type,
-      name: item.name,
-      relativePath: normalizeRelativePath(item.relativePath, relativePath),
-      updatedAt: item.updatedAt,
-      starred: Boolean(item.starred ?? existingItem?.starred),
-      thumbnailPath: normalizeRelativePath(
-        Object.hasOwn(item ?? {}, "thumbnailPath")
-          ? item.thumbnailPath
-          : item.type === "page"
-            ? null
-            : existingItem?.thumbnailPath ?? null,
-        null,
-      ),
-      excerpt: normalizeExcerpt(
-        Object.hasOwn(item ?? {}, "excerpt")
-          ? item.excerpt
-          : existingItem?.excerpt ?? "",
-      ),
-    }),
-  });
-}
-
-function recordRecentInIndex(index, itemId) {
-  return normalizeIndexCollections({
-    ...index,
-    recentItemIds: [
-      itemId,
-      ...index.recentItemIds.filter((entry) => entry !== itemId),
-    ],
-  });
-}
-
-function setItemStarredInIndex(index, itemId, starred) {
-  return normalizeIndexCollections({
-    ...index,
-    items: index.items.map((entry) => (
-      entry.id === itemId
-        ? {
-          ...entry,
-          starred,
-        }
-        : entry
-    )),
-    starredItemIds: starred
-      ? [
-        itemId,
-        ...index.starredItemIds.filter((entry) => entry !== itemId),
-      ]
-      : index.starredItemIds.filter((entry) => entry !== itemId),
-  });
-}
-
-function removeProjectFromIndex(index, projectId) {
-  const remainingSpaces = index.spaces.filter((entry) => entry.projectId !== projectId);
-  const remainingItems = index.items.filter((entry) => entry.projectId !== projectId);
-
-  return normalizeIndexCollections({
-    ...index,
-    projects: removeById(index.projects, projectId),
-    spaces: remainingSpaces,
-    items: remainingItems,
-  });
-}
-
-function removeSpaceFromIndex(index, spaceId) {
-  const remainingItems = index.items.filter((entry) => entry.spaceId !== spaceId);
-
-  return normalizeIndexCollections({
-    ...index,
-    spaces: removeById(index.spaces, spaceId),
-    items: remainingItems,
-  });
-}
-
-function removeItemFromIndex(index, itemId) {
-  return normalizeIndexCollections({
-    ...index,
-    items: removeById(index.items, itemId),
-  });
-}
-
-async function writeIndexAndUiState(folderPath, index, uiState, workspaceMetadata = null) {
-  const nextIndex = await writeIndexMetadata(folderPath, index, workspaceMetadata);
-  const nextUiState = await writeUiStateMetadata(folderPath, uiState, nextIndex);
-
-  return {
-    index: nextIndex,
-    uiState: nextUiState,
-  };
-}
-
-function getItemMap(index) {
-  return new Map(index.items.map((entry) => [entry.id, entry]));
-}
-
-function getProjectMap(index) {
-  return new Map(index.projects.map((entry) => [entry.id, entry]));
-}
-
-function getSpaceMap(index) {
-  return new Map(index.spaces.map((entry) => [entry.id, entry]));
-}
-
-function compareByUpdatedAtDesc(left, right) {
-  if (left.updatedAt === right.updatedAt) {
-    return left.name.localeCompare(right.name);
-  }
-
-  return right.updatedAt.localeCompare(left.updatedAt);
-}
-
-function decorateItemForHome(item, projectsById, spacesById) {
-  return {
-    ...item,
-    projectName: projectsById.get(item.projectId)?.name ?? null,
-    spaceName: spacesById.get(item.spaceId)?.name ?? null,
-  };
-}
-
-function buildProjectSummary(index, project) {
-  return {
-    ...project,
-    spaceCount: normalizeCount(project.spaceCount),
-    itemCount: normalizeCount(project.itemCount),
-    canvasCount: normalizeCount(project.canvasCount),
-    pageCount: normalizeCount(project.pageCount),
-  };
-}
-
-function buildSpaceSummary(index, space) {
-  return {
-    ...space,
-    itemCount: normalizeCount(space.itemCount),
-    canvasCount: normalizeCount(space.canvasCount),
-    pageCount: normalizeCount(space.pageCount),
-  };
-}
-
-function getOrderedItems(index, itemIds) {
-  const itemEntriesById = getItemMap(index);
-  const projectsById = getProjectMap(index);
-  const spacesById = getSpaceMap(index);
-
-  return itemIds
-    .map((itemId) => itemEntriesById.get(itemId))
-    .filter(Boolean)
-    .map((item) => decorateItemForHome(item, projectsById, spacesById));
-}
-
-async function getPageUpdatedAt(folderPath, projectId, spaceId, pageId) {
-  const stats = await statOrNull(getPagePath(folderPath, projectId, spaceId, pageId));
-  return stats?.mtime?.toISOString?.() ?? nowIso();
-}
-
-async function createProject(folderPath, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const projectName = requireName(name, "Project");
-  const projectId = createId();
-  const project = createProjectMetadata(projectName, projectId);
-
-  await fs.mkdir(getProjectSpacesPath(folderPath, projectId), { recursive: true });
-  await writeProject(folderPath, project);
-
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  const nextIndex = updateIndexProject(index, project);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: uiState.lastOpenedProjectId ?? project.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-  return project;
-}
-
-async function createSpace(folderPath, projectId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const project = await ensureProject(folderPath, projectId);
-  const spaceName = requireName(name, "Space");
-  const spaceId = createId();
-  const space = createSpaceMetadata(project.id, spaceName, spaceId);
-
-  await fs.mkdir(getSpaceCanvasesPath(folderPath, project.id, spaceId), { recursive: true });
-  await fs.mkdir(getSpacePagesPath(folderPath, project.id, spaceId), { recursive: true });
-  await writeSpace(folderPath, space);
-
-  const updatedProject = await touchProject(folderPath, project.id, space.updatedAt);
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, space);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: uiState.lastOpenedProjectId ?? project.id,
-    lastOpenedSpaceId: uiState.lastOpenedSpaceId ?? space.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-  return space;
-}
-
-async function createCanvas(folderPath, projectId, spaceId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const canvasName = requireName(name, "Canvas");
-  const canvasId = createId();
-  const canvas = createCanvasDocument(space.projectId, space.id, canvasName, canvasId);
-
-  await fs.mkdir(getSpaceCanvasesPath(folderPath, space.projectId, space.id), { recursive: true });
-  await writeCanvas(folderPath, canvas);
-  const thumbnailPath = await writeCanvasPreview(folderPath, canvas);
-
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    canvas.projectId,
-    canvas.spaceId,
-    canvas.updatedAt,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, {
-    ...canvas,
-    thumbnailPath,
-  });
-  nextIndex = recordRecentInIndex(nextIndex, canvas.id);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: canvas.projectId,
-    lastOpenedSpaceId: canvas.spaceId,
-    lastOpenedItemId: canvas.id,
-    selectedProjectId: canvas.projectId,
-    selectedSpaceId: canvas.spaceId,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-  return canvas;
-}
-
-async function createPage(folderPath, projectId, spaceId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const pageName = requireName(name, "Page");
-  const pageId = createId();
-  const timestamp = nowIso();
-
-  await fs.mkdir(getSpacePagesPath(folderPath, space.projectId, space.id), { recursive: true });
-  await safeWriteText(getPagePath(folderPath, space.projectId, space.id, pageId), "");
-
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    space.projectId,
-    space.id,
-    timestamp,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, {
-    id: pageId,
-    projectId: space.projectId,
-    spaceId: space.id,
-    type: "page",
-    name: pageName,
-    updatedAt: timestamp,
-    excerpt: "",
-  });
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: uiState.lastOpenedProjectId ?? space.projectId,
-    lastOpenedSpaceId: uiState.lastOpenedSpaceId ?? space.id,
-    selectedProjectId: uiState.selectedProjectId ?? space.projectId,
-    selectedSpaceId: uiState.selectedSpaceId ?? space.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-
-  return {
-    id: pageId,
-    projectId: space.projectId,
-    spaceId: space.id,
-    type: "page",
-    name: pageName,
-    updatedAt: timestamp,
-  };
-}
-
-async function listProjects(folderPath) {
-  const index = await loadIndex(folderPath);
-  return [...index.projects];
-}
-
-async function getProject(folderPath, projectId) {
-  await ensureWorkspaceReady(folderPath);
-  return ensureProject(folderPath, projectId);
-}
-
-async function listSpaces(folderPath, projectId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const index = await loadIndex(folderPath);
-  await ensureProject(folderPath, normalizedProjectId);
-  return index.spaces.filter((entry) => entry.projectId === normalizedProjectId);
-}
-
-async function getSpace(folderPath, projectId, spaceId) {
-  await ensureWorkspaceReady(folderPath);
-  return ensureSpace(folderPath, projectId, spaceId);
-}
-
-async function listItems(folderPath, projectId, spaceId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const index = await loadIndex(folderPath);
-  await ensureSpace(folderPath, normalizedProjectId, normalizedSpaceId);
-  return index.items.filter((entry) => (
-    entry.projectId === normalizedProjectId
-    && entry.spaceId === normalizedSpaceId
-  ));
-}
-
-async function loadCanvas(folderPath, projectId, spaceId, canvasId) {
-  const { metadata, index, uiState } = await ensureWorkspaceReady(folderPath);
-  const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
-  const thumbnailPath = await resolveExistingRelativePath(
-    folderPath,
-    getCanvasPreviewRelativePath(canvas.id),
-  );
-  let nextIndex = updateIndexItem(index, {
-    ...canvas,
-    thumbnailPath,
-  });
-  nextIndex = recordRecentInIndex(nextIndex, canvas.id);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: canvas.projectId,
-    lastOpenedSpaceId: canvas.spaceId,
-    lastOpenedItemId: canvas.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, metadata);
-  return canvas;
-}
-
-async function saveCanvas(folderPath, projectId, spaceId, canvasId, data) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const existingCanvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
-  const canvas = rendererWorkspaceToCanvasDocument(
-    existingCanvas.projectId,
-    existingCanvas.spaceId,
-    existingCanvas.id,
-    existingCanvas.name,
-    data,
-    existingCanvas,
-  );
-
-  await writeCanvas(folderPath, canvas);
-  const thumbnailPath = await writeCanvasPreview(folderPath, canvas);
-
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    canvas.projectId,
-    canvas.spaceId,
-    canvas.updatedAt,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, {
-    ...canvas,
-    thumbnailPath,
-  });
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: canvas.projectId,
-    lastOpenedSpaceId: canvas.spaceId,
-    lastOpenedItemId: canvas.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-  return canvas;
-}
-
-async function loadPage(folderPath, projectId, spaceId, pageId) {
-  const { metadata, index, uiState } = await ensureWorkspaceReady(folderPath);
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const normalizedPageId = requireId(pageId, "Page id");
-
-  await ensureSpace(folderPath, normalizedProjectId, normalizedSpaceId);
-
-  const markdown = await readPageMarkdown(folderPath, normalizedProjectId, normalizedSpaceId, normalizedPageId);
-  const item = index.items.find((entry) => entry.id === normalizedPageId && entry.type === "page");
-  const page = {
-    id: normalizedPageId,
-    projectId: normalizedProjectId,
-    spaceId: normalizedSpaceId,
-    type: "page",
-    name: item?.name ?? resolvePageName(markdown, normalizedPageId),
-    markdown,
-    updatedAt: item?.updatedAt ?? await getPageUpdatedAt(
-      folderPath,
-      normalizedProjectId,
-      normalizedSpaceId,
-      normalizedPageId,
-    ),
-  };
-  let nextIndex = updateIndexItem(index, {
-    ...page,
-    excerpt: extractPageExcerpt(markdown),
-  });
-  nextIndex = recordRecentInIndex(nextIndex, page.id);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: page.projectId,
-    lastOpenedSpaceId: page.spaceId,
-    lastOpenedItemId: page.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, metadata);
-  return page;
-}
-
-async function savePage(folderPath, projectId, spaceId, pageId, markdown) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const normalizedPageId = requireId(pageId, "Page id");
-  const nextMarkdown = typeof markdown === "string" ? markdown : String(markdown ?? "");
-
-  await safeWriteText(
-    getPagePath(folderPath, space.projectId, space.id, normalizedPageId),
-    nextMarkdown,
-  );
-
-  const timestamp = nowIso();
-  const existingItem = index.items.find((entry) => entry.id === normalizedPageId && entry.type === "page");
-  const nextPage = {
-    id: normalizedPageId,
-    projectId: space.projectId,
-    spaceId: space.id,
-    type: "page",
-    name: existingItem?.name ?? resolvePageName(nextMarkdown, DEFAULT_PAGE_NAME),
-    updatedAt: timestamp,
-    excerpt: extractPageExcerpt(nextMarkdown),
-  };
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    space.projectId,
-    space.id,
-    timestamp,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, nextPage);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: space.projectId,
-    lastOpenedSpaceId: space.id,
-    lastOpenedItemId: normalizedPageId,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, workspaceMetadata);
-
-  return {
-    ...nextPage,
-    markdown: nextMarkdown,
-  };
-}
-
-async function renameProject(folderPath, projectId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const project = await ensureProject(folderPath, projectId);
-  const renamedProject = {
-    ...project,
-    name: requireName(name, "Project"),
-    updatedAt: nowIso(),
-  };
-
-  await writeProject(folderPath, renamedProject);
-
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  const nextIndex = updateIndexProject(index, renamedProject);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return renamedProject;
-}
-
-async function renameSpace(folderPath, projectId, spaceId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const timestamp = nowIso();
-  const renamedSpace = {
-    ...space,
-    name: requireName(name, "Space"),
-    updatedAt: timestamp,
-  };
-
-  await writeSpace(folderPath, renamedSpace);
-
-  const updatedProject = await touchProject(folderPath, renamedSpace.projectId, timestamp);
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, renamedSpace);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return renamedSpace;
-}
-
-async function renameCanvas(folderPath, projectId, spaceId, canvasId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
-  const renamedCanvas = {
-    ...canvas,
-    name: requireName(name, "Canvas"),
-    updatedAt: nowIso(),
-  };
-
-  await writeCanvas(folderPath, renamedCanvas);
-  const thumbnailPath = await writeCanvasPreview(folderPath, renamedCanvas);
-
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    renamedCanvas.projectId,
-    renamedCanvas.spaceId,
-    renamedCanvas.updatedAt,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, {
-    ...renamedCanvas,
-    thumbnailPath,
-  });
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return renamedCanvas;
-}
-
-async function renamePage(folderPath, projectId, spaceId, pageId, name) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const normalizedPageId = requireId(pageId, "Page id");
-  const existingItem = index.items.find((entry) => entry.id === normalizedPageId && entry.type === "page");
-  const timestamp = nowIso();
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    space.projectId,
-    space.id,
-    timestamp,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = updateIndexProject(index, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  nextIndex = updateIndexItem(nextIndex, {
-    id: normalizedPageId,
-    projectId: space.projectId,
-    spaceId: space.id,
-    type: "page",
-    name: requireName(name, "Page"),
-    updatedAt: timestamp,
-    excerpt: existingItem?.excerpt ?? "",
-  });
-
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-
-  return nextIndex.items.find((entry) => entry.id === normalizedPageId && entry.type === "page") ?? null;
-}
-
-async function deleteProject(folderPath, projectId) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const normalizedProjectId = requireId(projectId, "Project id");
-  await ensureProject(folderPath, normalizedProjectId);
-  const previewItems = index.items.filter((entry) => entry.projectId === normalizedProjectId);
-  await fs.rm(getProjectPath(folderPath, normalizedProjectId), { recursive: true, force: true });
-  await Promise.all(previewItems.map((entry) => removeRelativeFile(folderPath, entry.thumbnailPath)));
-
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  const nextIndex = removeProjectFromIndex(index, normalizedProjectId);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return { deleted: true };
-}
-
-async function deleteSpace(folderPath, projectId, spaceId) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  await ensureSpace(folderPath, normalizedProjectId, normalizedSpaceId);
-  const previewItems = index.items.filter((entry) => entry.spaceId === normalizedSpaceId);
-  await fs.rm(getSpacePath(folderPath, normalizedProjectId, normalizedSpaceId), { recursive: true, force: true });
-  await Promise.all(previewItems.map((entry) => removeRelativeFile(folderPath, entry.thumbnailPath)));
-
-  const updatedProject = await touchProject(folderPath, normalizedProjectId);
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = removeSpaceFromIndex(index, normalizedSpaceId);
-  nextIndex = updateIndexProject(nextIndex, updatedProject);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return { deleted: true };
-}
-
-async function deleteCanvas(folderPath, projectId, spaceId, canvasId) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const canvas = await ensureCanvas(folderPath, projectId, spaceId, canvasId);
-  const existingItem = index.items.find((entry) => entry.id === canvas.id);
-  await fs.rm(getCanvasPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id), { force: true });
-  await fs.rm(getCanvasAssetsPath(folderPath, canvas.projectId, canvas.spaceId, canvas.id), {
-    recursive: true,
-    force: true,
-  }).catch(() => {});
-  await removeRelativeFile(
-    folderPath,
-    existingItem?.thumbnailPath ?? getCanvasPreviewRelativePath(canvas.id),
-  );
-
-  const timestamp = nowIso();
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    canvas.projectId,
-    canvas.spaceId,
-    timestamp,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = removeItemFromIndex(index, canvas.id);
-  nextIndex = updateIndexProject(nextIndex, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return { deleted: true };
-}
-
-async function deletePage(folderPath, projectId, spaceId, pageId) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const space = await ensureSpace(folderPath, projectId, spaceId);
-  const normalizedPageId = requireId(pageId, "Page id");
-  await fs.rm(getPagePath(folderPath, space.projectId, space.id, normalizedPageId), { force: true });
-
-  const timestamp = nowIso();
-  const { project: updatedProject, space: updatedSpace } = await touchProjectAndSpace(
-    folderPath,
-    space.projectId,
-    space.id,
-    timestamp,
-  );
-  const workspaceMetadata = await touchWorkspaceMetadata(folderPath);
-  let nextIndex = removeItemFromIndex(index, normalizedPageId);
-  nextIndex = updateIndexProject(nextIndex, updatedProject);
-  nextIndex = updateIndexSpace(nextIndex, updatedSpace);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, workspaceMetadata);
-  return { deleted: true };
-}
-
-async function loadIndex(folderPath) {
-  const { index } = await ensureWorkspaceReady(folderPath);
-  return index;
-}
-
-async function saveIndex(folderPath, index) {
-  const { metadata, uiState } = await ensureWorkspaceReady(folderPath);
-  const nextIndex = await writeIndexMetadata(folderPath, index, metadata);
-  await writeUiStateMetadata(folderPath, uiState, nextIndex);
-  return nextIndex;
-}
-
-async function getRecentItems(folderPath) {
-  const index = await loadIndex(folderPath);
-  return getOrderedItems(index, index.recentItemIds);
-}
-
-async function getStarredItems(folderPath) {
-  const index = await loadIndex(folderPath);
-  return getOrderedItems(index, index.starredItemIds);
-}
-
-async function getProjectsSummary(folderPath) {
-  const index = await loadIndex(folderPath);
-  return [...index.projects]
-    .map((project) => buildProjectSummary(index, project))
-    .sort(compareByUpdatedAtDesc);
-}
-
-async function getProjectContents(folderPath, projectId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const index = await loadIndex(folderPath);
-  const projectsById = getProjectMap(index);
-  const spacesById = getSpaceMap(index);
-  const project = projectsById.get(normalizedProjectId);
-
-  if (!project) {
-    throw new Error(`Project "${normalizedProjectId}" does not exist.`);
-  }
-
-  const spaces = index.spaces
-    .filter((entry) => entry.projectId === normalizedProjectId)
-    .map((space) => ({
-      ...buildSpaceSummary(index, space),
-      items: index.items
-        .filter((item) => item.projectId === normalizedProjectId && item.spaceId === space.id)
-        .map((item) => decorateItemForHome(item, projectsById, spacesById))
-        .sort(compareByUpdatedAtDesc),
-    }))
-    .sort(compareByUpdatedAtDesc);
-
-  return {
-    project: buildProjectSummary(index, project),
-    spaces,
-    items: index.items
-      .filter((entry) => entry.projectId === normalizedProjectId)
-      .map((item) => decorateItemForHome(item, projectsById, spacesById))
-      .sort(compareByUpdatedAtDesc),
-  };
-}
-
-async function getSpaceContents(folderPath, projectId, spaceId) {
-  const normalizedProjectId = requireId(projectId, "Project id");
-  const normalizedSpaceId = requireId(spaceId, "Space id");
-  const index = await loadIndex(folderPath);
-  const projectsById = getProjectMap(index);
-  const spacesById = getSpaceMap(index);
-  const project = projectsById.get(normalizedProjectId);
-  const space = spacesById.get(normalizedSpaceId);
-
-  if (!project) {
-    throw new Error(`Project "${normalizedProjectId}" does not exist.`);
-  }
-
-  if (!space || space.projectId !== normalizedProjectId) {
-    throw new Error(`Space "${normalizedSpaceId}" does not exist.`);
-  }
-
-  return {
-    project: buildProjectSummary(index, project),
-    space: buildSpaceSummary(index, space),
-    items: index.items
-      .filter((entry) => entry.projectId === normalizedProjectId && entry.spaceId === normalizedSpaceId)
-      .map((item) => decorateItemForHome(item, projectsById, spacesById))
-      .sort(compareByUpdatedAtDesc),
-  };
-}
-
-async function getHomeData(folderPath) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-
-  return {
-    workspace: index.workspace,
-    projects: [...index.projects]
-      .map((project) => buildProjectSummary(index, project))
-      .sort(compareByUpdatedAtDesc),
-    recentItems: getOrderedItems(index, index.recentItemIds),
-    starredItems: getOrderedItems(index, index.starredItemIds),
-    uiState,
-  };
-}
-
-async function markItemStarred(folderPath, itemId, starred) {
-  const { metadata, index, uiState } = await ensureWorkspaceReady(folderPath);
-  const normalizedItemId = requireId(itemId, "Item id");
-  const item = index.items.find((entry) => entry.id === normalizedItemId);
-
-  if (!item) {
-    throw new Error(`Item "${normalizedItemId}" does not exist.`);
-  }
-
-  const nextIndex = setItemStarredInIndex(index, normalizedItemId, starred === true);
-  await writeIndexAndUiState(folderPath, nextIndex, uiState, metadata);
-  return nextIndex.items.find((entry) => entry.id === normalizedItemId) ?? null;
-}
-
-async function recordRecentItem(folderPath, itemId) {
-  const { metadata, index, uiState } = await ensureWorkspaceReady(folderPath);
-  const normalizedItemId = requireId(itemId, "Item id");
-  const item = index.items.find((entry) => entry.id === normalizedItemId);
-
-  if (!item) {
-    throw new Error(`Item "${normalizedItemId}" does not exist.`);
-  }
-
-  const nextIndex = recordRecentInIndex(index, normalizedItemId);
-  const nextUiState = {
-    ...uiState,
-    lastOpenedProjectId: item.projectId,
-    lastOpenedSpaceId: item.spaceId,
-    lastOpenedItemId: item.id,
-  };
-
-  await writeIndexAndUiState(folderPath, nextIndex, nextUiState, metadata);
-  return getOrderedItems(nextIndex, nextIndex.recentItemIds);
-}
-
-async function loadUiState(folderPath) {
-  const { uiState } = await ensureWorkspaceReady(folderPath);
-  return uiState;
-}
-
-async function saveUiState(folderPath, partialState) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  return writeUiStateMetadata(folderPath, {
-    ...uiState,
-    ...(isPlainObject(partialState) ? partialState : {}),
-  }, index);
-}
-
-async function inspectCreateWorkspaceIssues(folderPath) {
-  const issues = [];
-
-  if (await pathExists(getPhaseOneWorkspacePath(folderPath)) || await pathExists(getLegacyDataPath(folderPath))) {
-    issues.push("Legacy AirPaste data already exists in this folder. Use Open existing workspace instead.");
-  }
-
-  if (await pathExists(getWorkspaceMetadataPath(folderPath))) {
-    issues.push("airpaste.json already exists. Use Open existing workspace or choose another folder.");
-  }
-
-  if (await pathExists(getProjectsPath(folderPath))) {
-    issues.push("projects/ already exists. Use Open existing workspace or choose another folder.");
-  }
-
-  if (await pathExists(getWorkspaceIndexDirectoryPath(folderPath))) {
-    issues.push(".airpaste already exists. Use Open existing workspace or choose another folder.");
-  }
-
-  return issues;
-}
-
-async function createWorkspace(folderPath) {
-  if (!(await isDirectory(folderPath))) {
-    throw new Error("Selected folder is no longer available.");
-  }
-
-  if (await isValidWorkspace(folderPath)) {
-    throw new Error("This folder is already a valid AirPaste workspace. Use Open existing workspace instead.");
-  }
-
-  const issues = await inspectCreateWorkspaceIssues(folderPath);
-
-  if (issues.length > 0) {
-    throw createValidationError(issues);
-  }
-
-  await fs.mkdir(getProjectsPath(folderPath), { recursive: true });
-  await fs.mkdir(getWorkspaceIndexDirectoryPath(folderPath), { recursive: true });
-  await writeWorkspaceMetadata(folderPath, createWorkspaceMetadataPayload(folderPath));
-  await writeIndexMetadata(folderPath, cloneDefaultIndexMetadata());
-  await safeWriteJson(getWorkspaceUiStatePath(folderPath), cloneDefaultUiState());
-
-  const project = await createProject(folderPath, DEFAULT_PROJECT_NAME);
-  const space = await createSpace(folderPath, project.id, DEFAULT_SPACE_NAME);
-  const canvas = await createCanvas(folderPath, project.id, space.id, DEFAULT_CANVAS_NAME);
-
-  return {
-    folderPath,
-    projectId: project.id,
-    spaceId: space.id,
-    canvasId: canvas.id,
-    workspace: canvasDocumentToRendererWorkspace(canvas),
-  };
-}
-
-async function readLegacyWorkspace(folderPath) {
-  const candidates = [
-    {
-      filePath: getPhaseOneWorkspacePath(folderPath),
-      label: "workspace.json",
-      source: "workspace.json",
-    },
-    {
-      filePath: getLegacyDataPath(folderPath),
-      label: "data.json",
-      source: "data.json",
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const stats = await statOrNull(candidate.filePath);
-
-    if (!stats) {
-      continue;
-    }
-
-    if (!stats.isFile()) {
-      throw createValidationError([`${candidate.label} must be a file.`]);
-    }
-
-    return {
-      source: candidate.source,
-      workspace: normalizeRendererWorkspace(await readJsonObject(candidate.filePath, candidate.label)),
-    };
-  }
-
+  const dir = path.dirname(filePath);
+  const temp = `${filePath}${TEMP_SUFFIX}`;
+  const backup = `${filePath}${BACKUP_SUFFIX}`;
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(temp, text, "utf8");
+  await fs.rm(backup, { force: true }).catch(() => {});
+  if (await exists(filePath)) await fs.rename(filePath, backup);
+  await fs.rename(temp, filePath);
+  await fs.rm(backup, { force: true }).catch(() => {});
+}
+
+async function safeWriteJson(filePath, value) {
+  await safeWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function detectType(fileName) {
+  const lower = String(fileName ?? "").toLowerCase();
+  if (lower.endsWith(CANVAS_SUFFIX)) return "canvas";
+  if (lower.endsWith(".md")) return "page";
+  const ext = fileExt(lower);
+  if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) return "asset";
   return null;
 }
 
-async function migrateLegacyWorkspaceToPhaseTwo(folderPath) {
-  const legacyWorkspace = await readLegacyWorkspace(folderPath);
+function markdownName(markdown, fallback) {
+  const heading = String(markdown ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("#"));
+  if (!heading) return fallback;
+  const title = heading.replace(/^#+\s*/, "").trim();
+  return title || fallback;
+}
 
-  if (!legacyWorkspace) {
-    return null;
-  }
+function markdownExcerpt(markdown) {
+  return String(markdown ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ")
+    .slice(0, 220);
+}
 
-  const metadata = await pathExists(getWorkspaceMetadataPath(folderPath))
-    ? normalizeWorkspaceMetadata(await readJsonObject(getWorkspaceMetadataPath(folderPath), "airpaste.json"), folderPath)
-    : createWorkspaceMetadataPayload(folderPath);
-  const projectId = createId();
-  const spaceId = createId();
-  const canvasId = createId();
-  const project = createProjectMetadata(DEFAULT_PROJECT_NAME, projectId);
-  const space = createSpaceMetadata(projectId, DEFAULT_SPACE_NAME, spaceId);
-  const canvas = createCanvasDocument(projectId, spaceId, DEFAULT_CANVAS_NAME, canvasId, legacyWorkspace.workspace);
-
-  await fs.mkdir(getProjectsPath(folderPath), { recursive: true });
-  await fs.mkdir(getWorkspaceIndexDirectoryPath(folderPath), { recursive: true });
-  const workspaceMetadata = await writeWorkspaceMetadata(folderPath, {
-    ...metadata,
-    updatedAt: nowIso(),
-  });
-  await fs.mkdir(getProjectSpacesPath(folderPath, projectId), { recursive: true });
-  await writeProject(folderPath, project);
-  await fs.mkdir(getSpaceCanvasesPath(folderPath, projectId, spaceId), { recursive: true });
-  await fs.mkdir(getSpacePagesPath(folderPath, projectId, spaceId), { recursive: true });
-  await writeSpace(folderPath, space);
-  await writeCanvas(folderPath, canvas);
-  const thumbnailPath = await writeCanvasPreview(folderPath, canvas);
-  const migratedIndex = await writeIndexMetadata(folderPath, {
-    version: INDEX_METADATA_VERSION,
-    workspace: {
-      name: workspaceMetadata.name,
-      createdAt: workspaceMetadata.createdAt,
-      updatedAt: workspaceMetadata.updatedAt,
-    },
-    projects: [
-      {
-        id: project.id,
-        type: "project",
-        name: project.name,
-        relativePath: getProjectRelativePath(project.id),
-        updatedAt: project.updatedAt,
-      },
-    ],
-    spaces: [
-      {
-        id: space.id,
-        projectId: space.projectId,
-        type: "space",
-        name: space.name,
-        relativePath: getSpaceRelativePath(space.projectId, space.id),
-        updatedAt: space.updatedAt,
-      },
-    ],
-    items: [
-      {
-        id: canvas.id,
-        projectId: canvas.projectId,
-        spaceId: canvas.spaceId,
-        type: "canvas",
-        name: canvas.name,
-        relativePath: getCanvasRelativePath(canvas.projectId, canvas.spaceId, canvas.id),
-        updatedAt: canvas.updatedAt,
-        starred: false,
-        thumbnailPath,
-        excerpt: "",
-      },
-    ],
-    recentItemIds: [canvas.id],
-    starredItemIds: [],
-  }, workspaceMetadata);
-  await writeUiStateMetadata(folderPath, {
-    lastOpenedProjectId: project.id,
-    lastOpenedSpaceId: space.id,
-    lastOpenedItemId: canvas.id,
-  }, migratedIndex);
-
+function mapItemForResponse(root, item) {
   return {
-    projectId: project.id,
-    spaceId: space.id,
-    canvasId: canvas.id,
-    workspace: canvasDocumentToRendererWorkspace(canvas),
+    path: item.path,
+    filePath: resolveWorkspacePath(root, item.path),
+    type: item.type,
+    name: item.name,
+    updatedAt: item.updatedAt,
+    starred: item.starred === true,
+    thumbnail: item.thumbnail ?? null,
+    thumbnailPath: item.thumbnail ?? null,
+    excerpt: item.excerpt ?? "",
   };
 }
 
-async function listDirectoryEntries(directoryPath) {
-  try {
-    const entries = await fs.readdir(directoryPath, { withFileTypes: true });
-    return [...entries].sort((left, right) => left.name.localeCompare(right.name));
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
-  }
+function compareUpdatedDesc(a, b) {
+  if (a.updatedAt === b.updatedAt) return a.name.localeCompare(b.name);
+  return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
 }
 
-async function rebuildIndex(folderPath) {
-  const { metadata } = await ensureWorkspacePrepared(folderPath);
-  let existingIndex = null;
+function previewRelativePath(relativeCanvasPath) {
+  const hash = createHash("sha1").update(relativeCanvasPath).digest("hex").slice(0, 16);
+  return path.posix.join(INTERNAL_DIR, PREVIEWS_DIR, `${hash}.svg`);
+}
 
-  try {
-    existingIndex = (await readIndexMetadata(folderPath, metadata)).index;
-  } catch {
-    existingIndex = null;
+function buildPreviewSvg(workspace, title) {
+  const cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
+  const label = firstString(title, cards.length > 0 ? `${cards.length} items` : "Empty canvas");
+  const safeLabel = label.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
+  return [
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"360\" viewBox=\"0 0 640 360\">",
+    "<defs><linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0%\" stop-color=\"#111315\"/><stop offset=\"100%\" stop-color=\"#0b0d10\"/></linearGradient></defs>",
+    "<rect x=\"0\" y=\"0\" width=\"640\" height=\"360\" fill=\"url(#bg)\"/>",
+    `<text x="24" y="334" fill="rgba(236,238,241,.76)" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="600">${safeLabel}</text>`,
+    "</svg>",
+  ].join("\n");
+}
+
+async function writePreview(root, relativePath, workspace, title) {
+  const rel = previewRelativePath(relativePath);
+  await safeWriteText(resolveWorkspacePath(root, rel), buildPreviewSvg(workspace, title));
+  return rel;
+}
+
+function defaultIndex(meta) {
+  return {
+    version: INDEX_VERSION,
+    workspace: {
+      name: meta.name,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+    },
+    items: [],
+    recentItemPaths: [],
+    starredItemPaths: [],
+  };
+}
+
+function normalizeUiState(uiState) {
+  const safe = isObject(uiState) ? uiState : {};
+  return {
+    ...DEFAULT_UI_STATE,
+    ...safe,
+    version: UI_STATE_VERSION,
+    selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
+    homeView: ["grid", "list"].includes(safe.homeView) ? safe.homeView : "grid",
+    sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
+    filter: ["all", "canvases", "pages", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
+    currentFolderPath: normalizeFolder(safe.currentFolderPath),
+    lastOpenedItemPath: typeof safe.lastOpenedItemPath === "string" ? normalizeRel(safe.lastOpenedItemPath, "") : null,
+    lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
+  };
+}
+
+async function ensureRootReady(root) {
+  if (!(await isDirectory(root))) throw new Error("Selected folder is no longer available.");
+  await fs.mkdir(internalPath(root), { recursive: true });
+  await fs.mkdir(previewDirPath(root), { recursive: true });
+  await fs.mkdir(assetsDirPath(root), { recursive: true });
+
+  const metaFile = workspaceMetaPath(root);
+  const meta = (await exists(metaFile))
+    ? await readJson(metaFile, WORKSPACE_META_FILE)
+    : {
+      version: 3,
+      name: path.basename(root),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+  meta.version = 3;
+  meta.name = firstString(meta.name, path.basename(root));
+  meta.createdAt = typeof meta.createdAt === "string" ? meta.createdAt : nowIso();
+  meta.updatedAt = nowIso();
+  await safeWriteJson(metaFile, meta);
+  return meta;
+}
+
+async function uniqueFile(initialPath) {
+  let next = initialPath;
+  let n = 2;
+  while (await exists(next)) {
+    const ext = path.extname(initialPath);
+    const stem = initialPath.slice(0, -ext.length);
+    next = `${stem} ${n}${ext}`;
+    n += 1;
+  }
+  return next;
+}
+
+async function migrateLegacy(root) {
+  for (const legacyName of LEGACY_FILES) {
+    const legacyPath = path.join(root, legacyName);
+    if (!(await exists(legacyPath))) continue;
+    const raw = await readJson(legacyPath, legacyName);
+    const filePath = await uniqueFile(path.join(root, `${DEFAULT_WORKSPACE_NAME}${CANVAS_SUFFIX}`));
+    const payload = {
+      version: 2,
+      type: "canvas",
+      name: DEFAULT_WORKSPACE_NAME,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
+      cards: Array.isArray(raw.cards) ? raw.cards : [],
+    };
+    await safeWriteJson(filePath, payload);
+    await fs.rm(legacyPath, { force: true });
   }
 
-  const preservedItemState = new Map(
-    (existingIndex?.items ?? []).map((entry) => [entry.id, entry]),
-  );
-  const projects = [];
-  const spaces = [];
-  const items = [];
+  const legacyProjects = path.join(root, PROJECTS_DIR);
+  if (!(await exists(legacyProjects))) return;
 
-  for (const projectEntry of await listDirectoryEntries(getProjectsPath(folderPath))) {
-    if (!projectEntry.isDirectory()) {
-      continue;
-    }
-
-    const project = await readProject(folderPath, projectEntry.name);
-    projects.push({
-      id: project.id,
-      type: "project",
-      name: project.name,
-      relativePath: getProjectRelativePath(project.id),
-      updatedAt: project.updatedAt,
-    });
-
-    for (const spaceEntry of await listDirectoryEntries(getProjectSpacesPath(folderPath, project.id))) {
-      if (!spaceEntry.isDirectory()) {
+  const queue = [legacyProjects];
+  while (queue.length > 0) {
+    const dir = queue.shift();
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(abs);
         continue;
       }
+      if (!entry.isFile()) continue;
 
-      const space = await readSpace(folderPath, project.id, spaceEntry.name);
-      spaces.push({
-        id: space.id,
-        projectId: space.projectId,
-        type: "space",
-        name: space.name,
-        relativePath: getSpaceRelativePath(space.projectId, space.id),
-        updatedAt: space.updatedAt,
-      });
+      const lower = entry.name.toLowerCase();
+      if (lower === "project.json" || lower === "space.json") continue;
 
-      for (const canvasEntry of await listDirectoryEntries(getSpaceCanvasesPath(folderPath, project.id, space.id))) {
-        if (!canvasEntry.isFile() || !canvasEntry.name.endsWith(".json")) {
+      if (lower.endsWith(".md") && abs.includes(`${path.sep}pages${path.sep}`)) {
+        const md = await readText(abs, "");
+        const name = markdownName(md, stripExt(entry.name) || "Page");
+        await safeWriteText(await uniqueFile(path.join(root, `${sanitizeName(name, "Page")}.md`)), md);
+      } else if (lower.endsWith(".json") && abs.includes(`${path.sep}canvases${path.sep}`)) {
+        let raw;
+        try {
+          raw = await readJson(abs, entry.name);
+        } catch {
           continue;
         }
-
-        const canvasId = canvasEntry.name.slice(0, -".json".length);
-        const canvas = await readCanvas(folderPath, project.id, space.id, canvasId);
-        const preservedState = preservedItemState.get(canvas.id);
-        const thumbnailPath = await writeCanvasPreview(folderPath, canvas);
-
-        items.push({
-          id: canvas.id,
-          projectId: canvas.projectId,
-          spaceId: canvas.spaceId,
+        const name = firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas");
+        await safeWriteJson(await uniqueFile(path.join(root, `${sanitizeName(name, "Canvas")}${CANVAS_SUFFIX}`)), {
+          version: 2,
           type: "canvas",
-          name: canvas.name,
-          relativePath: getCanvasRelativePath(canvas.projectId, canvas.spaceId, canvas.id),
-          updatedAt: canvas.updatedAt,
-          starred: preservedState?.starred === true,
-          thumbnailPath: thumbnailPath ?? await resolveExistingRelativePath(folderPath, preservedState?.thumbnailPath),
+          name,
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+          viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
+          cards: Array.isArray(raw.tiles) ? raw.tiles : Array.isArray(raw.cards) ? raw.cards : [],
+        });
+      }
+    }
+  }
+
+  await fs.rm(legacyProjects, { recursive: true, force: true });
+}
+
+async function scanFiles(root) {
+  const items = [];
+  const stack = [root];
+
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      const rel = normalizeRel(path.relative(root, abs), "");
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue;
+        stack.push(abs);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      const type = detectType(entry.name);
+      if (!type) continue;
+
+      const stat = await fs.stat(abs);
+      if (type === "canvas") {
+        let name = stripCanvasSuffix(entry.name) || "Canvas";
+        let workspace = DEFAULT_WORKSPACE;
+        try {
+          const raw = await readJson(abs, entry.name);
+          name = firstString(raw.name, name);
+          workspace = {
+            version: Number.isFinite(raw.version) ? raw.version : 5,
+            viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
+            cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
+          };
+        } catch {
+          // Keep corrupt files visible for rename/delete.
+        }
+        items.push({ path: rel, type, name, updatedAt: stat.mtime.toISOString(), excerpt: "", workspace });
+      } else if (type === "page") {
+        const markdown = await readText(abs, "");
+        items.push({
+          path: rel,
+          type,
+          name: markdownName(markdown, stripExt(entry.name) || "Page"),
+          updatedAt: stat.mtime.toISOString(),
+          excerpt: markdownExcerpt(markdown),
+        });
+      } else {
+        items.push({
+          path: rel,
+          type,
+          name: stripExt(entry.name) || entry.name,
+          updatedAt: stat.mtime.toISOString(),
           excerpt: "",
         });
       }
+    }
+  }
 
-      for (const pageEntry of await listDirectoryEntries(getSpacePagesPath(folderPath, project.id, space.id))) {
-        if (!pageEntry.isFile() || !pageEntry.name.endsWith(".md")) {
-          continue;
-        }
+  return items.sort((a, b) => a.path.localeCompare(b.path));
+}
 
-        const pageId = pageEntry.name.slice(0, -".md".length);
-        const markdown = await readPageMarkdown(folderPath, project.id, space.id, pageId);
-        const preservedState = preservedItemState.get(pageId);
+async function rebuildIndex(root) {
+  await migrateLegacy(root);
+  const meta = await ensureRootReady(root);
+  const prev = (await exists(indexPath(root))) ? await readJson(indexPath(root), INDEX_FILE) : defaultIndex(meta);
+  const scanned = await scanFiles(root);
+  const prevByPath = new Map((Array.isArray(prev.items) ? prev.items : []).map((item) => [normalizeRel(item.path, ""), item]));
 
-        items.push({
-          id: pageId,
-          projectId: project.id,
-          spaceId: space.id,
-          type: "page",
-          name: preservedState?.name ?? resolvePageName(markdown, pageId),
-          relativePath: getPageRelativePath(project.id, space.id, pageId),
-          updatedAt: await getPageUpdatedAt(folderPath, project.id, space.id, pageId),
-          starred: preservedState?.starred === true,
-          thumbnailPath: null,
-          excerpt: extractPageExcerpt(markdown),
-        });
+  const items = [];
+  for (const scannedItem of scanned) {
+    const prevItem = prevByPath.get(scannedItem.path);
+    let thumbnail = prevItem?.thumbnail ?? prevItem?.thumbnailPath ?? null;
+    if (scannedItem.type === "canvas") {
+      const thumbAbs = thumbnail ? resolveWorkspacePath(root, thumbnail) : null;
+      if (!thumbnail || !(await exists(thumbAbs))) {
+        thumbnail = await writePreview(root, scannedItem.path, scannedItem.workspace, scannedItem.name);
       }
+    } else {
+      thumbnail = null;
     }
+    items.push({
+      path: scannedItem.path,
+      type: scannedItem.type,
+      name: scannedItem.name,
+      updatedAt: scannedItem.updatedAt,
+      starred: prevItem?.starred === true,
+      thumbnail,
+      excerpt: scannedItem.excerpt ?? "",
+    });
   }
 
-  const nextIndex = normalizeIndexCollections(normalizeIndexMetadata({
-    version: INDEX_METADATA_VERSION,
+  const pathSet = new Set(items.map((item) => item.path));
+  const recentItemPaths = (Array.isArray(prev.recentItemPaths) ? prev.recentItemPaths : [])
+    .map((value) => normalizeRel(value, ""))
+    .filter((value, index, list) => value && list.indexOf(value) === index && pathSet.has(value))
+    .slice(0, MAX_RECENTS);
+  const starredItemPaths = items.filter((item) => item.starred).map((item) => item.path);
+
+  const nextIndex = {
+    version: INDEX_VERSION,
     workspace: {
-      name: metadata.name,
-      createdAt: metadata.createdAt,
-      updatedAt: metadata.updatedAt,
+      name: meta.name,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
     },
-    projects,
-    spaces,
     items,
-    recentItemIds: existingIndex?.recentItemIds ?? [],
-    starredItemIds: existingIndex?.starredItemIds ?? [],
-  }, metadata));
-  const savedIndex = await writeIndexMetadata(folderPath, nextIndex, metadata);
-  const fallbackSelection = {
-    lastOpenedProjectId: savedIndex.items[0]?.projectId ?? null,
-    lastOpenedSpaceId: savedIndex.items[0]?.spaceId ?? null,
-    lastOpenedItemId: savedIndex.recentItemIds[0] ?? savedIndex.items[0]?.id ?? null,
+    recentItemPaths,
+    starredItemPaths,
   };
+  await safeWriteJson(indexPath(root), nextIndex);
 
-  await readUiStateMetadata(folderPath, savedIndex, fallbackSelection);
-  return savedIndex;
+  const prevUi = (await exists(uiStatePath(root))) ? await readJson(uiStatePath(root), UI_STATE_FILE) : DEFAULT_UI_STATE;
+  const uiState = normalizeUiState(prevUi);
+  if (uiState.lastOpenedItemPath && !pathSet.has(uiState.lastOpenedItemPath)) uiState.lastOpenedItemPath = null;
+  if (uiState.lastOpenedCanvasPath && !pathSet.has(uiState.lastOpenedCanvasPath)) uiState.lastOpenedCanvasPath = null;
+  await safeWriteJson(uiStatePath(root), uiState);
+
+  return { meta, index: nextIndex, uiState };
 }
 
-async function ensureWorkspaceReady(folderPath) {
-  const prepared = await ensureWorkspacePrepared(folderPath);
-  let indexState;
+async function ensureReady(root) {
+  return rebuildIndex(root);
+}
 
+async function workspaceRootFromFile(filePath) {
+  let dir = path.dirname(path.resolve(filePath));
+  while (true) {
+    if (await exists(workspaceMetaPath(dir)) || await exists(indexPath(dir))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+async function markItemStarred(root, filePath, starred) {
+  const { index } = await ensureReady(root);
+  const rel = toWorkspaceRel(root, filePath);
+  const item = index.items.find((entry) => entry.path === rel);
+  if (!item) throw new Error("The selected file no longer exists.");
+  const nextItems = index.items.map((entry) => (entry.path === rel ? { ...entry, starred: starred === true } : entry));
+  const next = {
+    ...index,
+    items: nextItems,
+    starredItemPaths: nextItems.filter((entry) => entry.starred).map((entry) => entry.path),
+  };
+  await safeWriteJson(indexPath(root), next);
+  return mapItemForResponse(root, nextItems.find((entry) => entry.path === rel));
+}
+
+async function recordRecentItem(root, filePath) {
+  const { index } = await ensureReady(root);
+  const rel = toWorkspaceRel(root, filePath);
+  if (!index.items.some((item) => item.path === rel)) throw new Error("The selected file no longer exists.");
+  const nextRecent = [rel, ...index.recentItemPaths.filter((item) => item !== rel)].slice(0, MAX_RECENTS);
+  await safeWriteJson(indexPath(root), { ...index, recentItemPaths: nextRecent });
+  const ui = normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
+  ui.lastOpenedItemPath = rel;
+  if (rel.endsWith(CANVAS_SUFFIX)) ui.lastOpenedCanvasPath = rel;
+  await safeWriteJson(uiStatePath(root), ui);
+  return nextRecent;
+}
+
+async function loadCanvas(filePath) {
+  const abs = path.resolve(filePath);
+  if (!abs.toLowerCase().endsWith(CANVAS_SUFFIX)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  const root = await workspaceRootFromFile(abs);
+  if (!root) throw new Error("Could not resolve the workspace for this canvas.");
+  await ensureReady(root);
+  ensureInside(root, abs);
+  const raw = await readJson(abs, path.basename(abs));
+  const stat = await fs.stat(abs);
+  const rel = toWorkspaceRel(root, abs);
+  const workspace = {
+    version: Number.isFinite(raw.version) ? raw.version : 5,
+    viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
+    cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
+  };
+  await recordRecentItem(root, abs);
+  return {
+    type: "canvas",
+    path: rel,
+    filePath: abs,
+    name: firstString(raw.name, stripCanvasSuffix(path.basename(abs))),
+    createdAt: raw.createdAt ?? stat.birthtime.toISOString(),
+    updatedAt: stat.mtime.toISOString(),
+    workspace,
+  };
+}
+
+async function saveCanvas(filePath, data) {
+  const abs = path.resolve(filePath);
+  if (!abs.toLowerCase().endsWith(CANVAS_SUFFIX)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  const root = await workspaceRootFromFile(abs);
+  if (!root) throw new Error("Could not resolve the workspace for this canvas.");
+  await ensureReady(root);
+  ensureInside(root, abs);
+  const existing = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
+  const workspace = isObject(data) ? data : DEFAULT_WORKSPACE;
+  const payload = {
+    version: 2,
+    type: "canvas",
+    name: firstString(existing.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
+    createdAt: typeof existing.createdAt === "string" ? existing.createdAt : nowIso(),
+    updatedAt: nowIso(),
+    viewport: isObject(workspace.viewport) ? workspace.viewport : DEFAULT_WORKSPACE.viewport,
+    cards: Array.isArray(workspace.cards) ? workspace.cards : [],
+  };
+  await safeWriteJson(abs, payload);
+  const rel = toWorkspaceRel(root, abs);
+  await writePreview(root, rel, payload, payload.name);
+  await ensureReady(root);
+  await recordRecentItem(root, abs);
+  return loadCanvas(abs);
+}
+
+async function loadPage(filePath) {
+  const abs = path.resolve(filePath);
+  if (!abs.toLowerCase().endsWith(".md")) throw new Error("Page path must end with .md.");
+  const root = await workspaceRootFromFile(abs);
+  if (!root) throw new Error("Could not resolve the workspace for this page.");
+  await ensureReady(root);
+  ensureInside(root, abs);
+  const markdown = await readText(abs, "");
+  const stat = await fs.stat(abs);
+  const rel = toWorkspaceRel(root, abs);
+  await recordRecentItem(root, abs);
+  return {
+    type: "page",
+    path: rel,
+    filePath: abs,
+    name: markdownName(markdown, stripExt(path.basename(abs)) || "Page"),
+    markdown,
+    createdAt: stat.birthtime.toISOString(),
+    updatedAt: stat.mtime.toISOString(),
+    excerpt: markdownExcerpt(markdown),
+  };
+}
+
+async function savePage(filePath, markdown) {
+  const abs = path.resolve(filePath);
+  if (!abs.toLowerCase().endsWith(".md")) throw new Error("Page path must end with .md.");
+  const root = await workspaceRootFromFile(abs);
+  if (!root) throw new Error("Could not resolve the workspace for this page.");
+  await ensureReady(root);
+  ensureInside(root, abs);
+  await safeWriteText(abs, String(markdown ?? ""));
+  await ensureReady(root);
+  await recordRecentItem(root, abs);
+  return loadPage(abs);
+}
+
+async function createCanvas(root, name, targetFolderPath = "") {
+  await ensureReady(root);
+  const dir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  await fs.mkdir(dir, { recursive: true });
+  const finalPath = await uniqueFile(path.join(dir, `${sanitizeName(firstString(name, "Canvas"), "Canvas")}${CANVAS_SUFFIX}`));
+  await safeWriteJson(finalPath, {
+    version: 2,
+    type: "canvas",
+    name: stripCanvasSuffix(path.basename(finalPath)),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    viewport: DEFAULT_WORKSPACE.viewport,
+    cards: [],
+  });
+  await ensureReady(root);
+  await recordRecentItem(root, finalPath);
+  return loadCanvas(finalPath);
+}
+
+async function createPage(root, name, targetFolderPath = "") {
+  await ensureReady(root);
+  const dir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  await fs.mkdir(dir, { recursive: true });
+  const base = sanitizeName(firstString(name, "Page"), "Page");
+  const finalPath = await uniqueFile(path.join(dir, `${base}.md`));
+  await safeWriteText(finalPath, `# ${stripExt(path.basename(finalPath))}\n\n`);
+  await ensureReady(root);
+  await recordRecentItem(root, finalPath);
+  return loadPage(finalPath);
+}
+
+async function renameFile(root, filePath, nextName) {
+  const rel = toWorkspaceRel(root, filePath);
+  const abs = resolveWorkspacePath(root, rel);
+  if (!(await exists(abs))) throw new Error("The selected file no longer exists.");
+  const type = detectType(path.basename(abs));
+  if (!type || type === "asset") throw new Error("Only canvas and page files can be renamed from AirPaste.");
+  const ext = type === "canvas" ? CANVAS_SUFFIX : ".md";
+  const renamed = await uniqueFile(path.join(path.dirname(abs), `${sanitizeName(nextName, "untitled")}${ext}`));
+  await fs.rename(abs, renamed);
+  if (type === "canvas") {
+    const payload = await readJson(renamed, path.basename(renamed));
+    payload.name = stripCanvasSuffix(path.basename(renamed));
+    payload.updatedAt = nowIso();
+    await safeWriteJson(renamed, payload);
+  }
+  await ensureReady(root);
+  return type === "canvas" ? loadCanvas(renamed) : loadPage(renamed);
+}
+
+async function deleteFile(root, filePath) {
+  const rel = toWorkspaceRel(root, filePath);
+  const abs = resolveWorkspacePath(root, rel);
+  if (!(await exists(abs))) return { deleted: false };
+  const type = detectType(path.basename(abs));
+  if (!type || type === "asset") throw new Error("Only canvas and page files can be deleted from AirPaste.");
+  await fs.rm(abs, { force: true });
+  await ensureReady(root);
+  return { deleted: true, path: rel };
+}
+
+async function listFiles(root) {
+  const { index } = await ensureReady(root);
+  return index.items.map((item) => mapItemForResponse(root, item)).sort(compareUpdatedDesc);
+}
+
+async function getRecentItems(root) {
+  const { index } = await ensureReady(root);
+  const byPath = new Map(index.items.map((item) => [item.path, item]));
+  return index.recentItemPaths.map((rel) => byPath.get(rel)).filter(Boolean).map((item) => mapItemForResponse(root, item));
+}
+
+async function getStarredItems(root) {
+  const { index } = await ensureReady(root);
+  return index.items.filter((item) => item.starred).sort(compareUpdatedDesc).map((item) => mapItemForResponse(root, item));
+}
+
+function folderSet(items) {
+  const set = new Set([""]);
+  for (const item of items) {
+    const parts = item.path.split("/");
+    let cursor = "";
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      cursor = cursor ? `${cursor}/${parts[index]}` : parts[index];
+      set.add(cursor);
+    }
+  }
+  return set;
+}
+
+async function getHomeData(root, requestedFolderPath = null) {
+  const { meta, index, uiState } = await ensureReady(root);
+  const folders = folderSet(index.items);
+  let currentFolderPath = normalizeFolder(requestedFolderPath ?? uiState.currentFolderPath);
+  if (!folders.has(currentFolderPath)) currentFolderPath = "";
+  if (currentFolderPath !== uiState.currentFolderPath) {
+    await saveUiState(root, { currentFolderPath });
+  }
+
+  const folderEntriesMap = new Map();
+  const files = [];
+  for (const item of index.items) {
+    const parent = normalizeFolder(path.posix.dirname(item.path));
+    if ((parent === "." ? "" : parent) === currentFolderPath) {
+      files.push(mapItemForResponse(root, item));
+      continue;
+    }
+    const prefix = currentFolderPath ? `${currentFolderPath}/` : "";
+    if (!item.path.startsWith(prefix)) continue;
+    const rest = item.path.slice(prefix.length);
+    const first = rest.split("/")[0];
+    if (!first || !rest.includes("/")) continue;
+    const folderPath = currentFolderPath ? `${currentFolderPath}/${first}` : first;
+    const existing = folderEntriesMap.get(folderPath);
+    if (!existing || existing.updatedAt < item.updatedAt) {
+      folderEntriesMap.set(folderPath, { type: "folder", path: folderPath, name: first, updatedAt: item.updatedAt });
+    }
+  }
+
+  const byPath = new Map(index.items.map((item) => [item.path, item]));
+  return {
+    workspace: {
+      name: meta.name,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+    },
+    currentFolderPath,
+    folders: [...folderEntriesMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    files: files.sort(compareUpdatedDesc),
+    allFiles: index.items.map((item) => mapItemForResponse(root, item)).sort(compareUpdatedDesc),
+    recentItems: index.recentItemPaths.map((rel) => byPath.get(rel)).filter(Boolean).map((item) => mapItemForResponse(root, item)),
+    starredItems: index.items.filter((item) => item.starred).sort(compareUpdatedDesc).map((item) => mapItemForResponse(root, item)),
+    uiState: normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE)),
+  };
+}
+
+async function loadUiState(root) {
+  await ensureReady(root);
+  return normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
+}
+
+async function saveUiState(root, partialState) {
+  await ensureReady(root);
+  const current = normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
+  const next = normalizeUiState({ ...current, ...(isObject(partialState) ? partialState : {}) });
+  await safeWriteJson(uiStatePath(root), next);
+  return next;
+}
+
+async function loadIndex(root) {
+  const { index } = await ensureReady(root);
+  return index;
+}
+
+async function saveIndex(root, index) {
+  const { meta } = await ensureReady(root);
+  const next = {
+    ...defaultIndex(meta),
+    ...(isObject(index) ? index : {}),
+    version: INDEX_VERSION,
+    workspace: {
+      name: meta.name,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+    },
+  };
+  await safeWriteJson(indexPath(root), next);
+  return next;
+}
+
+async function readWorkspaceDocument(root) {
+  const { index, uiState } = await ensureReady(root);
+  const candidates = [
+    uiState.lastOpenedCanvasPath,
+    ...index.recentItemPaths,
+    ...index.items.filter((item) => item.type === "canvas").map((item) => item.path),
+  ].filter(Boolean);
+  const canvasRel = candidates.find((rel) => index.items.some((item) => item.path === rel && item.type === "canvas"));
+  if (!canvasRel) return { ...DEFAULT_WORKSPACE };
+  const canvas = await loadCanvas(resolveWorkspacePath(root, canvasRel));
+  return canvas.workspace;
+}
+
+async function loadWorkspace(root) {
+  await ensureReady(root);
+  return { folderPath: root };
+}
+
+async function saveWorkspace(root, data) {
+  const { index, uiState } = await ensureReady(root);
+  const candidates = [
+    uiState.lastOpenedCanvasPath,
+    ...index.recentItemPaths,
+    ...index.items.filter((item) => item.type === "canvas").map((item) => item.path),
+  ].filter(Boolean);
+  let canvasRel = candidates.find((rel) => index.items.some((item) => item.path === rel && item.type === "canvas"));
+  if (!canvasRel) {
+    const created = await createCanvas(root, DEFAULT_WORKSPACE_NAME);
+    canvasRel = created.path;
+  }
+  const saved = await saveCanvas(resolveWorkspacePath(root, canvasRel), data);
+  return saved.workspace;
+}
+
+async function createWorkspace(root) {
+  await ensureReady(root);
+  return { folderPath: root };
+}
+
+async function isValidWorkspace(root) {
+  return isDirectory(root);
+}
+
+function resolveWorkspaceAssetPath(root, relativePath) {
+  if (!root || !relativePath) return null;
   try {
-    indexState = await readIndexMetadata(folderPath, prepared.metadata);
-  } catch (error) {
-    if (!shouldRebuildIndex(error)) {
-      throw error;
-    }
-
-    indexState = {
-      index: await rebuildIndex(folderPath),
-      legacySelection: {},
-    };
+    return resolveWorkspacePath(root, relativePath);
+  } catch {
+    return null;
   }
+}
 
-  const uiState = await readUiStateMetadata(
-    folderPath,
-    indexState.index,
-    indexState.legacySelection,
-  );
-
+async function importImageAsset(root, payload) {
+  await ensureReady(root);
+  if (!isObject(payload)) throw new Error("Image import payload is required.");
+  const sourcePath = firstString(payload.sourcePath);
+  if (!sourcePath) throw new Error("Image import payload is missing sourcePath.");
+  const sourceStat = await fs.stat(sourcePath).catch(() => null);
+  if (!sourceStat || !sourceStat.isFile()) throw new Error("The selected image file could not be found.");
+  const ext = fileExt(payload.fileName || sourcePath) || "png";
+  const base = sanitizeName(stripExt(firstString(payload.fileName, path.basename(sourcePath), `asset-${crypto.randomUUID()}`)), "asset");
+  const targetPath = await uniqueFile(path.join(assetsDirPath(root), `${base}.${ext}`));
+  await fs.copyFile(sourcePath, targetPath);
   return {
-    ...prepared,
-    index: indexState.index,
-    uiState,
+    relativePath: toWorkspaceRel(root, targetPath),
+    fileName: path.basename(targetPath),
+    mimeType: firstString(payload.mimeType),
+    sizeBytes: sourceStat.size,
+    width: Number.isFinite(payload.width) ? Math.max(0, payload.width) : 0,
+    height: Number.isFinite(payload.height) ? Math.max(0, payload.height) : 0,
   };
 }
 
-function resolvePreferredCanvasEntry(index, uiState) {
-  const itemEntriesById = getItemMap(index);
-  const preferredItem = itemEntriesById.get(uiState.lastOpenedItemId);
-
-  if (preferredItem?.type === "canvas") {
-    return preferredItem;
-  }
-
-  for (const itemId of index.recentItemIds) {
-    const recentItem = itemEntriesById.get(itemId);
-
-    if (recentItem?.type === "canvas") {
-      return recentItem;
-    }
-  }
-
-  return index.items.find((entry) => entry.type === "canvas") ?? null;
-}
-
-async function resolveActiveCanvas(folderPath) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const activeCanvas = resolvePreferredCanvasEntry(index, uiState);
-
-  if (!activeCanvas) {
-    throw new Error("This workspace does not contain any canvases yet.");
-  }
-
-  return loadCanvas(folderPath, activeCanvas.projectId, activeCanvas.spaceId, activeCanvas.id);
-}
-
-async function loadWorkspace(folderPath) {
-  const canvas = await resolveActiveCanvas(folderPath);
-
-  return {
-    folderPath,
-    projectId: canvas.projectId,
-    spaceId: canvas.spaceId,
-    canvasId: canvas.id,
-    workspace: canvasDocumentToRendererWorkspace(canvas),
-  };
-}
-
-async function readWorkspaceDocument(folderPath) {
-  const payload = await loadWorkspace(folderPath);
-  return payload.workspace;
-}
-
-async function saveWorkspace(folderPath, data) {
-  const { index, uiState } = await ensureWorkspaceReady(folderPath);
-  const activeCanvas = resolvePreferredCanvasEntry(index, uiState);
-
-  if (!activeCanvas) {
-    throw new Error("This workspace does not contain any canvases yet.");
-  }
-
-  const savedCanvas = await saveCanvas(
-    folderPath,
-    activeCanvas.projectId,
-    activeCanvas.spaceId,
-    activeCanvas.id,
-    data,
-  );
-
-  return canvasDocumentToRendererWorkspace(savedCanvas);
+async function getItemForFilePath(root, filePath) {
+  const { index } = await ensureReady(root);
+  const rel = toWorkspaceRel(root, filePath);
+  const item = index.items.find((entry) => entry.path === rel);
+  return item ? mapItemForResponse(root, item) : null;
 }
 
 module.exports = {
   createCanvas,
   createPage,
-  createProject,
-  createSpace,
   createWorkspace,
-  deleteCanvas,
-  deletePage,
-  deleteProject,
-  deleteSpace,
+  deleteFile,
   getHomeData,
-  getProject,
-  getProjectContents,
-  getProjectsSummary,
+  getItemForFilePath,
   getRecentItems,
-  getSpace,
-  getSpaceContents,
   getStarredItems,
+  importImageAsset,
   isValidWorkspace,
-  listItems,
-  listProjects,
-  listSpaces,
+  listFiles,
   loadCanvas,
   loadIndex,
   loadPage,
   loadUiState,
   loadWorkspace,
   markItemStarred,
-  importImageAsset,
   readWorkspaceDocument,
   rebuildIndex,
   recordRecentItem,
-  renameCanvas,
-  renamePage,
-  renameProject,
-  renameSpace,
+  renameFile,
   resolveWorkspaceAssetPath,
   saveCanvas,
   saveIndex,

@@ -1,4 +1,3 @@
-import React from "react";
 import { AppButton } from "./AppButton";
 
 export function AppEmptyState({ eyebrow, title, description, actionLabel, onAction, icon }) {

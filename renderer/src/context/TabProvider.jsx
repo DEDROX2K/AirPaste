@@ -77,8 +77,6 @@ export function TabProvider({ children }) {
         id: newTabId,
         type: item.type, // 'canvas' | 'page'
         entityId: item.entityId,
-        projectId: item.projectId,
-        spaceId: item.spaceId,
         title: item.title || "Untitled",
         closable: item.closable !== false,
         viewState: item.viewState || {},

@@ -136,9 +136,7 @@ export default function CanvasWorkspaceView() {
 
   const commands = useCanvasCommands({
     folderPath,
-    projectId: currentEditor.projectId,
-    spaceId: currentEditor.spaceId,
-    canvasId: currentEditor.itemId,
+    canvasFilePath: currentEditor.filePath,
     workspace,
     getViewportCenter: canvas.getViewportCenter,
     openFolderDialog: openExistingWorkspace,
@@ -176,7 +174,7 @@ export default function CanvasWorkspaceView() {
   useEffect(() => {
     setSearchQuery("");
     setTextPlacementMode(false);
-  }, [currentEditor.itemId, folderPath]);
+  }, [currentEditor.filePath, folderPath]);
 
   useEffect(() => {
     setSnapSettings(normalizeCanvasSnapSettings(homeData?.uiState));

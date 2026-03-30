@@ -1,8 +1,7 @@
 const VALID_HOME_VIEW_MODES = new Set(["grid", "list"]);
 const VALID_SORT_OPTIONS = new Set(["updatedAt", "name", "type"]);
-const VALID_FILTER_OPTIONS = new Set(["all", "canvases", "pages", "starred"]);
-const VALID_HOME_MODES = new Set(["home", "project", "space"]);
-const VALID_HOME_SECTIONS = new Set(["overview", "recents", "projects", "resources", "trash", "starred"]);
+const VALID_FILTER_OPTIONS = new Set(["all", "canvases", "pages", "assets", "starred"]);
+const VALID_HOME_SECTIONS = new Set(["home", "recents", "starred"]);
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
   numeric: "auto",
@@ -15,6 +14,22 @@ export function folderNameFromPath(folderPath) {
 
   const segments = folderPath.split(/[\\/]/);
   return segments[segments.length - 1] || folderPath;
+}
+
+export function basenameFromRelativePath(relativePath) {
+  const normalizedPath = String(relativePath ?? "").replaceAll("\\", "/");
+  const segments = normalizedPath.split("/").filter(Boolean);
+  return segments[segments.length - 1] ?? "";
+}
+
+export function parentFolderPath(relativePath) {
+  const normalizedPath = String(relativePath ?? "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+
+  if (!normalizedPath || !normalizedPath.includes("/")) {
+    return "";
+  }
+
+  return normalizedPath.slice(0, normalizedPath.lastIndexOf("/"));
 }
 
 export function formatRelativeTime(value) {
@@ -59,25 +74,14 @@ export function normalizeHomePreferences(uiState) {
   };
 }
 
-export function normalizeHomeNavigation(uiState, fallbackProjectId = null) {
-  const mode = VALID_HOME_MODES.has(uiState?.homeMode) ? uiState.homeMode : "home";
-  const selectedSection = VALID_HOME_SECTIONS.has(uiState?.selectedSection)
-    ? uiState.selectedSection
-    : "overview";
-
+export function normalizeHomeNavigation(uiState) {
   return {
-    mode,
-    selectedSection,
-    selectedProjectId: typeof uiState?.selectedProjectId === "string"
-      ? uiState.selectedProjectId
-      : typeof uiState?.lastOpenedProjectId === "string"
-        ? uiState.lastOpenedProjectId
-        : fallbackProjectId,
-    selectedSpaceId: typeof uiState?.selectedSpaceId === "string"
-      ? uiState.selectedSpaceId
-      : typeof uiState?.lastOpenedSpaceId === "string"
-        ? uiState.lastOpenedSpaceId
-        : null,
+    selectedSection: VALID_HOME_SECTIONS.has(uiState?.selectedSection)
+      ? uiState.selectedSection
+      : "home",
+    currentFolderPath: typeof uiState?.currentFolderPath === "string"
+      ? uiState.currentFolderPath
+      : "",
     scrollTop: Number.isFinite(uiState?.homeScrollTop) && uiState.homeScrollTop >= 0
       ? uiState.homeScrollTop
       : 0,
@@ -86,22 +90,20 @@ export function normalizeHomeNavigation(uiState, fallbackProjectId = null) {
 
 export function buildHomeRouteState(navigation, scrollTop = 0) {
   const route = {
-    homeMode: VALID_HOME_MODES.has(navigation?.mode) ? navigation.mode : "home",
     selectedSection: VALID_HOME_SECTIONS.has(navigation?.selectedSection)
       ? navigation.selectedSection
-      : "overview",
-    selectedProjectId: typeof navigation?.selectedProjectId === "string" ? navigation.selectedProjectId : null,
-    selectedSpaceId: typeof navigation?.selectedSpaceId === "string" ? navigation.selectedSpaceId : null,
+      : "home",
+    currentFolderPath: typeof navigation?.currentFolderPath === "string"
+      ? navigation.currentFolderPath
+      : "",
     homeScrollTop: Number.isFinite(scrollTop) && scrollTop >= 0 ? scrollTop : 0,
   };
 
   return {
     ...route,
     lastHomeRoute: {
-      mode: route.homeMode,
       selectedSection: route.selectedSection,
-      selectedProjectId: route.selectedProjectId,
-      selectedSpaceId: route.selectedSpaceId,
+      currentFolderPath: route.currentFolderPath,
       scrollTop: route.homeScrollTop,
     },
   };
@@ -118,6 +120,10 @@ export function filterItemsByPreference(items, filter) {
 
   if (filter === "pages") {
     return items.filter((item) => item.type === "page");
+  }
+
+  if (filter === "assets") {
+    return items.filter((item) => item.type === "asset");
   }
 
   if (filter === "starred") {
@@ -164,14 +170,4 @@ export function sortEntriesByPreference(entries, sortBy) {
 
     return String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? ""));
   });
-}
-
-export function resolveWorkspaceAssetUrl(folderPath, relativePath) {
-  if (!folderPath || !relativePath) {
-    return null;
-  }
-
-  const normalizedFolderPath = folderPath.replaceAll("\\", "/").replace(/\/$/, "");
-  const normalizedRelativePath = String(relativePath).replaceAll("\\", "/").replace(/^\//, "");
-  return encodeURI(`file:///${normalizedFolderPath}/${normalizedRelativePath}`);
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   AppButton,
   AppInput,
@@ -41,7 +41,7 @@ import {
   AppCardHeader,
   AppCardTitle
 } from "./ui/app";
-import { Copy, MoreHorizontal, Settings, User } from "lucide-react";
+import { Copy, MoreHorizontal, Settings } from "lucide-react";
 
 export function DemoShadcn() {
   const [open, setOpen] = useState(false);
@@ -179,7 +179,7 @@ export function DemoShadcn() {
                     <AppCardHeader>
                       <AppCardTitle>Account</AppCardTitle>
                       <AppCardDescription>
-                        Make changes to your account here. Click save when you're done.
+                        Make changes to your account here. Click save when you&apos;re done.
                       </AppCardDescription>
                     </AppCardHeader>
                     <AppCardContent className="space-y-2">
@@ -198,7 +198,7 @@ export function DemoShadcn() {
                     <AppCardHeader>
                       <AppCardTitle>Password</AppCardTitle>
                       <AppCardDescription>
-                        Change your password here. After saving, you'll be logged out.
+                        Change your password here. After saving, you&apos;ll be logged out.
                       </AppCardDescription>
                     </AppCardHeader>
                     <AppCardContent className="space-y-2">

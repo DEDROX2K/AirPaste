@@ -1212,9 +1212,9 @@ ipcMain.handle("airpaste:saveWorkspace", async (_event, folderPath, data) => {
   });
 });
 
-ipcMain.handle("airpaste:importImageAsset", async (_event, folderPath, projectId, spaceId, canvasId, payload) => {
+ipcMain.handle("airpaste:importImageAsset", async (_event, folderPath, payload) => {
   return withWorkspaceQueue(folderPath, async () => (
-    workspaceService.importImageAsset(folderPath, projectId, spaceId, canvasId, payload)
+    workspaceService.importImageAsset(folderPath, payload)
   ));
 });
 
@@ -1229,66 +1229,32 @@ ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePa
 });
 
 const workspaceActionHandlers = Object.freeze({
-  "airpaste:createProject": (folderPath, name) =>
-    workspaceService.createProject(folderPath, name),
-  "airpaste:createSpace": (folderPath, projectId, name) =>
-    workspaceService.createSpace(folderPath, projectId, name),
-  "airpaste:createCanvas": (folderPath, projectId, spaceId, name) =>
-    workspaceService.createCanvas(folderPath, projectId, spaceId, name),
-  "airpaste:createPage": (folderPath, projectId, spaceId, name) =>
-    workspaceService.createPage(folderPath, projectId, spaceId, name),
-  "airpaste:listProjects": (folderPath) =>
-    workspaceService.listProjects(folderPath),
-  "airpaste:getProject": (folderPath, projectId) =>
-    workspaceService.getProject(folderPath, projectId),
-  "airpaste:listSpaces": (folderPath, projectId) =>
-    workspaceService.listSpaces(folderPath, projectId),
-  "airpaste:getSpace": (folderPath, projectId, spaceId) =>
-    workspaceService.getSpace(folderPath, projectId, spaceId),
-  "airpaste:listItems": (folderPath, projectId, spaceId) =>
-    workspaceService.listItems(folderPath, projectId, spaceId),
-  "airpaste:getHomeData": (folderPath) =>
-    workspaceService.getHomeData(folderPath),
+  "airpaste:listFiles": (folderPath) =>
+    workspaceService.listFiles(folderPath),
+  "airpaste:getHomeData": (folderPath, currentFolderPath) =>
+    workspaceService.getHomeData(folderPath, currentFolderPath),
   "airpaste:getRecentItems": (folderPath) =>
     workspaceService.getRecentItems(folderPath),
   "airpaste:getStarredItems": (folderPath) =>
     workspaceService.getStarredItems(folderPath),
-  "airpaste:getProjectsSummary": (folderPath) =>
-    workspaceService.getProjectsSummary(folderPath),
-  "airpaste:getProjectContents": (folderPath, projectId) =>
-    workspaceService.getProjectContents(folderPath, projectId),
-  "airpaste:getSpaceContents": (folderPath, projectId, spaceId) =>
-    workspaceService.getSpaceContents(folderPath, projectId, spaceId),
-  "airpaste:loadCanvas": (folderPath, projectId, spaceId, canvasId) =>
-    workspaceService.loadCanvas(folderPath, projectId, spaceId, canvasId),
-  "airpaste:saveCanvas": (folderPath, projectId, spaceId, canvasId, data) =>
-    workspaceService.saveCanvas(folderPath, projectId, spaceId, canvasId, data),
-  "airpaste:loadPage": (folderPath, projectId, spaceId, pageId) =>
-    workspaceService.loadPage(folderPath, projectId, spaceId, pageId),
-  "airpaste:savePage": (folderPath, projectId, spaceId, pageId, markdown) =>
-    workspaceService.savePage(folderPath, projectId, spaceId, pageId, markdown),
-  "airpaste:renameProject": (folderPath, projectId, name) =>
-    workspaceService.renameProject(folderPath, projectId, name),
-  "airpaste:renameSpace": (folderPath, projectId, spaceId, name) =>
-    workspaceService.renameSpace(folderPath, projectId, spaceId, name),
-  "airpaste:renameCanvas": (folderPath, projectId, spaceId, canvasId, name) =>
-    workspaceService.renameCanvas(folderPath, projectId, spaceId, canvasId, name),
-  "airpaste:renamePage": (folderPath, projectId, spaceId, pageId, name) =>
-    workspaceService.renamePage(folderPath, projectId, spaceId, pageId, name),
-  "airpaste:markItemStarred": (folderPath, itemId, starred) =>
-    workspaceService.markItemStarred(folderPath, itemId, starred),
+  "airpaste:createCanvas": (folderPath, name, targetFolderPath) =>
+    workspaceService.createCanvas(folderPath, name, targetFolderPath),
+  "airpaste:createPage": (folderPath, name, targetFolderPath) =>
+    workspaceService.createPage(folderPath, name, targetFolderPath),
+  "airpaste:renameFile": (folderPath, filePath, name) =>
+    workspaceService.renameFile(folderPath, filePath, name),
+  "airpaste:deleteFile": (folderPath, filePath) =>
+    workspaceService.deleteFile(folderPath, filePath),
+  "airpaste:markItemStarred": (folderPath, filePath, starred) =>
+    workspaceService.markItemStarred(folderPath, filePath, starred),
+  "airpaste:recordRecentItem": (folderPath, filePath) =>
+    workspaceService.recordRecentItem(folderPath, filePath),
+  "airpaste:getItemForFilePath": (folderPath, filePath) =>
+    workspaceService.getItemForFilePath(folderPath, filePath),
   "airpaste:loadUiState": (folderPath) =>
     workspaceService.loadUiState(folderPath),
   "airpaste:saveUiState": (folderPath, partialState) =>
     workspaceService.saveUiState(folderPath, partialState),
-  "airpaste:deleteProject": (folderPath, projectId) =>
-    workspaceService.deleteProject(folderPath, projectId),
-  "airpaste:deleteSpace": (folderPath, projectId, spaceId) =>
-    workspaceService.deleteSpace(folderPath, projectId, spaceId),
-  "airpaste:deleteCanvas": (folderPath, projectId, spaceId, canvasId) =>
-    workspaceService.deleteCanvas(folderPath, projectId, spaceId, canvasId),
-  "airpaste:deletePage": (folderPath, projectId, spaceId, pageId) =>
-    workspaceService.deletePage(folderPath, projectId, spaceId, pageId),
 });
 
 for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
@@ -1296,6 +1262,22 @@ for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
     withWorkspaceQueue(folderPath, () => handler(folderPath, ...args))
   ));
 }
+
+ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => (
+  workspaceService.loadCanvas(filePath)
+));
+
+ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data) => (
+  workspaceService.saveCanvas(filePath, data)
+));
+
+ipcMain.handle("airpaste:loadPage", async (_event, filePath) => (
+  workspaceService.loadPage(filePath)
+));
+
+ipcMain.handle("airpaste:savePage", async (_event, filePath, markdown) => (
+  workspaceService.savePage(filePath, markdown)
+));
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {
   const normalizedUrl = normalizeExternalUrl(url);
@@ -1306,6 +1288,15 @@ ipcMain.handle("airpaste:openExternal", async (_event, url) => {
 
   await shell.openExternal(normalizedUrl);
   return { opened: true };
+});
+
+ipcMain.handle("airpaste:openFile", async (_event, filePath) => {
+  if (!filePath || typeof filePath !== "string") {
+    return { opened: false };
+  }
+
+  const errorMessage = await shell.openPath(filePath);
+  return { opened: errorMessage === "" };
 });
 
 ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, url, cardSnapshot) => {

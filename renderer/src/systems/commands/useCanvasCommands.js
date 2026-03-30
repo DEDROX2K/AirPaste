@@ -124,9 +124,7 @@ async function readClipboardImage(clipboardData) {
 
 export function useCanvasCommands({
   folderPath,
-  projectId,
-  spaceId,
-  canvasId,
+  canvasFilePath,
   workspace,
   getViewportCenter,
   openFolderDialog,
@@ -784,7 +782,7 @@ export function useCanvasCommands({
       };
     }
 
-    if (!projectId || !spaceId || !canvasId) {
+    if (!canvasFilePath) {
       const message = "Drop import failed because the active canvas could not be resolved.";
       log("error", "Drop import failed", message);
       toast("error", message);
@@ -809,9 +807,6 @@ export function useCanvasCommands({
         try {
           const importedAsset = await desktop.workspace.importImageAsset(
             folderPath,
-            projectId,
-            spaceId,
-            canvasId,
             {
               fileName: entry.item.name,
               mimeType: entry.item.mimeType,
@@ -878,14 +873,12 @@ export function useCanvasCommands({
       rejectedItems,
     };
   }, [
-    canvasId,
+    canvasFilePath,
     createNewLinkCard,
     folderPath,
     getViewportCenter,
     log,
-    projectId,
     queueLinkPreview,
-    spaceId,
     toast,
   ]);
 
