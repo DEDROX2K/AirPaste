@@ -60,7 +60,6 @@ function LinkTile({
   tileMeta,
   dragVisualDelta,
   dragVisualTileIdSet,
-  performanceMode,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -74,12 +73,13 @@ function LinkTile({
   const { toast } = useToast();
   const { folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
+  const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [resolvedImageSrc, setResolvedImageSrc] = useState("");
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
-  const shouldRenderImage = !performanceMode?.imagesOff && Boolean(mediaSrc) && !hasImageError;
-  const enableReveal = !performanceMode?.effectsOff && !performanceMode?.simplifyDuringMotion;
+  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
+  const enableReveal = true;
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const surfaceFrameClassName = [
@@ -118,7 +118,8 @@ function LinkTile({
 
   useEffect(() => {
     setHasImageError(false);
-  }, [card.id, card.image]);
+    setHasLoadedImage(false);
+  }, [card.id, card.image, resolvedImageSrc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +151,8 @@ function LinkTile({
   }, [card.asset?.relativePath, folderPath, isImageTile]);
 
   const handleMediaLoad = (event) => {
+    setHasLoadedImage(true);
+
     const renderedWidth = event.currentTarget.clientWidth;
     const renderedHeight = event.currentTarget.clientHeight;
     const naturalWidth = event.currentTarget.naturalWidth;
@@ -216,7 +219,11 @@ function LinkTile({
               src={mediaSrc}
               alt={linkTitle}
               enableReveal={enableReveal}
-              onError={() => setHasImageError(true)}
+              onError={() => {
+                if (!hasLoadedImage) {
+                  setHasImageError(true);
+                }
+              }}
               onLoad={handleMediaLoad}
             />
           </div>
@@ -227,7 +234,11 @@ function LinkTile({
           src={mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
-          onError={() => setHasImageError(true)}
+          onError={() => {
+            if (!hasLoadedImage) {
+              setHasImageError(true);
+            }
+          }}
           onLoad={handleMediaLoad}
         />
       ) : (

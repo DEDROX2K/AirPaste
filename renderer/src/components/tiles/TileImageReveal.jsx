@@ -1,6 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
-
-const FINAL_REVEAL_DELAY_MS = 140;
+import { memo, useEffect, useState } from "react";
 
 function TileImageReveal({
   src,
@@ -10,43 +8,18 @@ function TileImageReveal({
   onError,
   onLoad,
 }) {
-  const finalRevealTimeoutRef = useRef(null);
-  const [phase, setPhase] = useState(src ? "loading" : "idle");
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    window.clearTimeout(finalRevealTimeoutRef.current);
-    finalRevealTimeoutRef.current = null;
-    setPhase(src ? "loading" : "idle");
-
-    return () => {
-      window.clearTimeout(finalRevealTimeoutRef.current);
-      finalRevealTimeoutRef.current = null;
-    };
+    setIsLoaded(false);
   }, [src]);
 
-  function handlePreviewLoad() {
-    setPhase((currentPhase) => (currentPhase === "final" ? currentPhase : "preview"));
-  }
-
-  function handleFinalLoad(event) {
+  function handleImageLoad(event) {
+    setIsLoaded(true);
     onLoad?.(event);
-
-    if (!enableReveal) {
-      setPhase("final");
-      return;
-    }
-
-    setPhase((currentPhase) => (currentPhase === "loading" ? "preview" : currentPhase));
-    window.clearTimeout(finalRevealTimeoutRef.current);
-    finalRevealTimeoutRef.current = window.setTimeout(() => {
-      setPhase("final");
-    }, FINAL_REVEAL_DELAY_MS);
   }
 
   function handleImageError(event) {
-    window.clearTimeout(finalRevealTimeoutRef.current);
-    finalRevealTimeoutRef.current = null;
-    setPhase("error");
     onError?.(event);
   }
 
@@ -55,26 +28,15 @@ function TileImageReveal({
   }
 
   return (
-    <div className={`card__image-reveal card__image-reveal--${phase}${enableReveal ? "" : " card__image-reveal--disabled"}`}>
+    <div className={`card__image-reveal${isLoaded ? " card__image-reveal--final" : " card__image-reveal--loading"}${enableReveal ? "" : " card__image-reveal--disabled"}`}>
       <div className="card__image-reveal__placeholder" aria-hidden="true" />
-      <img
-        className={`card__image-reveal__preview ${className}`.trim()}
-        src={src}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-        decoding="async"
-        onLoad={handlePreviewLoad}
-        onError={handleImageError}
-      />
-      <div className="card__image-reveal__pixel-grid" aria-hidden="true" />
       <img
         className={`card__image-reveal__final ${className}`.trim()}
         src={src}
         alt={alt}
         draggable={false}
         decoding="async"
-        onLoad={handleFinalLoad}
+        onLoad={handleImageLoad}
         onError={handleImageError}
       />
     </div>

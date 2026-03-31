@@ -9,6 +9,9 @@ AirPaste is a local-first desktop canvas app for capturing links, text, images, 
 - Electron window icon set for dev and production (`main.js`: `icon: path.join(__dirname, 'build', 'logo.png')`).
 - Rack slot preview and rack-attached style updated for user experience (`renderer/src/styles.css`).
 - `data.json` workspaces loaded/saved per folder with atomic backups and retry recovery.
+- Canvas image rendering hardened to prevent tiles going blank during long drag/pan sessions.
+- Tile visuals now enforce shadow-free cards across idle, hover, drag, and canvas-move states.
+- Save pipeline hardened against `.tmp` rename races by using unique temp files and per-workspace serialization for canvas/page save/load IPC.
 
 ## Features
 
@@ -117,6 +120,17 @@ If Electron keeps showing its default icon in dev, restart `npm run dev` after c
 - Rack improvements include style and overlapping edge fix in CSS (`card__rack-slice--left/right`).
 - Splash is now in `App.jsx` with `booting || showSplash` and click handler in `SplashScreen`.
 - Open Graph scraping uses `open-graph-scraper` with `playwright` installed by script.
+
+## Troubleshooting
+
+- Error: `ENOENT ... rename ... airpaste.json.tmp -> airpaste.json`
+  - Cause: concurrent saves colliding on the same temp filename.
+  - Fix: use unique temp files per write operation and queue canvas/page save/load operations by workspace.
+  - Action: restart the app after pulling latest `main.js` and `workspace-service.js`.
+
+- Image tiles load and then disappear after moving around
+  - Cause: remount/reload pressure and image-reveal failure paths.
+  - Fix: single-path image loading with stable fallback behavior and no image-hiding optimization mode.
 
 ---
 

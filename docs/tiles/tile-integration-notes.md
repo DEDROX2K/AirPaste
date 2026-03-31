@@ -23,3 +23,16 @@
   - `FolderTile.jsx` supports nested tile rendering and open-folder canvas behavior.
   - `RackTile.jsx` supports slot previews and rack drop targeting.
 
+## March 2026 stability updates
+- Image persistence path was hardened so link/image tiles do not disappear during prolonged pan/drag activity.
+  - `renderer/src/components/tiles/TileImageReveal.jsx` now uses a single stable image load path instead of a dual preview/final fetch path.
+  - `renderer/src/components/tiles/LinkTile.jsx` keeps the last good image visible and only falls back to placeholder if the tile never successfully loaded.
+- Canvas visibility-culling was disabled in `renderer/src/components/CanvasWorkspaceView.jsx` (`visibleWorldRect = null`) to avoid tile unmount/remount cycles that can retrigger fragile image fetch paths.
+- Performance rule for tiles: optimization is allowed to reduce effects and motion, but must never hide or remove tile content images.
+- Visual policy for cards: shadows are removed across idle, hover, focused, dragging, and canvas-moving states without affecting image visibility.
+
+## Integration guardrails
+- Do not introduce any new `imagesOff` or equivalent image-hiding optimization toggles in tile components or canvas classes.
+- If image reveal effects are revisited, they must degrade gracefully on network/load error and keep a successfully loaded final image on screen.
+- Any tile-level visual optimization should be validated against long drag/pan sessions, not only initial load behavior.
+

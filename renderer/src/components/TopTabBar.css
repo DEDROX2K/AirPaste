@@ -1,14 +1,17 @@
 .titlebar-root {
   display: flex;
   justify-content: space-between;
-  align-items: stretch;
-  height: 38px;
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #333333;
+  align-items: center;
+  height: 40px;
+  padding: 4px 10px;
+  background-color: #eae4dc;
+  border-top: 1px solid #8e8a92;
+  border-bottom: 1px solid #d2cbc2;
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: drag;
   position: relative;
+  gap: 8px;
 }
 
 .titlebar-middle {
@@ -21,10 +24,11 @@
 
 .titlebar-left {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   overflow: hidden;
   height: 100%;
   flex: 1;
+  min-width: 0;
 }
 
 .titlebar-center {
@@ -36,53 +40,119 @@
 
 .titlebar-tabs {
   display: flex;
-  align-items: stretch;
-  gap: 1px;
-  padding: 0 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  min-width: 0;
 }
 
 .titlebar-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px 0 12px;
-  min-width: 120px;
-  max-width: 240px;
-  background-color: #2d2d2d;
-  color: #9d9d9d;
+  gap: 8px;
+  height: 32px;
+  border-radius: 14px;
   cursor: pointer;
-  transition: background-color 0.1s ease, color 0.1s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease;
   -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 
-.titlebar-tab:hover {
-  background-color: #383838;
-  color: #cccccc;
+.titlebar-tab--file {
+  padding: 0 14px;
+  min-width: 136px;
+  max-width: 280px;
+  border: 2px solid #b6b0a8;
+  background-color: #e8e2da;
+  color: #6a6765;
 }
 
-.titlebar-tab--active {
-  background-color: #1e1e1e;
-  color: #ffffff;
+.titlebar-tab--file:hover {
+  background-color: #ece7e0;
+  border-color: #a19b95;
 }
 
-.titlebar-tab-icon {
-  display: flex;
+.titlebar-tab--file.titlebar-tab--active {
+  background-color: #f7f7f7;
+  border-color: #6e6b67;
+  color: #64615e;
+}
+
+.titlebar-tab--home {
+  padding: 0 8px 0 10px;
+  min-width: 210px;
+  max-width: 260px;
+  border: 2px solid #069f37;
+  background-color: #069f37;
+  color: #f4f4f4;
+  justify-content: flex-start;
+}
+
+.titlebar-tab--home:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.03);
+}
+
+.titlebar-home-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  min-width: 142px;
+  max-width: 100%;
+  border-radius: 999px;
+  background: #020202;
+  color: #f3f3f3;
+  padding: 0 9px;
+}
+
+.titlebar-home-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+}
+
+.titlebar-home-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.titlebar-tab-icon svg {
-  width: 14px;
-  height: 14px;
+.titlebar-home-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.titlebar-home-marker {
+  width: 18px;
+  height: 24px;
+  border-radius: 999px;
+  background: #ff5d67;
+  flex-shrink: 0;
+}
+
+.titlebar-home-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #36a8ff;
+  margin-left: -2px;
+  flex-shrink: 0;
+}
+
+.titlebar-tab--file:active,
+.titlebar-tab--home:active {
+  transform: translateY(1px);
 }
 
 .titlebar-tab-label {
   flex: 1;
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -94,34 +164,27 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 4px;
-  margin-left: 4px;
+  border-radius: 999px;
+  margin-left: 2px;
   background: transparent;
-  color: #6d6d6d;
+  color: #6d6a67;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
-}
-
-.titlebar-tab:hover .titlebar-tab-close {
   opacity: 1;
-}
-
-.titlebar-tab--active .titlebar-tab-close {
-  opacity: 1;
-  color: #8d8d8d;
+  transition: background-color 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 
 .titlebar-tab-close:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #cccccc;
+  background-color: #d4cec6;
+  color: #4e4b49;
+  transform: scale(1.03);
 }
 
 .titlebar-right {
   display: flex;
   align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
@@ -148,28 +211,28 @@
   display: flex;
   align-items: center;
   height: 100%;
+  gap: 6px;
 }
 
 #titlebar-right-slot > * {
   display: flex;
   align-items: center;
-  height: 100%;
+  height: auto;
   -webkit-app-region: no-drag;
 }
 
-/* Minimalistic overrides for tools in the titlebar */
 #titlebar-right-slot button,
 #titlebar-right-slot .zoom-menu__trigger {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  height: 100% !important;
-  padding: 0 12px !important;
-  color: #8b8b8b !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
+  background: #e8e2da !important;
+  border: 1px solid #b6b0a8 !important;
+  border-radius: 10px !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+  color: #696663 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
   box-shadow: none !important;
-  transition: background-color 0.1s ease, color 0.1s ease !important;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease !important;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -178,8 +241,9 @@
 
 #titlebar-right-slot button:hover,
 #titlebar-right-slot .zoom-menu__trigger:hover {
-  background-color: #3d3d3d !important;
-  color: #cccccc !important;
+  background-color: #f7f6f4 !important;
+  border-color: #6e6b67 !important;
+  color: #54514e !important;
 }
 
 #titlebar-right-slot .zoom-menu__trigger {
@@ -193,31 +257,61 @@
 
 .titlebar-controls {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 4px;
   height: 100%;
+  padding: 0 0 0 2px;
 }
 
 .titlebar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 100%;
-  background: transparent;
-  border: none;
-  color: #8b8b8b;
+  height: 28px;
+  border: 1px solid transparent;
+  color: #2e2924;
   cursor: pointer;
-  transition: background-color 0.1s ease, color 0.1s ease;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
+}
+
+.titlebar-btn--maximize {
+  width: 32px;
+  border-radius: 10px;
+  background: #4f906f;
+  color: #1f4c3e;
+}
+
+.titlebar-btn--minimize,
+.titlebar-btn--close {
+  width: 28px;
+  border-radius: 999px;
+}
+
+.titlebar-btn--minimize {
+  background: #e3a94f;
+  color: #6f521f;
+}
+
+.titlebar-btn--close {
+  background: #ff5a64;
+  color: #6c2931;
 }
 
 .titlebar-btn:hover {
-  background-color: #3d3d3d;
-  color: #cccccc;
+  transform: translateY(-1px);
+  filter: saturate(1.05) brightness(1.03);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.16), 0 4px 8px rgba(0, 0, 0, 0.22);
 }
 
-.titlebar-btn--close:hover {
-  background-color: #c42b1c;
-  color: #ffffff;
+.titlebar-btn:active {
+  transform: translateY(0);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.18);
+}
+
+.titlebar-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 1px;
 }
 
 .titlebar-btn svg {

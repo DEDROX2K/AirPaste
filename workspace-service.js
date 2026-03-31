@@ -185,14 +185,37 @@ async function readText(filePath, fallback = "") {
 
 async function safeWriteText(filePath, text) {
   const dir = path.dirname(filePath);
-  const temp = `${filePath}${TEMP_SUFFIX}`;
-  const backup = `${filePath}${BACKUP_SUFFIX}`;
+  const opId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const temp = `${filePath}${TEMP_SUFFIX}-${opId}`;
+  const backup = `${filePath}${BACKUP_SUFFIX}-${opId}`;
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(temp, text, "utf8");
   await fs.rm(backup, { force: true }).catch(() => {});
-  if (await exists(filePath)) await fs.rename(filePath, backup);
-  await fs.rename(temp, filePath);
-  await fs.rm(backup, { force: true }).catch(() => {});
+
+  let movedPreviousFile = false;
+
+  if (await exists(filePath)) {
+    try {
+      await fs.rename(filePath, backup);
+      movedPreviousFile = true;
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  try {
+    await fs.rename(temp, filePath);
+  } catch (error) {
+    if (movedPreviousFile) {
+      await fs.rename(backup, filePath).catch(() => {});
+    }
+    throw error;
+  } finally {
+    await fs.rm(temp, { force: true }).catch(() => {});
+    await fs.rm(backup, { force: true }).catch(() => {});
+  }
 }
 
 async function safeWriteJson(filePath, value) {

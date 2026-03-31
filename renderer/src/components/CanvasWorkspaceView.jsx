@@ -21,10 +21,14 @@ import {
   normalizeCanvasSnapSettings,
 } from "../systems/snapping/canvasSnapSettings";
 import { AppEmptyState } from "./ui/app";
-import { useTheme } from "../hooks/useTheme";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
-import { recordBoardRender, recordDerivedMetric, setPerfSummary } from "../lib/perf";
+import {
+  readPointerMoveStats,
+  recordBoardRender,
+  recordDerivedMetric,
+  setPerfSummary,
+} from "../lib/perf";
 import TILE_TYPES from "../tiles/tileTypes";
 
 function IconFolder() {
@@ -45,29 +49,94 @@ function IconHome() {
   );
 }
 
+const PERF_HISTORY_LIMIT = 64;
+const PERF_CHART_WIDTH = 176;
+const PERF_CHART_HEIGHT = 56;
+
+function roundMetric(value, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  return Number(value).toFixed(digits);
+}
+
+function createChartPoints(values, maxValue) {
+  if (!values.length) {
+    return "";
+  }
+
+  const safeMaxValue = Math.max(1, maxValue);
+
+  return values
+    .map((value, index) => {
+      const x = (index / Math.max(1, values.length - 1)) * PERF_CHART_WIDTH;
+      const y = PERF_CHART_HEIGHT - (Math.min(value, safeMaxValue) / safeMaxValue) * PERF_CHART_HEIGHT;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
 function CanvasPerformanceOverlay({
-  enabled,
   visibleTileCount,
+  totalTileCount,
   activeDragLayers,
+  isCanvasMoving,
 }) {
-  const [fps, setFps] = useState(0);
+  const [snapshot, setSnapshot] = useState({
+    fps: 0,
+    frameMs: 0,
+    droppedFrames: 0,
+    pointerAvgMs: 0,
+    pointerMaxMs: 0,
+    boardRenderCount: 0,
+    latestCommitMs: 0,
+    fpsHistory: [],
+    frameMsHistory: [],
+  });
 
   useEffect(() => {
-    if (!enabled) {
-      return undefined;
-    }
-
     let rafId = 0;
-    let lastSampleTime = performance.now();
-    let frameCount = 0;
+    let lastFrameTime = performance.now();
+    let sampleStartTime = lastFrameTime;
+    let sampleFrameCount = 0;
+    let sampleFrameMsTotal = 0;
+    let sampleDroppedFrameCount = 0;
 
     function tick(now) {
-      frameCount += 1;
+      const frameMs = Math.max(0, now - lastFrameTime);
+      lastFrameTime = now;
+      sampleFrameCount += 1;
+      sampleFrameMsTotal += frameMs;
 
-      if (now - lastSampleTime >= 500) {
-        setFps(Math.round((frameCount * 1000) / Math.max(1, now - lastSampleTime)));
-        frameCount = 0;
-        lastSampleTime = now;
+      if (frameMs > 24) {
+        sampleDroppedFrameCount += 1;
+      }
+
+      if (now - sampleStartTime >= 250) {
+        const elapsedMs = Math.max(1, now - sampleStartTime);
+        const fps = (sampleFrameCount * 1000) / elapsedMs;
+        const averageFrameMs = sampleFrameMsTotal / Math.max(1, sampleFrameCount);
+        const pointerStats = readPointerMoveStats();
+        const perfStore = window.__AIRPASTE_PERF__ ?? null;
+        const latestCommit = perfStore?.commits?.[perfStore.commits.length - 1] ?? null;
+
+        setSnapshot((currentSnapshot) => ({
+          fps,
+          frameMs: averageFrameMs,
+          droppedFrames: sampleDroppedFrameCount,
+          pointerAvgMs: pointerStats?.avgMs ?? 0,
+          pointerMaxMs: pointerStats?.maxMs ?? 0,
+          boardRenderCount: perfStore?.boardRenders?.count ?? 0,
+          latestCommitMs: latestCommit?.durationMs ?? 0,
+          fpsHistory: [...currentSnapshot.fpsHistory, fps].slice(-PERF_HISTORY_LIMIT),
+          frameMsHistory: [...currentSnapshot.frameMsHistory, averageFrameMs].slice(-PERF_HISTORY_LIMIT),
+        }));
+
+        sampleStartTime = now;
+        sampleFrameCount = 0;
+        sampleFrameMsTotal = 0;
+        sampleDroppedFrameCount = 0;
       }
 
       rafId = window.requestAnimationFrame(tick);
@@ -78,17 +147,50 @@ function CanvasPerformanceOverlay({
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [enabled]);
+  }, []);
 
-  if (!enabled) {
-    return null;
-  }
-
+  const fpsCap = Math.max(60, Math.ceil(Math.max(60, ...snapshot.fpsHistory) / 10) * 10);
+  const frameMsCap = Math.max(20, Math.ceil(Math.max(20, ...snapshot.frameMsHistory) / 5) * 5);
+  const fpsPoints = createChartPoints(snapshot.fpsHistory, fpsCap);
+  const frameMsPoints = createChartPoints(snapshot.frameMsHistory, frameMsCap);
   return (
     <div className="canvas-perf-overlay" aria-live="off">
-      <span>FPS {fps}</span>
-      <span>Visible {visibleTileCount}</span>
-      <span>Layers {activeDragLayers}</span>
+      <div className="canvas-perf-overlay__header">
+        <span>PERF</span>
+        <span>{isCanvasMoving ? "moving" : "idle"}</span>
+      </div>
+      <svg
+        className="canvas-perf-overlay__chart"
+        width={PERF_CHART_WIDTH}
+        height={PERF_CHART_HEIGHT}
+        viewBox={`0 0 ${PERF_CHART_WIDTH} ${PERF_CHART_HEIGHT}`}
+        role="img"
+        aria-label="Canvas performance chart"
+      >
+        <line x1="0" y1={PERF_CHART_HEIGHT - 1} x2={PERF_CHART_WIDTH} y2={PERF_CHART_HEIGHT - 1} />
+        {frameMsPoints ? (
+          <polyline className="canvas-perf-overlay__line canvas-perf-overlay__line--frame" points={frameMsPoints} />
+        ) : null}
+        {fpsPoints ? (
+          <polyline className="canvas-perf-overlay__line canvas-perf-overlay__line--fps" points={fpsPoints} />
+        ) : null}
+      </svg>
+      <div className="canvas-perf-overlay__legend">
+        <span>fps</span>
+        <span>frame ms</span>
+      </div>
+      <div className="canvas-perf-overlay__stats">
+        <span>FPS {Math.round(snapshot.fps)}</span>
+        <span>Frame {roundMetric(snapshot.frameMs)} ms</span>
+        <span>Dropped {snapshot.droppedFrames}</span>
+        <span>Visible {visibleTileCount}/{totalTileCount}</span>
+        <span>Drag layers {activeDragLayers}</span>
+        <span>Pointer avg {roundMetric(snapshot.pointerAvgMs)} ms</span>
+        <span>Pointer max {roundMetric(snapshot.pointerMaxMs)} ms</span>
+        <span>Renders {snapshot.boardRenderCount}</span>
+        <span>Commit {roundMetric(snapshot.latestCommitMs)} ms</span>
+        <span>State {isCanvasMoving ? "moving" : "idle"}</span>
+      </div>
     </div>
   );
 }
@@ -96,10 +198,6 @@ function CanvasPerformanceOverlay({
 export default function CanvasWorkspaceView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [textPlacementMode, setTextPlacementMode] = useState(false);
-  const [perfDebugMode, setPerfDebugMode] = useState(() => ({
-    effectsOff: false,
-    imagesOff: false,
-  }));
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
   const searchInputRef = useRef(null);
   const previousBoardSnapshotRef = useRef(null);
@@ -127,7 +225,6 @@ export default function CanvasWorkspaceView() {
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
-  const { theme, toggleTheme } = useTheme();
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -180,29 +277,6 @@ export default function CanvasWorkspaceView() {
     setSnapSettings(normalizeCanvasSnapSettings(homeData?.uiState));
   }, [homeData?.uiState]);
 
-  useEffect(() => {
-    try {
-      const rawValue = window.localStorage.getItem("airpaste:canvas-perf-debug");
-
-      if (!rawValue) {
-        return;
-      }
-
-      const nextMode = JSON.parse(rawValue);
-
-      setPerfDebugMode({
-        effectsOff: Boolean(nextMode?.effectsOff),
-        imagesOff: Boolean(nextMode?.imagesOff),
-      });
-    } catch {
-      // Ignore malformed local storage.
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem("airpaste:canvas-perf-debug", JSON.stringify(perfDebugMode));
-  }, [perfDebugMode]);
-
   const focusSearchInput = useCallback(() => {
     const input = searchInputRef.current;
     if (!input) return;
@@ -248,25 +322,7 @@ export default function CanvasWorkspaceView() {
     });
     return nextDraggingTileIdSet;
   }, [interactions.draggingTileIds]);
-  const visibleWorldRect = useMemo(() => {
-    if (!canvas.containerRect) {
-      return null;
-    }
-
-    const padding = 320;
-
-    return {
-      left: (-canvas.viewport.x - padding) / canvas.viewport.zoom,
-      top: (-canvas.viewport.y - padding) / canvas.viewport.zoom,
-      right: (canvas.containerRect.width - canvas.viewport.x + padding) / canvas.viewport.zoom,
-      bottom: (canvas.containerRect.height - canvas.viewport.y + padding) / canvas.viewport.zoom,
-    };
-  }, [
-    canvas.containerRect,
-    canvas.viewport.x,
-    canvas.viewport.y,
-    canvas.viewport.zoom,
-  ]);
+  const visibleWorldRect = null;
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
@@ -375,9 +431,8 @@ export default function CanvasWorkspaceView() {
     : null;
   const isCanvasMoving = canvas.isPanning || interactions.draggingTileIds.length > 0;
   const performanceMode = useMemo(() => ({
-    ...perfDebugMode,
-    simplifyDuringMotion: isCanvasMoving,
-  }), [isCanvasMoving, perfDebugMode]);
+    simplifyDuringMotion: false,
+  }), []);
 
   const boardSnapshot = useMemo(() => ({
     viewport: `${Math.round(canvas.viewport.x)}:${Math.round(canvas.viewport.y)}:${canvas.viewport.zoom.toFixed(2)}`,
@@ -399,8 +454,6 @@ export default function CanvasWorkspaceView() {
     isPanning: canvas.isPanning,
     isDropTarget: dropImport.isDropTarget,
     snapEnabled: snapSettings.enabled,
-    effectsOff: performanceMode.effectsOff,
-    imagesOff: performanceMode.imagesOff,
     openFolderId: commands.openFolderId,
   }), [
     canvas.isPanning,
@@ -420,8 +473,6 @@ export default function CanvasWorkspaceView() {
     interactions.marqueeBox,
     interactions.rackDropPreview?.rackId,
     interactions.selectedTileIds.length,
-    performanceMode.effectsOff,
-    performanceMode.imagesOff,
     snapSettings.enabled,
     visibleTileCount,
     workspace.cards.length,
@@ -445,31 +496,6 @@ export default function CanvasWorkspaceView() {
       perfMode: performanceMode,
     });
   }, [interactions.draggingTileIds.length, performanceMode, totalTileCount, visibleTileCount]);
-
-  const toggleEffectsOff = useCallback(() => {
-    setPerfDebugMode((currentMode) => ({
-      ...currentMode,
-      effectsOff: !currentMode.effectsOff,
-    }));
-  }, []);
-
-  const toggleImagesOff = useCallback(() => {
-    setPerfDebugMode((currentMode) => ({
-      ...currentMode,
-      imagesOff: !currentMode.imagesOff,
-    }));
-  }, []);
-
-  const toggleLiteMode = useCallback(() => {
-    setPerfDebugMode((currentMode) => {
-      const enableLiteMode = !(currentMode.effectsOff && currentMode.imagesOff);
-
-      return {
-        effectsOff: enableLiteMode,
-        imagesOff: enableLiteMode,
-      };
-    });
-  }, []);
 
   const toggleCanvasSnapping = useCallback(() => {
     setSnapSettings((currentSettings) => {
@@ -613,37 +639,6 @@ export default function CanvasWorkspaceView() {
       {/* ── Right Tools Portal ── */}
       {createPortal(
         <>
-          <button
-            type="button"
-            className="canvas-topbar__theme-toggle"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? "☀️" : "🌙"}
-          </button>
-          <div className="canvas-perf-toggles" aria-label="Canvas performance debug toggles">
-            <button
-              type="button"
-              className={`canvas-perf-toggle${performanceMode.effectsOff ? " canvas-perf-toggle--active" : ""}`}
-              onClick={toggleEffectsOff}
-            >
-              FX
-            </button>
-            <button
-              type="button"
-              className={`canvas-perf-toggle${performanceMode.imagesOff ? " canvas-perf-toggle--active" : ""}`}
-              onClick={toggleImagesOff}
-            >
-              IMG
-            </button>
-            <button
-              type="button"
-              className={`canvas-perf-toggle${performanceMode.effectsOff && performanceMode.imagesOff ? " canvas-perf-toggle--active" : ""}`}
-              onClick={toggleLiteMode}
-            >
-              Lite
-            </button>
-          </div>
           <CanvasAddMenu
             commands={commands}
             disabled={!folderPath || folderLoading}
@@ -708,7 +703,7 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
-        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}${performanceMode.effectsOff ? " canvas--perf-effects-off" : ""}${performanceMode.imagesOff ? " canvas--perf-images-off" : ""}${textPlacementMode ? " canvas--placing-text" : ""}`}
+        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}${textPlacementMode ? " canvas--placing-text" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
@@ -788,9 +783,10 @@ export default function CanvasWorkspaceView() {
           <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
         ) : null}
         <CanvasPerformanceOverlay
-          enabled={isCanvasMoving || performanceMode.effectsOff || performanceMode.imagesOff}
           visibleTileCount={visibleTileCount}
+          totalTileCount={totalTileCount}
           activeDragLayers={interactions.draggingTileIds.length}
+          isCanvasMoving={isCanvasMoving}
         />
 
         {/* Empty states */}

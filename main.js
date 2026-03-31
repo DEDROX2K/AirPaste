@@ -333,8 +333,9 @@ async function readJsonFile(filePath, fallbackValue) {
 
 async function safeWriteJson(filePath, data) {
   const directory = path.dirname(filePath);
-  const tempPath = `${filePath}${TEMP_SUFFIX}`;
-  const backupPath = `${filePath}${BACKUP_SUFFIX}`;
+  const opId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const tempPath = `${filePath}${TEMP_SUFFIX}-${opId}`;
+  const backupPath = `${filePath}${BACKUP_SUFFIX}-${opId}`;
   const payload = `${JSON.stringify(data, null, 2)}\n`;
 
   await fs.mkdir(directory, { recursive: true });
@@ -346,12 +347,30 @@ async function safeWriteJson(filePath, data) {
     // Ignore leftover backups from prior runs.
   }
 
+  let movedPreviousFile = false;
+
   if (await pathExists(filePath)) {
-    await fs.rename(filePath, backupPath);
+    try {
+      await fs.rename(filePath, backupPath);
+      movedPreviousFile = true;
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+    }
   }
 
-  await fs.rename(tempPath, filePath);
-  await fs.rm(backupPath, { force: true }).catch(() => { });
+  try {
+    await fs.rename(tempPath, filePath);
+  } catch (error) {
+    if (movedPreviousFile) {
+      await fs.rename(backupPath, filePath).catch(() => { });
+    }
+    throw error;
+  } finally {
+    await fs.rm(tempPath, { force: true }).catch(() => { });
+    await fs.rm(backupPath, { force: true }).catch(() => { });
+  }
 }
 
 function withWorkspaceQueue(folderPath, task) {
@@ -370,6 +389,31 @@ function withWorkspaceQueue(folderPath, task) {
       workspaceQueues.delete(queueKey);
     }
   });
+}
+
+async function resolveWorkspaceQueueKeyForFile(filePath) {
+  if (!filePath || typeof filePath !== "string") {
+    return "__invalid-workspace__";
+  }
+
+  let dir = path.dirname(path.resolve(filePath));
+
+  while (true) {
+    if (
+      await pathExists(path.join(dir, "airpaste.json"))
+      || await pathExists(path.join(dir, ".airpaste", "index.json"))
+    ) {
+      return dir;
+    }
+
+    const parent = path.dirname(dir);
+
+    if (parent === dir) {
+      return path.dirname(path.resolve(filePath));
+    }
+
+    dir = parent;
+  }
 }
 
 async function readConfig() {
@@ -1263,21 +1307,25 @@ for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
   ));
 }
 
-ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => (
-  workspaceService.loadCanvas(filePath)
-));
+ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
+  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+  return withWorkspaceQueue(queueKey, () => workspaceService.loadCanvas(filePath));
+});
 
-ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data) => (
-  workspaceService.saveCanvas(filePath, data)
-));
+ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data) => {
+  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+  return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data));
+});
 
-ipcMain.handle("airpaste:loadPage", async (_event, filePath) => (
-  workspaceService.loadPage(filePath)
-));
+ipcMain.handle("airpaste:loadPage", async (_event, filePath) => {
+  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+  return withWorkspaceQueue(queueKey, () => workspaceService.loadPage(filePath));
+});
 
-ipcMain.handle("airpaste:savePage", async (_event, filePath, markdown) => (
-  workspaceService.savePage(filePath, markdown)
-));
+ipcMain.handle("airpaste:savePage", async (_event, filePath, markdown) => {
+  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+  return withWorkspaceQueue(queueKey, () => workspaceService.savePage(filePath, markdown));
+});
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {
   const normalizedUrl = normalizeExternalUrl(url);

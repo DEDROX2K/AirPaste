@@ -7,6 +7,7 @@ import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
+import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { desktop } from "./lib/desktop";
 
@@ -78,6 +79,8 @@ function StartupSplash({ isLoading, onCreateNewWorkspace, onOpenExistingWorkspac
 }
 
 export default function App() {
+  useTheme();
+
   const usesCustomTitlebar = desktop.window.usesCustomTitlebar;
   const {
     booting,

@@ -1,50 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 const THEME_STORAGE_KEY = "airpaste-theme";
-const DEFAULT_THEME = "dark";
+const LIGHT_THEME = "light";
 
-function isTheme(value) {
-  return value === "light" || value === "dark";
-}
+function applyLightTheme() {
+  if (typeof document === "undefined") {
+    return;
+  }
 
-function readStoredTheme() {
+  const rootElement = document.documentElement;
+  rootElement.dataset.theme = LIGHT_THEME;
+  rootElement.style.colorScheme = LIGHT_THEME;
+  rootElement.classList.remove("dark");
+
   if (typeof window === "undefined") {
-    return DEFAULT_THEME;
+    return;
   }
 
   try {
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return isTheme(storedTheme) ? storedTheme : DEFAULT_THEME;
+    window.localStorage.setItem(THEME_STORAGE_KEY, LIGHT_THEME);
   } catch {
-    return DEFAULT_THEME;
+    // Ignore storage failures and keep applying light theme in-memory.
   }
 }
 
 export function useTheme() {
-  const [theme, setTheme] = useState(readStoredTheme);
+  const setTheme = useCallback(() => {
+    applyLightTheme();
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    applyLightTheme();
+  }, []);
 
   useEffect(() => {
-    const rootElement = document.documentElement;
-
-    rootElement.dataset.theme = theme;
-    rootElement.style.colorScheme = theme;
-
-    if (theme === "dark") {
-      rootElement.classList.add("dark");
-    } else {
-      rootElement.classList.remove("dark");
-    }
-
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // Ignore storage failures and keep the in-memory theme.
-    }
-  }, [theme]);
+    applyLightTheme();
+  }, []);
 
   return useMemo(() => ({
-    theme,
+    theme: LIGHT_THEME,
     setTheme,
-    toggleTheme: () => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark")),
-  }), [theme]);
+    toggleTheme,
+  }), [setTheme, toggleTheme]);
 }

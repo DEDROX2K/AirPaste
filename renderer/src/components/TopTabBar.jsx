@@ -10,64 +10,98 @@ function IconClose() {
   );
 }
 
-function IconHome() {
+function IconHomeFilled() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-      <polyline points="9 22 9 12 15 12 15 22"></polyline>
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 3.1 2.5 10.7h2.6V21h6.2v-6.1h1.4V21h6.2V10.7h2.6L12 3.1Z" />
     </svg>
   );
 }
 
-function IconFile() {
+function IconWindowToggle() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-      <polyline points="13 2 13 9 20 9"></polyline>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3 5.25L7 9L11 5.25" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
     </svg>
   );
 }
 
-function IconLayout() {
+function IconWindowMinimize() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-      <line x1="3" y1="9" x2="21" y2="9"></line>
-      <line x1="9" y1="21" x2="9" y2="9"></line>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3 7H11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
     </svg>
   );
+}
+
+function IconWindowClose() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3.2 3.2L10.8 10.8M10.8 3.2L3.2 10.8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2.2" />
+      <path d="M16.65 16.65L21 21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function focusSearchInput() {
+  const selectors = [
+    "#tile-search",
+    ".home-search__input",
+    "input[type='search']",
+  ];
+
+  for (const selector of selectors) {
+    const element = document.querySelector(selector);
+    if (!(element instanceof HTMLInputElement)) {
+      continue;
+    }
+    if (element.disabled) {
+      continue;
+    }
+
+    element.focus();
+    element.select?.();
+    return;
+  }
 }
 
 function TitleBarControls() {
   return (
     <div className="titlebar-controls">
       <button
+        className="titlebar-btn titlebar-btn--maximize"
+        type="button"
+        title="Toggle maximize"
+        aria-label="Toggle maximize"
+        onClick={() => desktop.window.maximize()}
+      >
+        <IconWindowToggle />
+      </button>
+      <button
         className="titlebar-btn titlebar-btn--minimize"
         type="button"
         title="Minimize"
+        aria-label="Minimize"
         onClick={() => desktop.window.minimize()}
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-          <rect y="4.5" width="10" height="1" rx="0.5" />
-        </svg>
-      </button>
-      <button
-        className="titlebar-btn titlebar-btn--maximize"
-        type="button"
-        title="Maximize"
-        onClick={() => desktop.window.maximize()}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
-          <rect x="0.5" y="0.5" width="9" height="9" rx="1" />
-        </svg>
+        <IconWindowMinimize />
       </button>
       <button
         className="titlebar-btn titlebar-btn--close"
         type="button"
         title="Close"
+        aria-label="Close"
         onClick={() => desktop.window.close()}
       >
-        <IconClose />
+        <IconWindowClose />
       </button>
     </div>
   );
@@ -92,40 +126,54 @@ export function TopTabBar({ usesCustomTitlebar }) {
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const isHome = tab.id === "home";
+            const tabClassName = `titlebar-tab ${isHome ? "titlebar-tab--home" : "titlebar-tab--file"} ${isActive ? "titlebar-tab--active" : ""}`;
+            const onActivate = () => setActiveTab(tab.id);
 
             return (
               <div
                 key={tab.id}
-                className={`titlebar-tab ${isActive ? "titlebar-tab--active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                className={tabClassName}
+                onClick={onActivate}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setActiveTab(tab.id);
+                    onActivate();
                   }
                 }}
                 title={tab.title}
               >
-                <span className="titlebar-tab-icon">
-                  {isHome ? <IconHome /> : tab.type === "page" ? <IconFile /> : <IconLayout />}
-                </span>
-                <span className="titlebar-tab-label">{tab.title}</span>
-
-                {tab.closable && (
-                  <button
-                    className="titlebar-tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(tab.id);
-                    }}
-                    title="Close tab"
-                    aria-label="Close tab"
-                  >
-                    <IconClose />
-                  </button>
+                {isHome ? (
+                  <>
+                    <span className="titlebar-home-pill">
+                      <span className="titlebar-home-icon">
+                        <IconHomeFilled />
+                      </span>
+                      <span className="titlebar-home-label">{tab.title}</span>
+                    </span>
+                    <span className="titlebar-home-marker" aria-hidden="true" />
+                    <span className="titlebar-home-dot" aria-hidden="true" />
+                  </>
+                ) : (
+                  <>
+                    <span className="titlebar-tab-label">{tab.title}</span>
+                    {tab.closable ? (
+                      <button
+                        className="titlebar-tab-close"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeTab(tab.id);
+                        }}
+                        title="Close tab"
+                        aria-label="Close tab"
+                      >
+                        <IconClose />
+                      </button>
+                    ) : null}
+                  </>
                 )}
+
               </div>
             );
           })}
@@ -136,6 +184,16 @@ export function TopTabBar({ usesCustomTitlebar }) {
 
       <div className="titlebar-right">
         <div id="titlebar-right-slot" />
+        <button
+          className="titlebar-search-btn"
+          type="button"
+          title="Search"
+          aria-label="Search"
+          onClick={focusSearchInput}
+        >
+          <IconSearch />
+          <span className="titlebar-search-btn__label">Search</span>
+        </button>
         <TitleBarControls />
       </div>
     </div>

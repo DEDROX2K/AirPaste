@@ -78,7 +78,7 @@ function FolderTile({
                   key={tile.id}
                   className={`card__canvas-folder-peek card__canvas-folder-peek--${index + 1}`}
                 >
-                  {tile.image && !performanceMode?.imagesOff ? (
+                  {tile.image ? (
                     <img
                       className="card__canvas-folder-peek-image"
                       src={tile.image}

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/useAppContext";
 import {
   basenameFromRelativePath,
@@ -111,7 +110,6 @@ export default function HomeShell() {
     saveHomeUiState,
     toggleItemStarred,
   } = useAppContext();
-  const { theme, toggleTheme } = useTheme();
   const bodyRef = useRef(null);
   const scrollSaveTimeoutRef = useRef(null);
   const [navigation, setNavigation] = useState(() => normalizeHomeNavigation(homeData.uiState));
@@ -243,7 +241,6 @@ export default function HomeShell() {
             <span className="home-workspace-path">{folderPath}</span>
           </div>
           <div className="home-sidebar__actions">
-            <AppButton variant="ghost" size="sm" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</AppButton>
             <AppButton variant="ghost" size="sm" onClick={() => void openExistingWorkspace()}>Switch</AppButton>
           </div>
         </div>
