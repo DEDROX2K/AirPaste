@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { recordInteractionCommit, recordPointerMoveSample } from "../../lib/perf";
+import { recordInteractionCommit } from "../../lib/perf";
 import {
   clampViewportZoom,
   clientToWorldPoint,
@@ -14,26 +14,38 @@ import {
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const containerRef = useRef(null);
+  const gridRef = useRef(null);
+  const contentRef = useRef(null);
   const containerRectRef = useRef(null);
   const panStateRef = useRef(null);
   const viewportRef = useRef(viewport);
-  const [liveViewport, setLiveViewport] = useState(null);
   const [isPanning, setIsPanning] = useState(false);
-
-  const effectiveViewport = liveViewport ?? viewport;
-
-  useEffect(() => {
-    if (!panStateRef.current) {
-      setLiveViewport(null);
-    }
-  }, [viewport]);
-
-  viewportRef.current = effectiveViewport;
 
   const measureContainerRect = useCallback(() => {
     containerRectRef.current = getClientRect(containerRef.current);
     return containerRectRef.current;
   }, []);
+
+  const applyViewportStyleVars = useCallback((nextViewport) => {
+    const gridStyleVars = getCanvasGridStyleVars(nextViewport);
+    const contentStyleVars = getCanvasContentStyleVars(nextViewport);
+
+    Object.entries(gridStyleVars).forEach(([name, value]) => {
+      gridRef.current?.style?.setProperty(name, value);
+    });
+
+    Object.entries(contentStyleVars).forEach(([name, value]) => {
+      contentRef.current?.style?.setProperty(name, value);
+    });
+  }, []);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+
+    if (!panStateRef.current) {
+      applyViewportStyleVars(viewport);
+    }
+  }, [applyViewportStyleVars, viewport]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -199,7 +211,6 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         return;
       }
 
-      const moveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
       const deltaX = event.clientX - panStateRef.current.startX;
       const deltaY = event.clientY - panStateRef.current.startY;
 
@@ -210,9 +221,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       };
 
       panStateRef.current.lastViewport = nextViewport;
-      setLiveViewport(nextViewport);
-      const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
-      recordPointerMoveSample(moveEnd - moveStart);
+      viewportRef.current = nextViewport;
+      applyViewportStyleVars(nextViewport);
     }
 
     function stopPanning() {
@@ -224,11 +234,12 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       const { lastViewport } = panStateRef.current;
 
       panStateRef.current = null;
-      setLiveViewport(null);
       setIsPanning(false);
 
       if (lastViewport) {
         onViewportChange(lastViewport);
+      } else {
+        applyViewportStyleVars(viewportRef.current);
       }
 
       const commitEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -248,15 +259,17 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       window.removeEventListener("pointercancel", stopPanning, true);
       window.removeEventListener("blur", stopPanning);
     };
-  }, [onViewportChange]);
+  }, [applyViewportStyleVars, onViewportChange]);
 
-  const gridStyleVars = useMemo(() => getCanvasGridStyleVars(effectiveViewport), [effectiveViewport]);
-  const contentStyleVars = useMemo(() => getCanvasContentStyleVars(effectiveViewport), [effectiveViewport]);
+  const gridStyleVars = useMemo(() => getCanvasGridStyleVars(viewport), [viewport]);
+  const contentStyleVars = useMemo(() => getCanvasContentStyleVars(viewport), [viewport]);
 
   return {
     containerRef,
+    gridRef,
+    contentRef,
     isPanning,
-    viewport: effectiveViewport,
+    viewport,
     containerRect: containerRectRef.current,
     gridStyleVars,
     contentStyleVars,

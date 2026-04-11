@@ -328,12 +328,12 @@ function MasonryGrid({ tiles, selectedIds, onSelect, onOpenLink }) {
         const pos = positions[tile.id];
         const style = pos
           ? {
-              position: "absolute",
-              left: pos.x,
-              top: pos.y,
-              width: pos.width ?? colWidth,
-              opacity: ready ? 1 : 0,
-            }
+            position: "absolute",
+            left: pos.x,
+            top: pos.y,
+            width: pos.width ?? colWidth,
+            opacity: ready ? 1 : 0,
+          }
           : { opacity: 0 };
 
         return (

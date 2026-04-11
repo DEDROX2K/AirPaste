@@ -384,14 +384,18 @@ export default function CanvasWorkspaceView() {
     input.select();
   }, []);
 
-  useEffect(() => {
-    async function handlePaste(event) {
-      if (isEditableElement(document.activeElement)) return;
-      await commands.pasteFromClipboard(event);
+  const handleWorkspacePaste = useCallback(async (event) => {
+    if (isEditableElement(document.activeElement)) {
+      return;
     }
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
+
+    await commands.pasteFromClipboard(event);
   }, [commands]);
+
+  useEffect(() => {
+    document.addEventListener("paste", handleWorkspacePaste, true);
+    return () => document.removeEventListener("paste", handleWorkspacePaste, true);
+  }, [handleWorkspacePaste]);
 
   const filteredTiles = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -867,7 +871,10 @@ export default function CanvasWorkspaceView() {
             )}
           </div>
         </header>
-        <GridWorkspaceView openTileLink={commands.openTileLink} />
+        <GridWorkspaceView
+          openTileLink={commands.openTileLink}
+          onPaste={handleWorkspacePaste}
+        />
       </main>
     );
   }
@@ -1024,8 +1031,8 @@ export default function CanvasWorkspaceView() {
           />
         ) : (
           <>
-            <div className="canvas__grid" style={canvas.gridStyleVars} />
-            <div className="canvas__content" style={canvas.contentStyleVars}>
+            <div ref={canvas.gridRef} className="canvas__grid" style={canvas.gridStyleVars} />
+            <div ref={canvas.contentRef} className="canvas__content" style={canvas.contentStyleVars}>
               {layout.rootTiles.map((card) => (
                 <Card
                   key={card.id}
