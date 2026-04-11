@@ -43,7 +43,7 @@ function StartupSplash({ isLoading, onCreateNewWorkspace, onOpenExistingWorkspac
           <p className="startup-splash__eyebrow">AirPaste</p>
           <h1 className="startup-splash__title">Paste first. Organize when you&rsquo;re ready.</h1>
           <p className="startup-splash__description">
-            A local-first desktop canvas for collecting links, notes, and references without sending
+            A local-first desktop canvas for collecting bookmarks, links, and images without sending
             them anywhere else.
           </p>
 

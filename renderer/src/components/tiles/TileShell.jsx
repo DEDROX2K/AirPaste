@@ -19,11 +19,9 @@ function TileShell({
   const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,
-    tileMeta?.isExpanded ? "card--note-folder-open" : "",
     tileMeta?.isSelected ? "card--selected" : "",
     tileMeta?.isHovered ? "card--hovered" : "",
     tileMeta?.isFocused ? "card--focused" : "",
-    tileMeta?.isEditing ? "card--editing" : "",
     tileMeta?.isDragging ? "card--dragging" : "",
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
     tileMeta?.isGroupingTarget ? "card--folder-group-target" : "",

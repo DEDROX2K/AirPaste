@@ -1,5 +1,4 @@
 export const RADIAL_MENU_ACTION_ORDER = [
-  "note",
   "snapping",
   "delete",
   "folder",
@@ -18,16 +17,6 @@ export function buildRadialMenuActions({
 
   // Extend this switch with new ids as the canvas command surface grows.
   return RADIAL_MENU_ACTION_ORDER.map((id) => {
-    if (id === "note") {
-      return {
-        id,
-        label: "Note",
-        kind: "action",
-        icon: "note",
-        onTrigger: handlers.onCreateNote,
-      };
-    }
-
     if (id === "snapping") {
       return {
         id,

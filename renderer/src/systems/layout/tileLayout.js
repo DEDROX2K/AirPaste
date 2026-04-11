@@ -331,17 +331,12 @@ export function getSelectedTileIdsInRect(tiles, selectionRect, openFolderId = nu
 
 export function getTileInteractionState({
   isDragging,
-  isEditing,
   isSelected,
   isFocused,
   isHovered,
 }) {
   if (isDragging) {
     return "dragging";
-  }
-
-  if (isEditing) {
-    return "editing";
   }
 
   if (isSelected) {
@@ -361,10 +356,8 @@ export function getTileInteractionState({
 
 export function getTileLayer(orderIndex, {
   isDragging,
-  isEditing,
   isSelected,
   isFocused,
-  isExpanded,
   isNested = false,
   isRackAttached = false,
   isParentDragging = false,
@@ -390,14 +383,6 @@ export function getTileLayer(orderIndex, {
 
   if (isFocused) {
     layer += 300;
-  }
-
-  if (isExpanded) {
-    layer += 500;
-  }
-
-  if (isEditing) {
-    layer += 800;
   }
 
   if (isDragging) {

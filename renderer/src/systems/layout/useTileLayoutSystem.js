@@ -48,7 +48,6 @@ export function useTileLayoutSystem({
   selectedTileIds,
   hoveredTileId,
   focusedTileId,
-  editingTileId,
   draggingTileIds,
   mergeTargetTileId,
   visibleWorldRect = null,
@@ -135,12 +134,10 @@ export function useTileLayoutSystem({
       const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
       const flags = {
         isDragging: draggingTileIdSet.has(tile.id) || parentRackDragging,
-        isEditing: editingTileId === tile.id,
         isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
         isFocused: focusedTileId === tile.id || parentRackFocused,
         isHovered: hoveredTileId === tile.id,
         isMergeTarget: isGroupingTarget,
-        isExpanded: openFolderId === tile.id,
         isRackAttached,
         isParentDragging: parentRackDragging,
         isParentSelected: parentRackSelected,
@@ -154,7 +151,6 @@ export function useTileLayoutSystem({
           ...flags,
           isGroupingTarget,
           isGroupingArmed: isGroupingTarget && folderGroupingPreview?.isArmed,
-          isFolderOpen: openFolderId === tile.id,
           isFolderZoneTarget: folderGroupingPreview?.folderId === tile.id,
           isRackDropTarget,
           rackId: entry.rackId ?? null,
@@ -180,7 +176,6 @@ export function useTileLayoutSystem({
     visibleCanvasEntries,
     canvasEntries.length,
     draggingTileIdSet,
-    editingTileId,
     focusedTileId,
     folderGroupingPreview,
     hoveredTileId,
@@ -221,12 +216,10 @@ export function useTileLayoutSystem({
         const isGroupingTarget = folderGroupingPreview?.targetTileId === tile.id;
         const flags = {
           isDragging: draggingTileIdSet.has(tile.id),
-          isEditing: editingTileId === tile.id,
           isSelected: selectedTileIdSet.has(tile.id),
           isFocused: focusedTileId === tile.id,
           isHovered: hoveredTileId === tile.id,
           isMergeTarget: isGroupingTarget,
-          isExpanded: false,
           isNested: true,
         };
 
@@ -274,7 +267,6 @@ export function useTileLayoutSystem({
   }, [
     canvasEntries,
     draggingTileIdSet,
-    editingTileId,
     focusedTileId,
     folderGroupingPreview,
     hoveredTileId,

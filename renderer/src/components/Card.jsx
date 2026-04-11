@@ -17,15 +17,10 @@ function areCardPropsEqual(previousProps, nextProps) {
   const isDragAffected = Boolean(cardId && nextProps.dragVisualTileIdSet?.has(cardId));
   const dragVisualDeltaEqual = (!wasDragAffected && !isDragAffected)
     || previousProps.dragVisualDelta === nextProps.dragVisualDelta;
-  const expandedTileIdEqual = nextProps.card?.type !== "folder"
-    ? true
-    : previousProps.expandedTileId === nextProps.expandedTileId;
 
   return previousProps.card === nextProps.card
     && previousProps.tileMeta === nextProps.tileMeta
     && previousProps.viewportZoom === nextProps.viewportZoom
-    && previousProps.isExpanded === nextProps.isExpanded
-    && expandedTileIdEqual
     && dragVisualDeltaEqual
     && previousProps.dragVisualTileIdSet === nextProps.dragVisualTileIdSet
     && previousProps.childTiles === nextProps.childTiles
@@ -37,14 +32,10 @@ function areCardPropsEqual(previousProps, nextProps) {
     && previousProps.onHoverChange === nextProps.onHoverChange
     && previousProps.onFocusIn === nextProps.onFocusIn
     && previousProps.onFocusOut === nextProps.onFocusOut
-    && previousProps.onEditingChange === nextProps.onEditingChange
     && previousProps.onOpenLink === nextProps.onOpenLink
     && previousProps.onMediaLoad === nextProps.onMediaLoad
     && previousProps.onPressStart === nextProps.onPressStart
-    && previousProps.onRequestTextNoteMagnify === nextProps.onRequestTextNoteMagnify
     && previousProps.onRetry === nextProps.onRetry
-    && previousProps.onTextChange === nextProps.onTextChange
-    && previousProps.onToggleExpanded === nextProps.onToggleExpanded
     && previousProps.onToggleFolderOpen === nextProps.onToggleFolderOpen;
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { canAttachTileToRack, isEditableElement } from "../../lib/workspace";
+import { canAttachTileToRack } from "../../lib/workspace";
 import {
   recordHitTestSample,
   readPointerMoveStats,
@@ -34,11 +34,6 @@ function isCanvasBackgroundTarget(event) {
     || event.target.classList?.contains("canvas__content");
 }
 
-function isTextToolbarTarget(element, tileId) {
-  return element instanceof Element
-    && element.closest?.(`[data-text-toolbar-for="${tileId}"]`);
-}
-
 export function useCanvasInteractionSystem({
   cards,
   canvas,
@@ -51,14 +46,11 @@ export function useCanvasInteractionSystem({
   const [selectedTileIds, setSelectedTileIds] = useState([]);
   const [hoveredTileId, setHoveredTileId] = useState(null);
   const [focusedTileId, setFocusedTileId] = useState(null);
-  const [editingTileId, setEditingTileId] = useState(null);
   const [draggingTileIds, setDraggingTileIds] = useState([]);
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
   const [folderGroupingPreview, setFolderGroupingPreview] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
-  const [magnifiedNoteState, setMagnifiedNoteState] = useState(null);
-  const [expandedTileId, setExpandedTileId] = useState(null);
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
@@ -110,24 +102,13 @@ export function useCanvasInteractionSystem({
     setContextMenu(null);
   }, []);
 
-  const closeExpandedTile = useCallback(() => {
-    setExpandedTileId(null);
-  }, []);
-
-  const closeMagnifiedNote = useCallback(() => {
-    setMagnifiedNoteState(null);
-  }, []);
-
   const resetTransientState = useCallback(() => {
     closeContextMenu();
     clearFolderGroupingPreview();
     clearRackDropPreview();
-    closeExpandedTile();
-    closeMagnifiedNote();
     setSelectedTileIds([]);
     setHoveredTileId(null);
     setFocusedTileId(null);
-    setEditingTileId(null);
     setDraggingTileIds([]);
     setDragVisualDelta(null);
     setMarqueeBox(null);
@@ -137,8 +118,6 @@ export function useCanvasInteractionSystem({
     clearFolderGroupingPreview,
     clearRackDropPreview,
     closeContextMenu,
-    closeExpandedTile,
-    closeMagnifiedNote,
   ]);
 
   useEffect(() => {
@@ -149,17 +128,11 @@ export function useCanvasInteractionSystem({
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => cards.some((tile) => tile.id === tileId)));
     setHoveredTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
     setFocusedTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
-    setEditingTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
-    setExpandedTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
 
     if (contextMenu?.kind === "tile" && contextMenu.card && !cards.some((tile) => tile.id === contextMenu.card.id)) {
       setContextMenu(null);
     }
-
-    if (magnifiedNoteState?.cardId && !cards.some((tile) => tile.id === magnifiedNoteState.cardId && tile.type === "text")) {
-      setMagnifiedNoteState(null);
-    }
-  }, [cards, contextMenu, magnifiedNoteState]);
+  }, [cards, contextMenu]);
 
   useEffect(() => {
     const renderableTileIds = new Set(
@@ -169,7 +142,6 @@ export function useCanvasInteractionSystem({
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => renderableTileIds.has(tileId)));
     setHoveredTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
     setFocusedTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
-    setEditingTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
   }, [cards, commands.openFolderId]);
 
   useEffect(() => {
@@ -238,22 +210,6 @@ export function useCanvasInteractionSystem({
     };
   }, [contextMenu]);
 
-  const requestTextNoteMagnify = useCallback((tileId, options = {}) => {
-    if (!tileId) {
-      return;
-    }
-
-    closeContextMenu();
-    setMagnifiedNoteState({
-      cardId: tileId,
-      startSplit: Boolean(options.startSplit),
-    });
-  }, [closeContextMenu]);
-
-  const toggleExpandedTile = useCallback((tileId) => {
-    setExpandedTileId((currentId) => (currentId === tileId ? null : tileId));
-  }, []);
-
   const selectTile = useCallback((tileId, options = {}) => {
     const shouldToggle = Boolean(options.toggle);
 
@@ -279,10 +235,6 @@ export function useCanvasInteractionSystem({
   const handleTilePressStart = useCallback((tile, event) => {
     closeContextMenu();
 
-    if (expandedTileId && expandedTileId !== tile.id) {
-      setExpandedTileId(null);
-    }
-
     if (isSelectionModifierPressed(event)) {
       selectTile(tile.id, { toggle: true });
       return true;
@@ -290,7 +242,7 @@ export function useCanvasInteractionSystem({
 
     selectTile(tile.id, { forceSingle: !selectedTileIdSet.has(tile.id) });
     return false;
-  }, [closeContextMenu, expandedTileId, selectTile, selectedTileIdSet]);
+  }, [closeContextMenu, selectTile, selectedTileIdSet]);
 
   const handleTileContextMenu = useCallback((tile, event) => {
     event.preventDefault();
@@ -325,50 +277,14 @@ export function useCanvasInteractionSystem({
     });
   }, []);
 
-  const handleTileFocusIn = useCallback((tileId, event) => {
+  const handleTileFocusIn = useCallback((tileId) => {
     setFocusedTileId(tileId);
-
-    if (isEditableElement(event.target)) {
-      setEditingTileId(tileId);
-    }
   }, []);
 
   const handleTileFocusOut = useCallback((tileId, event) => {
     const nextFocusedElement = event.relatedTarget;
 
-    if (isTextToolbarTarget(nextFocusedElement, tileId)) {
-      setFocusedTileId(tileId);
-      setEditingTileId(tileId);
-      return;
-    }
-
-    if (event.currentTarget?.contains?.(nextFocusedElement)) {
-      setEditingTileId(isEditableElement(nextFocusedElement) ? tileId : null);
-      return;
-    }
-
     setFocusedTileId((currentId) => (currentId === tileId ? null : currentId));
-    setEditingTileId((currentId) => (currentId === tileId ? null : currentId));
-  }, []);
-
-  const handleTileEditingChange = useCallback((tileId, isEditing) => {
-    setEditingTileId((currentId) => {
-      if (isEditing) {
-        return tileId;
-      }
-
-      return currentId === tileId ? null : currentId;
-    });
-  }, []);
-
-  const activateTileEditor = useCallback((tileId) => {
-    if (!tileId) {
-      return;
-    }
-
-    setSelectedTileIds([tileId]);
-    setFocusedTileId(tileId);
-    setEditingTileId(tileId);
   }, []);
 
   const beginCanvasMarqueeSelection = useCallback((event) => {
@@ -439,7 +355,6 @@ export function useCanvasInteractionSystem({
 
   const beginTileDrag = useCallback((tile, event) => {
     closeContextMenu();
-    closeMagnifiedNote();
     clearFolderGroupingPreview();
     clearRackDropPreview();
 
@@ -561,7 +476,6 @@ export function useCanvasInteractionSystem({
     clearFolderGroupingPreview,
     clearRackDropPreview,
     closeContextMenu,
-    closeMagnifiedNote,
     commands,
     selectedTileIdSet,
     selectedTileIds,
@@ -939,11 +853,9 @@ export function useCanvasInteractionSystem({
     }
 
     closeContextMenu();
-    closeExpandedTile();
     commands.closeFolder();
     setHoveredTileId(null);
     setFocusedTileId(null);
-    setEditingTileId(null);
     suppressCanvasContextMenuRef.current = false;
 
     const shouldBeginMarquee = isSelectionModifierPressed(event);
@@ -965,16 +877,7 @@ export function useCanvasInteractionSystem({
 
     setSelectedTileIds([]);
     canvas.beginCanvasPan(event);
-  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, closeExpandedTile, commands]);
-
-  const handleCanvasDoubleClick = useCallback((event) => {
-    if (!isCanvasBackgroundTarget(event) || event.button !== 0) {
-      return;
-    }
-
-    const preferredCenter = canvas.clientToWorldPoint(event.clientX, event.clientY);
-    commands.createNote("quick", "", preferredCenter);
-  }, [canvas, commands]);
+  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, commands]);
 
   const handleCanvasContextMenu = useCallback((event) => {
     if (!isCanvasBackgroundTarget(event)) {
@@ -1008,63 +911,45 @@ export function useCanvasInteractionSystem({
     selectedTileIdSet,
     hoveredTileId,
     focusedTileId,
-    editingTileId,
     draggingTileIds,
     dragVisualDelta,
     folderGroupingPreview,
     rackDropPreview,
-    magnifiedNoteState,
-    expandedTileId,
     marqueeBox,
     marqueeStyleVars,
-    activateTileEditor,
     beginTileDrag,
     closeContextMenu,
-    closeMagnifiedNote,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
-    handleCanvasDoubleClick,
     handleTileContextMenu,
-    handleTileEditingChange,
     handleTileFocusIn,
     handleTileFocusOut,
     handleTileHoverChange,
     handleTilePressStart,
-    requestTextNoteMagnify,
     resetTransientState,
     selectTile,
-    toggleExpandedTile,
   }), [
     beginTileDrag,
     closeContextMenu,
-    closeMagnifiedNote,
     contextMenu,
     dragVisualDelta,
     draggingTileIds,
-    editingTileId,
-    expandedTileId,
     focusedTileId,
     folderGroupingPreview,
     rackDropPreview,
-    activateTileEditor,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
-    handleCanvasDoubleClick,
     handleTileContextMenu,
-    handleTileEditingChange,
     handleTileFocusIn,
     handleTileFocusOut,
     handleTileHoverChange,
     handleTilePressStart,
     hoveredTileId,
-    magnifiedNoteState,
     marqueeBox,
     marqueeStyleVars,
-    requestTextNoteMagnify,
     resetTransientState,
     selectTile,
     selectedTileIdSet,
     selectedTileIds,
-    toggleExpandedTile,
   ]);
 }

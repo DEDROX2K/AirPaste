@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
-import NoteMagnifier from "./notes/NoteMagnifier";
+import GlobeWorkspaceView from "./GlobeWorkspaceView";
 import RadialContextMenu from "./RadialContextMenu";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
@@ -29,7 +29,11 @@ import {
   recordDerivedMetric,
   setPerfSummary,
 } from "../lib/perf";
-import TILE_TYPES from "../tiles/tileTypes";
+import {
+  clamp,
+  getDefaultCameraDistance,
+  getSoftGlobeRadius,
+} from "../systems/globe/globeLayout";
 
 function IconFolder() {
   return (
@@ -46,6 +50,27 @@ function IconHome() {
       <path d="M5 9.8V21h14V9.8" />
       <path d="M9.5 21v-6h5v6" />
     </svg>
+  );
+}
+
+function WorkspaceViewToggle({ mode, onChange }) {
+  return (
+    <div className="workspace-view-toggle" role="tablist" aria-label="Workspace view mode">
+      <button
+        type="button"
+        className={`workspace-view-toggle__button${mode === "flat" ? " workspace-view-toggle__button--active" : ""}`}
+        onClick={() => onChange("flat")}
+      >
+        Flat
+      </button>
+      <button
+        type="button"
+        className={`workspace-view-toggle__button${mode === "globe" ? " workspace-view-toggle__button--active" : ""}`}
+        onClick={() => onChange("globe")}
+      >
+        Globe
+      </button>
+    </div>
   );
 }
 
@@ -197,7 +222,6 @@ function CanvasPerformanceOverlay({
 
 export default function CanvasWorkspaceView() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [textPlacementMode, setTextPlacementMode] = useState(false);
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
   const searchInputRef = useRef(null);
   const previousBoardSnapshotRef = useRef(null);
@@ -210,14 +234,12 @@ export default function CanvasWorkspaceView() {
     openExistingWorkspace,
     saveHomeUiState,
     setViewport,
+    setWorkspaceView,
     showHome,
     workspace,
     createNewLinkCard,
-    createNewNoteFolderCard,
     createNewRackCard,
-    createNewTextCard,
     deleteExistingCard,
-    mergeExistingNoteCardIntoFolder,
     replaceWorkspaceCards,
     reorderExistingCards,
     updateExistingCard,
@@ -225,6 +247,9 @@ export default function CanvasWorkspaceView() {
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
+  const [globeVisibleTileCount, setGlobeVisibleTileCount] = useState(0);
+  const workspaceView = workspace.view ?? { mode: "flat" };
+  const isGlobeMode = workspaceView.mode === "globe";
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -238,11 +263,8 @@ export default function CanvasWorkspaceView() {
     getViewportCenter: canvas.getViewportCenter,
     openFolderDialog: openExistingWorkspace,
     createNewLinkCard,
-    createNewNoteFolderCard,
     createNewRackCard,
-    createNewTextCard,
     deleteExistingCard,
-    mergeExistingNoteCardIntoFolder,
     replaceWorkspaceCards,
     reorderExistingCards,
     updateExistingCard,
@@ -270,7 +292,6 @@ export default function CanvasWorkspaceView() {
 
   useEffect(() => {
     setSearchQuery("");
-    setTextPlacementMode(false);
   }, [currentEditor.filePath, folderPath]);
 
   useEffect(() => {
@@ -332,7 +353,6 @@ export default function CanvasWorkspaceView() {
     selectedTileIds: interactions.selectedTileIds,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
-    editingTileId: interactions.editingTileId,
     draggingTileIds: interactions.draggingTileIds,
     mergeTargetTileId: interactions.folderGroupingPreview?.targetTileId ?? null,
     visibleWorldRect,
@@ -346,6 +366,82 @@ export default function CanvasWorkspaceView() {
     canvas.zoomToBounds(layout.selectedTilesBounds);
   }, [canvas, layout.selectedTilesBounds]);
 
+  const updateWorkspaceMode = useCallback((mode) => {
+    setWorkspaceView((currentView) => {
+      const nextMode = mode === "globe" ? "globe" : "flat";
+
+      if (nextMode === "globe") {
+        const globeRadius = getSoftGlobeRadius(filteredTiles.length);
+        const minimumCameraDistance = getDefaultCameraDistance(globeRadius);
+
+        return {
+          ...(currentView ?? {}),
+          mode: "globe",
+          globeRadius,
+          yaw: Number.isFinite(currentView?.yaw) ? currentView.yaw : 0,
+          pitch: Number.isFinite(currentView?.pitch) ? currentView.pitch : 0,
+          cameraDistance: clamp(
+            Number.isFinite(currentView?.cameraDistance) ? currentView.cameraDistance : minimumCameraDistance,
+            minimumCameraDistance,
+            Math.max(minimumCameraDistance + 1200, globeRadius * 4.2),
+          ),
+          focusedTileId: typeof currentView?.focusedTileId === "string" ? currentView.focusedTileId : null,
+        };
+      }
+
+      return {
+        ...(currentView ?? {}),
+        mode: "flat",
+      };
+    });
+  }, [filteredTiles.length, setWorkspaceView]);
+
+  const globeRadius = workspaceView.globeRadius ?? getSoftGlobeRadius(filteredTiles.length);
+  const globeMinimumCameraDistance = getDefaultCameraDistance(globeRadius);
+  const globeMaximumCameraDistance = Math.max(globeMinimumCameraDistance + 1200, globeRadius * 4.2);
+  const globeZoomValue = clamp(globeMinimumCameraDistance / Math.max(globeMinimumCameraDistance, workspaceView.cameraDistance ?? globeMinimumCameraDistance), 0.35, 1.8);
+
+  const handleGlobeZoomIn = useCallback(() => {
+    setWorkspaceView((currentView) => ({
+      ...(currentView ?? {}),
+      cameraDistance: clamp(
+        (currentView?.cameraDistance ?? globeMinimumCameraDistance) / 1.18,
+        globeMinimumCameraDistance,
+        globeMaximumCameraDistance,
+      ),
+    }));
+  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
+
+  const handleGlobeZoomOut = useCallback(() => {
+    setWorkspaceView((currentView) => ({
+      ...(currentView ?? {}),
+      cameraDistance: clamp(
+        (currentView?.cameraDistance ?? globeMinimumCameraDistance) * 1.18,
+        globeMinimumCameraDistance,
+        globeMaximumCameraDistance,
+      ),
+    }));
+  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
+
+  const handleGlobeSetZoom = useCallback((nextZoom) => {
+    setWorkspaceView((currentView) => ({
+      ...(currentView ?? {}),
+      cameraDistance: clamp(
+        globeMinimumCameraDistance / Math.max(0.2, nextZoom),
+        globeMinimumCameraDistance,
+        globeMaximumCameraDistance,
+      ),
+    }));
+  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
+
+  const handleGlobeZoomToFitAll = useCallback(() => {
+    setWorkspaceView((currentView) => ({
+      ...(currentView ?? {}),
+      focusedTileId: null,
+      cameraDistance: globeMinimumCameraDistance,
+    }));
+  }, [globeMinimumCameraDistance, setWorkspaceView]);
+
   useEffect(() => {
     function handleKeyDown(event) {
       const activeElement = document.activeElement;
@@ -355,12 +451,6 @@ export default function CanvasWorkspaceView() {
       if (event.key === "Escape" && interactions.contextMenu) {
         event.preventDefault();
         interactions.closeContextMenu();
-        return;
-      }
-
-      if (event.key === "Escape" && textPlacementMode) {
-        event.preventDefault();
-        setTextPlacementMode(false);
         return;
       }
 
@@ -381,25 +471,41 @@ export default function CanvasWorkspaceView() {
 
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
-        canvas.zoomIn();
+        if (isGlobeMode) {
+          handleGlobeZoomIn();
+        } else {
+          canvas.zoomIn();
+        }
         return;
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key === "-") {
         event.preventDefault();
-        canvas.zoomOut();
+        if (isGlobeMode) {
+          handleGlobeZoomOut();
+        } else {
+          canvas.zoomOut();
+        }
         return;
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key === "0") {
         event.preventDefault();
-        canvas.setZoom(1);
+        if (isGlobeMode) {
+          handleGlobeZoomToFitAll();
+        } else {
+          canvas.setZoom(1);
+        }
         return;
       }
 
       if (event.shiftKey && event.key === "1") {
         event.preventDefault();
-        zoomToFitAll();
+        if (isGlobeMode) {
+          handleGlobeZoomToFitAll();
+        } else {
+          zoomToFitAll();
+        }
         return;
       }
 
@@ -415,34 +521,41 @@ export default function CanvasWorkspaceView() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canvas, commands, focusSearchInput, interactions, searchQuery, textPlacementMode, zoomToFitAll]);
+  }, [
+    canvas,
+    commands,
+    focusSearchInput,
+    handleGlobeZoomIn,
+    handleGlobeZoomOut,
+    handleGlobeZoomToFitAll,
+    interactions,
+    isGlobeMode,
+    searchQuery,
+    zoomToFitAll,
+  ]);
 
   const totalTileCount = workspace.cards.length;
-  const visibleTileCount = layout.visibleTileCount ?? layout.rootTiles.length;
+  const visibleTileCount = isGlobeMode
+    ? globeVisibleTileCount
+    : (layout.visibleTileCount ?? layout.rootTiles.length);
   const hasActiveSearch = deferredSearchQuery.trim().length > 0;
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
-  const magnifiedNoteCard = interactions.magnifiedNoteState
-    ? (
-      tileById[interactions.magnifiedNoteState.cardId]?.type === TILE_TYPES.NOTE
-        ? tileById[interactions.magnifiedNoteState.cardId]
-        : null
-    )
-    : null;
   const isCanvasMoving = canvas.isPanning || interactions.draggingTileIds.length > 0;
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: false,
   }), []);
 
   const boardSnapshot = useMemo(() => ({
+    viewMode: workspaceView.mode,
     viewport: `${Math.round(canvas.viewport.x)}:${Math.round(canvas.viewport.y)}:${canvas.viewport.zoom.toFixed(2)}`,
     cardCount: workspace.cards.length,
     filteredTileCount: filteredTiles.length,
     visibleTileCount,
+    globeVisibleTileCount: isGlobeMode ? globeVisibleTileCount : null,
     selectedCount: interactions.selectedTileIds.length,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
-    editingTileId: interactions.editingTileId,
     draggingCount: interactions.draggingTileIds.length,
     dragVisualDelta: interactions.dragVisualDelta
       ? `${Math.round(interactions.dragVisualDelta.x)}:${Math.round(interactions.dragVisualDelta.y)}`
@@ -450,11 +563,11 @@ export default function CanvasWorkspaceView() {
     folderPreview: interactions.folderGroupingPreview?.targetTileId ?? null,
     rackPreview: interactions.rackDropPreview?.rackId ?? null,
     marqueeActive: Boolean(interactions.marqueeBox),
-    expandedTileId: interactions.expandedTileId,
     isPanning: canvas.isPanning,
     isDropTarget: dropImport.isDropTarget,
     snapEnabled: snapSettings.enabled,
     openFolderId: commands.openFolderId,
+    globeCameraDistance: isGlobeMode ? Math.round(workspaceView.cameraDistance ?? 0) : null,
   }), [
     canvas.isPanning,
     canvas.viewport.x,
@@ -463,18 +576,20 @@ export default function CanvasWorkspaceView() {
     commands.openFolderId,
     dropImport.isDropTarget,
     filteredTiles.length,
+    globeVisibleTileCount,
     interactions.draggingTileIds.length,
     interactions.dragVisualDelta,
-    interactions.editingTileId,
-    interactions.expandedTileId,
     interactions.focusedTileId,
     interactions.folderGroupingPreview?.targetTileId,
     interactions.hoveredTileId,
     interactions.marqueeBox,
     interactions.rackDropPreview?.rackId,
     interactions.selectedTileIds.length,
+    isGlobeMode,
     snapSettings.enabled,
     visibleTileCount,
+    workspaceView.cameraDistance,
+    workspaceView.mode,
     workspace.cards.length,
   ]);
 
@@ -517,15 +632,6 @@ export default function CanvasWorkspaceView() {
   }, [log, saveHomeUiState, toast]);
 
   const radialMenu = interactions.contextMenu;
-
-  const handleRadialNote = useCallback(() => {
-    if (!radialMenu?.worldPoint) {
-      return false;
-    }
-
-    commands.createNote("notes-2", "", radialMenu.worldPoint);
-    return true;
-  }, [commands, radialMenu]);
 
   const handleRadialRack = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -577,7 +683,6 @@ export default function CanvasWorkspaceView() {
     snapEnabled: snapSettings.enabled,
     deleteDisabled: (radialMenu?.selectionIds?.length ?? 0) === 0,
     handlers: {
-      onCreateNote: handleRadialNote,
       onToggleSnapping: () => {
         toggleCanvasSnapping();
         return true;
@@ -591,7 +696,6 @@ export default function CanvasWorkspaceView() {
     handleRadialDelete,
     handleRadialFolder,
     handleRadialLink,
-    handleRadialNote,
     handleRadialRack,
     radialMenu,
     snapSettings.enabled,
@@ -639,21 +743,20 @@ export default function CanvasWorkspaceView() {
       {/* ── Right Tools Portal ── */}
       {createPortal(
         <>
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           <CanvasAddMenu
             commands={commands}
             disabled={!folderPath || folderLoading}
-            textPlacementMode={textPlacementMode}
-            onSelectText={() => setTextPlacementMode(true)}
           />
           <CanvasZoomMenu
-            zoom={workspace.viewport.zoom}
-            canFitAll={Boolean(layout.allTilesBounds)}
-            canFitSelection={Boolean(layout.selectedTilesBounds)}
-            onZoomIn={canvas.zoomIn}
-            onZoomOut={canvas.zoomOut}
-            onZoomToFitAll={zoomToFitAll}
-            onZoomToFitSelection={zoomToFitSelection}
-            onSetZoom={canvas.setZoom}
+            zoom={isGlobeMode ? globeZoomValue : workspace.viewport.zoom}
+            canFitAll={isGlobeMode ? filteredTiles.length > 0 : Boolean(layout.allTilesBounds)}
+            canFitSelection={!isGlobeMode && Boolean(layout.selectedTilesBounds)}
+            onZoomIn={isGlobeMode ? handleGlobeZoomIn : canvas.zoomIn}
+            onZoomOut={isGlobeMode ? handleGlobeZoomOut : canvas.zoomOut}
+            onZoomToFitAll={isGlobeMode ? handleGlobeZoomToFitAll : zoomToFitAll}
+            onZoomToFitSelection={isGlobeMode ? undefined : zoomToFitSelection}
+            onSetZoom={isGlobeMode ? handleGlobeSetZoom : canvas.setZoom}
           />
         </>,
         document.getElementById("titlebar-right-slot") || document.body
@@ -703,91 +806,95 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
-        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}${textPlacementMode ? " canvas--placing-text" : ""}`}
+        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}${isGlobeMode ? " canvas--globe" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
         onPointerDown={(event) => {
-          const isBackgroundTarget = event.target === event.currentTarget
-            || event.target.classList?.contains("canvas__content");
-
-          if (textPlacementMode && isBackgroundTarget && event.button === 0) {
-            event.preventDefault();
-            event.stopPropagation();
+          if (isGlobeMode) {
             return;
           }
+
+          const isBackgroundTarget = event.target === event.currentTarget
+            || event.target.classList?.contains("canvas__content");
 
           interactions.handleCanvasPointerDown(event);
         }}
-        onDoubleClick={interactions.handleCanvasDoubleClick}
-        onContextMenu={interactions.handleCanvasContextMenu}
+        onContextMenu={isGlobeMode ? undefined : interactions.handleCanvasContextMenu}
         onClick={(event) => {
-          const isBackgroundTarget = event.target === event.currentTarget
-            || event.target.classList?.contains("canvas__content");
-
-          if (textPlacementMode && isBackgroundTarget && event.button === 0) {
-            const preferredCenter = canvas.clientToWorldPoint(event.clientX, event.clientY);
-            const tile = commands.createRichTextTile(preferredCenter);
-
-            if (tile?.id) {
-              interactions.activateTileEditor(tile.id);
+          if (isGlobeMode) {
+            if (!isEditableElement(event.target)) {
+              event.currentTarget.focus({ preventScroll: true });
             }
-
-            setTextPlacementMode(false);
-            event.currentTarget.focus({ preventScroll: true });
             return;
           }
+
+          const isBackgroundTarget = event.target === event.currentTarget
+            || event.target.classList?.contains("canvas__content");
 
           if (!isEditableElement(event.target)) {
             event.currentTarget.focus({ preventScroll: true });
           }
         }}
       >
-        <div className="canvas__grid" style={canvas.gridStyleVars} />
-        <div className="canvas__content" style={canvas.contentStyleVars}>
-          {layout.rootTiles.map((card) => (
-            <Card
-              key={card.id}
-              card={card}
-              tileMeta={layout.tileMetaById[card.id]}
-              viewportZoom={workspace.viewport.zoom}
-              isExpanded={interactions.expandedTileId === card.id}
-              dragVisualDelta={interactions.dragVisualDelta}
-              dragVisualTileIdSet={draggingTileIdSet}
-              childTiles={layout.folderChildTilesByFolderId[card.id] ?? layout.rackTileChildrenByRackId[card.id] ?? []}
-              folderState={layout.openFolderState?.folderId === card.id ? layout.openFolderState : null}
-              rackState={layout.rackStateById[card.id] ?? null}
-              expandedTileId={interactions.expandedTileId}
-              performanceMode={performanceMode}
-              onBeginDrag={interactions.beginTileDrag}
-              onContextMenu={interactions.handleTileContextMenu}
-              onHoverChange={interactions.handleTileHoverChange}
-              onFocusIn={interactions.handleTileFocusIn}
-              onFocusOut={interactions.handleTileFocusOut}
-              onOpenLink={commands.openTileLink}
-              onMediaLoad={commands.updateTileFromMediaLoad}
-              onPressStart={interactions.handleTilePressStart}
-              onRequestTextNoteMagnify={interactions.requestTextNoteMagnify}
-              onRetry={commands.retryTilePreview}
-              onTextChange={commands.updateTile}
-              onEditingChange={interactions.handleTileEditingChange}
-              onToggleExpanded={interactions.toggleExpandedTile}
-              onToggleFolderOpen={commands.toggleFolder}
-            />
-          ))}
-        </div>
+        {isGlobeMode ? (
+          <GlobeWorkspaceView
+            allCards={workspace.cards}
+            cards={filteredTiles}
+            view={workspaceView}
+            setWorkspaceView={setWorkspaceView}
+            updateExistingCards={updateExistingCards}
+            openTileLink={commands.openTileLink}
+            updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
+            retryTilePreview={commands.retryTilePreview}
+            toggleFolder={commands.toggleFolder}
+            onVisibleCountChange={setGlobeVisibleTileCount}
+          />
+        ) : (
+          <>
+            <div className="canvas__grid" style={canvas.gridStyleVars} />
+            <div className="canvas__content" style={canvas.contentStyleVars}>
+              {layout.rootTiles.map((card) => (
+                <Card
+                  key={card.id}
+                  card={card}
+                  tileMeta={layout.tileMetaById[card.id]}
+                  viewportZoom={workspace.viewport.zoom}
+                  dragVisualDelta={interactions.dragVisualDelta}
+                  dragVisualTileIdSet={draggingTileIdSet}
+                  childTiles={layout.folderChildTilesByFolderId[card.id] ?? layout.rackTileChildrenByRackId[card.id] ?? []}
+                  folderState={layout.openFolderState?.folderId === card.id ? layout.openFolderState : null}
+                  rackState={layout.rackStateById[card.id] ?? null}
+                  performanceMode={performanceMode}
+                  onBeginDrag={interactions.beginTileDrag}
+                  onContextMenu={interactions.handleTileContextMenu}
+                  onHoverChange={interactions.handleTileHoverChange}
+                  onFocusIn={interactions.handleTileFocusIn}
+                  onFocusOut={interactions.handleTileFocusOut}
+                  onOpenLink={commands.openTileLink}
+                  onMediaLoad={commands.updateTileFromMediaLoad}
+                  onPressStart={interactions.handleTilePressStart}
+                  onRetry={commands.retryTilePreview}
+                  onToggleFolderOpen={commands.toggleFolder}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
-        {interactions.marqueeBox ? (
+        {!isGlobeMode && interactions.marqueeBox ? (
           <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
         ) : null}
-        <CanvasPerformanceOverlay
-          visibleTileCount={visibleTileCount}
-          totalTileCount={totalTileCount}
-          activeDragLayers={interactions.draggingTileIds.length}
-          isCanvasMoving={isCanvasMoving}
-        />
+        {!isGlobeMode ? (
+          <CanvasPerformanceOverlay
+            visibleTileCount={visibleTileCount}
+            totalTileCount={totalTileCount}
+            activeDragLayers={interactions.draggingTileIds.length}
+            isCanvasMoving={isCanvasMoving}
+          />
+        ) : null}
 
         {/* Empty states */}
         {!folderPath ? (
@@ -798,7 +905,7 @@ export default function CanvasWorkspaceView() {
               </svg>
             </div>
             <h2 className="canvas__empty-title">No workspace open</h2>
-            <p className="canvas__empty-description">Open a local folder to start saving notes, links, and media.</p>
+            <p className="canvas__empty-description">Open a local folder to start saving links and media.</p>
             <button className="canvas__empty-action" type="button" onClick={commands.openWorkspaceFolder}>
               Open Folder
             </button>
@@ -806,17 +913,17 @@ export default function CanvasWorkspaceView() {
         ) : totalTileCount === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
-            description="Use the Add button in the top-right to create a note, folder, or rack. Paste a URL or image to import directly."
+            description="Use the Add button in the top-right to create a folder or rack. Paste a URL or image to import directly."
             icon={
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
             }
           />
-        ) : hasActiveSearch && visibleTileCount === 0 ? (
+        ) : hasActiveSearch && filteredTiles.length === 0 ? (
           <AppEmptyState
             title={`No results for "${deferredSearchQuery.trim()}"`}
-            description="Try a title, URL, note snippet, or tile type."
+            description="Try a title, URL, or tile type."
             actionLabel="Clear Search"
             onAction={() => { setSearchQuery(""); focusSearchInput(); }}
             icon={
@@ -832,12 +939,6 @@ export default function CanvasWorkspaceView() {
         menu={radialMenu}
         actions={radialActions}
         onClose={interactions.closeContextMenu}
-      />
-      <NoteMagnifier
-        card={magnifiedNoteCard}
-        initialSplit={Boolean(interactions.magnifiedNoteState?.startSplit)}
-        onClose={interactions.closeMagnifiedNote}
-        onTextChange={commands.updateTile}
       />
     </main>
   );

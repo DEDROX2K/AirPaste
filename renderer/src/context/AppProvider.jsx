@@ -4,10 +4,7 @@ import { useTabs } from "./useTabs";
 import {
   createEmptyWorkspace,
   createLinkCard,
-  createNoteFolderCard,
   createRackCard,
-  createTextCard,
-  mergeCardIntoNoteFolder,
   normalizeWorkspace,
   removeCard,
   reorderCards,
@@ -304,16 +301,10 @@ export function AppProvider({ children }) {
   }, []);
 
   const setViewport = useCallback((nextViewport) => patchWorkspace((current) => ({ ...current, viewport: nextViewport })), [patchWorkspace]);
-  const createNewTextCard = useCallback((text = "", center = null, options = {}) => {
-    const card = createTextCard(workspace.cards, workspace.viewport, text, center, options);
-    patchWorkspace((current) => ({ ...current, cards: [...current.cards, card] }));
-    return card;
-  }, [patchWorkspace, workspace.cards, workspace.viewport]);
-  const createNewNoteFolderCard = useCallback((center = null, options = {}) => {
-    const card = createNoteFolderCard(workspace.cards, workspace.viewport, center, options);
-    patchWorkspace((current) => ({ ...current, cards: [...current.cards, card] }));
-    return card;
-  }, [patchWorkspace, workspace.cards, workspace.viewport]);
+  const setWorkspaceView = useCallback((nextView) => patchWorkspace((current) => ({
+    ...current,
+    view: typeof nextView === "function" ? nextView(current.view ?? null) : nextView,
+  })), [patchWorkspace]);
   const createNewLinkCard = useCallback((url, center = null, options = {}) => {
     const card = createLinkCard(workspace.cards, workspace.viewport, url, center, options);
     patchWorkspace((current) => ({ ...current, cards: [...current.cards, card] }));
@@ -328,12 +319,6 @@ export function AppProvider({ children }) {
   const updateExistingCards = useCallback((updatesById) => patchWorkspace((current) => ({ ...current, cards: updateCards(current.cards, updatesById) })), [patchWorkspace]);
   const replaceWorkspaceCards = useCallback((nextCards) => patchWorkspace((current) => ({ ...current, cards: replaceCards(current.cards, nextCards) })), [patchWorkspace]);
   const reorderExistingCards = useCallback((orderedIds) => patchWorkspace((current) => ({ ...current, cards: reorderCards(current.cards, orderedIds) })), [patchWorkspace]);
-  const mergeExistingNoteCardIntoFolder = useCallback((sourceCardId, targetCardId) => {
-    const result = mergeCardIntoNoteFolder(workspace.cards, sourceCardId, targetCardId);
-    if (!result) return null;
-    patchWorkspace((current) => ({ ...current, cards: result.cards }));
-    return result.folderCard;
-  }, [patchWorkspace, workspace.cards]);
   const deleteExistingCard = useCallback((cardId) => {
     patchWorkspace((current) => ({ ...current, cards: removeCard(current.cards, cardId) }));
     if (folderPath) void desktop.workspace.cancelLinkPreview(folderPath, cardId).catch(() => {});
@@ -390,9 +375,7 @@ export function AppProvider({ children }) {
     booting,
     createCanvasEntry,
     createNewLinkCard,
-    createNewNoteFolderCard,
     createNewRackCard,
-    createNewTextCard,
     createNewWorkspace,
     createPageEntry,
     currentEditor,
@@ -413,20 +396,18 @@ export function AppProvider({ children }) {
     saveHomeUiState,
     setError,
     setViewport,
+    setWorkspaceView,
     showHome,
     toggleItemStarred,
     updateCurrentPageMarkdown,
     updateExistingCard,
     updateExistingCards,
     workspace,
-    mergeExistingNoteCardIntoFolder,
   }), [
     booting,
     createCanvasEntry,
     createNewLinkCard,
-    createNewNoteFolderCard,
     createNewRackCard,
-    createNewTextCard,
     createNewWorkspace,
     createPageEntry,
     currentEditor,
@@ -437,7 +418,6 @@ export function AppProvider({ children }) {
     folderLoading,
     folderPath,
     homeData,
-    mergeExistingNoteCardIntoFolder,
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
@@ -447,6 +427,7 @@ export function AppProvider({ children }) {
     replaceWorkspaceCards,
     saveHomeUiState,
     setViewport,
+    setWorkspaceView,
     showHome,
     toggleItemStarred,
     updateCurrentPageMarkdown,

@@ -1,17 +1,12 @@
 import { memo } from "react";
 import Card from "../Card";
 import { formatCardSubtitle } from "../../lib/workspace";
-import TILE_TYPES from "../../tiles/tileTypes";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
 function getPreviewLabel(tile) {
   if (!tile) {
     return "";
-  }
-
-  if (tile.type === TILE_TYPES.NOTE) {
-    return tile.text.trim().split(/\r?\n/).find(Boolean) ?? "Text note";
   }
 
   return tile.title?.trim() || formatCardSubtitle(tile);
@@ -22,7 +17,6 @@ function FolderTile({
   tileMeta,
   childTiles = [],
   folderState = null,
-  expandedTileId,
   viewportZoom,
   dragVisualDelta,
   dragVisualTileIdSet,
@@ -35,10 +29,7 @@ function FolderTile({
   onOpenLink,
   onPressStart,
   onMediaLoad,
-  onRequestTextNoteMagnify,
   onRetry,
-  onTextChange,
-  onToggleExpanded,
   onToggleFolderOpen,
 }) {
   const previewTiles = childTiles.slice(0, 3);
@@ -142,7 +133,6 @@ function FolderTile({
                   card={childTile}
                   tileMeta={folderState.childTileMetaById[childTile.id]}
                   viewportZoom={viewportZoom}
-                  isExpanded={expandedTileId === childTile.id}
                   dragVisualDelta={dragVisualDelta}
                   dragVisualTileIdSet={dragVisualTileIdSet}
                   performanceMode={performanceMode}
@@ -154,10 +144,7 @@ function FolderTile({
                   onOpenLink={onOpenLink}
                   onMediaLoad={onMediaLoad}
                   onPressStart={onPressStart}
-                  onRequestTextNoteMagnify={onRequestTextNoteMagnify}
                   onRetry={onRetry}
-                  onTextChange={onTextChange}
-                  onToggleExpanded={onToggleExpanded}
                   onToggleFolderOpen={onToggleFolderOpen}
                 />
               ))}

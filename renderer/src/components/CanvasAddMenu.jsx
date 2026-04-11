@@ -11,8 +11,6 @@ import {
 export default function CanvasAddMenu({
   commands,
   disabled,
-  textPlacementMode = false,
-  onSelectText = null,
 }) {
   return (
     <AppDropdownMenu>
@@ -31,41 +29,6 @@ export default function CanvasAddMenu({
       </AppDropdownMenuTrigger>
 
       <AppDropdownMenuContent className="w-52" align="end" sideOffset={8}>
-        <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
-          Notes
-        </AppDropdownMenuLabel>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => onSelectText?.()}
-          className={textPlacementMode ? "bg-ap-surface-muted/70" : ""}
-        >
-          <TextIcon />
-          Text
-        </AppDropdownMenuItem>
-        <AppDropdownMenuSeparator />
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createNote("notes-1")}
-        >
-          <NoteIcon />
-          Sticky Note
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createNote("notes-2")}
-        >
-          <NoteIcon />
-          Paper Note
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createNote("notes-3")}
-        >
-          <NoteIcon />
-          Lined Note
-        </AppDropdownMenuItem>
-
-        <AppDropdownMenuSeparator />
         <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
           Structure
         </AppDropdownMenuLabel>
@@ -103,17 +66,6 @@ export default function CanvasAddMenu({
   );
 }
 
-function NoteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 3 14 8 20 8" />
-      <line x1="9" y1="13" x2="15" y2="13" />
-      <line x1="9" y1="17" x2="12" y2="17" />
-    </svg>
-  );
-}
-
 function FolderIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
@@ -127,16 +79,6 @@ function RackIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-    </svg>
-  );
-}
-
-function TextIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M4 7V4h16v3" />
-      <path d="M9 20h6" />
-      <path d="M12 4v16" />
     </svg>
   );
 }

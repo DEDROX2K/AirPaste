@@ -1,8 +1,6 @@
 import FolderTile from "../components/tiles/FolderTile";
 import LinkTile from "../components/tiles/LinkTile";
-import NoteFolderTile from "../components/tiles/NoteFolderTile";
 import RackTile from "../components/tiles/RackTile";
-import TextTile from "../components/tiles/TextTile";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
 
@@ -22,23 +20,6 @@ const Model3DTile = createPlaceholderTile("3D Model");
 const PhysicsItemTile = createPlaceholderTile("Physics Item");
 
 const tileRegistry = {
-  [TILE_TYPES.NOTE]: {
-    type: TILE_TYPES.NOTE,
-    displayName: "Note Tile",
-    status: "stable",
-    component: TextTile,
-    defaultSize: { width: 428, height: 540 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
-  },
   [TILE_TYPES.LINK]: {
     type: TILE_TYPES.LINK,
     displayName: "Link Tile",
@@ -68,23 +49,6 @@ const tileRegistry = {
       resizable: false,
       editable: false,
       container: true,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
-  },
-  [TILE_TYPES.NOTE_FOLDER]: {
-    type: TILE_TYPES.NOTE_FOLDER,
-    displayName: "Note Folder Tile",
-    status: "stable",
-    component: NoteFolderTile,
-    defaultSize: { width: 360, height: 284 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: false,
-      container: false,
       navigation: false,
       physics: false,
       lazy: false,

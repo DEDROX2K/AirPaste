@@ -10,12 +10,6 @@ import {
   isUrl,
   LINK_CONTENT_KIND_BOOKMARK,
   LINK_CONTENT_KIND_IMAGE,
-  NOTE_FOLDER_CARD_TYPE,
-  NOTE_STYLE_ONE,
-  NOTE_STYLE_THREE,
-  NOTE_STYLE_QUICK,
-  NOTE_STYLE_TWO,
-  TEXT_CONTENT_MODEL_RICH,
   removeTileFromFolder,
   removeTileFromRack,
   RACK_CARD_TYPE,
@@ -24,22 +18,6 @@ import { desktop } from "../../lib/desktop";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
-
-const NOTE_VARIANTS = {
-  standard: { noteStyle: NOTE_STYLE_TWO },
-  "notes-1": { noteStyle: NOTE_STYLE_ONE },
-  "notes-2": { noteStyle: NOTE_STYLE_TWO },
-  "notes-3": { noteStyle: NOTE_STYLE_THREE },
-  quick: { noteStyle: NOTE_STYLE_QUICK },
-};
-
-const QUICK_NOTE_THEMES = [
-  "theme-blue-red",
-  "theme-yellow-purple",
-  "theme-green-pink",
-  "theme-cream-orange",
-  "theme-lilac-mint",
-];
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
@@ -129,11 +107,8 @@ export function useCanvasCommands({
   getViewportCenter,
   openFolderDialog,
   createNewLinkCard,
-  createNewNoteFolderCard,
   createNewRackCard,
-  createNewTextCard,
   deleteExistingCard,
-  mergeExistingNoteCardIntoFolder,
   replaceWorkspaceCards,
   reorderExistingCards,
   updateExistingCard,
@@ -189,43 +164,6 @@ export function useCanvasCommands({
     }
   }, [log, openFolderDialog, toast]);
 
-  const createNote = useCallback((variant = "standard", text = "", preferredCenter = null) => {
-    if (!folderPath) {
-      log("warn", "New note blocked because no folder is open");
-      toast("warn", "Open a folder first.");
-      return null;
-    }
-
-    const config = NOTE_VARIANTS[variant] || NOTE_VARIANTS.standard;
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    
-    let colorTheme = "";
-    if (variant === "quick") {
-      colorTheme = QUICK_NOTE_THEMES[Math.floor(Math.random() * QUICK_NOTE_THEMES.length)];
-    }
-
-    const card = createNewTextCard(text, centerPoint, { 
-      noteStyle: config.noteStyle,
-      colorTheme
-    });
-
-    log("success", `New blank note created in canvas center`, centerPoint);
-    toast("success", "Note dropped into the center.");
-    return card;
-  }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
-
-  /** @deprecated Use createNote("quick", "", preferredCenter) */
-  const createQuickNote = useCallback((preferredCenter = null) => {
-    return createNote("quick", "", preferredCenter);
-  }, [createNote]);
-
-  /** @deprecated Use createNote("notes-1") */
-  const createNoteOne = useCallback(() => createNote("notes-1"), [createNote]);
-  /** @deprecated Use createNote("notes-2") */
-  const createNoteTwo = useCallback(() => createNote("notes-2"), [createNote]);
-  /** @deprecated Use createNote("notes-3") */
-  const createNoteThree = useCallback(() => createNote("notes-3"), [createNote]);
-
   const createFolderTile = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
       log("warn", "New folder blocked because no folder is open");
@@ -257,31 +195,6 @@ export function useCanvasCommands({
     toast("success", "Rack dropped into place.");
     return rack;
   }, [createNewRackCard, folderPath, getViewportCenter, log, toast]);
-
-  const createRichTextTile = useCallback((preferredCenter = null) => {
-    if (!folderPath) {
-      log("warn", "New text tile blocked because no folder is open");
-      toast("warn", "Open a folder first.");
-      return null;
-    }
-
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    const card = createNewTextCard("", centerPoint, {
-      contentModel: TEXT_CONTENT_MODEL_RICH,
-      textHtml: "<p></p>",
-      textStylePreset: "simple",
-      fontSize: "16",
-      textAlign: "left",
-    });
-
-    log("success", "New text tile created", centerPoint);
-    toast("success", "Text tile placed.");
-    return card;
-  }, [createNewTextCard, folderPath, getViewportCenter, log, toast]);
-
-  const updateTile = useCallback((tileId, updates) => {
-    updateExistingCard(tileId, updates);
-  }, [updateExistingCard]);
 
   const moveTiles = useCallback((tileIds, origins, delta) => {
     const updatesById = {};
@@ -336,21 +249,6 @@ export function useCanvasCommands({
       reorderExistingCards(rootTileIds);
     }
   }, [reorderExistingCards, workspace.cards]);
-
-  const mergeTilesIntoFolder = useCallback((sourceTileId, targetTileId) => {
-    const folderTile = mergeExistingNoteCardIntoFolder(sourceTileId, targetTileId);
-
-    if (folderTile) {
-      log("success", "Notes grouped into a folder", {
-        sourceTileId,
-        targetTileId,
-        folderTileId: folderTile.id,
-      });
-      toast("success", "Note tucked into a folder.");
-    }
-
-    return folderTile;
-  }, [log, mergeExistingNoteCardIntoFolder, toast]);
 
   const createFolderFromTileSet = useCallback((sourceTileId, targetTileId) => {
     const result = createFolderFromTiles(workspace.cards, sourceTileId, targetTileId);
@@ -561,63 +459,6 @@ export function useCanvasCommands({
     }
   }, [deleteExistingCard, log, toast]);
 
-  const duplicateTile = useCallback((tile) => {
-    if (!tile) {
-      return null;
-    }
-
-    const preferredCenter = {
-      x: tile.x + tile.width / 2 + 36,
-      y: tile.y + tile.height / 2 + 36,
-    };
-
-    if (tile.type === "text") {
-      return createNewTextCard(tile.text, preferredCenter, {
-        contentModel: tile.contentModel,
-        textHtml: tile.textHtml,
-        textStylePreset: tile.textStylePreset,
-        fontSize: tile.fontSize,
-        textAlign: tile.textAlign,
-        noteStyle: tile.noteStyle,
-        secondaryText: tile.secondaryText,
-        quoteAuthor: tile.quoteAuthor,
-        colorTheme: tile.colorTheme,
-      });
-    }
-
-    if (tile.type === NOTE_FOLDER_CARD_TYPE) {
-      return createNewNoteFolderCard(preferredCenter, {
-        title: tile.title,
-        description: tile.description,
-        notes: tile.notes,
-      });
-    }
-
-    if (tile.type === FOLDER_CARD_TYPE || tile.type === RACK_CARD_TYPE) {
-      return null;
-    }
-
-    const clonedTile = createNewLinkCard(tile.url, preferredCenter, {
-      contentKind: tile.contentKind,
-      title: tile.title,
-      description: tile.description,
-      image: tile.image,
-      favicon: tile.favicon,
-      siteName: tile.siteName,
-      previewKind: tile.previewKind,
-      status: tile.status,
-      width: tile.width,
-      height: tile.height,
-      asset: tile.asset,
-    });
-
-    return clonedTile;
-  }, [
-    createNewLinkCard,
-    createNewNoteFolderCard,
-    createNewTextCard,
-  ]);
-
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
     if (!tile?.id || !tile.image) {
       return;
@@ -729,11 +570,8 @@ export function useCanvasCommands({
       void queueLinkPreview(tile);
       return;
     }
-
-    createNote("notes-2", text);
   }, [
     createNewLinkCard,
-    createNote,
     folderPath,
     getViewportCenter,
     log,
@@ -882,72 +720,16 @@ export function useCanvasCommands({
     toast,
   ]);
 
-  const createTileFromDefinition = useCallback((definition) => {
-    if (!definition?.type) {
-      return null;
-    }
-
-    if (definition.type === "text") {
-      return createNewTextCard(definition.text ?? "", definition.preferredCenter ?? getViewportCenter(), {
-        noteStyle: definition.noteStyle ?? NOTE_STYLE_TWO,
-        secondaryText: definition.secondaryText ?? "",
-        quoteAuthor: definition.quoteAuthor ?? "",
-      });
-    }
-
-    if (definition.type === NOTE_FOLDER_CARD_TYPE) {
-      return createNewNoteFolderCard(definition.preferredCenter ?? getViewportCenter(), {
-        title: definition.title,
-        description: definition.description,
-        notes: definition.notes,
-      });
-    }
-
-    if (definition.type === RACK_CARD_TYPE) {
-      return createNewRackCard(definition.preferredCenter ?? getViewportCenter(), {
-        title: definition.title,
-        description: definition.description,
-        minSlots: definition.minSlots,
-      });
-    }
-
-    if (definition.type === FOLDER_CARD_TYPE) {
-      return null;
-    }
-
-    const tile = createNewLinkCard(definition.url, definition.preferredCenter ?? getViewportCenter());
-
-    if (definition.updates) {
-      updateExistingCard(tile.id, definition.updates);
-    }
-
-    return tile;
-  }, [
-    createNewLinkCard,
-    createNewNoteFolderCard,
-    createNewRackCard,
-    createNewTextCard,
-    getViewportCenter,
-    updateExistingCard,
-  ]);
-
   const replaceTiles = useCallback((tiles) => {
     replaceWorkspaceCards(tiles);
   }, [replaceWorkspaceCards]);
 
   return useMemo(() => ({
     openFolderId,
-    createRichTextTile,
     createRack,
     createFolderTile,
     createFolderFromSelection,
-    createNote,
-    createNoteOne,
-    createNoteTwo,
-    createNoteThree,
-    createQuickNote,
     createLinkFromClipboard,
-    createTileFromDefinition,
     createFolderFromTiles: createFolderFromTileSet,
     addTileToFolder: addTileToFolderCommand,
     addTileToRack: addTileToRackCommand,
@@ -959,46 +741,34 @@ export function useCanvasCommands({
     toggleFolder,
     deleteTile,
     deleteTiles,
-    duplicateTile,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
     queueLinkPreview,
     moveTiles,
-    mergeTilesIntoFolder,
     bringTilesToFront,
     replaceTiles,
     importResolvedDrop,
     retryTilePreview,
-    updateTile,
     updateTileFromMediaLoad,
   }), [
     addTileToFolderCommand,
     addTileToRackCommand,
     addTilesToRackCommand,
     closeFolder,
-    createRichTextTile,
     createRack,
     createFolderTile,
     createFolderFromSelection,
     createFolderFromTileSet,
     createLinkFromClipboard,
-    createNote,
-    createNoteOne,
-    createNoteThree,
-    createNoteTwo,
-    createQuickNote,
-    createTileFromDefinition,
     deleteTile,
     deleteTiles,
-    duplicateTile,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
     importResolvedDrop,
     queueLinkPreview,
     moveTiles,
-    mergeTilesIntoFolder,
     openFolder,
     openFolderId,
     bringTilesToFront,
@@ -1007,7 +777,6 @@ export function useCanvasCommands({
     removeTileFromRackCommand,
     retryTilePreview,
     toggleFolder,
-    updateTile,
     updateTileFromMediaLoad,
   ]);
 }

@@ -1,8 +1,6 @@
 export const TILE_TYPES = Object.freeze({
-  NOTE: "text",
   LINK: "link",
   FOLDER: "folder",
-  NOTE_FOLDER: "note-folder",
   RACK: "rack",
   PAGE_LINK: "page-link",
   NODE_GROUP: "node-group",
@@ -12,4 +10,3 @@ export const TILE_TYPES = Object.freeze({
 });
 
 export default TILE_TYPES;
-
