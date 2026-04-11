@@ -184,16 +184,6 @@ export function TopTabBar({ usesCustomTitlebar }) {
 
       <div className="titlebar-right">
         <div id="titlebar-right-slot" />
-        <button
-          className="titlebar-search-btn"
-          type="button"
-          title="Search"
-          aria-label="Search"
-          onClick={focusSearchInput}
-        >
-          <IconSearch />
-          <span className="titlebar-search-btn__label">Search</span>
-        </button>
         <TitleBarControls />
       </div>
     </div>

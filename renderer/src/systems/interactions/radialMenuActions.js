@@ -22,7 +22,6 @@ export function buildRadialMenuActions({
         id,
         label: "Snapping",
         kind: "toggle",
-        icon: "snapping",
         specialStyle: "toggle",
         activeLabel: snapEnabled ? "Grid On" : "Grid Off",
         isActive: snapEnabled,
@@ -35,7 +34,6 @@ export function buildRadialMenuActions({
         id,
         label: "Delete",
         kind: "action",
-        icon: "delete",
         isDisabled: deleteDisabled,
         activeLabel: selectionCount > 1 ? `${selectionCount} selected` : "",
         onTrigger: handlers.onDeleteSelection,
@@ -47,7 +45,6 @@ export function buildRadialMenuActions({
         id,
         label: "Folder",
         kind: "action",
-        icon: "folder",
         isDisabled: folderDisabled,
         activeLabel: selectionCount > 0 ? `${selectionCount} selected` : "Create",
         onTrigger: handlers.onCreateFolder,
@@ -59,7 +56,6 @@ export function buildRadialMenuActions({
         id,
         label: "Rack",
         kind: "action",
-        icon: "rack",
         onTrigger: handlers.onCreateRack,
       };
     }
@@ -68,7 +64,6 @@ export function buildRadialMenuActions({
       id,
       label: "Link",
       kind: "action",
-      icon: "link",
       activeLabel: "Clipboard",
       onTrigger: handlers.onCreateLink,
     };

@@ -18,13 +18,14 @@ export default function CanvasAddMenu({
         <AppButton
           variant="default"
           size="sm"
-          className="gap-1.5 px-3 font-medium"
+          className="canvas-add-menu__trigger gap-2 px-3 font-medium"
           disabled={disabled}
           title={disabled ? "Open a folder to start adding" : "Create something new"}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>
+          <span>Add</span>
         </AppButton>
       </AppDropdownMenuTrigger>
 

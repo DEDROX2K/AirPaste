@@ -12,8 +12,8 @@ import { filterTiles } from "../utils/searchTiles";
 const COLUMN_WIDTH_MIN = 200;
 const COLUMN_WIDTH_MAX = 320;
 const COLUMN_GAP = 18;
-const ITEM_GAP = 24;
-const PADDING = 20;
+const ITEM_GAP = 94;
+const PADDING = 90;
 
 // ── Masonry layout engine ──────────────────────────────────────────────────────
 

@@ -3,21 +3,23 @@ import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useSpring }
 import { createPortal } from "react-dom";
 import { useRadialMenu } from "../hooks/useRadialMenu";
 import {
+  RADIAL_MENU_ACTION_HEIGHT,
+  RADIAL_MENU_ACTION_WIDTH,
   RADIAL_MENU_CLOSE_DURATION,
   RADIAL_MENU_CORE_SIZE,
   RADIAL_MENU_EASE,
   RADIAL_MENU_GLOW_SIZE,
-  RADIAL_MENU_NODE_SIZE,
   RADIAL_MENU_PARALLAX_INTENSITY,
   RADIAL_MENU_REVEAL_DURATION,
   RADIAL_MENU_STAGGER,
   RADIAL_MENU_TILT_INTENSITY,
+  RADIAL_MENU_TOGGLE_HEIGHT,
   RADIAL_MENU_TOGGLE_WIDTH,
   RADIAL_MENU_TOGGLE_WIDTH_ACTIVE,
 } from "../systems/interactions/radialMenuConstants";
 
 export default function RadialContextMenu({ menu, actions = [], onClose }) {
-  const radialMenu = useRadialMenu(menu);
+  const radialMenu = useRadialMenu(menu, actions.length);
   const [parallaxEnabled, setParallaxEnabled] = useState(false);
   const [pendingActionId, setPendingActionId] = useState(null);
   const frameRef = useRef(0);
@@ -37,9 +39,9 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
   const parallaxYVar = useMotionTemplate`${shiftY}px`;
   const portalRoot = typeof document !== "undefined" ? document.body : null;
 
-  const mergedActions = useMemo(() => radialMenu.items.map((item, index) => ({
-    ...item,
-    ...actions[index],
+  const mergedActions = useMemo(() => actions.map((action, index) => ({
+    ...radialMenu.items[index],
+    ...action,
   })), [actions, radialMenu.items]);
 
   const orbitTransition = useMemo(() => ({
@@ -208,8 +210,8 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
               const isToggle = action.kind === "toggle";
               const width = isToggle
                 ? (action.isActive ? RADIAL_MENU_TOGGLE_WIDTH_ACTIVE : RADIAL_MENU_TOGGLE_WIDTH)
-                : RADIAL_MENU_NODE_SIZE;
-              const height = isToggle ? 52 : RADIAL_MENU_NODE_SIZE;
+                : RADIAL_MENU_ACTION_WIDTH;
+              const height = isToggle ? RADIAL_MENU_TOGGLE_HEIGHT : RADIAL_MENU_ACTION_HEIGHT;
               const isPending = pendingActionId === action.id;
 
               return (
@@ -276,7 +278,6 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
                     }}
                   />
                   <span className="radial-context-menu__content">
-                    <span className={`radial-context-menu__icon radial-context-menu__icon--${action.icon || action.id}`} aria-hidden="true" />
                     <span className="radial-context-menu__label-wrap">
                       <span className="radial-context-menu__label">{action.label}</span>
                       {action.activeLabel ? (

@@ -88,6 +88,55 @@ function WorkspaceViewToggle({ mode, onChange }) {
   );
 }
 
+function WorkspaceTopbarTrail({
+  canvasName,
+  folderLabel,
+  folderLoading,
+  onOpenHome,
+  onOpenWorkspaceFolder,
+}) {
+  return (
+    <header className="canvas-topbar">
+      <div className="canvas-topbar__left">
+        <button
+          className="canvas-topbar__crumb canvas-topbar__crumb--home"
+          type="button"
+          title="Go to Home"
+          onClick={onOpenHome}
+        >
+          <span className="canvas-topbar__crumb-icon" aria-hidden="true">
+            <IconHome />
+          </span>
+          <span>Home</span>
+        </button>
+        {folderLabel && (
+          <>
+            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+            <button
+              className="canvas-topbar__crumb"
+              type="button"
+              title="Switch workspace folder"
+              disabled={folderLoading}
+              onClick={onOpenWorkspaceFolder}
+            >
+              <span className="canvas-topbar__crumb-icon" aria-hidden="true">
+                <IconFolder />
+              </span>
+              <span className="canvas-topbar__crumb-text">
+                {folderLoading ? "Opening…" : folderLabel}
+              </span>
+            </button>
+            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+            <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
+              <span className="canvas-topbar__crumb-text">{canvasName}</span>
+            </span>
+          </>
+        )}
+      </div>
+    </header>
+  );
+}
+
 const PERF_HISTORY_LIMIT = 64;
 const PERF_CHART_WIDTH = 176;
 const PERF_CHART_HEIGHT = 56;
@@ -370,6 +419,10 @@ export default function CanvasWorkspaceView() {
   });
 
   useEffect(() => {
+    interactions.resetTransientState();
+  }, [interactions.resetTransientState, workspaceView.mode]);
+
+  useEffect(() => {
     setSearchQuery("");
   }, [currentEditor.filePath, folderPath]);
 
@@ -426,7 +479,14 @@ export default function CanvasWorkspaceView() {
     });
     return nextDraggingTileIdSet;
   }, [interactions.draggingTileIds]);
-  const visibleWorldRect = null;
+  const isCanvasMoving = canvas.isPanning || canvas.isZooming || interactions.draggingTileIds.length > 0;
+  const visibleWorldRect = useMemo(() => {
+    if (isGridMode || isGlobeMode) {
+      return null;
+    }
+
+    return canvas.getVisibleWorldRect(isCanvasMoving ? 240 : 120);
+  }, [canvas, isCanvasMoving, isGlobeMode, isGridMode, workspace.viewport.x, workspace.viewport.y, workspace.viewport.zoom]);
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
@@ -664,8 +724,6 @@ export default function CanvasWorkspaceView() {
   const hasActiveSearch = deferredSearchQuery.trim().length > 0;
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
-  const isCanvasMoving = canvas.isPanning || interactions.draggingTileIds.length > 0;
-  const isCanvasOrGlobeMode = !isGridMode;
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: false,
   }), []);
@@ -831,46 +889,19 @@ export default function CanvasWorkspaceView() {
     return (
       <main className="canvas-stage canvas-stage--grid">
         {createPortal(
-          <>
+          <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
             <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
-          </>,
+          </div>,
           document.getElementById("titlebar-right-slot") || document.body,
         )}
-        <header className="canvas-topbar">
-          <div className="canvas-topbar__left">
-            <button
-              className="canvas-topbar__crumb canvas-topbar__crumb--home"
-              type="button"
-              title="Go to Home"
-              onClick={() => void showHome()}
-            >
-              <IconHome />
-              <span>Home</span>
-            </button>
-            {folderLabel && (
-              <>
-                <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-                <button
-                  className="canvas-topbar__crumb"
-                  type="button"
-                  title="Switch workspace folder"
-                  disabled={folderLoading}
-                  onClick={commands.openWorkspaceFolder}
-                >
-                  <IconFolder />
-                  <span className="canvas-topbar__crumb-text">
-                    {folderLoading ? 'Opening…' : folderLabel}
-                  </span>
-                </button>
-                <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-                <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
-                  {canvasName}
-                </span>
-              </>
-            )}
-          </div>
-        </header>
+        <WorkspaceTopbarTrail
+          canvasName={canvasName}
+          folderLabel={folderLabel}
+          folderLoading={folderLoading}
+          onOpenHome={() => void showHome()}
+          onOpenWorkspaceFolder={commands.openWorkspaceFolder}
+        />
         <GridWorkspaceView
           openTileLink={commands.openTileLink}
           onPaste={handleWorkspacePaste}
@@ -883,43 +914,45 @@ export default function CanvasWorkspaceView() {
     <main className="canvas-stage">
       {/* ── Search Portal ── */}
       {createPortal(
-        <div className="canvas-search">
-          <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            id="tile-search"
-            ref={searchInputRef}
-            className="canvas-search__input"
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search tiles\u2026"
-            aria-label="Search tiles"
-          />
-          {searchQuery ? (
-            <button
-              className="canvas-search__clear"
-              type="button"
-              aria-label="Clear search"
-              onClick={() => {
-                setSearchQuery("");
-                focusSearchInput();
-              }}
-            >
-              &times;
-            </button>
-          ) : (
-            <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
-          )}
+        <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
+          <div className="canvas-search">
+            <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              id="tile-search"
+              ref={searchInputRef}
+              className="canvas-search__input"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search tiles\u2026"
+              aria-label="Search tiles"
+            />
+            {searchQuery ? (
+              <button
+                className="canvas-search__clear"
+                type="button"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchQuery("");
+                  focusSearchInput();
+                }}
+              >
+                &times;
+              </button>
+            ) : (
+              <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
+            )}
+          </div>
         </div>,
         document.getElementById("titlebar-center-slot") || document.body
       )}
 
       {/* ── Right Tools Portal ── */}
       {createPortal(
-        <>
+        <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           <CanvasAddMenu
             commands={commands}
@@ -935,49 +968,18 @@ export default function CanvasWorkspaceView() {
             onZoomToFitSelection={isGlobeMode ? undefined : zoomToFitSelection}
             onSetZoom={isGlobeMode ? handleGlobeSetZoom : canvas.setZoom}
           />
-        </>,
+        </div>,
         document.getElementById("titlebar-right-slot") || document.body
       )}
 
       {/* ── Top bar ── */}
-      <header className="canvas-topbar">
-        <div className="canvas-topbar__left">
-          <button
-            className="canvas-topbar__crumb canvas-topbar__crumb--home"
-            type="button"
-            title="Go to Home"
-            onClick={() => void showHome()}
-          >
-            <IconHome />
-            <span>Home</span>
-          </button>
-          {folderLabel && (
-            <>
-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-              <button
-                className="canvas-topbar__crumb"
-                type="button"
-                title="Switch workspace folder"
-                disabled={folderLoading}
-                onClick={commands.openWorkspaceFolder}
-              >
-                <IconFolder />
-                <span className="canvas-topbar__crumb-text">
-                  {folderLoading ? "Opening\u2026" : folderLabel}
-                </span>
-              </button>
-              <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-              <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
-                {canvasName}
-              </span>
-            </>
-          )}
-        </div>
-
-        <div className="canvas-topbar__center" />
-
-        <div className="canvas-topbar__right" />
-      </header>
+      <WorkspaceTopbarTrail
+        canvasName={canvasName}
+        folderLabel={folderLabel}
+        folderLoading={folderLoading}
+        onOpenHome={() => void showHome()}
+        onOpenWorkspaceFolder={commands.openWorkspaceFolder}
+      />
 
       {/* ── Canvas board ── */}
       <div

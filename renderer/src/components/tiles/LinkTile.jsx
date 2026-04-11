@@ -79,6 +79,7 @@ function LinkTile({
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
   const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
+  const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
   const enableReveal = true;
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
@@ -241,6 +242,16 @@ function LinkTile({
           }}
           onLoad={handleMediaLoad}
         />
+      ) : isPreviewLoading ? (
+        <div className="card__link-loading" aria-hidden="true">
+          <div className="card__link-loading-ring card__link-loading-ring--outer" />
+          <div className="card__link-loading-ring card__link-loading-ring--middle" />
+          <div className="card__link-loading-ring card__link-loading-ring--inner" />
+          <div className="card__link-loading-core" />
+          <div className="card__link-loading-boom" />
+          <div className="card__link-loading-sheen" />
+          <p className="card__link-loading-label">Loading preview</p>
+        </div>
       ) : (
         <div className="card__placeholder">
           <p className="card__placeholder-title">{linkTitle}</p>

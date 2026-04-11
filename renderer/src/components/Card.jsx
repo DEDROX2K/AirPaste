@@ -20,7 +20,6 @@ function areCardPropsEqual(previousProps, nextProps) {
 
   return previousProps.card === nextProps.card
     && previousProps.tileMeta === nextProps.tileMeta
-    && previousProps.viewportZoom === nextProps.viewportZoom
     && dragVisualDeltaEqual
     && previousProps.dragVisualTileIdSet === nextProps.dragVisualTileIdSet
     && previousProps.childTiles === nextProps.childTiles

@@ -13,34 +13,85 @@ import {
 } from "./canvasMath";
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
-  const containerRef = useRef(null);
-  const gridRef = useRef(null);
-  const contentRef = useRef(null);
+  const [containerElement, setContainerElement] = useState(null);
+  const [gridElement, setGridElement] = useState(null);
+  const [contentElement, setContentElement] = useState(null);
   const containerRectRef = useRef(null);
   const panStateRef = useRef(null);
   const viewportRef = useRef(viewport);
+  const pendingViewportRef = useRef(null);
+  const wheelCommitFrameRef = useRef(0);
+  const wheelStopTimeoutRef = useRef(0);
   const [isPanning, setIsPanning] = useState(false);
+  const [isZooming, setIsZooming] = useState(false);
+
+  const containerRef = useCallback((node) => {
+    setContainerElement(node);
+  }, []);
+
+  const gridRef = useCallback((node) => {
+    setGridElement(node);
+  }, []);
+
+  const contentRef = useCallback((node) => {
+    setContentElement(node);
+  }, []);
 
   const measureContainerRect = useCallback(() => {
-    containerRectRef.current = getClientRect(containerRef.current);
+    containerRectRef.current = getClientRect(containerElement);
     return containerRectRef.current;
-  }, []);
+  }, [containerElement]);
 
   const applyViewportStyleVars = useCallback((nextViewport) => {
     const gridStyleVars = getCanvasGridStyleVars(nextViewport);
     const contentStyleVars = getCanvasContentStyleVars(nextViewport);
 
     Object.entries(gridStyleVars).forEach(([name, value]) => {
-      gridRef.current?.style?.setProperty(name, value);
+      gridElement?.style?.setProperty(name, value);
     });
 
     Object.entries(contentStyleVars).forEach(([name, value]) => {
-      contentRef.current?.style?.setProperty(name, value);
+      contentElement?.style?.setProperty(name, value);
     });
+  }, [contentElement, gridElement]);
+
+  const scheduleViewportCommit = useCallback((nextViewport) => {
+    pendingViewportRef.current = nextViewport;
+
+    if (wheelCommitFrameRef.current) {
+      return;
+    }
+
+    wheelCommitFrameRef.current = window.requestAnimationFrame(() => {
+      wheelCommitFrameRef.current = 0;
+      const pendingViewport = pendingViewportRef.current;
+
+      if (!pendingViewport) {
+        return;
+      }
+
+      pendingViewportRef.current = null;
+      viewportRef.current = pendingViewport;
+      onViewportChange(pendingViewport);
+    });
+  }, [onViewportChange]);
+
+  const markZoomActive = useCallback(() => {
+    setIsZooming(true);
+
+    if (wheelStopTimeoutRef.current) {
+      window.clearTimeout(wheelStopTimeoutRef.current);
+    }
+
+    wheelStopTimeoutRef.current = window.setTimeout(() => {
+      wheelStopTimeoutRef.current = 0;
+      setIsZooming(false);
+    }, 120);
   }, []);
 
   useEffect(() => {
     viewportRef.current = viewport;
+    pendingViewportRef.current = null;
 
     if (!panStateRef.current) {
       applyViewportStyleVars(viewport);
@@ -48,9 +99,10 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [applyViewportStyleVars, viewport]);
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = containerElement;
 
     if (!container) {
+      containerRectRef.current = null;
       return undefined;
     }
 
@@ -77,7 +129,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       window.removeEventListener("resize", handleWindowResize);
       window.removeEventListener("scroll", handleWindowResize, true);
     };
-  }, [measureContainerRect]);
+  }, [containerElement, measureContainerRect]);
 
   const toCanvasPoint = useCallback((clientX, clientY) => {
     const rect = containerRectRef.current ?? measureContainerRect();
@@ -132,13 +184,13 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [zoomToWorldPoint]);
 
   const zoomAtViewportCenter = useCallback((nextZoom) => {
-    const rect = getClientRect(containerRef.current);
+    const rect = getClientRect(containerElement);
     const canvasPoint = rect
       ? { x: rect.width / 2, y: rect.height / 2 }
       : { x: 0, y: 0 };
 
     zoomAtCanvasPoint(canvasPoint, nextZoom);
-  }, [zoomAtCanvasPoint]);
+  }, [containerElement, zoomAtCanvasPoint]);
 
   const setZoom = useCallback((nextZoom) => {
     zoomAtViewportCenter(nextZoom);
@@ -150,7 +202,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [setZoom]);
 
   const zoomToBounds = useCallback((worldBounds) => {
-    const rect = getClientRect(containerRef.current);
+    const rect = getClientRect(containerElement);
     const nextViewport = getViewportForWorldBounds(rect, worldBounds);
 
     if (!nextViewport) {
@@ -159,7 +211,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
     onViewportChange(nextViewport);
     return true;
-  }, [onViewportChange]);
+  }, [containerElement, onViewportChange]);
 
   const beginCanvasPan = useCallback((event) => {
     if (event.button !== 0 && event.button !== 1) {
@@ -177,7 +229,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = containerElement;
     if (!container) return;
 
     function handleWheel(event) {
@@ -197,13 +249,17 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         rect?.height ?? 800,
       );
       const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-normalizedDelta * 0.0015));
+      const nextViewport = getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom);
 
-      zoomToWorldPoint(canvasPoint, worldPoint, nextZoom);
+      viewportRef.current = nextViewport;
+      applyViewportStyleVars(nextViewport);
+      markZoomActive();
+      scheduleViewportCommit(nextViewport);
     }
 
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [onViewportChange, toCanvasPoint, zoomToWorldPoint]);
+  }, [applyViewportStyleVars, containerElement, markZoomActive, scheduleViewportCommit, toCanvasPoint]);
 
   useEffect(() => {
     function handlePointerMove(event) {
@@ -261,6 +317,16 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     };
   }, [applyViewportStyleVars, onViewportChange]);
 
+  useEffect(() => () => {
+    if (wheelCommitFrameRef.current) {
+      window.cancelAnimationFrame(wheelCommitFrameRef.current);
+    }
+
+    if (wheelStopTimeoutRef.current) {
+      window.clearTimeout(wheelStopTimeoutRef.current);
+    }
+  }, []);
+
   const gridStyleVars = useMemo(() => getCanvasGridStyleVars(viewport), [viewport]);
   const contentStyleVars = useMemo(() => getCanvasContentStyleVars(viewport), [viewport]);
 
@@ -269,6 +335,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     gridRef,
     contentRef,
     isPanning,
+    isZooming,
     viewport,
     containerRect: containerRectRef.current,
     gridStyleVars,

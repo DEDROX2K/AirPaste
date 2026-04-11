@@ -8,8 +8,8 @@ import {
   clampGlobePitch,
   createGlobeLayoutPatch,
   getDefaultCameraDistance,
-  getFocusAnglesForGlobePoint,
   getFibonacciSphereAngles,
+  getFocusAnglesForGlobePoint,
   getSoftGlobeRadius,
   sphericalToCartesian,
 } from "../systems/globe/globeLayout";
@@ -22,9 +22,91 @@ import {
 const CAMERA_FOV = 34;
 const ORBIT_SENSITIVITY = 0.0055;
 const ZOOM_SENSITIVITY = 0.00115;
+const GLOBE_STYLE = {
+  surfaceColor: "#f7f1e7",
+  dotColor: "#f7f1e7",
+  auraRimColor: "#f4d3a3",
+  edgeBlurColor: "#fbf0de",
+  edgeBlurStrength: 0.22,
+  edgeBlurPower: 2.35,
+};
+const DOT_SPRITE = (() => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 32;
+  const context = canvas.getContext("2d");
+
+  if (context) {
+    const gradient = context.createRadialGradient(16, 16, 1, 16, 16, 15);
+    gradient.addColorStop(0, "rgba(118, 100, 80, 0.95)");
+    gradient.addColorStop(0.55, "rgba(118, 100, 80, 0.62)");
+    gradient.addColorStop(1, "rgba(118, 100, 80, 0)");
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(16, 16, 15, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+})();
 
 function GlobeScene({ motionRef, radius }) {
   const globeGroupRef = useRef(null);
+  const dottedGeometry = useMemo(() => {
+    const dotCount = Math.max(1800, Math.round(radius * 1.9));
+    const positions = new Float32Array(dotCount * 3);
+
+    for (let index = 0; index < dotCount; index += 1) {
+      const { theta, phi } = getFibonacciSphereAngles(index, dotCount);
+      const point = sphericalToCartesian(radius * 1.006, theta, phi);
+      const offset = index * 3;
+      positions[offset] = point.x;
+      positions[offset + 1] = point.y;
+      positions[offset + 2] = point.z;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    return geometry;
+  }, [radius]);
+  const haloGeometry = useMemo(() => new THREE.SphereGeometry(radius * 1.038, 36, 36), [radius]);
+  const rimMaterial = useMemo(() => new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.BackSide,
+    uniforms: {
+      rimColor: { value: new THREE.Color(GLOBE_STYLE.edgeBlurColor) },
+      strength: { value: GLOBE_STYLE.edgeBlurStrength },
+      power: { value: GLOBE_STYLE.edgeBlurPower },
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vec4 mvPosition = viewMatrix * worldPosition;
+        vNormal = normalize(normalMatrix * normal);
+        vViewDir = normalize(-mvPosition.xyz);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 rimColor;
+      uniform float strength;
+      uniform float power;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+
+      void main() {
+        float fresnel = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewDir)), 0.0), power);
+        float alpha = fresnel * strength;
+        gl_FragColor = vec4(rimColor, alpha);
+      }
+    `,
+  }), []);
 
   useFrame(({ camera }) => {
     const motion = motionRef.current;
@@ -48,27 +130,37 @@ function GlobeScene({ motionRef, radius }) {
 
   return (
     <>
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[4, 3, 7]} intensity={1.3} />
-      <directionalLight position={[-5, -4, -6]} intensity={0.45} color="#7fb4ff" />
+      <ambientLight intensity={1.15} />
+      <directionalLight position={[4, 3, 7]} intensity={1.2} color="#fff5dc" />
+      <directionalLight position={[-5, -4, -6]} intensity={0.5} color="#d0dfff" />
       <group ref={globeGroupRef}>
         <mesh>
           <sphereGeometry args={[radius, 48, 48]} />
           <meshStandardMaterial
-            color="#5f5a54"
+            color={GLOBE_STYLE.surfaceColor}
             transparent
-            opacity={0.18}
-            roughness={0.82}
-            metalness={0.08}
+            opacity={0.96}
+            roughness={0.96}
+            metalness={0.02}
           />
         </mesh>
-        <mesh scale={1.015}>
-          <sphereGeometry args={[radius, 28, 28]} />
-          <meshBasicMaterial color="#f4e3c2" wireframe transparent opacity={0.09} />
+        <points geometry={dottedGeometry}>
+          <pointsMaterial
+            map={DOT_SPRITE}
+            color={GLOBE_STYLE.dotColor}
+            size={radius * 0.012}
+            sizeAttenuation
+            transparent
+            opacity={0.56}
+            alphaTest={0.08}
+            depthWrite={false}
+          />
+        </points>
+        <mesh userData={{ isPulse: true }} geometry={haloGeometry}>
+          <meshBasicMaterial color={GLOBE_STYLE.auraRimColor} transparent opacity={0.12} side={THREE.BackSide} />
         </mesh>
-        <mesh userData={{ isPulse: true }} scale={1.085}>
-          <sphereGeometry args={[radius, 24, 24]} />
-          <meshBasicMaterial color="#eac989" transparent opacity={0.18} side={THREE.BackSide} />
+        <mesh scale={1.06} material={rimMaterial}>
+          <sphereGeometry args={[radius, 40, 40]} />
         </mesh>
       </group>
     </>
@@ -362,7 +454,7 @@ export default function GlobeWorkspaceView({
     }
   }, []);
 
-  const noop = useCallback(() => {}, []);
+  const noop = useCallback(() => { }, []);
 
   const tileMetaById = useMemo(() => Object.fromEntries(
     rootCards.map((card) => [
@@ -392,8 +484,8 @@ export default function GlobeWorkspaceView({
       onPointerCancel={handlePointerUp}
     >
       <Canvas className="globe-workspace__scene" camera={{ fov: CAMERA_FOV, position: [0, 0, minimumCameraDistance] }}>
-        <color attach="background" args={["#1c1917"]} />
-        <fog attach="fog" args={["#1c1917", globeRadius * 1.8, globeRadius * 5.6]} />
+        <color attach="background" args={["#f5efe5"]} />
+        <fog attach="fog" args={["#f5efe5", globeRadius * 1.9, globeRadius * 5.8]} />
         <GlobeScene motionRef={motionRef} radius={globeRadius} />
       </Canvas>
 
