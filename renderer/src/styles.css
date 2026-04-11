@@ -471,19 +471,6 @@ a {
   animation: none !important;
 }
 
-.canvas--moving .card,
-.canvas--moving .card__surface-frame,
-.canvas--moving .card__surface,
-.canvas--moving .card__record-sleeve,
-.canvas--moving .card__record-disc,
-.canvas--moving .card__folder-zone,
-.canvas--moving .card__canvas-folder-front,
-.canvas--moving .card__folder-glimpse {
-  filter: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-}
-
 .canvas__grid,
 .canvas__content {
   position: absolute;
@@ -988,6 +975,35 @@ a {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.canvas-perf-overlay__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-perf-overlay__copy {
+  min-height: 20px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.84);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.canvas-perf-overlay__copy:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
 }
 
 .canvas-perf-overlay__chart {
@@ -4324,23 +4340,497 @@ intentional so the top edge reads much shorter than the bottom edge. */
   }
 }
 
-/* Keep tiles shadow-free across idle, hover, drag, and canvas movement states. */
-.canvas .card,
-.canvas .card::before,
-.canvas .card::after,
-.canvas .card *::before,
-.canvas .card *::after,
-.canvas .card__surface-frame,
-.canvas .card__surface,
-.canvas .card__record-shell,
-.canvas .card__record-disc,
-.canvas .card__folder-zone,
-.canvas .card__rack-rect,
-.canvas .card.card--hovered,
-.canvas .card.card--focused,
-.canvas .card.card--dragging,
-.canvas--moving .card {
-  box-shadow: none !important;
-  filter: none !important;
-  text-shadow: none !important;
+
+
+/* ══════════════════════════════════════════════════════════════════
+   Grid / Masonry View
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Stage override for grid mode */
+.canvas-stage--grid {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+/* ── Workspace shell ──────────────────────────────────────────────── */
+
+.grid-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 72px;
+}
+
+.grid-workspace__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px 4px;
+  flex-shrink: 0;
+}
+
+.grid-workspace__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  max-width: 400px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-base) 55%, transparent);
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.grid-workspace__search:focus-within {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+}
+
+.grid-workspace__search-icon {
+  flex-shrink: 0;
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.grid-workspace__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.grid-workspace__search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.grid-workspace__search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.grid-workspace__search-clear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.grid-workspace__search-clear:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.grid-workspace__count {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.grid-workspace__scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 40px;
+}
+
+/* ── Masonry container ────────────────────────────────────────────── */
+
+.masonry-grid {
+  position: relative;
+  width: 100%;
+}
+
+.masonry-grid__item {
+  transition: opacity 180ms ease;
+}
+
+.masonry-grid--ready .masonry-grid__item {
+  transition:
+    opacity 220ms ease,
+    top 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Base grid card ───────────────────────────────────────────────── */
+
+.grid-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 160ms ease;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.grid-card:hover {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.grid-card:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.grid-card--selected {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.grid-card--selected:hover {
+  border-color: color-mix(in srgb, var(--accent) 80%, var(--border));
+}
+
+.grid-card__selection-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  pointer-events: none;
+  animation: grid-selection-pop 160ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes grid-selection-pop {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Media / image area ───────────────────────────────────────────── */
+
+.grid-card__media {
+  position: relative;
+  width: 100%;
+  background: color-mix(in srgb, var(--bg-base) 60%, var(--border-subtle));
+  overflow: hidden;
+  border-radius: 14px 14px 0 0;
+  /* Height shrinks to 0 until image loads — ensure min placeholder height */
+  min-height: 8px;
+}
+
+.grid-card__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  object-fit: cover;
+  opacity: 0;
+  transition:
+    opacity 280ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.grid-card__media--loaded .grid-card__image {
+  opacity: 1;
+}
+
+.grid-card:hover .grid-card__image {
+  transform: scale(1.03);
+}
+
+/* ── Placeholder (no image) ───────────────────────────────────────── */
+
+.grid-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  padding: 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 6%, var(--bg-elevated)),
+    color-mix(in srgb, var(--bg-base) 95%, transparent)
+  );
+}
+
+.grid-card__placeholder-domain {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────── */
+
+.grid-card__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+
+.grid-card__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.grid-card__subtitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Link action buttons ──────────────────────────────────────────── */
+
+.grid-card__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.grid-card:hover .grid-card__actions,
+.grid-card--selected .grid-card__actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.grid-card__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.grid-card__action:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  transform: scale(1.08);
+}
+
+.grid-card__action--primary {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.grid-card__action-icon {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ── Folder card ──────────────────────────────────────────────────── */
+
+.grid-card--folder .grid-card__folder-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px 8px;
+}
+
+.grid-card__folder-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 12%, var(--bg-elevated)),
+    var(--bg-elevated)
+  );
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-primary));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 14%, transparent);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease;
+}
+
+.grid-card--folder:hover .grid-card__folder-icon {
+  transform: scale(1.06) translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ── Rack card ────────────────────────────────────────────────────── */
+
+.grid-card--rack .grid-card__rack-preview {
+  padding: 16px 16px 0;
+}
+
+.grid-card__rack-slots {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.grid-card__rack-slot {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 14px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border-subtle);
+  transition: background 200ms ease;
+}
+
+.grid-card__rack-slot--filled {
+  background: color-mix(in srgb, var(--accent) 55%, var(--bg-hover));
+}
+
+.grid-card--rack:hover .grid-card__rack-slot--filled {
+  background: color-mix(in srgb, var(--accent) 72%, var(--bg-hover));
+}
+
+/* ── Music card ───────────────────────────────────────────────────── */
+
+.grid-card--music .grid-card__media {
+  border-radius: 10px;
+  margin: 10px 10px 0;
+  width: calc(100% - 20px);
+  max-height: 200px;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  .grid-workspace__header {
+    padding: 8px 12px 4px;
+  }
+
+  .grid-workspace__search {
+    max-width: 100%;
+  }
+}
+
+/* ── Grid card: URL pill (hover, top of image) ────────────────────────────── */
+
+.grid-card__url-pill {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+
+.grid-card:hover .grid-card__url-pill {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.grid-card__url-pill-text {
+  display: block;
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: rgba(0, 0, 0, 0.82);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Grid card: no inner footer — label sits below card ───────────────────── */
+
+.grid-item__label {
+  display: block;
+  margin: 7px 2px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.grid-item__label-meta {
+  opacity: 0.6;
+}
+
+/* ── Override: remove border from grid-card, use shadow only ─────────────── */
+
+.grid-card {
+  border: none;
+}
+
+/* ── grid-card__media: full-bleed, rounded corners on all sides ──────────── */
+
+.grid-card__media {
+  border-radius: 14px;
+}
+
+/* ── grid-card__placeholder: min height for cards with no image ──────────── */
+
+.grid-card__placeholder {
+  min-height: 140px;
+  border-radius: 14px;
 }

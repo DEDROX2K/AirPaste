@@ -169,7 +169,7 @@ function normalizeWorkspaceView(view, tileCount = 0) {
     : defaults.globeRadius;
 
   return {
-    mode: view?.mode === "globe" ? "globe" : "flat",
+    mode: view?.mode === "globe" ? "globe" : view?.mode === "grid" ? "grid" : "flat",
     globeRadius,
     yaw: Number.isFinite(view?.yaw) ? view.yaw : defaults.yaw,
     pitch: Number.isFinite(view?.pitch) ? view.pitch : defaults.pitch,

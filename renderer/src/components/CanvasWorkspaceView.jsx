@@ -4,11 +4,12 @@ import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GlobeWorkspaceView from "./GlobeWorkspaceView";
+import GridWorkspaceView from "./GridWorkspaceView";
 import RadialContextMenu from "./RadialContextMenu";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
-import { isEditableElement } from "../lib/workspace";
+import { isBookmarkLinkCard, isEditableElement } from "../lib/workspace";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -60,15 +61,28 @@ function WorkspaceViewToggle({ mode, onChange }) {
         type="button"
         className={`workspace-view-toggle__button${mode === "flat" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("flat")}
+        aria-selected={mode === "flat"}
+        role="tab"
       >
-        Flat
+        Canvas
       </button>
       <button
         type="button"
         className={`workspace-view-toggle__button${mode === "globe" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("globe")}
+        aria-selected={mode === "globe"}
+        role="tab"
       >
         Globe
+      </button>
+      <button
+        type="button"
+        className={`workspace-view-toggle__button${mode === "grid" ? " workspace-view-toggle__button--active" : ""}`}
+        onClick={() => onChange("grid")}
+        aria-selected={mode === "grid"}
+        role="tab"
+      >
+        Grid
       </button>
     </div>
   );
@@ -102,12 +116,34 @@ function createChartPoints(values, maxValue) {
     .join(" ");
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "absolute";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(input);
+  }
+}
+
 function CanvasPerformanceOverlay({
   visibleTileCount,
   totalTileCount,
   activeDragLayers,
   isCanvasMoving,
 }) {
+  const { toast } = useToast();
   const [snapshot, setSnapshot] = useState({
     fps: 0,
     frameMs: 0,
@@ -178,11 +214,53 @@ function CanvasPerformanceOverlay({
   const frameMsCap = Math.max(20, Math.ceil(Math.max(20, ...snapshot.frameMsHistory) / 5) * 5);
   const fpsPoints = createChartPoints(snapshot.fpsHistory, fpsCap);
   const frameMsPoints = createChartPoints(snapshot.frameMsHistory, frameMsCap);
+  const perfSummaryText = useMemo(() => [
+    `FPS: ${Math.round(snapshot.fps)}`,
+    `Frame ms: ${roundMetric(snapshot.frameMs)} ms`,
+    `Dropped: ${snapshot.droppedFrames}`,
+    `Visible: ${visibleTileCount}/${totalTileCount}`,
+    `Drag layers: ${activeDragLayers}`,
+    `Pointer avg: ${roundMetric(snapshot.pointerAvgMs)} ms`,
+    `Pointer max: ${roundMetric(snapshot.pointerMaxMs)} ms`,
+    `Renders: ${snapshot.boardRenderCount}`,
+    `Commit: ${roundMetric(snapshot.latestCommitMs)} ms`,
+    `State: ${isCanvasMoving ? "moving" : "idle"}`,
+  ].join("\n"), [
+    activeDragLayers,
+    isCanvasMoving,
+    snapshot.boardRenderCount,
+    snapshot.droppedFrames,
+    snapshot.fps,
+    snapshot.frameMs,
+    snapshot.latestCommitMs,
+    snapshot.pointerAvgMs,
+    snapshot.pointerMaxMs,
+    totalTileCount,
+    visibleTileCount,
+  ]);
+  const handleCopyPerf = useCallback(async () => {
+    try {
+      await copyTextToClipboard(perfSummaryText);
+      toast("success", "Performance stats copied");
+    } catch {
+      toast("error", "Could not copy performance stats");
+    }
+  }, [perfSummaryText, toast]);
+
   return (
     <div className="canvas-perf-overlay" aria-live="off">
       <div className="canvas-perf-overlay__header">
         <span>PERF</span>
-        <span>{isCanvasMoving ? "moving" : "idle"}</span>
+        <div className="canvas-perf-overlay__header-actions">
+          <span>{isCanvasMoving ? "moving" : "idle"}</span>
+          <button
+            className="canvas-perf-overlay__copy"
+            type="button"
+            onClick={() => { void handleCopyPerf(); }}
+          >
+            Copy
+          </button>
+        </div>
       </div>
       <svg
         className="canvas-perf-overlay__chart"
@@ -250,6 +328,7 @@ export default function CanvasWorkspaceView() {
   const [globeVisibleTileCount, setGlobeVisibleTileCount] = useState(0);
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGlobeMode = workspaceView.mode === "globe";
+  const isGridMode = workspaceView.mode === "grid";
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -368,6 +447,10 @@ export default function CanvasWorkspaceView() {
 
   const updateWorkspaceMode = useCallback((mode) => {
     setWorkspaceView((currentView) => {
+      if (mode === "grid") {
+        return { ...(currentView ?? {}), mode: "grid" };
+      }
+
       const nextMode = mode === "globe" ? "globe" : "flat";
 
       if (nextMode === "globe") {
@@ -442,6 +525,28 @@ export default function CanvasWorkspaceView() {
     }));
   }, [globeMinimumCameraDistance, setWorkspaceView]);
 
+  const copySelectedBookmarkLink = useCallback(async () => {
+    if (interactions.selectedTileIds.length !== 1) {
+      return false;
+    }
+
+    const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
+
+    if (!isBookmarkLinkCard(selectedTile) || !selectedTile.url) {
+      return false;
+    }
+
+    try {
+      await copyTextToClipboard(selectedTile.url);
+      toast("success", "Link copied");
+      return true;
+    } catch (error) {
+      log("error", "Copy link failed", error?.message || "Could not copy link.");
+      toast("error", "Could not copy link");
+      return false;
+    }
+  }, [interactions.selectedTileIds, log, tileById, toast]);
+
   useEffect(() => {
     function handleKeyDown(event) {
       const activeElement = document.activeElement;
@@ -455,6 +560,18 @@ export default function CanvasWorkspaceView() {
       }
 
       if (editingAnotherField) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && !activeElementIsEditable) {
+        const selectedTile = interactions.selectedTileIds.length === 1
+          ? tileById[interactions.selectedTileIds[0]] ?? null
+          : null;
+
+        if (isBookmarkLinkCard(selectedTile) && selectedTile.url) {
+          event.preventDefault();
+          void copySelectedBookmarkLink();
+          return;
+        }
+      }
 
       if (event.key === "Delete" && !activeElementIsEditable && interactions.selectedTileIds.length > 0) {
         event.preventDefault();
@@ -531,6 +648,8 @@ export default function CanvasWorkspaceView() {
     interactions,
     isGlobeMode,
     searchQuery,
+    copySelectedBookmarkLink,
+    tileById,
     zoomToFitAll,
   ]);
 
@@ -542,6 +661,7 @@ export default function CanvasWorkspaceView() {
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
   const isCanvasMoving = canvas.isPanning || interactions.draggingTileIds.length > 0;
+  const isCanvasOrGlobeMode = !isGridMode;
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: false,
   }), []);
@@ -701,6 +821,56 @@ export default function CanvasWorkspaceView() {
     snapSettings.enabled,
     toggleCanvasSnapping,
   ]);
+
+  // ── Grid View short-circuit ─────────────────────────────────────────────
+  if (isGridMode) {
+    return (
+      <main className="canvas-stage canvas-stage--grid">
+        {createPortal(
+          <>
+            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+            <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
+          </>,
+          document.getElementById("titlebar-right-slot") || document.body,
+        )}
+        <header className="canvas-topbar">
+          <div className="canvas-topbar__left">
+            <button
+              className="canvas-topbar__crumb canvas-topbar__crumb--home"
+              type="button"
+              title="Go to Home"
+              onClick={() => void showHome()}
+            >
+              <IconHome />
+              <span>Home</span>
+            </button>
+            {folderLabel && (
+              <>
+                <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+                <button
+                  className="canvas-topbar__crumb"
+                  type="button"
+                  title="Switch workspace folder"
+                  disabled={folderLoading}
+                  onClick={commands.openWorkspaceFolder}
+                >
+                  <IconFolder />
+                  <span className="canvas-topbar__crumb-text">
+                    {folderLoading ? 'Opening…' : folderLabel}
+                  </span>
+                </button>
+                <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+                <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
+                  {canvasName}
+                </span>
+              </>
+            )}
+          </div>
+        </header>
+        <GridWorkspaceView openTileLink={commands.openTileLink} />
+      </main>
+    );
+  }
 
   return (
     <main className="canvas-stage">

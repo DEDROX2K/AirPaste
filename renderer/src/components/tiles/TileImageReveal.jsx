@@ -1,5 +1,9 @@
 import { memo, useEffect, useState } from "react";
 
+const loadedImageSources = new Set();
+
+export { loadedImageSources };
+
 function TileImageReveal({
   src,
   alt,
@@ -8,13 +12,17 @@ function TileImageReveal({
   onError,
   onLoad,
 }) {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(() => loadedImageSources.has(src));
 
   useEffect(() => {
-    setIsLoaded(false);
+    setIsLoaded(loadedImageSources.has(src));
   }, [src]);
 
   function handleImageLoad(event) {
+    if (src) {
+      loadedImageSources.add(src);
+    }
+
     setIsLoaded(true);
     onLoad?.(event);
   }
