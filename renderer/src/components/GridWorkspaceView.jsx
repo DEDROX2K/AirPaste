@@ -69,7 +69,7 @@ function GridLinkCard({ card, isSelected, onSelect, onOpenLink }) {
   const [imgLoaded, setImgLoaded] = useState(() => Boolean(card.image && loadedImageSources.has(card.image)));
   const imgRef = useRef(null);
 
-  const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
+  const mediaSrc = isImageTile ? (resolvedImageSrc || card.image) : card.image;
   const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
   const domain = formatDomain(card.url || "");
   const linkTitle = card.title || domain || (isImageTile ? "Imported image" : "Untitled link");

@@ -30,7 +30,7 @@ function createHomeState() {
 }
 
 export function AppProvider({ children }) {
-  const { activeTab, openTab, closeTabsForEntity, showHomeTab } = useTabs();
+  const { activeTab, openTab, closeTabsForEntity, renameTabForEntity, showHomeTab } = useTabs();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
   const [homeData, setHomeData] = useState(createHomeState());
@@ -183,7 +183,15 @@ export function AppProvider({ children }) {
 
   const openPageFile = useCallback(async (filePath) => {
     const doc = await desktop.workspace.loadPage(filePath);
-    setPagesByPath((prev) => ({ ...prev, [doc.filePath]: doc }));
+    setPagesByPath((prev) => ({
+      ...prev,
+      [doc.filePath]: {
+        ...doc,
+        dirty: false,
+        saveStatus: "saved",
+        lastSavedMarkdown: doc.markdown,
+      },
+    }));
     skipPageSaveRef.current[doc.filePath] = true;
     openTab({ type: "page", entityId: doc.filePath, title: doc.name, filePath: doc.path });
     await refreshHomeData(folderPath);
@@ -247,7 +255,13 @@ export function AppProvider({ children }) {
     setPagesByPath((prev) => {
       if (!prev[item.filePath]) return prev;
       const next = { ...prev };
-      next[renamed.filePath] = { ...next[item.filePath], ...renamed };
+      next[renamed.filePath] = {
+        ...next[item.filePath],
+        ...renamed,
+        dirty: false,
+        saveStatus: "saved",
+        lastSavedMarkdown: renamed.markdown,
+      };
       delete next[item.filePath];
       return next;
     });
@@ -280,15 +294,29 @@ export function AppProvider({ children }) {
     return item;
   }, [folderPath, refreshHomeData]);
 
-  const updateCurrentPageMarkdown = useCallback((markdown) => {
+  const updateCurrentPageDraft = useCallback(({ markdown, title }) => {
     const activePath = activePagePathRef.current;
     if (!activePath) return;
     setPagesByPath((current) => {
       const page = current[activePath];
       if (!page) return current;
-      return { ...current, [activePath]: { ...page, markdown } };
+      const nextMarkdown = typeof markdown === "string" ? markdown : page.markdown;
+      const nextTitle = typeof title === "string" && title.trim() ? title.trim() : page.name;
+      return {
+        ...current,
+        [activePath]: {
+          ...page,
+          name: nextTitle,
+          markdown: nextMarkdown,
+          dirty: nextMarkdown !== page.lastSavedMarkdown,
+          saveStatus: nextMarkdown === page.lastSavedMarkdown ? "saved" : "dirty",
+        },
+      };
     });
-  }, []);
+    if (typeof title === "string" && title.trim()) {
+      renameTabForEntity(activePath, title.trim());
+    }
+  }, [renameTabForEntity]);
 
   const patchWorkspace = useCallback((updater) => {
     const activePath = activeCanvasPathRef.current;
@@ -360,16 +388,67 @@ export function AppProvider({ children }) {
       skipPageSaveRef.current[activePagePath] = false;
       return undefined;
     }
+    const currentDraft = pagesRef.current[activePagePath];
+    if (!currentDraft?.dirty) {
+      return undefined;
+    }
     clearTimeout(pageSaveTimeoutRef.current);
     pageSaveTimeoutRef.current = setTimeout(() => {
       const page = pagesRef.current[activePagePath];
-      if (!page) return;
-      void desktop.workspace.savePage(activePagePath, page.markdown).catch((saveError) => {
-        setError(saveError.message || "Unable to save the current page.");
+      if (!page?.dirty) return;
+      setPagesByPath((current) => {
+        const activePage = current[activePagePath];
+        if (!activePage) return current;
+        return {
+          ...current,
+          [activePagePath]: {
+            ...activePage,
+            saveStatus: "saving",
+          },
+        };
       });
+      void desktop.workspace.savePage(activePagePath, page.markdown)
+        .then((savedPage) => {
+          setPagesByPath((current) => {
+            const activePage = current[activePagePath];
+            if (!activePage) return current;
+
+            const isStillDirty = activePage.markdown !== savedPage.markdown;
+            const nextPage = {
+              ...activePage,
+              ...savedPage,
+              name: isStillDirty ? activePage.name : savedPage.name,
+              markdown: isStillDirty ? activePage.markdown : savedPage.markdown,
+              dirty: isStillDirty,
+              saveStatus: isStillDirty ? "dirty" : "saved",
+              lastSavedMarkdown: savedPage.markdown,
+            };
+
+            return {
+              ...current,
+              [activePagePath]: nextPage,
+            };
+          });
+          renameTabForEntity(activePagePath, page.name);
+          void refreshHomeData(folderPath).catch(() => {});
+        })
+        .catch((saveError) => {
+          setPagesByPath((current) => {
+            const activePage = current[activePagePath];
+            if (!activePage) return current;
+            return {
+              ...current,
+              [activePagePath]: {
+                ...activePage,
+                saveStatus: "error",
+              },
+            };
+          });
+          setError(saveError.message || "Unable to save the current page.");
+        });
     }, SAVE_DELAY_MS);
     return () => clearTimeout(pageSaveTimeoutRef.current);
-  }, [currentPage, folderPath]);
+  }, [currentPage, folderPath, refreshHomeData, renameTabForEntity]);
 
   const value = useMemo(() => ({
     booting,
@@ -399,7 +478,7 @@ export function AppProvider({ children }) {
     setWorkspaceView,
     showHome,
     toggleItemStarred,
-    updateCurrentPageMarkdown,
+    updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,
     workspace,
@@ -430,7 +509,7 @@ export function AppProvider({ children }) {
     setWorkspaceView,
     showHome,
     toggleItemStarred,
-    updateCurrentPageMarkdown,
+    updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,
     workspace,

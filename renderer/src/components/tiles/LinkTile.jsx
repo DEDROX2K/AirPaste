@@ -77,7 +77,7 @@ function LinkTile({
   const [resolvedImageSrc, setResolvedImageSrc] = useState("");
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
-  const mediaSrc = isImageTile ? resolvedImageSrc : card.image;
+  const mediaSrc = isImageTile ? (resolvedImageSrc || card.image) : card.image;
   const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
   const enableReveal = true;

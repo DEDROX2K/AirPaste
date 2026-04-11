@@ -232,18 +232,53 @@ function detectType(fileName) {
 }
 
 function markdownName(markdown, fallback) {
-  const heading = String(markdown ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("#"));
-  if (!heading) return fallback;
-  const title = heading.replace(/^#+\s*/, "").trim();
-  return title || fallback;
+  const lines = String(markdown ?? "").replace(/\r\n/g, "\n").split("\n");
+  let index = 0;
+
+  if (lines[0] === "---") {
+    index = 1;
+    while (index < lines.length && lines[index] !== "---" && lines[index] !== "...") {
+      index += 1;
+    }
+    if (index < lines.length) {
+      index += 1;
+    } else {
+      index = 0;
+    }
+  }
+
+  while (index < lines.length && !lines[index].trim()) {
+    index += 1;
+  }
+
+  const match = (lines[index] ?? "").match(/^#\s+(.+?)\s*$/);
+  return match?.[1]?.trim() || fallback;
 }
 
 function markdownExcerpt(markdown) {
-  return String(markdown ?? "")
-    .split(/\r?\n/)
+  const normalized = String(markdown ?? "").replace(/\r\n/g, "\n");
+  let content = normalized;
+
+  if (content.startsWith("---\n")) {
+    const frontmatterMatch = content.match(/^---\n[\s\S]*?\n(?:---|\.\.\.)\n*/);
+    if (frontmatterMatch) {
+      content = content.slice(frontmatterMatch[0].length);
+    }
+  }
+
+  const lines = content.split("\n");
+  let index = 0;
+
+  while (index < lines.length && !lines[index].trim()) {
+    index += 1;
+  }
+
+  if (/^#\s+/.test(lines[index] ?? "")) {
+    index += 1;
+  }
+
+  return lines
+    .slice(index)
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 3)
