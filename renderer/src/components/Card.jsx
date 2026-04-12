@@ -23,7 +23,6 @@ function areCardPropsEqual(previousProps, nextProps) {
     && dragVisualDeltaEqual
     && previousProps.dragVisualTileIdSet === nextProps.dragVisualTileIdSet
     && previousProps.childTiles === nextProps.childTiles
-    && previousProps.folderState === nextProps.folderState
     && previousProps.rackState === nextProps.rackState
     && previousProps.performanceMode === nextProps.performanceMode
     && previousProps.onBeginDrag === nextProps.onBeginDrag
@@ -34,8 +33,7 @@ function areCardPropsEqual(previousProps, nextProps) {
     && previousProps.onOpenLink === nextProps.onOpenLink
     && previousProps.onMediaLoad === nextProps.onMediaLoad
     && previousProps.onPressStart === nextProps.onPressStart
-    && previousProps.onRetry === nextProps.onRetry
-    && previousProps.onToggleFolderOpen === nextProps.onToggleFolderOpen;
+    && previousProps.onRetry === nextProps.onRetry;
 }
 
 export default memo(Card, areCardPropsEqual);

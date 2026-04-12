@@ -176,7 +176,6 @@ export default function GlobeWorkspaceView({
   openTileLink,
   updateTileFromMediaLoad,
   retryTilePreview,
-  toggleFolder,
   onVisibleCountChange,
 }) {
   const containerRef = useRef(null);
@@ -526,7 +525,6 @@ export default function GlobeWorkspaceView({
               onMediaLoad={updateTileFromMediaLoad}
               onPressStart={noop}
               onRetry={retryTilePreview}
-              onToggleFolderOpen={toggleFolder}
             />
           </div>
         ))}

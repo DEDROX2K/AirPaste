@@ -35,13 +35,6 @@ export default function CanvasAddMenu({
         </AppDropdownMenuLabel>
         <AppDropdownMenuItem
           disabled={disabled}
-          onSelect={() => commands.createFolderTile()}
-        >
-          <FolderIcon />
-          Folder
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
           onSelect={() => commands.createRack()}
         >
           <RackIcon />
@@ -64,14 +57,6 @@ export default function CanvasAddMenu({
         </AppDropdownMenuItem>
       </AppDropdownMenuContent>
     </AppDropdownMenu>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
   );
 }
 

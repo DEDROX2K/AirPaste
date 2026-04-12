@@ -1,6 +1,6 @@
 export const TILE_TYPES = Object.freeze({
   LINK: "link",
-  FOLDER: "folder",
+  AMAZON_PRODUCT: "amazon-product",
   RACK: "rack",
   PAGE_LINK: "page-link",
   NODE_GROUP: "node-group",

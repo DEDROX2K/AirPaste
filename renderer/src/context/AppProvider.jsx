@@ -15,6 +15,86 @@ import {
 import { desktop } from "../lib/desktop";
 
 const SAVE_DELAY_MS = 250;
+const DEFAULT_WORKSPACE_HISTORY_LIMIT = 20;
+
+function getWorkspaceHistoryLimit() {
+  // Keep this behind a helper so the limit can later come from Settings.
+  return DEFAULT_WORKSPACE_HISTORY_LIMIT;
+}
+
+function areObjectsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+
+  return keysA.every((key) => a[key] === b[key]);
+}
+
+function areCardsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return areObjectsEqual(a, b)
+    && areObjectsEqual(a.asset, b.asset)
+    && areObjectsEqual(a.layout?.globe, b.layout?.globe);
+}
+
+function areWorkspacesEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  if (
+    a.version !== b.version
+    || !areObjectsEqual(a.viewport, b.viewport)
+    || !areObjectsEqual(a.view, b.view)
+    || a.cards.length !== b.cards.length
+  ) {
+    return false;
+  }
+
+  for (let index = 0; index < a.cards.length; index += 1) {
+    if (!areCardsEqual(a.cards[index], b.cards[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function createWorkspaceHistory(workspace, limit = getWorkspaceHistoryLimit()) {
+  return {
+    past: [],
+    present: normalizeWorkspace(workspace),
+    future: [],
+    limit,
+  };
+}
+
+function normalizeWorkspaceHistory(entry) {
+  if (
+    entry
+    && typeof entry === "object"
+    && Array.isArray(entry.past)
+    && entry.present
+    && Array.isArray(entry.future)
+  ) {
+    const limit = Number.isFinite(entry.limit) ? Math.max(1, Math.round(entry.limit)) : getWorkspaceHistoryLimit();
+    return {
+      past: entry.past.map((workspace) => normalizeWorkspace(workspace)).slice(-limit),
+      present: normalizeWorkspace(entry.present),
+      future: entry.future.map((workspace) => normalizeWorkspace(workspace)),
+      limit,
+    };
+  }
+
+  return createWorkspaceHistory(entry ?? createEmptyWorkspace());
+}
 
 function createHomeState() {
   return {
@@ -43,6 +123,7 @@ export function AppProvider({ children }) {
   const pageSaveTimeoutRef = useRef(null);
   const skipCanvasSaveRef = useRef({});
   const skipPageSaveRef = useRef({});
+  const workspaceDraftBaseRef = useRef({});
   const workspacesRef = useRef(workspacesByPath);
   const pagesRef = useRef(pagesByPath);
   const activeCanvasPathRef = useRef(null);
@@ -69,7 +150,12 @@ export function AppProvider({ children }) {
 
   const workspace = useMemo(() => {
     if (currentEditor.kind !== "canvas") return createEmptyWorkspace();
-    return workspacesByPath[currentEditor.filePath] ?? createEmptyWorkspace();
+    return workspacesByPath[currentEditor.filePath]?.present ?? createEmptyWorkspace();
+  }, [currentEditor, workspacesByPath]);
+
+  const workspaceHistory = useMemo(() => {
+    if (currentEditor.kind !== "canvas") return createWorkspaceHistory(createEmptyWorkspace());
+    return workspacesByPath[currentEditor.filePath] ?? createWorkspaceHistory(createEmptyWorkspace());
   }, [currentEditor, workspacesByPath]);
 
   const currentPage = useMemo(() => {
@@ -97,6 +183,7 @@ export function AppProvider({ children }) {
     setPagesByPath({});
     skipCanvasSaveRef.current = {};
     skipPageSaveRef.current = {};
+    workspaceDraftBaseRef.current = {};
     showHomeTab();
   }, [showHomeTab]);
 
@@ -119,6 +206,7 @@ export function AppProvider({ children }) {
       setPagesByPath({});
       skipCanvasSaveRef.current = {};
       skipPageSaveRef.current = {};
+      workspaceDraftBaseRef.current = {};
       applyHomeData(payload);
       showHomeTab();
       return nextFolderPath;
@@ -174,7 +262,8 @@ export function AppProvider({ children }) {
 
   const openCanvasFile = useCallback(async (filePath) => {
     const doc = await desktop.workspace.loadCanvas(filePath);
-    setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: normalizeWorkspace(doc.workspace) }));
+    setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(doc.workspace) }));
+    delete workspaceDraftBaseRef.current[doc.filePath];
     skipCanvasSaveRef.current[doc.filePath] = true;
     openTab({ type: "canvas", entityId: doc.filePath, title: doc.name, filePath: doc.path });
     await refreshHomeData(folderPath);
@@ -250,6 +339,10 @@ export function AppProvider({ children }) {
       const next = { ...prev };
       next[renamed.filePath] = next[item.filePath];
       delete next[item.filePath];
+      if (workspaceDraftBaseRef.current[item.filePath]) {
+        workspaceDraftBaseRef.current[renamed.filePath] = workspaceDraftBaseRef.current[item.filePath];
+        delete workspaceDraftBaseRef.current[item.filePath];
+      }
       return next;
     });
     setPagesByPath((prev) => {
@@ -273,6 +366,7 @@ export function AppProvider({ children }) {
     if (!folderPath || !item?.filePath) return false;
     await desktop.workspace.deleteFile(folderPath, item.filePath);
     closeTabsForEntity(item.filePath);
+    delete workspaceDraftBaseRef.current[item.filePath];
     setWorkspacesByPath((prev) => {
       const next = { ...prev };
       delete next[item.filePath];
@@ -318,50 +412,174 @@ export function AppProvider({ children }) {
     }
   }, [renameTabForEntity]);
 
-  const patchWorkspace = useCallback((updater) => {
-    const activePath = activeCanvasPathRef.current;
+  const updateWorkspaceState = useCallback((updater, options = {}) => {
+    const activePath = options.targetPath ?? activeCanvasPathRef.current;
     if (!activePath) return;
+
     setWorkspacesByPath((current) => {
-      const currentWorkspace = current[activePath] ?? createEmptyWorkspace();
-      const nextWorkspace = typeof updater === "function" ? updater(currentWorkspace) : updater;
-      return { ...current, [activePath]: normalizeWorkspace(nextWorkspace) };
+      const currentHistory = normalizeWorkspaceHistory(current[activePath]);
+      const currentWorkspace = currentHistory.present;
+      const candidateWorkspace = typeof updater === "function" ? updater(currentWorkspace) : updater;
+      const nextWorkspace = normalizeWorkspace(candidateWorkspace);
+      const committedBaseWorkspace = workspaceDraftBaseRef.current[activePath] ?? currentWorkspace;
+
+      if (options.commitHistory) {
+        delete workspaceDraftBaseRef.current[activePath];
+
+        if (areWorkspacesEqual(committedBaseWorkspace, nextWorkspace)) {
+          if (areWorkspacesEqual(currentWorkspace, committedBaseWorkspace)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [activePath]: {
+              ...currentHistory,
+              present: committedBaseWorkspace,
+            },
+          };
+        }
+
+        return {
+          ...current,
+          [activePath]: {
+            ...currentHistory,
+            past: [...currentHistory.past, committedBaseWorkspace].slice(-currentHistory.limit),
+            present: nextWorkspace,
+            future: [],
+          },
+        };
+      }
+
+      if (areWorkspacesEqual(currentWorkspace, nextWorkspace)) {
+        return current;
+      }
+
+      if (options.preserveCommitBase && !workspaceDraftBaseRef.current[activePath]) {
+        workspaceDraftBaseRef.current[activePath] = currentWorkspace;
+      }
+
+      return {
+        ...current,
+        [activePath]: {
+          ...currentHistory,
+          present: nextWorkspace,
+        },
+      };
     });
   }, []);
 
-  const setViewport = useCallback((nextViewport) => patchWorkspace((current) => ({ ...current, viewport: nextViewport })), [patchWorkspace]);
-  const setWorkspaceView = useCallback((nextView) => patchWorkspace((current) => ({
+  const commitWorkspaceChange = useCallback((nextWorkspace) => {
+    updateWorkspaceState(nextWorkspace, { commitHistory: true });
+  }, [updateWorkspaceState]);
+
+  const undoWorkspaceChange = useCallback(() => {
+    const activePath = activeCanvasPathRef.current;
+    if (!activePath) return;
+
+    setWorkspacesByPath((current) => {
+      const currentHistory = normalizeWorkspaceHistory(current[activePath]);
+
+      if (currentHistory.past.length === 0) {
+        return current;
+      }
+
+      delete workspaceDraftBaseRef.current[activePath];
+
+      const previousWorkspace = currentHistory.past[currentHistory.past.length - 1];
+      const nextHistory = {
+        ...currentHistory,
+        past: currentHistory.past.slice(0, -1),
+        present: previousWorkspace,
+        future: [currentHistory.present, ...currentHistory.future],
+      };
+
+      return { ...current, [activePath]: nextHistory };
+    });
+  }, []);
+
+  const redoWorkspaceChange = useCallback(() => {
+    const activePath = activeCanvasPathRef.current;
+    if (!activePath) return;
+
+    setWorkspacesByPath((current) => {
+      const currentHistory = normalizeWorkspaceHistory(current[activePath]);
+
+      if (currentHistory.future.length === 0) {
+        return current;
+      }
+
+      delete workspaceDraftBaseRef.current[activePath];
+
+      const [nextWorkspace, ...remainingFuture] = currentHistory.future;
+      const nextHistory = {
+        ...currentHistory,
+        past: [...currentHistory.past, currentHistory.present].slice(-currentHistory.limit),
+        present: nextWorkspace,
+        future: remainingFuture,
+      };
+
+      return { ...current, [activePath]: nextHistory };
+    });
+  }, []);
+
+  const discardWorkspaceDraft = useCallback(() => {
+    const activePath = activeCanvasPathRef.current;
+    if (!activePath) return;
+
+    setWorkspacesByPath((current) => {
+      const draftBaseWorkspace = workspaceDraftBaseRef.current[activePath];
+
+      if (!draftBaseWorkspace) {
+        return current;
+      }
+
+      delete workspaceDraftBaseRef.current[activePath];
+
+      return {
+        ...current,
+        [activePath]: {
+          ...normalizeWorkspaceHistory(current[activePath]),
+          present: draftBaseWorkspace,
+        },
+      };
+    });
+  }, []);
+
+  const setViewport = useCallback((nextViewport) => updateWorkspaceState((current) => ({ ...current, viewport: nextViewport })), [updateWorkspaceState]);
+  const setWorkspaceView = useCallback((nextView) => updateWorkspaceState((current) => ({
     ...current,
     view: typeof nextView === "function" ? nextView(current.view ?? null) : nextView,
-  })), [patchWorkspace]);
+  })), [updateWorkspaceState]);
   const createNewLinkCard = useCallback((url, center = null, options = {}) => {
     const card = createLinkCard(workspace.cards, workspace.viewport, url, center, options);
-    patchWorkspace((current) => ({ ...current, cards: [...current.cards, card] }));
+    commitWorkspaceChange((current) => ({ ...current, cards: [...current.cards, card] }));
     return card;
-  }, [patchWorkspace, workspace.cards, workspace.viewport]);
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const createNewRackCard = useCallback((center = null, options = {}) => {
     const card = createRackCard(workspace.cards, workspace.viewport, center, options);
-    patchWorkspace((current) => ({ ...current, cards: [...current.cards, card] }));
+    commitWorkspaceChange((current) => ({ ...current, cards: [...current.cards, card] }));
     return card;
-  }, [patchWorkspace, workspace.cards, workspace.viewport]);
-  const updateExistingCard = useCallback((cardId, updates) => patchWorkspace((current) => ({ ...current, cards: updateCard(current.cards, cardId, updates) })), [patchWorkspace]);
-  const updateExistingCards = useCallback((updatesById) => patchWorkspace((current) => ({ ...current, cards: updateCards(current.cards, updatesById) })), [patchWorkspace]);
-  const replaceWorkspaceCards = useCallback((nextCards) => patchWorkspace((current) => ({ ...current, cards: replaceCards(current.cards, nextCards) })), [patchWorkspace]);
-  const reorderExistingCards = useCallback((orderedIds) => patchWorkspace((current) => ({ ...current, cards: reorderCards(current.cards, orderedIds) })), [patchWorkspace]);
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const updateExistingCard = useCallback((cardId, updates) => updateWorkspaceState((current) => ({ ...current, cards: updateCard(current.cards, cardId, updates) })), [updateWorkspaceState]);
+  const updateExistingCards = useCallback((updatesById) => updateWorkspaceState((current) => ({ ...current, cards: updateCards(current.cards, updatesById) })), [updateWorkspaceState]);
+  const replaceWorkspaceCards = useCallback((nextCards) => updateWorkspaceState((current) => ({ ...current, cards: replaceCards(current.cards, nextCards) }), { preserveCommitBase: true }), [updateWorkspaceState]);
+  const reorderExistingCards = useCallback((orderedIds) => updateWorkspaceState((current) => ({ ...current, cards: reorderCards(current.cards, orderedIds) }), { preserveCommitBase: true }), [updateWorkspaceState]);
   const deleteExistingCard = useCallback((cardId) => {
-    patchWorkspace((current) => ({ ...current, cards: removeCard(current.cards, cardId) }));
+    commitWorkspaceChange((current) => ({ ...current, cards: removeCard(current.cards, cardId) }));
     if (folderPath) void desktop.workspace.cancelLinkPreview(folderPath, cardId).catch(() => {});
-  }, [folderPath, patchWorkspace]);
+  }, [commitWorkspaceChange, folderPath]);
 
   useEffect(() => {
     const unsubscribe = desktop.workspace.onPreviewUpdated((payload) => {
       if (!payload?.card || (folderPath && payload.folderPath !== folderPath)) return;
-      patchWorkspace((current) => ({
+      updateWorkspaceState((current) => ({
         ...current,
         cards: current.cards.map((card) => (card.id === payload.card.id ? { ...card, ...payload.card } : card)),
       }));
     });
     return unsubscribe;
-  }, [folderPath, patchWorkspace]);
+  }, [folderPath, updateWorkspaceState]);
 
   useEffect(() => {
     const activeCanvasPath = activeCanvasPathRef.current;
@@ -370,16 +588,20 @@ export function AppProvider({ children }) {
       skipCanvasSaveRef.current[activeCanvasPath] = false;
       return undefined;
     }
+    if (workspaceDraftBaseRef.current[activeCanvasPath]) {
+      return undefined;
+    }
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       const canvas = workspacesRef.current[activeCanvasPath];
-      if (!canvas) return;
-      void desktop.workspace.saveCanvas(activeCanvasPath, canvas).catch((saveError) => {
+      const workspaceToSave = normalizeWorkspaceHistory(canvas).present;
+      if (!workspaceToSave) return;
+      void desktop.workspace.saveCanvas(activeCanvasPath, workspaceToSave).catch((saveError) => {
         setError(saveError.message || "Unable to save the current canvas.");
       });
     }, SAVE_DELAY_MS);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [folderPath, workspace]);
+  }, [folderPath, workspaceHistory.present]);
 
   useEffect(() => {
     const activePagePath = activePagePathRef.current;
@@ -459,6 +681,10 @@ export function AppProvider({ children }) {
     createPageEntry,
     currentEditor,
     currentPage,
+    canRedo: workspaceHistory.future.length > 0,
+    canUndo: workspaceHistory.past.length > 0,
+    commitWorkspaceChange,
+    discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
     error,
@@ -478,6 +704,8 @@ export function AppProvider({ children }) {
     setWorkspaceView,
     showHome,
     toggleItemStarred,
+    redoWorkspaceChange,
+    undoWorkspaceChange,
     updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,
@@ -491,6 +719,10 @@ export function AppProvider({ children }) {
     createPageEntry,
     currentEditor,
     currentPage,
+    workspaceHistory.future.length,
+    workspaceHistory.past.length,
+    commitWorkspaceChange,
+    discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
     error,
@@ -505,10 +737,13 @@ export function AppProvider({ children }) {
     reorderExistingCards,
     replaceWorkspaceCards,
     saveHomeUiState,
+    setError,
     setViewport,
     setWorkspaceView,
     showHome,
     toggleItemStarred,
+    redoWorkspaceChange,
+    undoWorkspaceChange,
     updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,

@@ -1,15 +1,10 @@
 import {
-  FOLDER_CARD_TYPE,
   getRackSize,
   getRackTileWorldPosition,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
 
 export const MARQUEE_DRAG_THRESHOLD = 6;
-export const FOLDER_ZONE_GAP = 24;
-export const FOLDER_ZONE_PADDING = 28;
-export const FOLDER_ZONE_MIN_WIDTH = 860;
-export const FOLDER_ZONE_HEIGHT = 560;
 export const RACK_DROP_REACH = 520;
 export const RACK_DROP_SIDE_PADDING = 28;
 export const RACK_DROP_BOTTOM_PADDING = 36;
@@ -104,14 +99,6 @@ export function getTilesBounds(tiles) {
   };
 }
 
-export function getFolderChildIdSet(tiles) {
-  return new Set(
-    tiles
-      .filter((tile) => tile.type === FOLDER_CARD_TYPE)
-      .flatMap((tile) => tile.childIds),
-  );
-}
-
 export function getRackAttachedIdSet(tiles) {
   return new Set(
     tiles
@@ -125,30 +112,15 @@ export function getTileByIdMap(tiles) {
 }
 
 export function getRootTiles(tiles, metrics = null) {
-  const folderChildIdSet = getFolderChildIdSet(tiles);
   const rackAttachedIdSet = getRackAttachedIdSet(tiles);
 
   if (metrics) {
     metrics.totalTileCount = tiles.length;
-    metrics.getRootTilesPasses = 3;
-    metrics.folderChildCount = folderChildIdSet.size;
+    metrics.getRootTilesPasses = 2;
     metrics.rackAttachedCount = rackAttachedIdSet.size;
   }
 
-  return tiles.filter((tile) => !folderChildIdSet.has(tile.id) && !rackAttachedIdSet.has(tile.id));
-}
-
-export function getFolderZoneRect(folderTile) {
-  const width = Math.max(FOLDER_ZONE_MIN_WIDTH, folderTile.width + 220);
-
-  return {
-    left: folderTile.x - Math.round((width - folderTile.width) / 2),
-    top: folderTile.y + folderTile.height + FOLDER_ZONE_GAP,
-    right: folderTile.x - Math.round((width - folderTile.width) / 2) + width,
-    bottom: folderTile.y + folderTile.height + FOLDER_ZONE_GAP + FOLDER_ZONE_HEIGHT,
-    width,
-    height: FOLDER_ZONE_HEIGHT,
-  };
+  return tiles.filter((tile) => !rackAttachedIdSet.has(tile.id));
 }
 
 export function getRackRect(rackTile) {
@@ -174,55 +146,6 @@ export function getRackDropRect(rackTile) {
     bottom: rackRect.bottom + RACK_DROP_BOTTOM_PADDING,
     width: rackRect.width + (RACK_DROP_SIDE_PADDING * 2),
     height: RACK_DROP_REACH + rackRect.height + RACK_DROP_BOTTOM_PADDING,
-  };
-}
-
-function getDefaultFolderChildPosition(childTile, index) {
-  const column = index % 3;
-  const row = Math.floor(index / 3);
-
-  return {
-    x: 32 + column * Math.min(264, childTile.width + 36),
-    y: 34 + row * Math.min(224, childTile.height + 28),
-  };
-}
-
-export function getFolderChildLocalPosition(folderTile, childTile, index) {
-  const savedLayout = folderTile.childLayouts?.[childTile.id];
-
-  if (Number.isFinite(savedLayout?.x) && Number.isFinite(savedLayout?.y)) {
-    return {
-      x: savedLayout.x,
-      y: savedLayout.y,
-    };
-  }
-
-  return getDefaultFolderChildPosition(childTile, index);
-}
-
-export function getFolderChildEntry(folderTile, childTile, index) {
-  const zoneRect = getFolderZoneRect(folderTile);
-  const localPosition = getFolderChildLocalPosition(folderTile, childTile, index);
-
-  return {
-    tile: childTile,
-    containerType: "folder",
-    folderId: folderTile.id,
-    rackId: null,
-    localX: localPosition.x,
-    localY: localPosition.y,
-    x: zoneRect.left + localPosition.x,
-    y: zoneRect.top + localPosition.y,
-    width: childTile.width,
-    height: childTile.height,
-    rect: {
-      left: zoneRect.left + localPosition.x,
-      top: zoneRect.top + localPosition.y,
-      right: zoneRect.left + localPosition.x + childTile.width,
-      bottom: zoneRect.top + localPosition.y + childTile.height,
-      width: childTile.width,
-      height: childTile.height,
-    },
   };
 }
 
@@ -252,7 +175,7 @@ export function getRackAttachedTileEntry(rackTile, childTile, index) {
   };
 }
 
-export function getRenderableTileEntries(tiles, openFolderId = null, tileById = getTileByIdMap(tiles)) {
+export function getRenderableTileEntries(tiles, tileById = getTileByIdMap(tiles)) {
   const rootTiles = getRootTiles(tiles);
   const entries = [];
 
@@ -299,32 +222,15 @@ export function getRenderableTileEntries(tiles, openFolderId = null, tileById = 
     });
   });
 
-  if (!openFolderId) {
-    return entries;
-  }
-
-  const openFolderTile = rootTiles.find((tile) => tile.id === openFolderId && tile.type === FOLDER_CARD_TYPE);
-
-  if (!openFolderTile) {
-    return entries;
-  }
-
-  openFolderTile.childIds
-    .map((childId) => tileById[childId] ?? null)
-    .filter(Boolean)
-    .forEach((childTile, index) => {
-      entries.push(getFolderChildEntry(openFolderTile, childTile, index));
-    });
-
   return entries;
 }
 
-export function getRenderableTileEntryById(tiles, openFolderId, tileId, tileById = getTileByIdMap(tiles)) {
-  return getRenderableTileEntries(tiles, openFolderId, tileById).find((entry) => entry.tile.id === tileId) ?? null;
+export function getRenderableTileEntryById(tiles, tileId, tileById = getTileByIdMap(tiles)) {
+  return getRenderableTileEntries(tiles, tileById).find((entry) => entry.tile.id === tileId) ?? null;
 }
 
-export function getSelectedTileIdsInRect(tiles, selectionRect, openFolderId = null, tileById = getTileByIdMap(tiles)) {
-  return getRenderableTileEntries(tiles, openFolderId, tileById)
+export function getSelectedTileIdsInRect(tiles, selectionRect, tileById = getTileByIdMap(tiles)) {
+  return getRenderableTileEntries(tiles, tileById)
     .filter((entry) => rectsIntersect(selectionRect, entry.rect))
     .map((entry) => entry.tile.id);
 }
@@ -458,99 +364,6 @@ function getDraggedBounds(dragOrigins, dragTileIds, dragDelta) {
       height: 0,
     };
   }, null);
-}
-
-export function findFolderGroupingTarget({
-  tiles,
-  dragTileId,
-  dragOrigins,
-  dragDelta,
-  openFolderId,
-  clientToWorldPoint,
-  pointerClientX,
-  pointerClientY,
-  rootTiles = null,
-  openFolderTile = null,
-  draggedTile = null,
-  metrics = null,
-}) {
-  const draggedRect = getDraggedRect(dragOrigins, dragTileId, dragDelta);
-  const dragOrigin = dragOrigins[dragTileId];
-  const pointerWorldPoint = clientToWorldPoint(pointerClientX, pointerClientY);
-  const candidateRootTiles = rootTiles ?? getRootTiles(tiles, metrics);
-  const candidateDraggedTile = draggedTile ?? tiles.find((tile) => tile.id === dragTileId);
-  let bestTarget = null;
-  let bestScore = 0;
-
-  if (metrics) {
-    metrics.pointerChecks = 0;
-    metrics.intersectionChecks = 0;
-    metrics.rootLoopCount = 0;
-  }
-
-  if (!draggedRect || !dragOrigin || candidateDraggedTile?.type === RACK_CARD_TYPE) {
-    return null;
-  }
-
-  if (openFolderId) {
-    const candidateOpenFolderTile = openFolderTile ?? candidateRootTiles.find((tile) => tile.id === openFolderId && tile.type === FOLDER_CARD_TYPE);
-
-    if (candidateOpenFolderTile && dragOrigin.folderId !== candidateOpenFolderTile.id) {
-      const zoneRect = getFolderZoneRect(candidateOpenFolderTile);
-      if (metrics) {
-        metrics.pointerChecks += 1;
-      }
-
-      if (pointInsideRect(pointerWorldPoint, zoneRect)) {
-        return {
-          kind: "folder-zone",
-          folderId: candidateOpenFolderTile.id,
-          targetTileId: candidateOpenFolderTile.id,
-          zoneRect,
-        };
-      }
-    }
-  }
-
-  for (const tile of candidateRootTiles) {
-    if (metrics) {
-      metrics.rootLoopCount += 1;
-    }
-
-    if (tile.id === dragTileId || tile.type === RACK_CARD_TYPE) {
-      continue;
-    }
-
-    const targetRect = getTileRect(tile, tile.width, tile.height);
-    if (metrics) {
-      metrics.intersectionChecks += 1;
-      metrics.pointerChecks += 1;
-    }
-    const intersectionArea = getIntersectionArea(draggedRect, targetRect);
-    const overlapScore = intersectionArea / Math.min(
-      Math.max(1, draggedRect.width * draggedRect.height),
-      Math.max(1, targetRect.width * targetRect.height),
-    );
-    const pointerInsideTarget = pointInsideRect(pointerWorldPoint, targetRect);
-    const score = pointerInsideTarget ? overlapScore + 1 : overlapScore;
-
-    if ((pointerInsideTarget || overlapScore >= 0.16) && score > bestScore) {
-      bestTarget = tile.type === FOLDER_CARD_TYPE
-        ? {
-          kind: "folder-tile",
-          folderId: tile.id,
-          targetTileId: tile.id,
-        }
-        : {
-          kind: "tile",
-          folderId: null,
-          targetTileId: tile.id,
-        };
-      bestScore = score;
-    }
-  }
-
-  return bestTarget;
 }
 
 export function findRackDropTarget({

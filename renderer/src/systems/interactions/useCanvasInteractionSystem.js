@@ -7,10 +7,8 @@ import {
   recordPointerMoveSample,
 } from "../../lib/perf";
 import {
-  findFolderGroupingTarget,
   findRackDropTarget,
   getBoxStyleVars,
-  getFolderZoneRect,
   getRenderableTileEntries,
   getRenderableTileEntryById,
   getTileByIdMap,
@@ -22,7 +20,6 @@ import {
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 
 const VIEWPORT_PADDING = 16;
-const FOLDER_GROUP_HOLD_DELAY_MS = 2000;
 const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
 
 function isSelectionModifierPressed(event) {
@@ -49,15 +46,12 @@ export function useCanvasInteractionSystem({
   const [draggingTileIds, setDraggingTileIds] = useState([]);
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
-  const [folderGroupingPreview, setFolderGroupingPreview] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
-  const folderGroupingIntentRef = useRef(null);
   const cardsRef = useRef(cards);
   const tileByIdRef = useRef(getTileByIdMap(cards));
-  const folderGroupingPreviewRef = useRef(folderGroupingPreview);
   const rackDropPreviewRef = useRef(rackDropPreview);
   const snapSettingsRef = useRef(snapSettings);
   const pointerMoveMetricsRef = useRef({
@@ -74,25 +68,12 @@ export function useCanvasInteractionSystem({
   }, [cards]);
 
   useEffect(() => {
-    folderGroupingPreviewRef.current = folderGroupingPreview;
-  }, [folderGroupingPreview]);
-
-  useEffect(() => {
     rackDropPreviewRef.current = rackDropPreview;
   }, [rackDropPreview]);
 
   useEffect(() => {
     snapSettingsRef.current = snapSettings;
   }, [snapSettings]);
-
-  const clearFolderGroupingPreview = useCallback(() => {
-    if (folderGroupingIntentRef.current?.timeoutId) {
-      window.clearTimeout(folderGroupingIntentRef.current.timeoutId);
-    }
-
-    folderGroupingIntentRef.current = null;
-    setFolderGroupingPreview(null);
-  }, []);
 
   const clearRackDropPreview = useCallback(() => {
     setRackDropPreview(null);
@@ -104,7 +85,6 @@ export function useCanvasInteractionSystem({
 
   const resetTransientState = useCallback(() => {
     closeContextMenu();
-    clearFolderGroupingPreview();
     clearRackDropPreview();
     setSelectedTileIds([]);
     setHoveredTileId(null);
@@ -115,7 +95,6 @@ export function useCanvasInteractionSystem({
     dragStateRef.current = null;
     marqueeStateRef.current = null;
   }, [
-    clearFolderGroupingPreview,
     clearRackDropPreview,
     closeContextMenu,
   ]);
@@ -136,25 +115,13 @@ export function useCanvasInteractionSystem({
 
   useEffect(() => {
     const renderableTileIds = new Set(
-      getRenderableTileEntries(cards, commands.openFolderId, tileByIdRef.current).map((entry) => entry.tile.id),
+      getRenderableTileEntries(cards, tileByIdRef.current).map((entry) => entry.tile.id),
     );
 
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => renderableTileIds.has(tileId)));
     setHoveredTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
     setFocusedTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
-  }, [cards, commands.openFolderId]);
-
-  useEffect(() => {
-    if (!folderGroupingPreview) {
-      return;
-    }
-
-    const targetStillExists = cards.some((tile) => tile.id === folderGroupingPreview.targetTileId);
-
-    if (!targetStillExists) {
-      clearFolderGroupingPreview();
-    }
-  }, [cards, clearFolderGroupingPreview, folderGroupingPreview]);
+  }, [cards]);
 
   useEffect(() => {
     if (!rackDropPreview) {
@@ -309,53 +276,8 @@ export function useCanvasInteractionSystem({
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [canvas]);
 
-  const queueFolderGroupingTarget = useCallback((sourceTileId, nextTarget) => {
-    const existingIntent = folderGroupingIntentRef.current;
-
-    if (
-      existingIntent?.sourceTileId === sourceTileId
-      && existingIntent?.targetTileId === nextTarget.targetTileId
-      && existingIntent?.kind === nextTarget.kind
-    ) {
-      return;
-    }
-
-    clearFolderGroupingPreview();
-    setFolderGroupingPreview({
-      ...nextTarget,
-      sourceTileId,
-      isArmed: false,
-    });
-
-    const timeoutId = window.setTimeout(() => {
-      setFolderGroupingPreview((currentPreview) => {
-        if (
-          !currentPreview
-          || currentPreview.sourceTileId !== sourceTileId
-          || currentPreview.targetTileId !== nextTarget.targetTileId
-          || currentPreview.kind !== nextTarget.kind
-        ) {
-          return currentPreview;
-        }
-
-        return {
-          ...currentPreview,
-          isArmed: true,
-        };
-      });
-    }, FOLDER_GROUP_HOLD_DELAY_MS);
-
-    folderGroupingIntentRef.current = {
-      sourceTileId,
-      targetTileId: nextTarget.targetTileId,
-      kind: nextTarget.kind,
-      timeoutId,
-    };
-  }, [clearFolderGroupingPreview]);
-
   const beginTileDrag = useCallback((tile, event) => {
     closeContextMenu();
-    clearFolderGroupingPreview();
     clearRackDropPreview();
 
     const isPrimaryPointer = event.button === 0 || event.buttons === 1;
@@ -369,7 +291,6 @@ export function useCanvasInteractionSystem({
 
     const anchorEntry = getRenderableTileEntryById(
       cardsRef.current,
-      commands.openFolderId,
       tile.id,
       tileByIdRef.current,
     );
@@ -386,7 +307,6 @@ export function useCanvasInteractionSystem({
     const dragEntries = candidateTileIds
       .map((tileId) => getRenderableTileEntryById(
         cardsRef.current,
-        commands.openFolderId,
         tileId,
         tileByIdRef.current,
       ))
@@ -448,7 +368,6 @@ export function useCanvasInteractionSystem({
 
     const dragTargetRootTiles = getRenderableTileEntries(
       cardsRef.current,
-      commands.openFolderId,
       tileByIdRef.current,
     )
       .filter((entry) => entry.containerType === "canvas")
@@ -459,6 +378,7 @@ export function useCanvasInteractionSystem({
       tileId: tile.id,
       tileIds: dragTileIds,
       tileIdSet: dragTileIdSet,
+      startedFromRack: anchorEntry.containerType === "rack",
       pointerX: event.clientX,
       pointerY: event.clientY,
       lastDelta: { x: 0, y: 0 },
@@ -466,14 +386,12 @@ export function useCanvasInteractionSystem({
       hasMoved: false,
       targetCache: {
         rootTiles: dragTargetRootTiles,
-        openFolderTile: dragTargetRootTiles.find((entryTile) => entryTile.id === commands.openFolderId) ?? null,
         draggedTile: tileByIdRef.current[tile.id] ?? tile,
       },
     };
     setDraggingTileIds(dragTileIds);
     setDragVisualDelta({ x: 0, y: 0 });
   }, [
-    clearFolderGroupingPreview,
     clearRackDropPreview,
     closeContextMenu,
     commands,
@@ -554,7 +472,6 @@ export function useCanvasInteractionSystem({
       setSelectedTileIds(getSelectedTileIdsInRect(
         cardsRef.current,
         selectionWorldRect,
-        commands.openFolderId,
         tileByIdRef.current,
       ));
     }
@@ -579,20 +496,18 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("pointercancel", finishMarquee, true);
       window.removeEventListener("blur", cancelMarquee);
     };
-  }, [canvas, commands.openFolderId]);
+  }, [canvas]);
 
   useEffect(() => {
     function finishDrag(event = null) {
       const dragState = dragStateRef.current;
 
       if (!dragState) {
-        clearFolderGroupingPreview();
         clearRackDropPreview();
         return;
       }
 
       const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const activeFolderPreview = folderGroupingPreviewRef.current;
       const activeRackPreview = rackDropPreviewRef.current;
       const dragDelta = dragState.lastDelta ?? { x: 0, y: 0 };
       let nextSelectedIds = dragState.tileIds;
@@ -607,73 +522,18 @@ export function useCanvasInteractionSystem({
         }
       }
 
-      if (!wasHandled && event && dragState.tileIds.length === 1 && activeFolderPreview?.isArmed) {
-        if (activeFolderPreview.kind === "tile") {
-          const folderTile = commands.createFolderFromTiles(dragState.tileId, activeFolderPreview.targetTileId);
-
-          if (folderTile) {
-            nextSelectedIds = [folderTile.id];
-            wasHandled = true;
-          }
-        } else if ((activeFolderPreview.kind === "folder-tile" || activeFolderPreview.kind === "folder-zone") && activeFolderPreview.folderId) {
-          const sourceOrigin = dragState.origins[dragState.tileId];
-          const targetFolder = tileByIdRef.current[activeFolderPreview.folderId] ?? null;
-
-          if (sourceOrigin && targetFolder) {
-            const zoneRect = getFolderZoneRect(targetFolder);
-            const folderPosition = {
-              x: sourceOrigin.x + dragDelta.x - zoneRect.left,
-              y: sourceOrigin.y + dragDelta.y - zoneRect.top,
-            };
-            const folderTile = commands.addTileToFolder(dragState.tileId, activeFolderPreview.folderId, folderPosition);
-
-            if (folderTile) {
-              nextSelectedIds = [dragState.tileId];
-              wasHandled = true;
-            }
-          }
-        }
-      }
-
-      if (!wasHandled && event) {
-        const extractedTileIds = dragState.tileIds.filter((tileId) => {
-          const origin = dragState.origins[tileId];
-
-          if (!origin || origin.containerType !== "folder" || !origin.folderId) {
-            return false;
-          }
-
-          const sourceFolder = tileByIdRef.current[origin.folderId] ?? null;
-
-          if (!sourceFolder) {
-            return false;
-          }
-
-          const zoneRect = getFolderZoneRect(sourceFolder);
-          const tileCenter = {
-            x: origin.x + dragDelta.x + origin.width / 2,
-            y: origin.y + dragDelta.y + origin.height / 2,
-          };
-
-          if (pointInsideRect(tileCenter, zoneRect)) {
-            return false;
-          }
-
-          return Boolean(commands.removeTileFromFolder(tileId, origin.folderId, {
-            x: origin.x + dragDelta.x,
-            y: origin.y + dragDelta.y,
-          }));
-        });
-
-        if (extractedTileIds.length > 0) {
-          nextSelectedIds = extractedTileIds;
-          wasHandled = true;
-        }
-      }
-
       if (!wasHandled && event && (dragDelta.x !== 0 || dragDelta.y !== 0)) {
         commands.moveTiles(dragState.tileIds, dragState.origins, dragDelta);
         wasHandled = true;
+      }
+
+      if (!wasHandled && dragState.startedFromRack) {
+        commands.commitCurrentWorkspace();
+        wasHandled = true;
+      }
+
+      if (!wasHandled) {
+        commands.cancelPendingWorkspaceChange();
       }
 
       const commitEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -702,7 +562,6 @@ export function useCanvasInteractionSystem({
 
       dragStateRef.current = null;
       setDraggingTileIds([]);
-      clearFolderGroupingPreview();
       clearRackDropPreview();
       setSelectedTileIds(nextSelectedIds);
     }
@@ -779,38 +638,12 @@ export function useCanvasInteractionSystem({
       }
 
       if (dragState.tileIds.length !== 1 || rackDropPreviewRef.current?.rackId) {
-        clearFolderGroupingPreview();
         const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
         const durationMs = moveEnd - moveStart;
         pointerMoveMetricsRef.current.count += 1;
         pointerMoveMetricsRef.current.totalMs += durationMs;
         recordPointerMoveSample(durationMs);
         return;
-      }
-
-      const folderHitTestMetrics = {};
-      const folderHitTestStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const groupingTarget = findFolderGroupingTarget({
-        tiles: cardsRef.current,
-        dragTileId: dragState.tileId,
-        dragOrigins: dragState.origins,
-        dragDelta: worldDelta,
-        openFolderId: commands.openFolderId,
-        clientToWorldPoint: canvas.clientToWorldPoint,
-        pointerClientX: event.clientX,
-        pointerClientY: event.clientY,
-        rootTiles: dragState.targetCache.rootTiles,
-        openFolderTile: dragState.targetCache.openFolderTile,
-        draggedTile: dragState.targetCache.draggedTile,
-        metrics: folderHitTestMetrics,
-      });
-      const folderHitTestEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
-      recordHitTestSample("folder-group", folderHitTestEnd - folderHitTestStart, folderHitTestMetrics);
-
-      if (groupingTarget) {
-        queueFolderGroupingTarget(dragState.tileId, groupingTarget);
-      } else {
-        clearFolderGroupingPreview();
       }
 
       const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -843,7 +676,7 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canvas, clearFolderGroupingPreview, clearRackDropPreview, commands, queueFolderGroupingTarget, viewportZoom]);
+  }, [canvas, clearRackDropPreview, commands, viewportZoom]);
 
   const handleCanvasPointerDown = useCallback((event) => {
     const isCanvasBackground = isCanvasBackgroundTarget(event);
@@ -853,7 +686,6 @@ export function useCanvasInteractionSystem({
     }
 
     closeContextMenu();
-    commands.closeFolder();
     setHoveredTileId(null);
     setFocusedTileId(null);
     suppressCanvasContextMenuRef.current = false;
@@ -913,7 +745,6 @@ export function useCanvasInteractionSystem({
     focusedTileId,
     draggingTileIds,
     dragVisualDelta,
-    folderGroupingPreview,
     rackDropPreview,
     marqueeBox,
     marqueeStyleVars,
@@ -935,7 +766,6 @@ export function useCanvasInteractionSystem({
     dragVisualDelta,
     draggingTileIds,
     focusedTileId,
-    folderGroupingPreview,
     rackDropPreview,
     handleCanvasContextMenu,
     handleCanvasPointerDown,

@@ -1,4 +1,4 @@
-import FolderTile from "../components/tiles/FolderTile";
+import AmazonProductTile from "../components/tiles/AmazonProductTile";
 import LinkTile from "../components/tiles/LinkTile";
 import RackTile from "../components/tiles/RackTile";
 import TILE_TYPES from "./tileTypes";
@@ -37,19 +37,19 @@ const tileRegistry = {
       lazy: false,
     },
   },
-  [TILE_TYPES.FOLDER]: {
-    type: TILE_TYPES.FOLDER,
-    displayName: "Folder Tile",
+  [TILE_TYPES.AMAZON_PRODUCT]: {
+    type: TILE_TYPES.AMAZON_PRODUCT,
+    displayName: "Amazon Product Tile",
     status: "stable",
-    component: FolderTile,
-    defaultSize: { width: 340, height: 236 },
+    component: AmazonProductTile,
+    defaultSize: { width: 340, height: 388 },
     capabilities: {
       draggable: true,
       selectable: true,
       resizable: false,
       editable: false,
-      container: true,
-      navigation: false,
+      container: false,
+      navigation: true,
       physics: false,
       lazy: false,
     },

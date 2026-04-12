@@ -8,17 +8,20 @@ import {
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
 
-export const FOLDER_CARD_TYPE = TILE_TYPES.FOLDER;
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
+export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 6;
+export const WORKSPACE_SCHEMA_VERSION = 7;
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
 export const RACK_LEFT_CAP_WIDTH = 94;
 export const RACK_RIGHT_CAP_WIDTH = 94;
 export const RACK_HEIGHT = 126;
 export const RACK_TILE_BASELINE = 44;
+const LEGACY_FOLDER_CARD_TYPE = "folder";
+const LEGACY_FOLDER_ZONE_GAP = 24;
+const LEGACY_FOLDER_ZONE_MIN_WIDTH = 860;
 
 const DEFAULT_VIEWPORT = Object.freeze({
   x: 180,
@@ -31,9 +34,9 @@ const LINK_CARD_SIZE = Object.freeze({
   height: 280,
 });
 
-const FOLDER_CARD_SIZE = Object.freeze({
+const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   width: 340,
-  height: 236,
+  height: 388,
 });
 
 const RACK_CARD_SIZE = Object.freeze({
@@ -41,8 +44,6 @@ const RACK_CARD_SIZE = Object.freeze({
   height: RACK_HEIGHT,
 });
 
-const FOLDER_DEFAULT_TITLE = "Folder";
-const FOLDER_DEFAULT_DESCRIPTION = "Grouped tiles";
 const RACK_DEFAULT_TITLE = "Rack";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 
@@ -59,12 +60,12 @@ function getCardType(card) {
     return TILE_TYPES.LINK;
   }
 
-  if (card?.type === RACK_CARD_TYPE) {
-    return RACK_CARD_TYPE;
+  if (card?.type === AMAZON_PRODUCT_CARD_TYPE) {
+    return AMAZON_PRODUCT_CARD_TYPE;
   }
 
-  if (card?.type === FOLDER_CARD_TYPE) {
-    return FOLDER_CARD_TYPE;
+  if (card?.type === RACK_CARD_TYPE) {
+    return RACK_CARD_TYPE;
   }
 
   return null;
@@ -103,10 +104,14 @@ function normalizeLinkAsset(asset) {
   };
 }
 
-function normalizeFolderChildIds(childIds) {
+function normalizeLegacyFolderChildIds(childIds) {
   return Array.isArray(childIds)
     ? [...new Set(childIds.filter((childId) => typeof childId === "string" && childId.trim().length > 0))]
     : [];
+}
+
+function isLinkLikeType(type) {
+  return type === TILE_TYPES.LINK || type === AMAZON_PRODUCT_CARD_TYPE;
 }
 
 function normalizeRackTileIds(tileIds) {
@@ -115,7 +120,7 @@ function normalizeRackTileIds(tileIds) {
     : [];
 }
 
-function normalizeFolderChildLayouts(childIds, childLayouts) {
+function normalizeLegacyFolderChildLayouts(childIds, childLayouts) {
   const safeLayouts = childLayouts && typeof childLayouts === "object" ? childLayouts : {};
 
   return Object.fromEntries(
@@ -138,12 +143,12 @@ function getCardSize(type) {
     return LINK_CARD_SIZE;
   }
 
-  if (type === RACK_CARD_TYPE) {
-    return RACK_CARD_SIZE;
+  if (type === AMAZON_PRODUCT_CARD_TYPE) {
+    return AMAZON_PRODUCT_CARD_SIZE;
   }
 
-  if (type === FOLDER_CARD_TYPE) {
-    return FOLDER_CARD_SIZE;
+  if (type === RACK_CARD_TYPE) {
+    return RACK_CARD_SIZE;
   }
 
   return RACK_CARD_SIZE;
@@ -225,8 +230,7 @@ export function getRackTileWorldPosition(rackCard, tile, rackIndex = tile?.rackI
 export function canAttachTileToRack(tile) {
   return Boolean(
     tile
-    && tile.type !== RACK_CARD_TYPE
-    && tile.type !== FOLDER_CARD_TYPE,
+    && tile.type !== RACK_CARD_TYPE,
   );
 }
 
@@ -237,18 +241,15 @@ export function normalizeCard(card, fallbackIndex = 0) {
     return null;
   }
 
-  const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
-  const contentKind = type === "link"
+  const isLinkLikeCard = isLinkLikeType(type);
+  const linkAsset = type === TILE_TYPES.LINK ? normalizeLinkAsset(card?.asset) : null;
+  const contentKind = isLinkLikeCard
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
   const size = getCardSize(type);
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
-  const childIds = type === FOLDER_CARD_TYPE ? normalizeFolderChildIds(card?.childIds) : [];
-  const childLayouts = type === FOLDER_CARD_TYPE
-    ? normalizeFolderChildLayouts(childIds, card?.childLayouts)
-    : {};
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
       minSlots: Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS),
@@ -263,37 +264,40 @@ export function normalizeCard(card, fallbackIndex = 0) {
     y: Number.isFinite(card?.y) ? card.y : 120,
     width: type === RACK_CARD_TYPE ? rackSize.width : Number.isFinite(card?.width) ? card.width : size.width,
     height: type === RACK_CARD_TYPE ? rackSize.height : Number.isFinite(card?.height) ? card.height : size.height,
-    url: type === "link" ? String(card?.url ?? "") : "",
+    url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
-    title: type === "link"
+    title: isLinkLikeCard
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.title, RACK_DEFAULT_TITLE)
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.title, FOLDER_DEFAULT_TITLE)
         : "",
-    description: type === "link"
+    description: isLinkLikeCard
       ? String(card?.description ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
-      : type === FOLDER_CARD_TYPE
-        ? firstString(card?.description, FOLDER_DEFAULT_DESCRIPTION)
         : "",
-    image: type === "link" ? String(card?.image ?? "") : "",
-    favicon: type === "link" ? String(card?.favicon ?? "") : "",
-    siteName: type === "link" ? String(card?.siteName ?? "") : "",
-    previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
-    previewError: type === "link" ? String(card?.previewError ?? "") : "",
-    status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
+    image: isLinkLikeCard ? String(card?.image ?? "") : "",
+    favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
+    siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
+    previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
+    previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
+    status: isLinkLikeCard && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
-    asset: type === "link" ? linkAsset : null,
+    asset: type === TILE_TYPES.LINK ? linkAsset : null,
+    productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
+    productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
+    productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",
+    productRating: type === AMAZON_PRODUCT_CARD_TYPE && Number.isFinite(card?.productRating)
+      ? Number(card.productRating)
+      : null,
+    productReviewCount: type === AMAZON_PRODUCT_CARD_TYPE && Number.isFinite(card?.productReviewCount)
+      ? Math.max(0, Math.round(card.productReviewCount))
+      : null,
     tileIds: rackTileIds,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
       : null,
-    childIds,
-    childLayouts,
     layout: normalizeCardLayout(card?.layout),
     parentRackId: type !== RACK_CARD_TYPE && typeof card?.parentRackId === "string" && card.parentRackId.trim().length > 0
       ? card.parentRackId
@@ -375,16 +379,15 @@ function migrateWorkspace(rawWorkspace) {
     };
   }
 
-  return nextWorkspace;
-}
+  if (version < 7) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      cards: flattenLegacyFolderCards(Array.isArray(nextWorkspace.cards) ? nextWorkspace.cards : []),
+      version: 7,
+    };
+  }
 
-function updateFolderChildren(folderCard, nextChildIds, nextChildLayouts = folderCard.childLayouts) {
-  return normalizeCard({
-    ...folderCard,
-    childIds: nextChildIds,
-    childLayouts: nextChildLayouts,
-    updatedAt: nowIso(),
-  });
+  return nextWorkspace;
 }
 
 function updateRackTiles(rackCard, nextTileIds) {
@@ -430,21 +433,6 @@ function syncRackChildren(cards, rackId, nextTileIds) {
   });
 }
 
-function detachTileFromFolders(cards, tileId) {
-  return cards.map((card) => {
-    if (card.type !== FOLDER_CARD_TYPE || !card.childIds.includes(tileId)) {
-      return card;
-    }
-
-    const nextChildIds = card.childIds.filter((childId) => childId !== tileId);
-    const nextChildLayouts = Object.fromEntries(
-      Object.entries(card.childLayouts).filter(([childId]) => childId !== tileId),
-    );
-
-    return updateFolderChildren(card, nextChildIds, nextChildLayouts);
-  });
-}
-
 function detachTileFromRacks(cards, tileId) {
   const sourceRack = cards.find((card) => card.type === RACK_CARD_TYPE && card.tileIds.includes(tileId));
 
@@ -466,13 +454,7 @@ function intersects(a, b) {
 }
 
 function getCanvasCollisionCards(cards) {
-  const folderChildIds = new Set(
-    cards
-      .filter((card) => card.type === FOLDER_CARD_TYPE)
-      .flatMap((card) => card.childIds),
-  );
-
-  return cards.filter((card) => !folderChildIds.has(card.id) && !card.parentRackId);
+  return cards.filter((card) => !card.parentRackId);
 }
 
 function hasCollision(cards, candidate) {
@@ -560,30 +542,6 @@ export function getNextCardPosition(
   };
 }
 
-export function createFolderCard(cards, viewport, preferredCenter = null, options = {}) {
-  const title = firstString(options?.title, FOLDER_DEFAULT_TITLE);
-  const description = firstString(options?.description, FOLDER_DEFAULT_DESCRIPTION);
-  const childIds = normalizeFolderChildIds(options?.childIds);
-  const childLayouts = normalizeFolderChildLayouts(childIds, options?.childLayouts);
-  const position = getNextCardPosition(cards, viewport, FOLDER_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: FOLDER_CARD_TYPE,
-    title,
-    description,
-    childIds,
-    childLayouts,
-    x: position.x,
-    y: position.y,
-    width: position.width,
-    height: position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
 export function createRackCard(cards, viewport, preferredCenter = null, options = {}) {
   const title = firstString(options?.title, RACK_DEFAULT_TITLE);
   const description = firstString(options?.description, RACK_DEFAULT_DESCRIPTION);
@@ -612,7 +570,8 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
 }
 
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, TILE_TYPES.LINK, preferredCenter);
+  const type = options?.type === AMAZON_PRODUCT_CARD_TYPE ? AMAZON_PRODUCT_CARD_TYPE : TILE_TYPES.LINK;
+  const position = getNextCardPosition(cards, viewport, type, preferredCenter);
   const timestamp = nowIso();
   const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
   const domain = getDomainLabel(url);
@@ -621,7 +580,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
 
   return normalizeCard({
     id: crypto.randomUUID(),
-    type: TILE_TYPES.LINK,
+    type,
     url,
     contentKind,
     title: typeof options?.title === "string" ? options.title : "",
@@ -637,6 +596,11 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
         ? options.status
         : "loading",
     asset,
+    productAsin: typeof options?.productAsin === "string" ? options.productAsin : "",
+    productPrice: typeof options?.productPrice === "string" ? options.productPrice : "",
+    productDomain: typeof options?.productDomain === "string" ? options.productDomain : "",
+    productRating: Number.isFinite(options?.productRating) ? Number(options.productRating) : null,
+    productReviewCount: Number.isFinite(options?.productReviewCount) ? Math.max(0, Math.round(options.productReviewCount)) : null,
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,
@@ -677,145 +641,8 @@ export function updateCards(cards, updatesById) {
     .filter(Boolean);
 }
 
-export function getFolderByChildId(cards, childId) {
-  return cards.find((card) => card.type === FOLDER_CARD_TYPE && card.childIds.includes(childId)) ?? null;
-}
-
 export function getRackByTileId(cards, tileId) {
   return cards.find((card) => card.type === RACK_CARD_TYPE && card.tileIds.includes(tileId)) ?? null;
-}
-
-export function createFolderFromTiles(cards, sourceCardId, targetCardId) {
-  if (!sourceCardId || !targetCardId || sourceCardId === targetCardId) {
-    return null;
-  }
-
-  const sourceCard = cards.find((card) => card.id === sourceCardId);
-  const targetCard = cards.find((card) => card.id === targetCardId);
-
-  if (
-    !sourceCard
-    || !targetCard
-    || sourceCard.type === FOLDER_CARD_TYPE
-    || sourceCard.type === RACK_CARD_TYPE
-    || targetCard.type === RACK_CARD_TYPE
-  ) {
-    return null;
-  }
-
-  if (targetCard.type === FOLDER_CARD_TYPE) {
-    return addTileToFolder(cards, sourceCardId, targetCardId);
-  }
-
-  const cleanedCards = detachTileFromRacks(
-    detachTileFromRacks(
-      detachTileFromFolders(detachTileFromFolders(cards, sourceCardId), targetCardId),
-      sourceCardId,
-    ),
-    targetCardId,
-  );
-  const timestamp = nowIso();
-  const folderCard = normalizeCard({
-    id: crypto.randomUUID(),
-    type: FOLDER_CARD_TYPE,
-    title: FOLDER_DEFAULT_TITLE,
-    description: FOLDER_DEFAULT_DESCRIPTION,
-    childIds: [targetCardId, sourceCardId],
-    childLayouts: {
-      [targetCardId]: { x: 32, y: 30 },
-      [sourceCardId]: { x: 240, y: 58 },
-    },
-    x: targetCard.x,
-    y: targetCard.y,
-    width: FOLDER_CARD_SIZE.width,
-    height: FOLDER_CARD_SIZE.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-
-  return {
-    cards: [...cleanedCards, folderCard],
-    folderCard,
-  };
-}
-
-export function addTileToFolder(cards, tileId, folderId, folderPosition = null) {
-  if (!tileId || !folderId || tileId === folderId) {
-    return null;
-  }
-
-  const tile = cards.find((card) => card.id === tileId);
-  const folderCard = cards.find((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE);
-
-  if (!tile || !folderCard || tile.type === FOLDER_CARD_TYPE || tile.type === RACK_CARD_TYPE || folderCard.childIds.includes(tileId)) {
-    return null;
-  }
-
-  const cleanedCards = detachTileFromRacks(detachTileFromFolders(cards, tileId), tileId);
-  const latestFolderCard = cleanedCards.find((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE);
-
-  if (!latestFolderCard) {
-    return null;
-  }
-
-  const nextChildIds = [...latestFolderCard.childIds, tileId];
-  const nextChildLayouts = {
-    ...latestFolderCard.childLayouts,
-    [tileId]: {
-      x: Number.isFinite(folderPosition?.x) ? folderPosition.x : 36 + (nextChildIds.length % 3) * 220,
-      y: Number.isFinite(folderPosition?.y) ? folderPosition.y : 36 + Math.floor((nextChildIds.length - 1) / 3) * 182,
-    },
-  };
-  const nextFolderCard = updateFolderChildren(latestFolderCard, nextChildIds, nextChildLayouts);
-
-  return {
-    cards: cleanedCards.map((card) => (card.id === folderId ? nextFolderCard : card)),
-    folderCard: nextFolderCard,
-  };
-}
-
-export function removeTileFromFolder(cards, tileId, folderId, dropPosition = null) {
-  if (!tileId || !folderId) {
-    return null;
-  }
-
-  const folderCard = cards.find((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE);
-  const tile = cards.find((card) => card.id === tileId);
-
-  if (!folderCard || !tile || !folderCard.childIds.includes(tileId)) {
-    return null;
-  }
-
-  const nextChildIds = folderCard.childIds.filter((childId) => childId !== tileId);
-  const nextChildLayouts = Object.fromEntries(
-    Object.entries(folderCard.childLayouts).filter(([childId]) => childId !== tileId),
-  );
-  const nextFolderCard = updateFolderChildren(folderCard, nextChildIds, nextChildLayouts);
-
-  return {
-    cards: cards.map((card) => {
-      if (card.id === folderId) {
-        return nextFolderCard;
-      }
-
-      if (card.id === tileId) {
-        return normalizeCard({
-          ...card,
-          x: Number.isFinite(dropPosition?.x) ? dropPosition.x : card.x,
-          y: Number.isFinite(dropPosition?.y) ? dropPosition.y : card.y,
-          updatedAt: nowIso(),
-        });
-      }
-
-      return card;
-    }),
-    folderCard: nextFolderCard,
-    tile: normalizeCard({
-      ...tile,
-      x: Number.isFinite(dropPosition?.x) ? dropPosition.x : tile.x,
-      y: Number.isFinite(dropPosition?.y) ? dropPosition.y : tile.y,
-    }),
-  };
 }
 
 export function addTileToRack(cards, tileId, rackId, slotIndex = null) {
@@ -830,7 +657,7 @@ export function addTileToRack(cards, tileId, rackId, slotIndex = null) {
     return null;
   }
 
-  const cleanedCards = detachTileFromRacks(detachTileFromFolders(cards, tileId), tileId);
+  const cleanedCards = detachTileFromRacks(cards, tileId);
   const latestRackCard = cleanedCards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE);
 
   if (!latestRackCard) {
@@ -915,23 +742,6 @@ export function removeCard(cards, cardId) {
   }
 
   const idsToRemove = new Set([cardId]);
-  const queue = [cardId];
-
-  while (queue.length > 0) {
-    const currentId = queue.shift();
-    const currentCard = cards.find((card) => card.id === currentId);
-
-    if (!currentCard || currentCard.type !== FOLDER_CARD_TYPE) {
-      continue;
-    }
-
-    for (const childId of currentCard.childIds) {
-      if (!idsToRemove.has(childId)) {
-        idsToRemove.add(childId);
-        queue.push(childId);
-      }
-    }
-  }
 
   const removedRackMap = new Map(
     cards
@@ -969,18 +779,7 @@ export function removeCard(cards, cardId) {
           : updateRackTiles(card, nextTileIds);
       }
 
-      if (card.type !== FOLDER_CARD_TYPE) {
-        return card;
-      }
-
-      const nextChildIds = card.childIds.filter((childId) => !idsToRemove.has(childId));
-      const nextChildLayouts = Object.fromEntries(
-        Object.entries(card.childLayouts).filter(([childId]) => !idsToRemove.has(childId)),
-      );
-
-      return nextChildIds.length === card.childIds.length
-        ? card
-        : updateFolderChildren(card, nextChildIds, nextChildLayouts);
+      return card;
     });
 }
 
@@ -998,11 +797,11 @@ export function isUrl(value) {
 }
 
 export function isImageLinkCard(card) {
-  return card?.type === "link" && card.contentKind === LINK_CONTENT_KIND_IMAGE;
+  return isLinkLikeType(card?.type) && card.contentKind === LINK_CONTENT_KIND_IMAGE;
 }
 
 export function isBookmarkLinkCard(card) {
-  return card?.type === "link" && !isImageLinkCard(card);
+  return isLinkLikeType(card?.type) && !isImageLinkCard(card);
 }
 
 export function isEditableElement(element) {
@@ -1014,14 +813,13 @@ export function isEditableElement(element) {
 }
 
 export function formatCardSubtitle(card) {
-  if (card.type === FOLDER_CARD_TYPE) {
-    const childCount = card.childIds.length;
-    return `${childCount} ${childCount === 1 ? "tile" : "tiles"}`;
-  }
-
   if (card.type === RACK_CARD_TYPE) {
     const tileCount = card.tileIds.length;
     return `${tileCount} ${tileCount === 1 ? "tile" : "tiles"} on rack`;
+  }
+
+  if (card.type === AMAZON_PRODUCT_CARD_TYPE) {
+    return firstString(card.productPrice, card.productDomain, getDomainLabel(card.url), "Amazon");
   }
 
   if (isImageLinkCard(card)) {
@@ -1029,4 +827,51 @@ export function formatCardSubtitle(card) {
   }
 
   return firstString(card.siteName, getDomainLabel(card.url), "Link");
+}
+
+function getLegacyFolderZoneRect(folderCard) {
+  const width = Math.max(
+    LEGACY_FOLDER_ZONE_MIN_WIDTH,
+    (Number.isFinite(folderCard?.width) ? folderCard.width : 340) + 220,
+  );
+  const left = (Number.isFinite(folderCard?.x) ? folderCard.x : 120)
+    - Math.round((width - (Number.isFinite(folderCard?.width) ? folderCard.width : 340)) / 2);
+  const top = (Number.isFinite(folderCard?.y) ? folderCard.y : 120)
+    + (Number.isFinite(folderCard?.height) ? folderCard.height : 236)
+    + LEGACY_FOLDER_ZONE_GAP;
+
+  return { left, top };
+}
+
+function flattenLegacyFolderCards(cards) {
+  const sourceCards = Array.isArray(cards) ? cards : [];
+  const nextCards = sourceCards.map((card) => ({ ...card }));
+  const cardById = new Map(nextCards.map((card) => [card.id, card]));
+  const legacyFolders = nextCards.filter((card) => card?.type === LEGACY_FOLDER_CARD_TYPE);
+
+  legacyFolders.forEach((folderCard) => {
+    const zoneOrigin = getLegacyFolderZoneRect(folderCard);
+    const childIds = normalizeLegacyFolderChildIds(folderCard?.childIds);
+    const childLayouts = normalizeLegacyFolderChildLayouts(childIds, folderCard?.childLayouts);
+
+    childIds.forEach((childId, index) => {
+      const childCard = cardById.get(childId);
+
+      if (!childCard) {
+        return;
+      }
+
+      const fallbackLayout = {
+        x: 36 + ((index + 1) % 3) * 220,
+        y: 36 + Math.floor(index / 3) * 182,
+      };
+      const localLayout = childLayouts[childId] ?? fallbackLayout;
+
+      childCard.x = zoneOrigin.left + (Number.isFinite(localLayout.x) ? localLayout.x : fallbackLayout.x);
+      childCard.y = zoneOrigin.top + (Number.isFinite(localLayout.y) ? localLayout.y : fallbackLayout.y);
+      childCard.updatedAt = typeof childCard.updatedAt === "string" ? childCard.updatedAt : nowIso();
+    });
+  });
+
+  return nextCards.filter((card) => card?.type !== LEGACY_FOLDER_CARD_TYPE);
 }

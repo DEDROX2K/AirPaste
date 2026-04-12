@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  addTileToFolder,
   addTileToRack,
-  createFolderCard,
-  createFolderFromTiles,
-  FOLDER_CARD_TYPE,
-  getFolderByChildId,
+  createLinkCard,
   getRackByTileId,
   isUrl,
   LINK_CONTENT_KIND_BOOKMARK,
   LINK_CONTENT_KIND_IMAGE,
-  removeTileFromFolder,
+  removeCard,
   removeTileFromRack,
   RACK_CARD_TYPE,
+  updateCards,
 } from "../../lib/workspace";
 import { desktop } from "../../lib/desktop";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
@@ -106,6 +103,8 @@ export function useCanvasCommands({
   workspace,
   getViewportCenter,
   openFolderDialog,
+  commitWorkspaceChange,
+  discardWorkspaceDraft,
   createNewLinkCard,
   createNewRackCard,
   deleteExistingCard,
@@ -116,18 +115,6 @@ export function useCanvasCommands({
   log,
   toast,
 }) {
-  const [openFolderId, setOpenFolderId] = useState(null);
-
-  useEffect(() => {
-    if (!openFolderId) {
-      return;
-    }
-
-    if (!workspace.cards.some((card) => card.id === openFolderId && card.type === FOLDER_CARD_TYPE)) {
-      setOpenFolderId(null);
-    }
-  }, [openFolderId, workspace.cards]);
-
   const queueLinkPreview = useCallback(async (card) => {
     log("info", "Fetching link preview...", { url: card.url, cardId: card.id });
 
@@ -164,23 +151,6 @@ export function useCanvasCommands({
     }
   }, [log, openFolderDialog, toast]);
 
-  const createFolderTile = useCallback((preferredCenter = null, options = {}) => {
-    if (!folderPath) {
-      log("warn", "New folder blocked because no folder is open");
-      toast("warn", "Open a folder first.");
-      return null;
-    }
-
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    const card = createFolderCard(workspace.cards, workspace.viewport, centerPoint, options);
-    replaceWorkspaceCards([...workspace.cards, card]);
-    setOpenFolderId(card.id);
-
-    log("success", "New folder created on the canvas", centerPoint);
-    toast("success", "Folder dropped into place.");
-    return card;
-  }, [folderPath, getViewportCenter, log, replaceWorkspaceCards, toast, workspace.cards, workspace.viewport]);
-
   const createRack = useCallback((preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New rack blocked because no folder is open");
@@ -206,26 +176,6 @@ export function useCanvasCommands({
         return;
       }
 
-      if (origin.containerType === "folder" && origin.folderId) {
-        const folderCard = workspace.cards.find((card) => card.id === origin.folderId);
-
-        if (!folderCard) {
-          return;
-        }
-
-        updatesById[origin.folderId] = {
-          ...(updatesById[origin.folderId] ?? {}),
-          childLayouts: {
-            ...(updatesById[origin.folderId]?.childLayouts ?? folderCard.childLayouts),
-            [tileId]: {
-              x: origin.localX + delta.x,
-              y: origin.localY + delta.y,
-            },
-          },
-        };
-        return;
-      }
-
       if (origin.containerType === "rack" || origin.containerType === "rack-preview") {
         return;
       }
@@ -236,13 +186,12 @@ export function useCanvasCommands({
       };
     });
 
-    updateExistingCards(updatesById);
-  }, [updateExistingCards, workspace.cards]);
+    commitWorkspaceChange((current) => ({ ...current, cards: updateCards(current.cards, updatesById) }));
+  }, [commitWorkspaceChange]);
 
   const bringTilesToFront = useCallback((tileIds) => {
     const rootTileIds = tileIds.filter((tileId) => (
-      !getFolderByChildId(workspace.cards, tileId)
-      && !getRackByTileId(workspace.cards, tileId)
+      !getRackByTileId(workspace.cards, tileId)
     ));
 
     if (rootTileIds.length > 0) {
@@ -250,106 +199,28 @@ export function useCanvasCommands({
     }
   }, [reorderExistingCards, workspace.cards]);
 
-  const createFolderFromTileSet = useCallback((sourceTileId, targetTileId) => {
-    const result = createFolderFromTiles(workspace.cards, sourceTileId, targetTileId);
+  const addTileToRackCommand = useCallback((tileId, rackId, slotIndex = null) => {
+    let nextRackCard = null;
 
-    if (!result?.folderCard) {
-      return null;
-    }
+    commitWorkspaceChange((current) => {
+      const result = addTileToRack(current.cards, tileId, rackId, slotIndex);
 
-    replaceWorkspaceCards(result.cards);
-    setOpenFolderId(result.folderCard.id);
-    log("success", "Tiles grouped into a folder", {
-      sourceTileId,
-      targetTileId,
-      folderTileId: result.folderCard.id,
-    });
-    toast("success", "Folder created.");
-    return result.folderCard;
-  }, [log, replaceWorkspaceCards, toast, workspace.cards]);
-
-  const createFolderFromSelection = useCallback((tileIds, preferredCenter = null) => {
-    if (!folderPath) {
-      log("warn", "Folder creation blocked because no folder is open");
-      toast("warn", "Open a folder first.");
-      return null;
-    }
-
-    const normalizedTileIds = Array.isArray(tileIds)
-      ? [...new Set(tileIds.filter(Boolean))]
-      : [];
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    const initialFolderCard = createFolderCard(workspace.cards, workspace.viewport, centerPoint);
-    let nextCards = [...workspace.cards, initialFolderCard];
-    let nextFolderCard = initialFolderCard;
-    let attachedCount = 0;
-
-    normalizedTileIds.forEach((tileId) => {
-      const result = addTileToFolder(nextCards, tileId, nextFolderCard.id);
-
-      if (!result?.folderCard) {
-        return;
+      if (!result?.rackCard) {
+        return current;
       }
 
-      nextCards = result.cards;
-      nextFolderCard = result.folderCard;
-      attachedCount += 1;
+      nextRackCard = result.rackCard;
+      return { ...current, cards: result.cards };
     });
 
-    replaceWorkspaceCards(nextCards);
-    setOpenFolderId(nextFolderCard.id);
-
-    if (attachedCount > 0) {
-      log("success", "Created folder from selection", {
-        folderId: nextFolderCard.id,
-        attachedCount,
-      });
-      toast("success", attachedCount === 1 ? "Tile moved into a new folder." : `${attachedCount} tiles moved into a new folder.`);
-    } else {
-      log("success", "Created empty folder on the canvas", centerPoint);
-      toast("success", "Folder dropped into place.");
-    }
-
-    return nextFolderCard;
-  }, [folderPath, getViewportCenter, log, replaceWorkspaceCards, toast, workspace.cards, workspace.viewport]);
-
-  const addTileToFolderCommand = useCallback((tileId, folderId, folderPosition = null) => {
-    const result = addTileToFolder(workspace.cards, tileId, folderId, folderPosition);
-
-    if (!result?.folderCard) {
+    if (!nextRackCard) {
       return null;
     }
 
-    replaceWorkspaceCards(result.cards);
-    setOpenFolderId(result.folderCard.id);
-    log("success", "Tile added to folder", { tileId, folderId });
-    return result.folderCard;
-  }, [log, replaceWorkspaceCards, workspace.cards]);
-
-  const removeTileFromFolderCommand = useCallback((tileId, folderId, dropPosition) => {
-    const result = removeTileFromFolder(workspace.cards, tileId, folderId, dropPosition);
-
-    if (!result?.tile) {
-      return null;
-    }
-
-    replaceWorkspaceCards(result.cards);
-    log("info", "Tile removed from folder", { tileId, folderId, dropPosition });
-    return result.tile;
-  }, [log, replaceWorkspaceCards, workspace.cards]);
-
-  const addTileToRackCommand = useCallback((tileId, rackId, slotIndex = null) => {
-    const result = addTileToRack(workspace.cards, tileId, rackId, slotIndex);
-
-    if (!result?.rackCard) {
-      return null;
-    }
-
-    replaceWorkspaceCards(result.cards);
     log("success", "Tile attached to rack", { tileId, rackId, slotIndex });
     toast("success", "Tile mounted on rack.");
-    return result.rackCard;
-  }, [log, replaceWorkspaceCards, toast, workspace.cards]);
+    return nextRackCard;
+  }, [commitWorkspaceChange, log, toast]);
 
   const addTilesToRackCommand = useCallback((tileIds, rackId) => {
     const normalizedTileIds = Array.isArray(tileIds)
@@ -360,27 +231,31 @@ export function useCanvasCommands({
       return null;
     }
 
-    let nextCards = workspace.cards;
     let nextRackCard = null;
 
-    normalizedTileIds.forEach((tileId) => {
-      const result = addTileToRack(nextCards, tileId, rackId);
+    commitWorkspaceChange((current) => {
+      let nextCards = current.cards;
 
-      if (result?.rackCard) {
-        nextCards = result.cards;
-        nextRackCard = result.rackCard;
-      }
+      normalizedTileIds.forEach((tileId) => {
+        const result = addTileToRack(nextCards, tileId, rackId);
+
+        if (result?.rackCard) {
+          nextCards = result.cards;
+          nextRackCard = result.rackCard;
+        }
+      });
+
+      return nextRackCard ? { ...current, cards: nextCards } : current;
     });
 
     if (!nextRackCard) {
       return null;
     }
 
-    replaceWorkspaceCards(nextCards);
     log("success", "Tiles attached to rack", { rackId, tileIds: normalizedTileIds });
     toast("success", normalizedTileIds.length === 1 ? "Tile mounted on rack." : `${normalizedTileIds.length} tiles mounted on rack.`);
     return nextRackCard;
-  }, [log, replaceWorkspaceCards, toast, workspace.cards]);
+  }, [commitWorkspaceChange, log, toast]);
 
   const removeTileFromRackCommand = useCallback((tileId, rackId, dropPosition) => {
     const result = removeTileFromRack(workspace.cards, tileId, rackId, dropPosition);
@@ -393,29 +268,6 @@ export function useCanvasCommands({
     log("info", "Tile detached from rack", { tileId, rackId, dropPosition });
     return result.tile;
   }, [log, replaceWorkspaceCards, workspace.cards]);
-
-  const openFolder = useCallback((folderId) => {
-    if (!workspace.cards.some((card) => card.id === folderId && card.type === FOLDER_CARD_TYPE)) {
-      return false;
-    }
-
-    setOpenFolderId(folderId);
-    return true;
-  }, [workspace.cards]);
-
-  const closeFolder = useCallback((folderId = null) => {
-    setOpenFolderId((currentId) => {
-      if (!folderId || currentId === folderId) {
-        return null;
-      }
-
-      return currentId;
-    });
-  }, []);
-
-  const toggleFolder = useCallback((folderId) => {
-    setOpenFolderId((currentId) => (currentId === folderId ? null : folderId));
-  }, []);
 
   const deleteTile = useCallback((tile) => {
     if (!tile?.id) {
@@ -443,9 +295,15 @@ export function useCanvasCommands({
     }
 
     try {
-      normalizedIds.forEach((tileId) => {
-        deleteExistingCard(tileId);
-      });
+      commitWorkspaceChange((current) => ({
+        ...current,
+        cards: normalizedIds.reduce((nextCards, tileId) => removeCard(nextCards, tileId), current.cards),
+      }));
+      if (folderPath) {
+        normalizedIds.forEach((tileId) => {
+          void desktop.workspace.cancelLinkPreview(folderPath, tileId).catch(() => {});
+        });
+      }
 
       log("info", "Deleted selected tiles", {
         tileIds: normalizedIds,
@@ -457,7 +315,7 @@ export function useCanvasCommands({
       log("error", "Failed to delete selected tiles", message);
       toast("error", message);
     }
-  }, [deleteExistingCard, log, toast]);
+  }, [commitWorkspaceChange, folderPath, log, toast]);
 
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
     if (!tile?.id || !tile.image) {
@@ -634,6 +492,8 @@ export function useCanvasCommands({
     const acceptedItems = Array.isArray(resolvedDrop?.acceptedItems) ? resolvedDrop.acceptedItems : [];
     const dropCenters = getDropSpreadCenters(dropWorldPoint ?? getViewportCenter(), acceptedItems.length);
     const rejectedItems = [...(resolvedDrop?.rejectedItems ?? [])];
+    const createdCards = [];
+    const previewQueue = [];
     let createdImageCount = 0;
     let createdBookmarkCount = 0;
 
@@ -654,7 +514,7 @@ export function useCanvasCommands({
           );
           const nextSize = getImageTileSize(importedAsset.width, importedAsset.height);
 
-          createNewLinkCard("", preferredCenter, {
+          createdCards.push(createLinkCard(workspace.cards.concat(createdCards), workspace.viewport, "", preferredCenter, {
             contentKind: LINK_CONTENT_KIND_IMAGE,
             title: importedAsset.fileName || entry.item.name,
             description: "",
@@ -664,7 +524,7 @@ export function useCanvasCommands({
             width: nextSize.width,
             height: nextSize.height,
             asset: importedAsset,
-          });
+          }));
           createdImageCount += 1;
         } catch (importError) {
           const detail = importError?.message || `Unable to import "${entry.item.name}".`;
@@ -680,12 +540,23 @@ export function useCanvasCommands({
       }
 
       if (entry.intent === "create-bookmark") {
-        const tile = createNewLinkCard(entry.item.url, preferredCenter, {
+        const tile = createLinkCard(workspace.cards.concat(createdCards), workspace.viewport, entry.item.url, preferredCenter, {
           contentKind: LINK_CONTENT_KIND_BOOKMARK,
         });
+        createdCards.push(tile);
+        previewQueue.push(tile);
         createdBookmarkCount += 1;
-        void queueLinkPreview(tile);
       }
+    }
+
+    if (createdCards.length > 0) {
+      commitWorkspaceChange((current) => ({
+        ...current,
+        cards: [...current.cards, ...createdCards],
+      }));
+      previewQueue.forEach((tile) => {
+        void queueLinkPreview(tile);
+      });
     }
 
     const successMessage = formatDropSuccessMessage(createdImageCount, createdBookmarkCount);
@@ -712,33 +583,34 @@ export function useCanvasCommands({
     };
   }, [
     canvasFilePath,
-    createNewLinkCard,
+    commitWorkspaceChange,
     folderPath,
     getViewportCenter,
     log,
     queueLinkPreview,
     toast,
+    workspace.cards,
+    workspace.viewport,
   ]);
 
   const replaceTiles = useCallback((tiles) => {
     replaceWorkspaceCards(tiles);
   }, [replaceWorkspaceCards]);
 
+  const commitCurrentWorkspace = useCallback(() => {
+    commitWorkspaceChange((current) => current);
+  }, [commitWorkspaceChange]);
+
+  const cancelPendingWorkspaceChange = useCallback(() => {
+    discardWorkspaceDraft();
+  }, [discardWorkspaceDraft]);
+
   return useMemo(() => ({
-    openFolderId,
     createRack,
-    createFolderTile,
-    createFolderFromSelection,
     createLinkFromClipboard,
-    createFolderFromTiles: createFolderFromTileSet,
-    addTileToFolder: addTileToFolderCommand,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
-    removeTileFromFolder: removeTileFromFolderCommand,
     removeTileFromRack: removeTileFromRackCommand,
-    openFolder,
-    closeFolder,
-    toggleFolder,
     deleteTile,
     deleteTiles,
     openTileLink,
@@ -747,19 +619,16 @@ export function useCanvasCommands({
     queueLinkPreview,
     moveTiles,
     bringTilesToFront,
+    cancelPendingWorkspaceChange,
+    commitCurrentWorkspace,
     replaceTiles,
     importResolvedDrop,
     retryTilePreview,
     updateTileFromMediaLoad,
   }), [
-    addTileToFolderCommand,
     addTileToRackCommand,
     addTilesToRackCommand,
-    closeFolder,
     createRack,
-    createFolderTile,
-    createFolderFromSelection,
-    createFolderFromTileSet,
     createLinkFromClipboard,
     deleteTile,
     deleteTiles,
@@ -769,14 +638,12 @@ export function useCanvasCommands({
     importResolvedDrop,
     queueLinkPreview,
     moveTiles,
-    openFolder,
-    openFolderId,
     bringTilesToFront,
+    cancelPendingWorkspaceChange,
+    commitCurrentWorkspace,
     replaceTiles,
-    removeTileFromFolderCommand,
     removeTileFromRackCommand,
     retryTilePreview,
-    toggleFolder,
     updateTileFromMediaLoad,
   ]);
 }

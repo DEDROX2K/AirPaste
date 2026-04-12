@@ -4,6 +4,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const workspaceService = require("./workspace-service");
 const openGraphScraper = require("open-graph-scraper");
+const cheerio = require("cheerio");
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 const { chromium } = require("playwright");
 
@@ -12,6 +13,7 @@ const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
 const PREVIEW_CAPTURE_TIMEOUT_MS = 15000;
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
+const PREVIEW_DOCUMENT_TIMEOUT_MS = 12000;
 const PREVIEW_JPEG_QUALITY = 58;
 const REMOTE_IMAGE_TIMEOUT_MS = 12000;
 const REMOTE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
@@ -36,12 +38,82 @@ const MUSIC_HOSTS = Object.freeze([
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
 const FOLDER_CARD_TYPE = "folder";
 const RACK_CARD_TYPE = "rack";
+const AMAZON_PRODUCT_CARD_TYPE = "amazon-product";
 const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
 const NOTE_STYLE_TWO = "notes-2";
 const NOTE_STYLE_THREE = "notes-3";
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
 const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
+const PREVIEW_REJECTION_PATTERNS = Object.freeze([
+  "continue shopping",
+  "continue to shopping",
+  "sign in",
+  "log in",
+  "login",
+  "captcha",
+  "robot check",
+  "unusual traffic",
+  "access denied",
+  "privacy notice",
+  "cookie preferences",
+  "consent",
+  "verify you are human",
+  "verify that you are human",
+  "open in app",
+  "download the app",
+  "use the app",
+  "service unavailable",
+  "temporarily unavailable",
+  "before you continue",
+  "choose your location",
+  "enable cookies",
+]);
+const PREVIEW_URL_REJECTION_PATTERNS = Object.freeze([
+  "/ap/signin",
+  "/login",
+  "/signin",
+  "/consent",
+  "/privacy",
+  "/captcha",
+  "/errors/validatecaptcha",
+  "/sorry/",
+  "/continue",
+  "/gp/cart",
+  "/gp/buy",
+  "/checkout",
+  "/openinapp",
+]);
+const PREVIEW_IMAGE_REJECTION_PATTERNS = Object.freeze([
+  "placeholder",
+  "default",
+  "sprite",
+  "logo",
+  "icon",
+  "avatar",
+  "favicon",
+  "blank",
+  "1x1",
+  "spacer",
+  "pixel",
+  "consent",
+  "captcha",
+  "signin",
+  "login",
+  "openinapp",
+]);
+const PREVIEW_GENERIC_TITLES = Object.freeze([
+  "home",
+  "welcome",
+  "sign in",
+  "login",
+  "open in app",
+  "service unavailable",
+  "access denied",
+  "continue shopping",
+  "privacy notice",
+  "robot check",
+]);
 
 let mainWindow = null;
 const previewJobs = new Map();
@@ -89,6 +161,10 @@ function defaultCardSize(type) {
     return { width: 340, height: 280 };
   }
 
+  if (type === AMAZON_PRODUCT_CARD_TYPE) {
+    return { width: 340, height: 388 };
+  }
+
   if (type === RACK_CARD_TYPE) {
     return { width: 694, height: 126 };
   }
@@ -121,6 +197,10 @@ function getCardType(card) {
     return "link";
   }
 
+  if (card?.type === AMAZON_PRODUCT_CARD_TYPE) {
+    return AMAZON_PRODUCT_CARD_TYPE;
+  }
+
   if (card?.type === RACK_CARD_TYPE) {
     return RACK_CARD_TYPE;
   }
@@ -146,6 +226,10 @@ function normalizeLinkContentKind(contentKind, asset = null) {
   }
 
   return LINK_CONTENT_KIND_BOOKMARK;
+}
+
+function isLinkLikeCardType(type) {
+  return type === "link" || type === AMAZON_PRODUCT_CARD_TYPE;
 }
 
 function normalizeLinkAsset(asset) {
@@ -215,8 +299,9 @@ function getFolderTitleFromNotes(notes) {
 
 function normalizeCard(card, index = 0) {
   const type = getCardType(card);
+  const isLinkLikeCard = isLinkLikeCardType(type);
   const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
-  const contentKind = type === "link"
+  const contentKind = isLinkLikeCard
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
   const noteStyle = type === "text" && typeof card?.noteStyle === "string"
@@ -251,9 +336,9 @@ function normalizeCard(card, index = 0) {
     secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
     noteStyle: type === "text" ? noteStyle : "",
     quoteAuthor: type === "text" ? String(card?.quoteAuthor ?? "") : "",
-    url: type === "link" ? String(card?.url ?? "") : "",
+    url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
-    title: type === "link"
+    title: isLinkLikeCard
       ? String(card?.title ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.title, "Rack")
@@ -262,7 +347,7 @@ function normalizeCard(card, index = 0) {
           : type === NOTE_FOLDER_CARD_TYPE
             ? firstString(card?.title, getFolderTitleFromNotes(notes), NOTE_FOLDER_DEFAULT_TITLE)
             : "",
-    description: type === "link"
+    description: isLinkLikeCard
       ? String(card?.description ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.description, "Mounted display rack")
@@ -271,14 +356,24 @@ function normalizeCard(card, index = 0) {
           : type === NOTE_FOLDER_CARD_TYPE
             ? firstString(card?.description, NOTE_FOLDER_DEFAULT_DESCRIPTION)
             : "",
-    image: type === "link" ? String(card?.image ?? "") : "",
-    favicon: type === "link" ? String(card?.favicon ?? "") : "",
-    siteName: type === "link" ? String(card?.siteName ?? "") : "",
-    previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
-    status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
+    image: isLinkLikeCard ? String(card?.image ?? "") : "",
+    favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
+    siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
+    previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
+    previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
+    status: isLinkLikeCard && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
     asset: type === "link" ? linkAsset : null,
+    productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
+    productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
+    productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",
+    productRating: type === AMAZON_PRODUCT_CARD_TYPE && Number.isFinite(card?.productRating)
+      ? Number(card.productRating)
+      : null,
+    productReviewCount: type === AMAZON_PRODUCT_CARD_TYPE && Number.isFinite(card?.productReviewCount)
+      ? Math.max(0, Math.round(card.productReviewCount))
+      : null,
     tileIds,
     minSlots,
     childIds,
@@ -722,6 +817,545 @@ async function fetchJson(url) {
   }
 }
 
+async function fetchPreviewDocument(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PREVIEW_DOCUMENT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    const html = contentType.includes("text/html") ? await response.text() : "";
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      finalUrl: response.url || url,
+      contentType,
+      html,
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      finalUrl: url,
+      contentType: "",
+      html: "",
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function extractPreviewDocumentSignals(documentSnapshot) {
+  const html = typeof documentSnapshot?.html === "string" ? documentSnapshot.html : "";
+
+  if (!html) {
+    return {
+      pageTitle: "",
+      bodyText: "",
+      faviconUrl: "",
+      ogTitle: "",
+      ogDescription: "",
+      ogImageUrl: "",
+    };
+  }
+
+  const $ = cheerio.load(html);
+  const pageTitle = cleanAmazonText($("title").first().text());
+  const bodyText = cleanAmazonText($("body").text()).slice(0, 8000);
+  const faviconUrl = resolveUrl(
+    firstString(
+      $("link[rel='icon']").attr("href"),
+      $("link[rel='shortcut icon']").attr("href"),
+      $("link[rel='apple-touch-icon']").attr("href"),
+    ),
+    documentSnapshot.finalUrl,
+  );
+
+  return {
+    pageTitle,
+    bodyText,
+    faviconUrl,
+    ogTitle: cleanAmazonText($("meta[property='og:title']").attr("content")),
+    ogDescription: cleanAmazonText($("meta[property='og:description']").attr("content")),
+    ogImageUrl: resolveUrl($("meta[property='og:image']").attr("content"), documentSnapshot.finalUrl),
+  };
+}
+
+function normalizePreviewText(value) {
+  return cleanAmazonText(value).toLowerCase();
+}
+
+function looksLikeGenericTitle(title, url, siteName = "") {
+  const normalizedTitle = normalizePreviewText(title);
+
+  if (!normalizedTitle) {
+    return true;
+  }
+
+  const hostname = normalizePreviewText(getHostname(url));
+  const normalizedSiteName = normalizePreviewText(siteName);
+
+  return PREVIEW_GENERIC_TITLES.includes(normalizedTitle)
+    || normalizedTitle === hostname
+    || normalizedTitle === normalizedSiteName
+    || normalizedTitle === `www.${hostname}`
+    || normalizedTitle.length <= 3;
+}
+
+function looksLikeLowInformationDescription(description) {
+  const normalizedDescription = normalizePreviewText(description);
+
+  return !normalizedDescription
+    || normalizedDescription.length < 24
+    || PREVIEW_REJECTION_PATTERNS.some((pattern) => normalizedDescription.includes(pattern));
+}
+
+function isRejectedPreviewImageUrl(url) {
+  const normalizedUrl = String(url ?? "").toLowerCase();
+
+  if (!normalizedUrl) {
+    return true;
+  }
+
+  return PREVIEW_IMAGE_REJECTION_PATTERNS.some((pattern) => normalizedUrl.includes(pattern))
+    || isBlockedPreviewImageUrl(normalizedUrl)
+    || isRejectedAmazonImageUrl(normalizedUrl);
+}
+
+function validatePreviewCandidate({
+  originalUrl,
+  finalUrl,
+  title,
+  description,
+  imageUrl,
+  pageTitle,
+  bodyText,
+}) {
+  const normalizedFinalUrl = String(finalUrl || originalUrl || "").toLowerCase();
+  const normalizedTitle = normalizePreviewText(title || pageTitle);
+  const normalizedDescription = normalizePreviewText(description);
+  const normalizedBodyText = normalizePreviewText(bodyText).slice(0, 5000);
+  const rejectionPattern = PREVIEW_REJECTION_PATTERNS.find((pattern) => (
+    normalizedTitle.includes(pattern)
+    || normalizedDescription.includes(pattern)
+    || normalizedBodyText.includes(pattern)
+  ));
+  const urlPattern = PREVIEW_URL_REJECTION_PATTERNS.find((pattern) => normalizedFinalUrl.includes(pattern));
+  const rejectImage = isRejectedPreviewImageUrl(imageUrl);
+  const genericTitle = looksLikeGenericTitle(title || pageTitle, finalUrl || originalUrl);
+  const lowInformationDescription = looksLikeLowInformationDescription(description);
+
+  if (urlPattern || rejectionPattern) {
+    return {
+      isRejected: true,
+      rejectImage: true,
+      rejectMetadata: true,
+      reason: "Preview unavailable",
+    };
+  }
+
+  if (genericTitle && lowInformationDescription && rejectImage) {
+    return {
+      isRejected: true,
+      rejectImage: true,
+      rejectMetadata: true,
+      reason: "Preview unavailable",
+    };
+  }
+
+  return {
+    isRejected: false,
+    rejectImage,
+    rejectMetadata: false,
+    reason: rejectImage ? "Preview image unavailable" : "",
+  };
+}
+
+function normalizeAmazonDomain(hostname) {
+  const match = String(hostname ?? "").toLowerCase().match(/(?:^|\.)((?:smile\.)?amazon\.[a-z.]+)$/i);
+
+  if (!match?.[1]) {
+    return "";
+  }
+
+  return match[1].replace(/^smile\./, "");
+}
+
+function isAmazonHost(url) {
+  const hostname = typeof url === "string" && url.includes("://")
+    ? getUrlHostname(url)
+    : normalizeAmazonDomain(url);
+
+  return Boolean(normalizeAmazonDomain(hostname));
+}
+
+function extractAmazonAsin(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const patterns = [
+      /\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/gp\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/gp\/aw\/d\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/offer-listing\/([A-Z0-9]{10})(?:[/?]|$)/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = parsedUrl.pathname.match(pattern);
+
+      if (match?.[1]) {
+        return match[1].toUpperCase();
+      }
+    }
+
+    const queryAsin = firstString(
+      parsedUrl.searchParams.get("asin"),
+      parsedUrl.searchParams.get("ASIN"),
+    );
+
+    if (/^[A-Z0-9]{10}$/i.test(queryAsin)) {
+      return queryAsin.toUpperCase();
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function buildAmazonCanonicalUrl(domain, asin) {
+  if (!domain || !asin) {
+    return "";
+  }
+
+  return `https://${domain}/dp/${asin}`;
+}
+
+function extractJsonLdNodes(rawValue) {
+  if (typeof rawValue !== "string" || !rawValue.trim()) {
+    return [];
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue);
+    const nodes = [];
+
+    function visit(value) {
+      if (!value) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+
+      if (typeof value !== "object") {
+        return;
+      }
+
+      nodes.push(value);
+
+      if (Array.isArray(value["@graph"])) {
+        value["@graph"].forEach(visit);
+      }
+    }
+
+    visit(parsedValue);
+    return nodes;
+  } catch {
+    return [];
+  }
+}
+
+function getJsonLdProductNode($) {
+  const scripts = $("script[type='application/ld+json']").toArray();
+
+  for (const script of scripts) {
+    const nodes = extractJsonLdNodes($(script).contents().text());
+
+    for (const node of nodes) {
+      const nodeTypes = Array.isArray(node?.["@type"]) ? node["@type"] : [node?.["@type"]];
+
+      if (nodeTypes.some((value) => String(value).toLowerCase() === "product")) {
+        return node;
+      }
+    }
+  }
+
+  return null;
+}
+
+function cleanAmazonText(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u200e|\u200f/g, "")
+    .trim();
+}
+
+function parseAmazonRatingValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Number(value);
+  }
+
+  const match = cleanAmazonText(value).match(/(\d+(?:[.,]\d+)?)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const numericValue = Number.parseFloat(match[1].replace(",", "."));
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function parseAmazonReviewCount(value) {
+  const digits = cleanAmazonText(value).replace(/[^\d]/g, "");
+
+  if (!digits) {
+    return null;
+  }
+
+  const numericValue = Number.parseInt(digits, 10);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function parseAmazonPriceValue(value, currency = "") {
+  const text = cleanAmazonText(value);
+
+  if (!text) {
+    return "";
+  }
+
+  const normalizedCurrency = cleanAmazonText(currency);
+  return normalizedCurrency && !text.includes(normalizedCurrency)
+    ? `${normalizedCurrency} ${text}`.trim()
+    : text;
+}
+
+function getLargestAmazonDynamicImageUrl(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return "";
+  }
+
+  try {
+    const parsedValue = JSON.parse(value);
+    const entries = Object.entries(parsedValue);
+
+    entries.sort((leftEntry, rightEntry) => {
+      const leftSize = Array.isArray(leftEntry[1]) ? Math.max(...leftEntry[1].map((size) => Number(size) || 0)) : 0;
+      const rightSize = Array.isArray(rightEntry[1]) ? Math.max(...rightEntry[1].map((size) => Number(size) || 0)) : 0;
+      return rightSize - leftSize;
+    });
+
+    return entries[0]?.[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function isAmazonPreviewRejectionText(text) {
+  const normalizedText = cleanAmazonText(text).toLowerCase();
+
+  if (!normalizedText) {
+    return false;
+  }
+
+  return [
+    "enter the characters you see below",
+    "sorry, we just need to make sure you're not a robot",
+    "robot check",
+    "type the characters you see in this image",
+    "captcha",
+    "continue shopping",
+    "proceed to checkout",
+    "amazon sign-in",
+    "sign in to your account",
+    "choose your location",
+    "enable cookies to continue",
+    "consent",
+  ].some((needle) => normalizedText.includes(needle));
+}
+
+function isRejectedAmazonImageUrl(url) {
+  const normalizedUrl = String(url ?? "").toLowerCase();
+
+  if (!normalizedUrl) {
+    return true;
+  }
+
+  return normalizedUrl.includes("nav2")
+    || normalizedUrl.includes("sprite")
+    || normalizedUrl.includes("icon")
+    || normalizedUrl.includes("logo")
+    || normalizedUrl.includes("transparent-pixel")
+    || normalizedUrl.includes("gp/aw")
+    || normalizedUrl.includes("amazon-adsystem");
+}
+
+async function fetchAmazonProductPreview(url) {
+  if (!isAmazonHost(url)) {
+    return null;
+  }
+
+  const originalAsin = extractAmazonAsin(url);
+
+  if (!originalAsin) {
+    return null;
+  }
+
+  const originalDomain = normalizeAmazonDomain(getUrlHostname(url)) || "amazon.com";
+  const canonicalUrl = buildAmazonCanonicalUrl(originalDomain, originalAsin);
+
+  try {
+    const response = await fetch(canonicalUrl, {
+      redirect: "follow",
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        handled: true,
+        cardType: "link",
+        canonicalUrl,
+        title: "Amazon product",
+        siteName: originalDomain,
+        imageUrls: [],
+        allowScreenshot: false,
+        skipGenericMetadata: true,
+      };
+    }
+
+    const finalUrl = response.url || canonicalUrl;
+    const finalDomain = normalizeAmazonDomain(getUrlHostname(finalUrl)) || originalDomain;
+    const finalAsin = extractAmazonAsin(finalUrl) || originalAsin;
+    const normalizedUrl = buildAmazonCanonicalUrl(finalDomain, finalAsin);
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const pageTitle = cleanAmazonText($("title").first().text());
+    const bodyText = cleanAmazonText($("body").text()).slice(0, 6000);
+
+    if (
+      isAmazonPreviewRejectionText(pageTitle)
+      || isAmazonPreviewRejectionText(bodyText)
+      || (!$("#productTitle").length && !html.includes('"@type":"Product"') && !html.includes('"@type": "Product"'))
+    ) {
+      return {
+        handled: true,
+        cardType: "link",
+        canonicalUrl: normalizedUrl,
+        title: "Amazon product",
+        siteName: finalDomain,
+        imageUrls: [],
+        allowScreenshot: false,
+        skipGenericMetadata: true,
+        productAsin: finalAsin,
+      };
+    }
+
+    const productNode = getJsonLdProductNode($);
+    const title = firstString(
+      cleanAmazonText($("#productTitle").first().text()),
+      cleanAmazonText(productNode?.name),
+      cleanAmazonText($("meta[name='title']").attr("content")),
+    );
+    const description = firstString(
+      cleanAmazonText($("#feature-bullets ul li span.a-list-item").first().text()),
+      cleanAmazonText($("meta[name='description']").attr("content")),
+      cleanAmazonText(productNode?.description),
+    );
+    const imageUrls = uniqueValues([
+      firstString($("#landingImage").attr("data-old-hires")),
+      getLargestAmazonDynamicImageUrl($("#landingImage").attr("data-a-dynamic-image")),
+      firstString($("#imgTagWrapperId img").attr("data-old-hires")),
+      getLargestAmazonDynamicImageUrl($("#imgTagWrapperId img").attr("data-a-dynamic-image")),
+      firstString(productNode?.image),
+      ...(Array.isArray(productNode?.image) ? productNode.image : []),
+      firstString($("meta[property='og:image']").attr("content")),
+    ]).filter((candidateUrl) => !isRejectedAmazonImageUrl(candidateUrl));
+    const offer = Array.isArray(productNode?.offers) ? productNode.offers[0] : productNode?.offers;
+    const aggregateRating = Array.isArray(productNode?.aggregateRating)
+      ? productNode.aggregateRating[0]
+      : productNode?.aggregateRating;
+    const price = firstString(
+      parseAmazonPriceValue($(".a-price.aok-align-center .a-offscreen").first().text()),
+      parseAmazonPriceValue($(".a-price .a-offscreen").first().text()),
+      parseAmazonPriceValue(offer?.price, offer?.priceCurrency),
+    );
+    const rating = parseAmazonRatingValue(
+      firstString(
+        $("#acrPopover").attr("title"),
+        $("[data-hook='rating-out-of-text']").first().text(),
+        aggregateRating?.ratingValue,
+      ),
+    );
+    const reviewCount = parseAmazonReviewCount(
+      firstString(
+        $("#acrCustomerReviewText").first().text(),
+        $("[data-hook='total-review-count']").first().text(),
+        aggregateRating?.reviewCount,
+      ),
+    );
+
+    if (!title && imageUrls.length === 0) {
+      return {
+        handled: true,
+        cardType: "link",
+        canonicalUrl: normalizedUrl,
+        title: "Amazon product",
+        siteName: finalDomain,
+        imageUrls: [],
+        allowScreenshot: false,
+        skipGenericMetadata: true,
+        productAsin: finalAsin,
+      };
+    }
+
+    return {
+      handled: true,
+      cardType: AMAZON_PRODUCT_CARD_TYPE,
+      canonicalUrl: normalizedUrl,
+      title: title || "Amazon product",
+      description,
+      siteName: finalDomain,
+      imageUrls,
+      allowScreenshot: false,
+      skipGenericMetadata: true,
+      productAsin: finalAsin,
+      productPrice: price,
+      productDomain: finalDomain,
+      productRating: rating,
+      productReviewCount: reviewCount,
+      previewKind: "default",
+    };
+  } catch {
+    return {
+      handled: true,
+      cardType: "link",
+      canonicalUrl,
+      title: "Amazon product",
+      siteName: originalDomain,
+      imageUrls: [],
+      allowScreenshot: false,
+      skipGenericMetadata: true,
+      productAsin: originalAsin,
+    };
+  }
+}
+
 function parseYouTubeVideoId(url) {
   try {
     const parsedUrl = new URL(url);
@@ -883,6 +1517,16 @@ async function fetchProviderPreview(url) {
   const twitterPreview = await fetchVxTwitterPreview(url);
   if (twitterPreview) {
     return twitterPreview;
+  }
+
+  return null;
+}
+
+async function fetchDomainSpecificPreview(url) {
+  const amazonPreview = await fetchAmazonProductPreview(url);
+
+  if (amazonPreview?.handled) {
+    return amazonPreview;
   }
 
   return null;
@@ -1058,44 +1702,128 @@ async function fetchOpenGraphMetadata(url) {
 }
 
 async function fetchPreviewData(url) {
-  const hostname = getHostname(url);
+  const domainSpecificPreview = await fetchDomainSpecificPreview(url);
+  const previewUrl = domainSpecificPreview?.canonicalUrl || url;
+  const documentSnapshot = await fetchPreviewDocument(previewUrl);
+  const documentSignals = extractPreviewDocumentSignals(documentSnapshot);
+  const resolvedUrl = documentSnapshot.finalUrl || previewUrl;
+  const hostname = getHostname(previewUrl);
   const [metadata, providerPreview] = await Promise.all([
-    fetchOpenGraphMetadata(url),
-    fetchProviderPreview(url),
+    domainSpecificPreview?.skipGenericMetadata
+      ? Promise.resolve({
+        title: "",
+        description: "",
+        siteName: "",
+        favicon: "",
+        imageUrl: "",
+        previewKind: "default",
+      })
+      : fetchOpenGraphMetadata(resolvedUrl),
+    fetchProviderPreview(resolvedUrl),
   ]);
-  const image = await resolvePreviewImage([
+  const candidateImageUrl = firstString(
+    ...(domainSpecificPreview?.imageUrls ?? []),
     ...(providerPreview?.imageUrls ?? []),
     metadata.imageUrl,
+    documentSignals.ogImageUrl,
+  );
+  const validation = validatePreviewCandidate({
+    originalUrl: url,
+    finalUrl: resolvedUrl,
+    title: domainSpecificPreview?.title || providerPreview?.title || metadata.title || documentSignals.ogTitle || documentSignals.pageTitle,
+    description: domainSpecificPreview?.description || providerPreview?.description || metadata.description || documentSignals.ogDescription,
+    imageUrl: candidateImageUrl,
+    pageTitle: documentSignals.pageTitle,
+    bodyText: documentSignals.bodyText,
+  });
+  const image = validation.rejectImage
+    ? ""
+    : await resolvePreviewImage([
+    ...(domainSpecificPreview?.imageUrls ?? []),
+    ...(providerPreview?.imageUrls ?? []),
+    metadata.imageUrl,
+    documentSignals.ogImageUrl,
   ]);
-  const previewKind = image && (providerPreview?.previewKind === "music" || metadata.previewKind === "music")
+  const previewKind = image && (
+    domainSpecificPreview?.previewKind === "music"
+    || providerPreview?.previewKind === "music"
+    || metadata.previewKind === "music"
+  )
     ? "music"
     : "default";
-  const finalImage = image || await capturePreviewScreenshot(url);
-  const previewError = finalImage
-    ? ""
-    : providerPreview?.imageUrls?.length
-      ? "The source exposed media, but AirPaste could not turn it into a preview image."
-      : "This page did not expose a usable preview image.";
-  const hasPreviewData = Boolean(
-    providerPreview?.title
-    || providerPreview?.description
-    || providerPreview?.siteName
-    || metadata.title
-    || metadata.description
-    || metadata.siteName
-    || metadata.favicon
-    || finalImage,
+  const finalImage = image || (
+    validation.rejectImage
+    || validation.isRejected
+    || domainSpecificPreview?.allowScreenshot === false
+      ? ""
+      : (
+        await capturePreviewScreenshot(resolvedUrl)
+      )
   );
+  const fallbackTitle = firstString(
+    domainSpecificPreview?.title,
+    providerPreview?.title,
+    metadata.title,
+    documentSignals.ogTitle,
+    documentSignals.pageTitle,
+  );
+  const fallbackDescription = validation.isRejected
+    ? ""
+    : firstString(
+      domainSpecificPreview?.description,
+      providerPreview?.description,
+      metadata.description,
+      documentSignals.ogDescription,
+    );
+  const fallbackSiteName = firstString(
+    domainSpecificPreview?.siteName,
+    providerPreview?.siteName,
+    metadata.siteName,
+    getHostname(resolvedUrl),
+  );
+  const safeTitle = looksLikeGenericTitle(fallbackTitle, resolvedUrl, fallbackSiteName)
+    ? fallbackSiteName || hostname
+    : fallbackTitle;
+  const safeFavicon = documentSignals.faviconUrl || metadata.favicon;
+  const hasPreviewData = Boolean(
+    safeTitle
+    || fallbackDescription
+    || fallbackSiteName
+    || safeFavicon
+    || finalImage
+    || domainSpecificPreview?.productPrice
+  );
+  const safeStatus = hasPreviewData ? "ready" : "failed";
+  const safePreviewError = validation.isRejected
+    ? "Preview unavailable"
+    : finalImage
+      ? ""
+      : validation.rejectImage
+        ? "Preview image unavailable"
+        : (domainSpecificPreview?.imageUrls?.length || providerPreview?.imageUrls?.length)
+          ? "The source exposed media, but AirPaste could not turn it into a preview image."
+          : "This page did not expose a usable preview image.";
 
   return {
-    status: hasPreviewData ? "ready" : "failed",
-    title: providerPreview?.title || metadata.title || hostname,
-    description: providerPreview?.description || metadata.description,
+    cardType: validation.isRejected ? "link" : (domainSpecificPreview?.cardType || "link"),
+    url: resolvedUrl,
+    status: safeStatus,
+    title: safeTitle || hostname,
+    description: fallbackDescription,
     image: finalImage,
-    favicon: metadata.favicon,
-    siteName: providerPreview?.siteName || metadata.siteName || hostname,
+    favicon: safeFavicon,
+    siteName: fallbackSiteName || hostname,
     previewKind,
-    previewError,
+    previewError: safePreviewError,
+    productAsin: validation.isRejected ? "" : (domainSpecificPreview?.productAsin || ""),
+    productPrice: validation.isRejected ? "" : (domainSpecificPreview?.productPrice || ""),
+    productDomain: validation.isRejected ? "" : (domainSpecificPreview?.productDomain || ""),
+    productRating: validation.isRejected
+      ? null
+      : (Number.isFinite(domainSpecificPreview?.productRating) ? Number(domainSpecificPreview.productRating) : null),
+    productReviewCount: validation.isRejected
+      ? null
+      : (Number.isFinite(domainSpecificPreview?.productReviewCount) ? Math.round(domainSpecificPreview.productReviewCount) : null),
   };
 }
 
@@ -1126,18 +1854,32 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   }
 
   const currentCard = workspace.cards[cardIndex];
+  const nextCardType = preview.cardType || currentCard.type;
+  const nextCardSize = defaultCardSize(nextCardType);
   const nextCard = normalizeCard({
     ...currentCard,
-    title: preview.title || currentCard.title || getHostname(url),
-    description: preview.description || currentCard.description,
-    image: preview.image || currentCard.image,
-    favicon: preview.favicon || currentCard.favicon,
-    siteName: preview.siteName || currentCard.siteName || getHostname(url),
+    type: nextCardType,
+    url: preview.url || currentCard.url || url,
+    width: nextCardType !== currentCard.type ? nextCardSize.width : currentCard.width,
+    title: preview.title || currentCard.title || getHostname(preview.url || url),
+    description: typeof preview.description === "string" ? preview.description : currentCard.description,
+    image: typeof preview.image === "string" ? preview.image : currentCard.image,
+    favicon: typeof preview.favicon === "string" ? preview.favicon : currentCard.favicon,
+    siteName: preview.siteName || currentCard.siteName || getHostname(preview.url || url),
     previewKind: preview.previewKind || currentCard.previewKind,
     previewError: preview.previewError,
+    productAsin: typeof preview.productAsin === "string" ? preview.productAsin : currentCard.productAsin,
+    productPrice: typeof preview.productPrice === "string" ? preview.productPrice : currentCard.productPrice,
+    productDomain: typeof preview.productDomain === "string" ? preview.productDomain : currentCard.productDomain,
+    productRating: Number.isFinite(preview.productRating) ? Number(preview.productRating) : currentCard.productRating,
+    productReviewCount: Number.isFinite(preview.productReviewCount)
+      ? Math.round(preview.productReviewCount)
+      : currentCard.productReviewCount,
     height: preview.previewKind === "music"
       ? Math.max(currentCard.height, currentCard.width)
-      : currentCard.height,
+      : nextCardType !== currentCard.type
+        ? nextCardSize.height
+        : currentCard.height,
     status: preview.status,
     updatedAt: nowIso(),
   });

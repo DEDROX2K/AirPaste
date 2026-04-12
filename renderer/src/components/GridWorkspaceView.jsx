@@ -172,42 +172,6 @@ function GridLinkCard({ card, isSelected, onSelect, onOpenLink }) {
   );
 }
 
-function GridFolderCard({ card, isSelected, onSelect }) {
-  const count = card.childIds?.length ?? 0;
-  const handleClick = useCallback((event) => {
-    event.stopPropagation();
-    onSelect?.(card.id, event);
-  }, [card.id, onSelect]);
-
-  return (
-    <>
-      <article
-        className={["grid-card", "grid-card--folder", isSelected ? "grid-card--selected" : ""].filter(Boolean).join(" ")}
-        onClick={handleClick}
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(e); } }}
-        role="button"
-        aria-pressed={isSelected}
-        aria-label={card.title || "Folder"}
-      >
-        <div className="grid-card__folder-preview" aria-hidden>
-          <div className="grid-card__folder-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-        </div>
-        {isSelected && <div className="grid-card__selection-ring" aria-hidden />}
-      </article>
-
-      <p className="grid-item__label" title={card.title || "Folder"}>
-        {card.title || "Folder"}
-        {count > 0 && <span className="grid-item__label-meta"> · {count}</span>}
-      </p>
-    </>
-  );
-}
-
 function GridRackCard({ card, isSelected, onSelect }) {
   const count = card.tileIds?.length ?? 0;
   const handleClick = useCallback((event) => {
@@ -245,7 +209,6 @@ function GridRackCard({ card, isSelected, onSelect }) {
 }
 
 const GridCard = memo(function GridCard({ card, isSelected, onSelect, onOpenLink }) {
-  if (card.type === "folder") return <GridFolderCard card={card} isSelected={isSelected} onSelect={onSelect} />;
   if (card.type === "rack") return <GridRackCard card={card} isSelected={isSelected} onSelect={onSelect} />;
   return <GridLinkCard card={card} isSelected={isSelected} onSelect={onSelect} onOpenLink={onOpenLink} />;
 });
@@ -455,7 +418,7 @@ export default function GridWorkspaceView({ openTileLink }) {
         {totalCount === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
-            description="Use the Add button to create a folder or rack. Paste a URL or image to import directly."
+            description="Use the Add button to create a rack. Paste a URL or image to import directly."
             icon={
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />

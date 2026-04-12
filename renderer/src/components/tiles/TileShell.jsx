@@ -24,8 +24,6 @@ function TileShell({
     tileMeta?.isFocused ? "card--focused" : "",
     tileMeta?.isDragging ? "card--dragging" : "",
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
-    tileMeta?.isGroupingTarget ? "card--folder-group-target" : "",
-    tileMeta?.isGroupingArmed ? "card--folder-group-armed" : "",
     tileMeta?.isRackAttached ? "card--rack-attached" : "",
     tileMeta?.isRackDropTarget ? "card--rack-drop-target" : "",
     className,

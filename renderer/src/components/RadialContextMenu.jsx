@@ -1,120 +1,76 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useRadialMenu } from "../hooks/useRadialMenu";
 import {
-  RADIAL_MENU_ACTION_HEIGHT,
-  RADIAL_MENU_ACTION_WIDTH,
+  RADIAL_MENU_ACTION_RADIUS,
+  RADIAL_MENU_ACTION_SIZE,
   RADIAL_MENU_CLOSE_DURATION,
   RADIAL_MENU_CORE_SIZE,
   RADIAL_MENU_EASE,
   RADIAL_MENU_GLOW_SIZE,
-  RADIAL_MENU_PARALLAX_INTENSITY,
   RADIAL_MENU_REVEAL_DURATION,
+  RADIAL_MENU_SNAP_PILL_HEIGHT,
+  RADIAL_MENU_SNAP_PILL_OFFSET,
+  RADIAL_MENU_SNAP_PILL_MIN_WIDTH,
   RADIAL_MENU_STAGGER,
-  RADIAL_MENU_TILT_INTENSITY,
-  RADIAL_MENU_TOGGLE_HEIGHT,
-  RADIAL_MENU_TOGGLE_WIDTH,
-  RADIAL_MENU_TOGGLE_WIDTH_ACTIVE,
 } from "../systems/interactions/radialMenuConstants";
+
+function getActionGlyph(actionId) {
+  if (actionId === "folder") {
+    return "F";
+  }
+
+  if (actionId === "rack") {
+    return "R";
+  }
+
+  if (actionId === "link") {
+    return "L";
+  }
+
+  if (actionId === "delete") {
+    return "D";
+  }
+
+  if (actionId === "snapping") {
+    return "S";
+  }
+
+  return "?";
+}
 
 export default function RadialContextMenu({ menu, actions = [], onClose }) {
   const radialMenu = useRadialMenu(menu, actions.length);
-  const [parallaxEnabled, setParallaxEnabled] = useState(false);
   const [pendingActionId, setPendingActionId] = useState(null);
-  const frameRef = useRef(0);
-  const pointerStateRef = useRef({ x: 0, y: 0 });
-
-  const targetTiltX = useMotionValue(0);
-  const targetTiltY = useMotionValue(0);
-  const targetShiftX = useMotionValue(0);
-  const targetShiftY = useMotionValue(0);
-
-  const tiltX = useSpring(targetTiltX, { stiffness: 180, damping: 24, mass: 0.8 });
-  const tiltY = useSpring(targetTiltY, { stiffness: 180, damping: 24, mass: 0.8 });
-  const shiftX = useSpring(targetShiftX, { stiffness: 190, damping: 26, mass: 0.8 });
-  const shiftY = useSpring(targetShiftY, { stiffness: 190, damping: 26, mass: 0.8 });
-
-  const parallaxXVar = useMotionTemplate`${shiftX}px`;
-  const parallaxYVar = useMotionTemplate`${shiftY}px`;
   const portalRoot = typeof document !== "undefined" ? document.body : null;
+  const restoreFocusRef = useRef(null);
 
-  const mergedActions = useMemo(() => actions.map((action, index) => ({
+  const orbitActions = useMemo(
+    () => actions.filter((action) => action.placement !== "pill"),
+    [actions],
+  );
+  const snapAction = useMemo(
+    () => actions.find((action) => action.placement === "pill") ?? null,
+    [actions],
+  );
+  const mergedActions = useMemo(() => orbitActions.map((action, index) => ({
     ...radialMenu.items[index],
     ...action,
-  })), [actions, radialMenu.items]);
-
-  const orbitTransition = useMemo(() => ({
-    duration: RADIAL_MENU_REVEAL_DURATION,
-    ease: RADIAL_MENU_EASE,
-  }), []);
-
-  const resetTilt = useCallback(() => {
-    targetTiltX.set(0);
-    targetTiltY.set(0);
-    targetShiftX.set(0);
-    targetShiftY.set(0);
-  }, [targetShiftX, targetShiftY, targetTiltX, targetTiltY]);
+  })), [orbitActions, radialMenu.items]);
 
   useEffect(() => {
-    setParallaxEnabled(false);
-    setPendingActionId(null);
-    resetTilt();
-    let enableParallaxTimeoutId = 0;
-
-    if (menu?.id) {
-      enableParallaxTimeoutId = window.setTimeout(() => {
-        setParallaxEnabled(true);
-      }, 820);
+    if (!menu?.id) {
+      return undefined;
     }
 
+    restoreFocusRef.current = document.activeElement;
     return () => {
-      if (enableParallaxTimeoutId) {
-        window.clearTimeout(enableParallaxTimeoutId);
-      }
-
-      if (frameRef.current) {
-        window.cancelAnimationFrame(frameRef.current);
+      if (restoreFocusRef.current instanceof HTMLElement) {
+        restoreFocusRef.current.focus({ preventScroll: true });
       }
     };
-  }, [menu?.id, resetTilt]);
-
-  const schedulePointerUpdate = useCallback((event) => {
-    if (!parallaxEnabled || !radialMenu.position) {
-      return;
-    }
-
-    pointerStateRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
-
-    if (frameRef.current) {
-      return;
-    }
-
-    frameRef.current = window.requestAnimationFrame(() => {
-      frameRef.current = 0;
-
-      const offsetX = pointerStateRef.current.x - radialMenu.position.x;
-      const offsetY = pointerStateRef.current.y - radialMenu.position.y;
-      const distance = Math.max(1, RADIAL_MENU_GLOW_SIZE * 0.5);
-      const normalizedX = clamp(offsetX / distance, -1, 1);
-      const normalizedY = clamp(offsetY / distance, -1, 1);
-
-      targetTiltX.set(normalizedY * -RADIAL_MENU_TILT_INTENSITY);
-      targetTiltY.set(normalizedX * RADIAL_MENU_TILT_INTENSITY);
-      targetShiftX.set(normalizedX * RADIAL_MENU_PARALLAX_INTENSITY);
-      targetShiftY.set(normalizedY * RADIAL_MENU_PARALLAX_INTENSITY);
-    });
-  }, [
-    parallaxEnabled,
-    radialMenu.position,
-    targetShiftX,
-    targetShiftY,
-    targetTiltX,
-    targetTiltY,
-  ]);
+  }, [menu?.id]);
 
   const handleActionSelect = useCallback(async (action) => {
     if (!action?.onTrigger || action.isDisabled || pendingActionId) {
@@ -146,8 +102,8 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
           className="radial-context-menu__overlay"
           data-context-menu-root="true"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.14, ease: RADIAL_MENU_EASE } }}
-          exit={{ opacity: 0, transition: { duration: 0.12, ease: RADIAL_MENU_EASE } }}
+          animate={{ opacity: 1, transition: { duration: 0.12, ease: RADIAL_MENU_EASE } }}
+          exit={{ opacity: 0, transition: { duration: 0.1, ease: RADIAL_MENU_EASE } }}
           onPointerDown={(event) => {
             if (event.target === event.currentTarget) {
               onClose();
@@ -158,33 +114,91 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
           <motion.div
             className="radial-context-menu"
             role="menu"
-            aria-label="Canvas radial menu"
+            aria-label={menu.kind === "canvas" ? "Canvas actions" : "Tile actions"}
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 1 }}
             style={{
               left: radialMenu.position.x,
               top: radialMenu.position.y,
-              rotateX: tiltX,
-              rotateY: tiltY,
-              "--radial-parallax-x": parallaxXVar,
-              "--radial-parallax-y": parallaxYVar,
             }}
             onPointerDown={(event) => event.stopPropagation()}
-            onPointerMove={schedulePointerUpdate}
-            onPointerLeave={resetTilt}
           >
-            <div className="radial-context-menu__glow" aria-hidden="true" />
+            <div
+              className="radial-context-menu__glow"
+              aria-hidden="true"
+              style={{
+                width: RADIAL_MENU_GLOW_SIZE,
+                height: RADIAL_MENU_GLOW_SIZE,
+                marginLeft: -(RADIAL_MENU_GLOW_SIZE / 2),
+                marginTop: -(RADIAL_MENU_GLOW_SIZE / 2),
+              }}
+            />
+
+            {snapAction ? (
+              <motion.button
+                className={[
+                  "radial-context-menu__snap-pill",
+                  snapAction.isActive ? "radial-context-menu__snap-pill--active" : "",
+                ].filter(Boolean).join(" ")}
+                type="button"
+                role="menuitemcheckbox"
+                aria-label={snapAction.label}
+                aria-checked={snapAction.isActive}
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  scale: 1,
+                  transition: {
+                    duration: RADIAL_MENU_REVEAL_DURATION,
+                    ease: RADIAL_MENU_EASE,
+                    delay: 0.02,
+                  },
+                }}
+                exit={{
+                  opacity: 0,
+                  y: 6,
+                  scale: 0.98,
+                  transition: {
+                    duration: RADIAL_MENU_CLOSE_DURATION,
+                    ease: RADIAL_MENU_EASE,
+                  },
+                }}
+                style={{
+                  minWidth: RADIAL_MENU_SNAP_PILL_MIN_WIDTH,
+                  height: RADIAL_MENU_SNAP_PILL_HEIGHT,
+                  left: 0,
+                  top: -RADIAL_MENU_SNAP_PILL_OFFSET,
+                  transform: "translate(-50%, -100%)",
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void handleActionSelect(snapAction);
+                }}
+              >
+                <span className="radial-context-menu__snap-label-wrap">
+                  <span className="radial-context-menu__snap-title">Snapping</span>
+                  <span className="radial-context-menu__snap-meta">{snapAction.activeLabel}</span>
+                </span>
+                <span className="radial-context-menu__snap-switch" aria-hidden="true">
+                  <span className="radial-context-menu__snap-switch-track" />
+                  <span className="radial-context-menu__snap-switch-thumb" />
+                </span>
+              </motion.button>
+            ) : null}
 
             <motion.div
               className="radial-context-menu__core"
-              initial={{ opacity: 0, scale: 0.88 }}
+              initial={{ opacity: 0, scale: 0.84 }}
               animate={{
                 opacity: 1,
                 scale: 1,
                 transition: {
-                  duration: 0.22,
+                  duration: 0.18,
                   ease: RADIAL_MENU_EASE,
+                  delay: 0.04,
                 },
               }}
               exit={{
@@ -193,7 +207,6 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
                 transition: {
                   duration: RADIAL_MENU_CLOSE_DURATION,
                   ease: RADIAL_MENU_EASE,
-                  delay: 0.04,
                 },
               }}
               style={{
@@ -203,36 +216,29 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
                 marginTop: -(RADIAL_MENU_CORE_SIZE / 2),
               }}
             >
-              <span className="radial-context-menu__core-inner" aria-hidden="true" />
+              <span className="radial-context-menu__core-ring" aria-hidden="true" />
+              <span className="radial-context-menu__core-dot" aria-hidden="true" />
             </motion.div>
 
             {mergedActions.map((action, index) => {
-              const isToggle = action.kind === "toggle";
-              const width = isToggle
-                ? (action.isActive ? RADIAL_MENU_TOGGLE_WIDTH_ACTIVE : RADIAL_MENU_TOGGLE_WIDTH)
-                : RADIAL_MENU_ACTION_WIDTH;
-              const height = isToggle ? RADIAL_MENU_TOGGLE_HEIGHT : RADIAL_MENU_ACTION_HEIGHT;
               const isPending = pendingActionId === action.id;
 
               return (
                 <motion.button
                   key={action.id}
-                  layout
                   className={[
-                    "radial-context-menu__orbit",
-                    isToggle ? "radial-context-menu__orbit--toggle" : "",
-                    action.isActive ? "radial-context-menu__orbit--active" : "",
-                    action.isDisabled ? "radial-context-menu__orbit--disabled" : "",
-                    isPending ? "radial-context-menu__orbit--pending" : "",
+                    "radial-context-menu__action",
+                    action.tone === "danger" ? "radial-context-menu__action--danger" : "",
+                    action.isDisabled ? "radial-context-menu__action--disabled" : "",
+                    isPending ? "radial-context-menu__action--pending" : "",
                   ].filter(Boolean).join(" ")}
                   type="button"
-                  role={isToggle ? "menuitemcheckbox" : "menuitem"}
+                  role="menuitem"
                   aria-label={action.label}
-                  aria-checked={isToggle ? action.isActive : undefined}
                   disabled={action.isDisabled || isPending}
                   initial={{
                     opacity: 0,
-                    scale: 0.92,
+                    scale: 0.78,
                     x: action.introX,
                     y: action.introY,
                   }}
@@ -242,53 +248,43 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
                     x: action.x,
                     y: action.y,
                     transition: {
-                      ...orbitTransition,
-                      delay: 0.18 + (index * RADIAL_MENU_STAGGER),
+                      duration: RADIAL_MENU_REVEAL_DURATION,
+                      ease: RADIAL_MENU_EASE,
+                      delay: 0.08 + (index * RADIAL_MENU_STAGGER),
                     },
                   }}
                   exit={{
                     opacity: 0,
-                    scale: 0.94,
+                    scale: 0.86,
                     x: action.introX,
                     y: action.introY,
                     transition: {
                       duration: RADIAL_MENU_CLOSE_DURATION,
                       ease: RADIAL_MENU_EASE,
-                      delay: (mergedActions.length - 1 - index) * 0.02,
+                      delay: (mergedActions.length - index - 1) * 0.018,
                     },
+                  }}
+                  style={{
+                    width: RADIAL_MENU_ACTION_SIZE,
+                    height: RADIAL_MENU_ACTION_SIZE,
+                    marginLeft: -(RADIAL_MENU_ACTION_SIZE / 2),
+                    marginTop: -(RADIAL_MENU_ACTION_SIZE / 2),
+                    borderRadius: RADIAL_MENU_ACTION_RADIUS,
                   }}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
                     void handleActionSelect(action);
                   }}
-                  style={{
-                    width,
-                    height,
-                    marginLeft: -(width / 2),
-                    marginTop: -(height / 2),
-                  }}
                 >
-                  <span
-                    className="radial-context-menu__orbit-inner"
-                    aria-hidden="true"
-                    style={{
-                      "--radial-node-shift-x": `calc(var(--radial-parallax-x) * ${0.68 + (Math.abs(action.unitX) * 0.16)})`,
-                      "--radial-node-shift-y": `calc(var(--radial-parallax-y) * ${0.68 + (Math.abs(action.unitY) * 0.16)})`,
-                    }}
-                  />
-                  <span className="radial-context-menu__content">
-                    <span className="radial-context-menu__label-wrap">
-                      <span className="radial-context-menu__label">{action.label}</span>
-                      {action.activeLabel ? (
-                        <span className="radial-context-menu__meta">{action.activeLabel}</span>
-                      ) : null}
-                    </span>
-                    {isToggle ? (
-                      <span className="radial-context-menu__toggle-state" aria-hidden="true">
-                        <span className="radial-context-menu__toggle-track" />
-                        <span className="radial-context-menu__toggle-core" />
-                      </span>
+                  <span className="radial-context-menu__action-shell" aria-hidden="true" />
+                  <span className="radial-context-menu__action-glyph" aria-hidden="true">
+                    {getActionGlyph(action.id)}
+                  </span>
+                  <span className="radial-context-menu__action-copy">
+                    <span className="radial-context-menu__action-label">{action.label}</span>
+                    {action.activeLabel ? (
+                      <span className="radial-context-menu__action-meta">{action.activeLabel}</span>
                     ) : null}
                   </span>
                 </motion.button>
@@ -300,16 +296,4 @@ export default function RadialContextMenu({ menu, actions = [], onClose }) {
     </AnimatePresence>,
     portalRoot,
   );
-}
-
-function clamp(value, min, max) {
-  if (value < min) {
-    return min;
-  }
-
-  if (value > max) {
-    return max;
-  }
-
-  return value;
 }

@@ -1,13 +1,10 @@
 import { useMemo } from "react";
 import { recordDerivedMetric } from "../../lib/perf";
 import {
-  FOLDER_CARD_TYPE,
   getRackSlotCount,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
 import {
-  getBoxStyleVars,
-  getFolderZoneRect,
   getRackRect,
   getRenderableTileEntries,
   getTileByIdMap,
@@ -42,14 +39,11 @@ function getCanvasEntryStyleVars(tile, entry, zIndex) {
 
 export function useTileLayoutSystem({
   tiles,
-  openFolderId,
-  folderGroupingPreview,
   rackDropPreview,
   selectedTileIds,
   hoveredTileId,
   focusedTileId,
   draggingTileIds,
-  mergeTargetTileId,
   visibleWorldRect = null,
 }) {
   const selectedTileIdSet = useMemo(() => new Set(selectedTileIds), [selectedTileIds]);
@@ -57,19 +51,15 @@ export function useTileLayoutSystem({
   const tileById = useMemo(() => getTileByIdMap(tiles), [tiles]);
   const renderableEntries = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
-    const nextEntries = getRenderableTileEntries(tiles, openFolderId, tileById);
+    const nextEntries = getRenderableTileEntries(tiles, tileById);
     const end = typeof performance !== "undefined" ? performance.now() : Date.now();
     recordDerivedMetric("layout:renderableEntries", end - start, {
       tileCount: tiles.length,
-      openFolderId,
       entryCount: nextEntries.length,
     });
     return nextEntries;
-  }, [openFolderId, tileById, tiles]);
-  const canvasEntries = useMemo(
-    () => renderableEntries.filter((entry) => entry.containerType !== "folder"),
-    [renderableEntries],
-  );
+  }, [tileById, tiles]);
+  const canvasEntries = renderableEntries;
   const visibleCanvasEntries = useMemo(() => {
     if (!visibleWorldRect) {
       return canvasEntries;
@@ -77,16 +67,6 @@ export function useTileLayoutSystem({
 
     return canvasEntries.filter((entry) => rectsIntersect(visibleWorldRect, entry.rect));
   }, [canvasEntries, visibleWorldRect]);
-  const folderChildTilesByFolderId = useMemo(() => Object.fromEntries(
-    tiles
-      .filter((tile) => tile.type === FOLDER_CARD_TYPE)
-      .map((folderTile) => [
-        folderTile.id,
-        folderTile.childIds
-          .map((childId) => tileById[childId] ?? null)
-          .filter(Boolean),
-      ]),
-  ), [tileById, tiles]);
   const rackTileChildrenByRackId = useMemo(() => Object.fromEntries(
     tiles
       .filter((tile) => tile.type === RACK_CARD_TYPE)
@@ -97,10 +77,6 @@ export function useTileLayoutSystem({
           .filter(Boolean),
       ]),
   ), [tileById, tiles]);
-  const openFolderChildEntries = useMemo(
-    () => renderableEntries.filter((entry) => entry.containerType === "folder"),
-    [renderableEntries],
-  );
   const allTilesBounds = useMemo(() => getTilesBounds(
     canvasEntries.map((entry) => ({
       x: entry.x,
@@ -124,46 +100,45 @@ export function useTileLayoutSystem({
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextTileMetaById = Object.fromEntries(
       visibleCanvasEntries.map((entry, index) => {
-      const tile = entry.tile;
-      const isRackAttached = entry.containerType === "rack";
-      const isGroupingTarget = folderGroupingPreview?.targetTileId === tile.id || mergeTargetTileId === tile.id;
-      const isRackDropTarget = rackDropPreview?.rackId === tile.id;
-      const parentRackId = entry.rackId ?? null;
-      const parentRackDragging = Boolean(parentRackId && draggingTileIdSet.has(parentRackId));
-      const parentRackSelected = Boolean(parentRackId && selectedTileIdSet.has(parentRackId));
-      const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
-      const flags = {
-        isDragging: draggingTileIdSet.has(tile.id) || parentRackDragging,
-        isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
-        isFocused: focusedTileId === tile.id || parentRackFocused,
-        isHovered: hoveredTileId === tile.id,
-        isMergeTarget: isGroupingTarget,
-        isRackAttached,
-        isParentDragging: parentRackDragging,
-        isParentSelected: parentRackSelected,
-      };
-      const interactionState = getTileInteractionState(flags);
-      const zIndex = getTileLayer(index, flags);
+        const tile = entry.tile;
+        const isRackAttached = entry.containerType === "rack";
+        const isRackDropTarget = rackDropPreview?.rackId === tile.id;
+        const parentRackId = entry.rackId ?? null;
+        const parentRackDragging = Boolean(parentRackId && draggingTileIdSet.has(parentRackId));
+        const parentRackSelected = Boolean(parentRackId && selectedTileIdSet.has(parentRackId));
+        const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
+        const flags = {
+          isDragging: draggingTileIdSet.has(tile.id) || parentRackDragging,
+          isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
+          isFocused: focusedTileId === tile.id || parentRackFocused,
+          isHovered: hoveredTileId === tile.id,
+          isMergeTarget: false,
+          isRackAttached,
+          isParentDragging: parentRackDragging,
+          isParentSelected: parentRackSelected,
+        };
+        const interactionState = getTileInteractionState(flags);
+        const zIndex = getTileLayer(index, flags);
 
-      return [
-        tile.id,
-        {
-          ...flags,
-          isGroupingTarget,
-          isGroupingArmed: isGroupingTarget && folderGroupingPreview?.isArmed,
-          isFolderZoneTarget: folderGroupingPreview?.folderId === tile.id,
-          isRackDropTarget,
-          rackId: entry.rackId ?? null,
-          rackSlotIndex: entry.rackSlotIndex ?? null,
-          interactionState,
-          styleVars: isRackAttached
-            ? getRackAttachedStyleVars(tile, {
-              ...entry,
-              rackSlotCount: rackTileChildrenByRackId[entry.rackId]?.length ?? 0,
-            }, zIndex)
-            : getCanvasEntryStyleVars(tile, entry, zIndex),
-        },
-      ];
+        return [
+          tile.id,
+          {
+            ...flags,
+            isGroupingTarget: false,
+            isGroupingArmed: false,
+            isFolderZoneTarget: false,
+            isRackDropTarget,
+            rackId: entry.rackId ?? null,
+            rackSlotIndex: entry.rackSlotIndex ?? null,
+            interactionState,
+            styleVars: isRackAttached
+              ? getRackAttachedStyleVars(tile, {
+                ...entry,
+                rackSlotCount: rackTileChildrenByRackId[entry.rackId]?.length ?? 0,
+              }, zIndex)
+              : getCanvasEntryStyleVars(tile, entry, zIndex),
+          },
+        ];
       }),
     );
     const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -177,101 +152,9 @@ export function useTileLayoutSystem({
     canvasEntries.length,
     draggingTileIdSet,
     focusedTileId,
-    folderGroupingPreview,
     hoveredTileId,
-    mergeTargetTileId,
-    openFolderId,
     rackDropPreview,
     rackTileChildrenByRackId,
-    selectedTileIdSet,
-  ]);
-
-  const openFolderState = useMemo(() => {
-    const start = typeof performance !== "undefined" ? performance.now() : Date.now();
-    if (!openFolderId) {
-      const end = typeof performance !== "undefined" ? performance.now() : Date.now();
-      recordDerivedMetric("layout:openFolderState", end - start, {
-        openFolderId: null,
-        childEntryCount: 0,
-      });
-      return null;
-    }
-
-    const openFolderEntry = canvasEntries.find((entry) => entry.tile.id === openFolderId);
-    const openFolderTile = openFolderEntry?.tile;
-
-    if (!openFolderTile || openFolderTile.type !== FOLDER_CARD_TYPE) {
-      const end = typeof performance !== "undefined" ? performance.now() : Date.now();
-      recordDerivedMetric("layout:openFolderState", end - start, {
-        openFolderId,
-        childEntryCount: 0,
-      });
-      return null;
-    }
-
-    const zoneRect = getFolderZoneRect(openFolderTile);
-    const childTileMetaById = Object.fromEntries(
-      openFolderChildEntries.map((entry, index) => {
-        const tile = entry.tile;
-        const isGroupingTarget = folderGroupingPreview?.targetTileId === tile.id;
-        const flags = {
-          isDragging: draggingTileIdSet.has(tile.id),
-          isSelected: selectedTileIdSet.has(tile.id),
-          isFocused: focusedTileId === tile.id,
-          isHovered: hoveredTileId === tile.id,
-          isMergeTarget: isGroupingTarget,
-          isNested: true,
-        };
-
-        return [
-          tile.id,
-          {
-            ...flags,
-            isGroupingTarget,
-            isGroupingArmed: isGroupingTarget && folderGroupingPreview?.isArmed,
-            interactionState: getTileInteractionState(flags),
-            styleVars: getTileStyleVars(
-              tile,
-              getTileLayer(index, flags),
-              entry.localX,
-              entry.localY,
-              entry.width,
-              entry.height,
-            ),
-          },
-        ];
-      }),
-    );
-
-    const nextOpenFolderState = {
-      folderId: openFolderTile.id,
-      card: openFolderTile,
-      zoneRect,
-      zoneStyleVars: getBoxStyleVars({
-        x: 0,
-        y: openFolderTile.height + 24,
-        width: zoneRect.width,
-        height: zoneRect.height,
-      }),
-      isGroupingTarget: folderGroupingPreview?.folderId === openFolderTile.id,
-      isGroupingArmed: folderGroupingPreview?.folderId === openFolderTile.id && folderGroupingPreview?.isArmed,
-      childTiles: openFolderChildEntries.map((entry) => entry.tile),
-      childTileMetaById,
-    };
-    const end = typeof performance !== "undefined" ? performance.now() : Date.now();
-    recordDerivedMetric("layout:openFolderState", end - start, {
-      openFolderId,
-      childEntryCount: openFolderChildEntries.length,
-    });
-    return nextOpenFolderState;
-  }, [
-    canvasEntries,
-    draggingTileIdSet,
-    focusedTileId,
-    folderGroupingPreview,
-    hoveredTileId,
-    openFolderChildEntries,
-    openFolderId,
     selectedTileIdSet,
   ]);
 
@@ -307,10 +190,8 @@ export function useTileLayoutSystem({
 
   return {
     allTilesBounds,
-    folderChildTilesByFolderId,
     rackStateById,
     rackTileChildrenByRackId,
-    openFolderState,
     rootTiles: visibleCanvasEntries.map((entry) => entry.tile),
     selectedTileIdSet,
     selectedTilesBounds,

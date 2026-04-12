@@ -354,7 +354,11 @@ export default function CanvasWorkspaceView() {
   const previousBoardSnapshotRef = useRef(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const {
+    canRedo,
+    canUndo,
+    commitWorkspaceChange,
     currentEditor,
+    discardWorkspaceDraft,
     folderLoading,
     folderPath,
     homeData,
@@ -363,6 +367,8 @@ export default function CanvasWorkspaceView() {
     setViewport,
     setWorkspaceView,
     showHome,
+    redoWorkspaceChange,
+    undoWorkspaceChange,
     workspace,
     createNewLinkCard,
     createNewRackCard,
@@ -390,6 +396,8 @@ export default function CanvasWorkspaceView() {
     workspace,
     getViewportCenter: canvas.getViewportCenter,
     openFolderDialog: openExistingWorkspace,
+    commitWorkspaceChange,
+    discardWorkspaceDraft,
     createNewLinkCard,
     createNewRackCard,
     deleteExistingCard,
@@ -490,14 +498,11 @@ export default function CanvasWorkspaceView() {
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
-    openFolderId: commands.openFolderId,
-    folderGroupingPreview: interactions.folderGroupingPreview,
     rackDropPreview: interactions.rackDropPreview,
     selectedTileIds: interactions.selectedTileIds,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
     draggingTileIds: interactions.draggingTileIds,
-    mergeTargetTileId: interactions.folderGroupingPreview?.targetTileId ?? null,
     visibleWorldRect,
   });
 
@@ -637,6 +642,28 @@ export default function CanvasWorkspaceView() {
         }
       }
 
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        if (event.shiftKey) {
+          if (!canRedo) {
+            return;
+          }
+
+          event.preventDefault();
+          redoWorkspaceChange();
+          interactions.closeContextMenu();
+          return;
+        }
+
+        if (!canUndo) {
+          return;
+        }
+
+        event.preventDefault();
+        undoWorkspaceChange();
+        interactions.closeContextMenu();
+        return;
+      }
+
       if (event.key === "Delete" && !activeElementIsEditable && interactions.selectedTileIds.length > 0) {
         event.preventDefault();
         commands.deleteTiles(interactions.selectedTileIds);
@@ -704,6 +731,8 @@ export default function CanvasWorkspaceView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     canvas,
+    canRedo,
+    canUndo,
     commands,
     focusSearchInput,
     handleGlobeZoomIn,
@@ -711,9 +740,11 @@ export default function CanvasWorkspaceView() {
     handleGlobeZoomToFitAll,
     interactions,
     isGlobeMode,
+    redoWorkspaceChange,
     searchQuery,
     copySelectedBookmarkLink,
     tileById,
+    undoWorkspaceChange,
     zoomToFitAll,
   ]);
 
@@ -742,27 +773,23 @@ export default function CanvasWorkspaceView() {
     dragVisualDelta: interactions.dragVisualDelta
       ? `${Math.round(interactions.dragVisualDelta.x)}:${Math.round(interactions.dragVisualDelta.y)}`
       : null,
-    folderPreview: interactions.folderGroupingPreview?.targetTileId ?? null,
     rackPreview: interactions.rackDropPreview?.rackId ?? null,
     marqueeActive: Boolean(interactions.marqueeBox),
     isPanning: canvas.isPanning,
     isDropTarget: dropImport.isDropTarget,
     snapEnabled: snapSettings.enabled,
-    openFolderId: commands.openFolderId,
     globeCameraDistance: isGlobeMode ? Math.round(workspaceView.cameraDistance ?? 0) : null,
   }), [
     canvas.isPanning,
     canvas.viewport.x,
     canvas.viewport.y,
     canvas.viewport.zoom,
-    commands.openFolderId,
     dropImport.isDropTarget,
     filteredTiles.length,
     globeVisibleTileCount,
     interactions.draggingTileIds.length,
     interactions.dragVisualDelta,
     interactions.focusedTileId,
-    interactions.folderGroupingPreview?.targetTileId,
     interactions.hoveredTileId,
     interactions.marqueeBox,
     interactions.rackDropPreview?.rackId,
@@ -815,15 +842,6 @@ export default function CanvasWorkspaceView() {
 
   const radialMenu = interactions.contextMenu;
 
-  const handleRadialRack = useCallback(() => {
-    if (!radialMenu?.worldPoint) {
-      return false;
-    }
-
-    commands.createRack(radialMenu.worldPoint);
-    return true;
-  }, [commands, radialMenu]);
-
   const handleRadialFolder = useCallback(() => {
     if (!radialMenu?.worldPoint) {
       return false;
@@ -837,6 +855,15 @@ export default function CanvasWorkspaceView() {
     }
 
     commands.createFolderTile(radialMenu.worldPoint);
+    return true;
+  }, [commands, radialMenu]);
+
+  const handleRadialRack = useCallback(() => {
+    if (!radialMenu?.worldPoint) {
+      return false;
+    }
+
+    commands.createRack(radialMenu.worldPoint);
     return true;
   }, [commands, radialMenu]);
 
@@ -996,9 +1023,6 @@ export default function CanvasWorkspaceView() {
             return;
           }
 
-          const isBackgroundTarget = event.target === event.currentTarget
-            || event.target.classList?.contains("canvas__content");
-
           interactions.handleCanvasPointerDown(event);
         }}
         onContextMenu={isGlobeMode ? undefined : interactions.handleCanvasContextMenu}
@@ -1009,9 +1033,6 @@ export default function CanvasWorkspaceView() {
             }
             return;
           }
-
-          const isBackgroundTarget = event.target === event.currentTarget
-            || event.target.classList?.contains("canvas__content");
 
           if (!isEditableElement(event.target)) {
             event.currentTarget.focus({ preventScroll: true });
@@ -1028,7 +1049,6 @@ export default function CanvasWorkspaceView() {
             openTileLink={commands.openTileLink}
             updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
             retryTilePreview={commands.retryTilePreview}
-            toggleFolder={commands.toggleFolder}
             onVisibleCountChange={setGlobeVisibleTileCount}
           />
         ) : (
@@ -1043,8 +1063,7 @@ export default function CanvasWorkspaceView() {
                   viewportZoom={workspace.viewport.zoom}
                   dragVisualDelta={interactions.dragVisualDelta}
                   dragVisualTileIdSet={draggingTileIdSet}
-                  childTiles={layout.folderChildTilesByFolderId[card.id] ?? layout.rackTileChildrenByRackId[card.id] ?? []}
-                  folderState={layout.openFolderState?.folderId === card.id ? layout.openFolderState : null}
+                  childTiles={layout.rackTileChildrenByRackId[card.id] ?? []}
                   rackState={layout.rackStateById[card.id] ?? null}
                   performanceMode={performanceMode}
                   onBeginDrag={interactions.beginTileDrag}
@@ -1056,7 +1075,6 @@ export default function CanvasWorkspaceView() {
                   onMediaLoad={commands.updateTileFromMediaLoad}
                   onPressStart={interactions.handleTilePressStart}
                   onRetry={commands.retryTilePreview}
-                  onToggleFolderOpen={commands.toggleFolder}
                 />
               ))}
             </div>
@@ -1092,7 +1110,7 @@ export default function CanvasWorkspaceView() {
         ) : totalTileCount === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
-            description="Use the Add button in the top-right to create a folder or rack. Paste a URL or image to import directly."
+            description="Use the Add button in the top-right to create a rack. Paste a URL or image to import directly."
             icon={
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
