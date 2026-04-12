@@ -63,8 +63,9 @@ function WorkspaceViewToggle({ mode, onChange }) {
         onClick={() => onChange("flat")}
         aria-selected={mode === "flat"}
         role="tab"
+        aria-label="Canvas view"
       >
-        Canvas
+        <img className="workspace-view-toggle__icon" src="/icons/canvas.png" alt="" aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -72,8 +73,9 @@ function WorkspaceViewToggle({ mode, onChange }) {
         onClick={() => onChange("globe")}
         aria-selected={mode === "globe"}
         role="tab"
+        aria-label="Globe view"
       >
-        Globe
+        <img className="workspace-view-toggle__icon" src="/globe.svg" alt="" aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -81,8 +83,9 @@ function WorkspaceViewToggle({ mode, onChange }) {
         onClick={() => onChange("grid")}
         aria-selected={mode === "grid"}
         role="tab"
+        aria-label="Grid view"
       >
-        Grid
+        <img className="workspace-view-toggle__icon" src="/icons/grid.png" alt="" aria-hidden="true" />
       </button>
     </div>
   );
@@ -97,42 +100,7 @@ function WorkspaceTopbarTrail({
 }) {
   return (
     <header className="canvas-topbar">
-      <div className="canvas-topbar__left">
-        <button
-          className="canvas-topbar__crumb canvas-topbar__crumb--home"
-          type="button"
-          title="Go to Home"
-          onClick={onOpenHome}
-        >
-          <span className="canvas-topbar__crumb-icon" aria-hidden="true">
-            <IconHome />
-          </span>
-          <span>Home</span>
-        </button>
-        {folderLabel && (
-          <>
-            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-            <button
-              className="canvas-topbar__crumb"
-              type="button"
-              title="Switch workspace folder"
-              disabled={folderLoading}
-              onClick={onOpenWorkspaceFolder}
-            >
-              <span className="canvas-topbar__crumb-icon" aria-hidden="true">
-                <IconFolder />
-              </span>
-              <span className="canvas-topbar__crumb-text">
-                {folderLoading ? "Opening…" : folderLabel}
-              </span>
-            </button>
-            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-            <span className="canvas-topbar__crumb canvas-topbar__crumb--active">
-              <span className="canvas-topbar__crumb-text">{canvasName}</span>
-            </span>
-          </>
-        )}
-      </div>
+
     </header>
   );
 }
@@ -918,10 +886,12 @@ export default function CanvasWorkspaceView() {
         {createPortal(
           <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-            <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} />
           </div>,
           document.getElementById("titlebar-right-slot") || document.body,
         )}
+        <div className="canvas-stage__fab">
+          <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} side="top" />
+        </div>
         <WorkspaceTopbarTrail
           canvasName={canvasName}
           folderLabel={folderLabel}
@@ -981,10 +951,6 @@ export default function CanvasWorkspaceView() {
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          <CanvasAddMenu
-            commands={commands}
-            disabled={!folderPath || folderLoading}
-          />
           <CanvasZoomMenu
             zoom={isGlobeMode ? globeZoomValue : workspace.viewport.zoom}
             canFitAll={isGlobeMode ? filteredTiles.length > 0 : Boolean(layout.allTilesBounds)}
@@ -998,6 +964,14 @@ export default function CanvasWorkspaceView() {
         </div>,
         document.getElementById("titlebar-right-slot") || document.body
       )}
+
+      <div className="canvas-stage__fab">
+        <CanvasAddMenu
+          commands={commands}
+          disabled={!folderPath || folderLoading}
+          side="top"
+        />
+      </div>
 
       {/* ── Top bar ── */}
       <WorkspaceTopbarTrail
@@ -1110,7 +1084,7 @@ export default function CanvasWorkspaceView() {
         ) : totalTileCount === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
-            description="Use the Add button in the top-right to create a rack. Paste a URL or image to import directly."
+            description="Use the Add button in the bottom-right to create a rack. Paste a URL or image to import directly."
             icon={
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />

@@ -11,6 +11,7 @@ import {
 export default function CanvasAddMenu({
   commands,
   disabled,
+  side = "bottom",
 }) {
   return (
     <AppDropdownMenu>
@@ -29,7 +30,7 @@ export default function CanvasAddMenu({
         </AppButton>
       </AppDropdownMenuTrigger>
 
-      <AppDropdownMenuContent className="w-52" align="end" sideOffset={8}>
+      <AppDropdownMenuContent className="w-52" align="end" side={side} sideOffset={8}>
         <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
           Structure
         </AppDropdownMenuLabel>

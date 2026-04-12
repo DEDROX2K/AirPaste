@@ -21,7 +21,7 @@ function IconHomeFilled() {
 function IconWindowToggle() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M3 5.25L7 9L11 5.25" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
+      <rect x="3.25" y="3.25" width="7.5" height="7.5" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -29,7 +29,7 @@ function IconWindowToggle() {
 function IconWindowMinimize() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M3 7H11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
+      <path d="M3.5 7H10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -37,7 +37,7 @@ function IconWindowMinimize() {
 function IconWindowClose() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M3.2 3.2L10.8 10.8M10.8 3.2L3.2 10.8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />
+      <path d="M4 4L10 10M10 4L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -76,15 +76,7 @@ function focusSearchInput() {
 function TitleBarControls() {
   return (
     <div className="titlebar-controls">
-      <button
-        className="titlebar-btn titlebar-btn--maximize"
-        type="button"
-        title="Toggle maximize"
-        aria-label="Toggle maximize"
-        onClick={() => desktop.window.maximize()}
-      >
-        <IconWindowToggle />
-      </button>
+
       <button
         className="titlebar-btn titlebar-btn--minimize"
         type="button"
@@ -94,6 +86,17 @@ function TitleBarControls() {
       >
         <IconWindowMinimize />
       </button>
+
+      <button
+        className="titlebar-btn titlebar-btn--maximize"
+        type="button"
+        title="Toggle maximize"
+        aria-label="Toggle maximize"
+        onClick={() => desktop.window.maximize()}
+      >
+        <IconWindowToggle />
+      </button>
+
       <button
         className="titlebar-btn titlebar-btn--close"
         type="button"
