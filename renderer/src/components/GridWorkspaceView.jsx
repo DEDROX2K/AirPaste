@@ -71,6 +71,9 @@ function GridLinkCard({ card, isSelected, onSelect, onOpenLink }) {
 
   const mediaSrc = isImageTile ? (resolvedImageSrc || card.image) : card.image;
   const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
+  const previewFallbackReason = hasImageError
+    ? "The preview image failed to load."
+    : card.previewError || "";
   const domain = formatDomain(card.url || "");
   const linkTitle = card.title || domain || (isImageTile ? "Imported image" : "Untitled link");
 
@@ -148,7 +151,8 @@ function GridLinkCard({ card, isSelected, onSelect, onOpenLink }) {
           </div>
         ) : (
           <div className="grid-card__placeholder">
-            <span className="grid-card__placeholder-domain">{domain || linkTitle}</span>
+            <span className="grid-card__placeholder-title">{linkTitle}</span>
+            <span className="grid-card__placeholder-domain">{previewFallbackReason || domain || linkTitle}</span>
           </div>
         )}
 

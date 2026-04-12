@@ -143,18 +143,12 @@ export function TopTabBar({ usesCustomTitlebar }) {
                   }
                 }}
                 title={tab.title}
+                aria-label={tab.title}
               >
                 {isHome ? (
-                  <>
-                    <span className="titlebar-home-pill">
-                      <span className="titlebar-home-icon">
-                        <IconHomeFilled />
-                      </span>
-                      <span className="titlebar-home-label">{tab.title}</span>
-                    </span>
-                    <span className="titlebar-home-marker" aria-hidden="true" />
-                    <span className="titlebar-home-dot" aria-hidden="true" />
-                  </>
+                  <span className="titlebar-home-icon" aria-hidden="true">
+                    <IconHomeFilled />
+                  </span>
                 ) : (
                   <>
                     <span className="titlebar-tab-label">{tab.title}</span>

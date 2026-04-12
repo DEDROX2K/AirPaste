@@ -87,13 +87,12 @@
 }
 
 .titlebar-tab--home {
-  padding: 0 10px 0 12px;
-  min-width: 210px;
-  max-width: 300px;
+  width: 44px;
+  min-width: 44px;
+  justify-content: center;
   border: 1px solid rgba(71, 60, 49, 0.12);
   background: rgba(255, 255, 255, 0.72);
   color: rgba(20, 17, 14, 0.94);
-  justify-content: flex-start;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.84),
     0 1px 2px rgba(27, 20, 14, 0.04);
@@ -105,56 +104,17 @@
   border-color: rgba(71, 60, 49, 0.16);
 }
 
-.titlebar-home-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 30px;
-  min-width: 142px;
-  max-width: 100%;
-  border-radius: 999px;
-  background: rgba(31, 27, 23, 0.94);
-  color: #f6f1ea;
-  padding: 0 12px 0 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
 .titlebar-home-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 24px;
+  height: 24px;
 }
 
 .titlebar-home-icon svg {
   width: 14px;
   height: 14px;
-}
-
-.titlebar-home-label {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.titlebar-home-marker {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: #f26d67;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  flex-shrink: 0;
-}
-
-.titlebar-home-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: #4a90e8;
-  margin-left: 2px;
-  flex-shrink: 0;
 }
 
 .titlebar-tab--file:active,

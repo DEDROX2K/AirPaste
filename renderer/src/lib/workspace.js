@@ -283,6 +283,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     favicon: type === "link" ? String(card?.favicon ?? "") : "",
     siteName: type === "link" ? String(card?.siteName ?? "") : "",
     previewKind: type === "link" && card?.previewKind === "music" ? "music" : "default",
+    previewError: type === "link" ? String(card?.previewError ?? "") : "",
     status: type === "link" && ["loading", "ready", "failed"].includes(card?.status)
       ? card.status
       : "idle",
@@ -629,6 +630,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     image,
     favicon: typeof options?.favicon === "string" ? options.favicon : "",
     previewKind: options?.previewKind === "music" ? "music" : "default",
+    previewError: typeof options?.previewError === "string" ? options.previewError : "",
     status: contentKind === LINK_CONTENT_KIND_IMAGE
       ? "ready"
       : ["loading", "ready", "failed"].includes(options?.status)

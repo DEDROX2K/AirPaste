@@ -1071,6 +1071,11 @@ async function fetchPreviewData(url) {
     ? "music"
     : "default";
   const finalImage = image || await capturePreviewScreenshot(url);
+  const previewError = finalImage
+    ? ""
+    : providerPreview?.imageUrls?.length
+      ? "The source exposed media, but AirPaste could not turn it into a preview image."
+      : "This page did not expose a usable preview image.";
   const hasPreviewData = Boolean(
     providerPreview?.title
     || providerPreview?.description
@@ -1090,6 +1095,7 @@ async function fetchPreviewData(url) {
     favicon: metadata.favicon,
     siteName: providerPreview?.siteName || metadata.siteName || hostname,
     previewKind,
+    previewError,
   };
 }
 
@@ -1128,6 +1134,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     favicon: preview.favicon || currentCard.favicon,
     siteName: preview.siteName || currentCard.siteName || getHostname(url),
     previewKind: preview.previewKind || currentCard.previewKind,
+    previewError: preview.previewError,
     height: preview.previewKind === "music"
       ? Math.max(currentCard.height, currentCard.width)
       : currentCard.height,

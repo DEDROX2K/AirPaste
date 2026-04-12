@@ -80,6 +80,9 @@ function LinkTile({
   const mediaSrc = isImageTile ? (resolvedImageSrc || card.image) : card.image;
   const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
+  const previewFallbackReason = hasImageError
+    ? "The preview image failed to load."
+    : card.previewError || "";
   const enableReveal = true;
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
@@ -255,7 +258,11 @@ function LinkTile({
       ) : (
         <div className="card__placeholder">
           <p className="card__placeholder-title">{linkTitle}</p>
-          <p className="card__placeholder-subtitle">{isImageTile ? (card.asset?.fileName || "Imported image") : formatShortUrl(card.url)}</p>
+          <p className="card__placeholder-subtitle">
+            {isImageTile
+              ? (card.asset?.fileName || "Imported image")
+              : (previewFallbackReason || formatShortUrl(card.url))}
+          </p>
         </div>
       )}
     </>

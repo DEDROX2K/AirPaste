@@ -136,7 +136,7 @@ export function useCanvasCommands({
       log("success", `Preview queued for "${card.url}"`);
     } catch (previewError) {
       const message = previewError.message || "Unable to fetch preview metadata.";
-      updateExistingCard(card.id, { status: "failed" });
+      updateExistingCard(card.id, { status: "failed", previewError: message });
       log("error", `Preview failed for "${card.url}"`, message);
       toast("error", `Preview failed: ${message}`);
     }
