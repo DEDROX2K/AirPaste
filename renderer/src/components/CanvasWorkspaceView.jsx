@@ -5,7 +5,7 @@ import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GlobeWorkspaceView from "./GlobeWorkspaceView";
 import GridWorkspaceView from "./GridWorkspaceView";
-import RadialContextMenu from "./RadialContextMenu";
+import TileContextMenu from "./TileContextMenu";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
@@ -855,7 +855,7 @@ export default function CanvasWorkspaceView() {
     return Boolean(tile);
   }, [commands, radialMenu]);
 
-  const radialActions = useMemo(() => buildRadialMenuActions({
+  const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
     snapEnabled: snapSettings.enabled,
     deleteDisabled: (radialMenu?.selectionIds?.length ?? 0) === 0,
@@ -884,6 +884,42 @@ export default function CanvasWorkspaceView() {
     return (
       <main className="canvas-stage canvas-stage--grid">
         {createPortal(
+          <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
+            <div className="canvas-search">
+              <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                id="tile-search"
+                ref={searchInputRef}
+                className="canvas-search__input"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search tiles…"
+                aria-label="Search tiles"
+              />
+              {searchQuery ? (
+                <button
+                  className="canvas-search__clear"
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearchQuery("");
+                    focusSearchInput();
+                  }}
+                >
+                  &times;
+                </button>
+              ) : (
+                <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
+              )}
+            </div>
+          </div>,
+          document.getElementById("titlebar-center-slot") || document.body,
+        )}
+        {createPortal(
           <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           </div>,
@@ -900,7 +936,11 @@ export default function CanvasWorkspaceView() {
           onOpenWorkspaceFolder={commands.openWorkspaceFolder}
         />
         <GridWorkspaceView
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
           openTileLink={commands.openTileLink}
+          updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
+          retryTilePreview={commands.retryTilePreview}
           onPaste={handleWorkspacePaste}
         />
       </main>
@@ -1106,9 +1146,9 @@ export default function CanvasWorkspaceView() {
         ) : null}
       </div>
 
-      <RadialContextMenu
+      <TileContextMenu
         menu={radialMenu}
-        actions={radialActions}
+        actions={contextMenuActions}
         onClose={interactions.closeContextMenu}
       />
     </main>

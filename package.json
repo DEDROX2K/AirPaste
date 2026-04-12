@@ -85,6 +85,7 @@
     "files": [
       "dist-renderer/**/*",
       "main.js",
+      "preview/**/*",
       "workspace-service.js",
       "preload.js",
       "package.json"

@@ -310,7 +310,7 @@ function LinkTile({
           )}
         </div>
 
-        {!isImageTile && card.status === "failed" ? (
+        {!isImageTile && card.status === "error" ? (
           <button
             className="card__retry"
             type="button"

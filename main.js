@@ -7,6 +7,12 @@ const openGraphScraper = require("open-graph-scraper");
 const cheerio = require("cheerio");
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 const { chromium } = require("playwright");
+const { getCardStateFromResolvedPreview } = require("./preview/card-mapper");
+const { PREVIEW_STATE_VALUES } = require("./preview/constants");
+const {
+  closePreviewBrowser: closeResolvedPreviewBrowser,
+  resolveUrlToPreview,
+} = require("./preview/resolve-preview");
 
 const CONFIG_FILE_NAME = "config.json";
 const TEMP_SUFFIX = ".tmp";
@@ -361,7 +367,7 @@ function normalizeCard(card, index = 0) {
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
-    status: isLinkLikeCard && ["loading", "ready", "failed"].includes(card?.status)
+    status: isLinkLikeCard && PREVIEW_STATE_VALUES.includes(card?.status)
       ? card.status
       : "idle",
     asset: type === "link" ? linkAsset : null,
@@ -1588,6 +1594,8 @@ async function getPreviewBrowser() {
   return previewBrowserPromise;
 }
 
+// Legacy preview helpers remain temporarily while the new typed resolver path settles.
+// eslint-disable-next-line no-unused-vars
 async function closePreviewBrowser() {
   const browserPromise = previewBrowserPromise;
   previewBrowserPromise = null;
@@ -1701,6 +1709,7 @@ async function fetchOpenGraphMetadata(url) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 async function fetchPreviewData(url) {
   const domainSpecificPreview = await fetchDomainSpecificPreview(url);
   const previewUrl = domainSpecificPreview?.canonicalUrl || url;
@@ -1834,7 +1843,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     return null;
   }
 
-  const preview = await fetchPreviewData(url);
+  const resolvedPreview = await resolveUrlToPreview(url);
 
   if (cancelledPreviewJobs.has(jobKey)) {
     return null;
@@ -1854,33 +1863,14 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   }
 
   const currentCard = workspace.cards[cardIndex];
-  const nextCardType = preview.cardType || currentCard.type;
-  const nextCardSize = defaultCardSize(nextCardType);
+  const previewCardState = getCardStateFromResolvedPreview(
+    currentCard,
+    resolvedPreview,
+    defaultCardSize,
+  );
   const nextCard = normalizeCard({
     ...currentCard,
-    type: nextCardType,
-    url: preview.url || currentCard.url || url,
-    width: nextCardType !== currentCard.type ? nextCardSize.width : currentCard.width,
-    title: preview.title || currentCard.title || getHostname(preview.url || url),
-    description: typeof preview.description === "string" ? preview.description : currentCard.description,
-    image: typeof preview.image === "string" ? preview.image : currentCard.image,
-    favicon: typeof preview.favicon === "string" ? preview.favicon : currentCard.favicon,
-    siteName: preview.siteName || currentCard.siteName || getHostname(preview.url || url),
-    previewKind: preview.previewKind || currentCard.previewKind,
-    previewError: preview.previewError,
-    productAsin: typeof preview.productAsin === "string" ? preview.productAsin : currentCard.productAsin,
-    productPrice: typeof preview.productPrice === "string" ? preview.productPrice : currentCard.productPrice,
-    productDomain: typeof preview.productDomain === "string" ? preview.productDomain : currentCard.productDomain,
-    productRating: Number.isFinite(preview.productRating) ? Number(preview.productRating) : currentCard.productRating,
-    productReviewCount: Number.isFinite(preview.productReviewCount)
-      ? Math.round(preview.productReviewCount)
-      : currentCard.productReviewCount,
-    height: preview.previewKind === "music"
-      ? Math.max(currentCard.height, currentCard.width)
-      : nextCardType !== currentCard.type
-        ? nextCardSize.height
-        : currentCard.height,
-    status: preview.status,
+    ...previewCardState,
     updatedAt: nowIso(),
   });
 
@@ -2161,5 +2151,5 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  void closePreviewBrowser();
+  void closeResolvedPreviewBrowser();
 });

@@ -281,7 +281,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
-    status: isLinkLikeCard && ["loading", "ready", "failed"].includes(card?.status)
+    status: isLinkLikeCard && ["loading", "ready", "fallback", "blocked", "error"].includes(card?.status)
       ? card.status
       : "idle",
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
@@ -592,7 +592,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     previewError: typeof options?.previewError === "string" ? options.previewError : "",
     status: contentKind === LINK_CONTENT_KIND_IMAGE
       ? "ready"
-      : ["loading", "ready", "failed"].includes(options?.status)
+      : ["loading", "ready", "fallback", "blocked", "error"].includes(options?.status)
         ? options.status
         : "loading",
     asset,

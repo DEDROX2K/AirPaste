@@ -61,30 +61,34 @@ export function TabProvider({ children }) {
   }, []);
 
   const openTab = useCallback((item) => {
+    let nextActiveTabId = item.id || null;
+
     setTabs((currentTabs) => {
-      // Check if tab already exists for this entity
       if (item.entityId) {
         const existingTab = currentTabs.find((t) => t.entityId === item.entityId);
         if (existingTab) {
-          setActiveTabId(existingTab.id);
+          nextActiveTabId = existingTab.id;
           return currentTabs;
         }
       }
 
-      // Create new tab
       const newTabId = item.id || generateTabId();
+      nextActiveTabId = newTabId;
       const newTab = {
         id: newTabId,
-        type: item.type, // 'canvas' | 'page'
+        type: item.type,
         entityId: item.entityId,
         title: item.title || "Untitled",
         closable: item.closable !== false,
         viewState: item.viewState || {},
       };
 
-      setActiveTabId(newTab.id);
       return [...currentTabs, newTab];
     });
+
+    if (nextActiveTabId) {
+      setActiveTabId(nextActiveTabId);
+    }
   }, []);
 
   const closeTab = useCallback((tabIdToClose) => {

@@ -302,6 +302,65 @@ export function AppProvider({ children }) {
     if (folderPath) await refreshHomeData(folderPath);
   }, [folderPath, refreshHomeData, showHomeTab]);
 
+  useEffect(() => {
+    if (!folderPath || !activeTab?.entityId) {
+      return undefined;
+    }
+
+    if (activeTab.type === "canvas" && workspacesByPath[activeTab.entityId]) {
+      return undefined;
+    }
+
+    if (activeTab.type === "page" && pagesByPath[activeTab.entityId]) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function hydrateActiveEditor() {
+      try {
+        if (activeTab.type === "canvas") {
+          const doc = await desktop.workspace.loadCanvas(activeTab.entityId);
+          if (cancelled) return;
+          setWorkspacesByPath((prev) => {
+            if (prev[doc.filePath]) return prev;
+            return { ...prev, [doc.filePath]: createWorkspaceHistory(doc.workspace) };
+          });
+          skipCanvasSaveRef.current[doc.filePath] = true;
+          return;
+        }
+
+        if (activeTab.type === "page") {
+          const doc = await desktop.workspace.loadPage(activeTab.entityId);
+          if (cancelled) return;
+          setPagesByPath((prev) => {
+            if (prev[doc.filePath]) return prev;
+            return {
+              ...prev,
+              [doc.filePath]: {
+                ...doc,
+                dirty: false,
+                saveStatus: "saved",
+                lastSavedMarkdown: doc.markdown,
+              },
+            };
+          });
+          skipPageSaveRef.current[doc.filePath] = true;
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError.message || "Unable to open the selected file.");
+        }
+      }
+    }
+
+    void hydrateActiveEditor();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, folderPath, pagesByPath, workspacesByPath]);
+
   const navigateHomeFolder = useCallback(async (nextFolderPath) => {
     if (!folderPath) return null;
     const payload = await desktop.workspace.getHomeData(folderPath, nextFolderPath);
