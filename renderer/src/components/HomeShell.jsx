@@ -318,9 +318,7 @@ export default function HomeShell() {
         <div ref={bodyRef} className="home-content__body" onScroll={handleBodyScroll}>
           {navigation.selectedSection === "home" ? (
             <>
-              <div className="home-header">
-                <h1 className="home-title">Files</h1>
-              </div>
+
               <div className="home-header__nav">
                 {breadcrumbs.map((crumb, index) => (
                   <span key={crumb.path}>

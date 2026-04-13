@@ -670,13 +670,16 @@ a {
   position: absolute;
   top: calc(100% + var(--ap-space-2\.5));
   right: 0;
+  z-index: 180;
   width: min(320px, calc(100vw - 36px));
   padding: var(--ap-space-3) 0;
   border: var(--control-border);
   border-radius: var(--ap-radius-xl);
-  background: var(--ap-surface-overlay-bg);
+  background: var(--ap-surface-overlay);
   box-shadow: var(--ap-shadow-panel);
   backdrop-filter: blur(var(--ap-blur-sm));
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 
 .zoom-menu__section {
@@ -1423,28 +1426,26 @@ a {
   position: fixed;
   z-index: 9500;
   width: min(280px, calc(100vw - 24px));
-  padding: 8px;
-  border-radius: 16px;
-  border: 1px solid rgba(218, 226, 242, 0.12);
-  background:
-    linear-gradient(180deg, rgba(31, 35, 43, 0.98) 0%, rgba(20, 24, 30, 0.98) 100%);
-  box-shadow:
-    0 18px 42px rgba(7, 10, 15, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  color: rgba(238, 242, 249, 0.96);
+  padding: var(--ap-space-2);
+  border-radius: var(--ap-radius-xl);
+  border: var(--ap-border-thin) solid var(--ap-border-subtle);
+  background: var(--ap-surface-overlay);
+  box-shadow: var(--ap-shadow-panel);
+  color: var(--ap-text-primary);
+  pointer-events: auto;
 }
 
 .tile-context-menu__header {
-  padding: 6px 8px 8px;
+  padding: var(--ap-space-1\.5) var(--ap-space-2) var(--ap-space-2);
 }
 
 .tile-context-menu__title {
   display: block;
-  color: rgba(172, 184, 206, 0.82);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  color: var(--ap-text-tertiary);
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-2xs);
+  font-weight: var(--ap-weight-semibold);
+  letter-spacing: var(--ap-tracking-wide);
   text-transform: uppercase;
 }
 
@@ -1456,50 +1457,50 @@ a {
 .tile-context-menu__section {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--ap-space-0\.5);
 }
 
 .tile-context-menu__divider {
-  height: 1px;
-  margin: 6px 4px;
-  background: rgba(219, 228, 245, 0.08);
+  height: var(--ap-border-thin);
+  margin: var(--ap-space-1\.5) var(--ap-space-1);
+  background: var(--ap-border-subtle);
 }
 
 .tile-context-menu__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: var(--ap-space-3\.5);
   width: 100%;
-  min-height: 40px;
-  padding: 10px 12px;
+  min-height: var(--ap-space-10);
+  padding: var(--ap-space-2\.5) var(--ap-space-3);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--ap-radius-lg);
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
   transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    transform 120ms ease;
+    background-color var(--ap-transition-fast),
+    color var(--ap-transition-fast),
+    transform var(--ap-transition-fast);
 }
 
 .tile-context-menu__item:hover,
 .tile-context-menu__item:focus-visible {
-  background: rgba(116, 145, 214, 0.14);
-  color: rgba(246, 249, 255, 0.98);
+  background: var(--ap-interactive-bg-hover);
+  color: var(--ap-text-primary);
   outline: none;
 }
 
 .tile-context-menu__item:active {
-  transform: translateY(1px);
-  background: rgba(116, 145, 214, 0.2);
+  transform: translateY(var(--ap-space-0\.5));
+  background: var(--ap-interactive-bg-active);
 }
 
 .tile-context-menu__item:disabled,
 .tile-context-menu__item--disabled {
-  color: rgba(145, 155, 177, 0.52);
+  color: var(--ap-text-disabled);
   cursor: default;
 }
 
@@ -1510,17 +1511,17 @@ a {
 }
 
 .tile-context-menu__item--toggle {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--ap-interactive-bg-hover);
 }
 
 .tile-context-menu__item--danger {
-  color: rgba(255, 191, 201, 0.98);
+  color: var(--ap-status-danger-text);
 }
 
 .tile-context-menu__item--danger:hover,
 .tile-context-menu__item--danger:focus-visible {
-  background: rgba(164, 53, 74, 0.22);
-  color: rgba(255, 219, 225, 0.98);
+  background: var(--ap-status-danger-bg);
+  color: var(--ap-status-danger-text);
 }
 
 .tile-context-menu__item-copy {
@@ -1540,28 +1541,28 @@ a {
 }
 
 .tile-context-menu__item-label {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.2;
-  font-weight: 600;
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-sm);
+  line-height: var(--ap-leading-snug);
+  font-weight: var(--ap-weight-medium);
 }
 
 .tile-context-menu__item-description {
-  color: rgba(165, 178, 202, 0.76);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 1.2;
-  font-weight: 500;
+  color: var(--ap-text-secondary);
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-2xs);
+  line-height: var(--ap-leading-snug);
+  font-weight: var(--ap-weight-medium);
 }
 
 .tile-context-menu__item-shortcut {
   flex-shrink: 0;
-  min-width: 26px;
-  color: rgba(165, 178, 202, 0.88);
+  min-width: var(--ap-space-6\.5);
+  color: var(--ap-text-tertiary);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ap-text-2xs);
   line-height: 1;
-  font-weight: 600;
+  font-weight: var(--ap-weight-semibold);
   text-align: right;
 }
 
@@ -3530,12 +3531,12 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
   .tile-context-menu {
     width: calc(100vw - 24px);
-    padding: 12px;
+    padding: var(--ap-space-3);
   }
 
   .tile-context-menu__item {
-    min-height: 42px;
-    padding: 10px 12px;
+    min-height: var(--ap-space-10\.5);
+    padding: var(--ap-space-2\.5) var(--ap-space-3);
   }
 
   .card__surface-frame--music {
