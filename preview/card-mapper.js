@@ -21,6 +21,9 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const keepImage = safeStatus === "ready";
   const contentKind = result.kind === PREVIEW_KIND.IMAGE ? LINK_CONTENT_KIND_IMAGE : LINK_CONTENT_KIND_BOOKMARK;
   const isAmazonCard = nextType === AMAZON_PRODUCT_CARD_TYPE;
+  const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"
+    ? result.diagnostics
+    : null;
 
   return {
     type: nextType,
@@ -40,6 +43,7 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
     previewKind: result.previewKind === "music" ? "music" : "default",
     previewError: result.reason || "",
     status: safeStatus,
+    previewDiagnostics,
     productAsin: isAmazonCard ? String(result.metadata?.productAsin ?? "") : "",
     productPrice: isAmazonCard ? String(result.metadata?.productPrice ?? "") : "",
     productDomain: isAmazonCard ? String(result.metadata?.productDomain ?? "") : "",

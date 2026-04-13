@@ -1,5 +1,10 @@
 import { memo, useEffect, useState } from "react";
-import { formatCardSubtitle, LINK_CONTENT_KIND_IMAGE } from "../../lib/workspace";
+import {
+  canRefreshLinkPreviewCard,
+  formatCardSubtitle,
+  LINK_CONTENT_KIND_IMAGE,
+  shouldRecoverLinkPreviewCard,
+} from "../../lib/workspace";
 import { useAppContext } from "../../context/useAppContext";
 import { useToast } from "../../hooks/useToast";
 import { desktop } from "../../lib/desktop";
@@ -310,10 +315,11 @@ function LinkTile({
           )}
         </div>
 
-        {!isImageTile && card.status === "error" ? (
+        {!isImageTile && shouldRecoverLinkPreviewCard(card) ? (
           <button
             className="card__retry"
             type="button"
+            disabled={!canRefreshLinkPreviewCard(card)}
             onClick={() => onRetry(card)}
           >
             Retry preview

@@ -46,6 +46,7 @@ const RACK_CARD_SIZE = Object.freeze({
 
 const RACK_DEFAULT_TITLE = "Rack";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
+const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -167,6 +168,14 @@ function normalizeCardLayout(layout) {
   };
 }
 
+function normalizePreviewDiagnostics(previewDiagnostics) {
+  if (!previewDiagnostics || typeof previewDiagnostics !== "object" || Array.isArray(previewDiagnostics)) {
+    return null;
+  }
+
+  return JSON.parse(JSON.stringify(previewDiagnostics));
+}
+
 function normalizeWorkspaceView(view, tileCount = 0) {
   const defaults = getDefaultWorkspaceView(tileCount);
   const globeRadius = Number.isFinite(view?.globeRadius)
@@ -281,9 +290,10 @@ export function normalizeCard(card, fallbackIndex = 0) {
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
-    status: isLinkLikeCard && ["loading", "ready", "fallback", "blocked", "error"].includes(card?.status)
+    status: isLinkLikeCard && LINK_PREVIEW_STATUSES.includes(card?.status)
       ? card.status
       : "idle",
+    previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
@@ -592,7 +602,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     previewError: typeof options?.previewError === "string" ? options.previewError : "",
     status: contentKind === LINK_CONTENT_KIND_IMAGE
       ? "ready"
-      : ["loading", "ready", "fallback", "blocked", "error"].includes(options?.status)
+      : LINK_PREVIEW_STATUSES.includes(options?.status)
         ? options.status
         : "loading",
     asset,
@@ -802,6 +812,63 @@ export function isImageLinkCard(card) {
 
 export function isBookmarkLinkCard(card) {
   return isLinkLikeType(card?.type) && !isImageLinkCard(card);
+}
+
+export function canRefreshLinkPreviewCard(card) {
+  return isBookmarkLinkCard(card)
+    && typeof card?.url === "string"
+    && card.url.trim().length > 0
+    && card.status !== "loading";
+}
+
+export function hasUsableLinkPreview(card) {
+  if (!isBookmarkLinkCard(card)) {
+    return false;
+  }
+
+  return Boolean(
+    card.image?.trim()
+    || card.title?.trim()
+    || card.description?.trim()
+    || card.favicon?.trim()
+    || card.siteName?.trim()
+    || card.productAsin?.trim()
+    || card.productPrice?.trim()
+    || card.productDomain?.trim()
+    || Number.isFinite(card.productRating)
+    || Number.isFinite(card.productReviewCount),
+  );
+}
+
+export function shouldRecoverLinkPreviewCard(card) {
+  if (!canRefreshLinkPreviewCard(card)) {
+    return false;
+  }
+
+  return card.status === "failed"
+    || card.status !== "ready"
+    || Boolean(card.previewError?.trim())
+    || !hasUsableLinkPreview(card);
+}
+
+export function createLinkPreviewRefreshPatch(card) {
+  if (!isBookmarkLinkCard(card)) {
+    return null;
+  }
+
+  return {
+    type: TILE_TYPES.LINK,
+    contentKind: LINK_CONTENT_KIND_BOOKMARK,
+    status: "loading",
+    previewKind: "default",
+    previewError: "",
+    image: "",
+    productAsin: "",
+    productPrice: "",
+    productDomain: "",
+    productRating: null,
+    productReviewCount: null,
+  };
 }
 
 export function isEditableElement(element) {

@@ -1,4 +1,5 @@
 const CANVAS_ACTION_ORDER = [
+  "refresh-failed-previews",
   "snapping",
   "folder",
   "rack",
@@ -6,6 +7,8 @@ const CANVAS_ACTION_ORDER = [
 ];
 
 const TILE_ACTION_ORDER = [
+  "refresh-preview",
+  "copy-preview-diagnostics",
   "folder",
   "rack",
   "link",
@@ -16,6 +19,10 @@ export function buildRadialMenuActions({
   menu,
   snapEnabled,
   deleteDisabled,
+  failedPreviewRefreshCount = 0,
+  singlePreviewRefreshDisabled = false,
+  showSinglePreviewRefresh = false,
+  showCopyPreviewDiagnostics = false,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
@@ -24,6 +31,45 @@ export function buildRadialMenuActions({
 
   // Extend this switch with new ids as the canvas command surface grows.
   return actionOrder.map((id) => {
+    if (id === "refresh-failed-previews") {
+      return {
+        id,
+        label: "Refresh failed previews",
+        kind: "action",
+        isDisabled: failedPreviewRefreshCount === 0,
+        activeLabel: failedPreviewRefreshCount > 0 ? `${failedPreviewRefreshCount} recoverable` : "",
+        onTrigger: handlers.onRefreshFailedPreviews,
+      };
+    }
+
+    if (id === "refresh-preview") {
+      if (!showSinglePreviewRefresh) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Refresh preview",
+        kind: "action",
+        isDisabled: singlePreviewRefreshDisabled,
+        activeLabel: singlePreviewRefreshDisabled ? "Loading" : "",
+        onTrigger: handlers.onRefreshPreview,
+      };
+    }
+
+    if (id === "copy-preview-diagnostics") {
+      if (!showCopyPreviewDiagnostics) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Copy preview diagnostics",
+        kind: "action",
+        onTrigger: handlers.onCopyPreviewDiagnostics,
+      };
+    }
+
     if (id === "snapping") {
       return {
         id,

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addTileToRack,
+  canRefreshLinkPreviewCard,
+  createLinkPreviewRefreshPatch,
   createLinkCard,
   getRackByTileId,
   isUrl,
@@ -9,12 +11,15 @@ import {
   removeCard,
   removeTileFromRack,
   RACK_CARD_TYPE,
+  shouldRecoverLinkPreviewCard,
   updateCards,
 } from "../../lib/workspace";
 import { desktop } from "../../lib/desktop";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
+
+const PREVIEW_REFRESH_CONCURRENCY = 4;
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
@@ -97,6 +102,22 @@ async function readClipboardImage(clipboardData) {
   };
 }
 
+async function runWithConcurrency(items, limit, worker) {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  const concurrency = Math.max(1, Math.min(limit, normalizedItems.length || 1));
+  let nextIndex = 0;
+
+  async function consume() {
+    while (nextIndex < normalizedItems.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      await worker(normalizedItems[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => consume()));
+}
+
 export function useCanvasCommands({
   folderPath,
   canvasFilePath,
@@ -128,6 +149,64 @@ export function useCanvasCommands({
       toast("error", `Preview failed: ${message}`);
     }
   }, [folderPath, log, toast, updateExistingCard]);
+
+  const refreshTilePreview = useCallback(async (tile, options = {}) => {
+    if (!canRefreshLinkPreviewCard(tile)) {
+      return false;
+    }
+
+    const refreshPatch = createLinkPreviewRefreshPatch(tile);
+
+    if (!refreshPatch) {
+      return false;
+    }
+
+    const nextTile = {
+      ...tile,
+      ...refreshPatch,
+    };
+
+    updateExistingCard(tile.id, refreshPatch);
+
+    if (!options.silent) {
+      log("info", `Refreshing preview for card ${tile.id}`);
+      toast("info", "Refreshing link preview...");
+    }
+
+    await queueLinkPreview(nextTile);
+    return true;
+  }, [log, queueLinkPreview, toast, updateExistingCard]);
+
+  const refreshRecoverableTilePreviews = useCallback(async (tiles) => {
+    const recoverableTiles = (Array.isArray(tiles) ? tiles : [])
+      .filter((tile) => shouldRecoverLinkPreviewCard(tile));
+
+    if (recoverableTiles.length === 0) {
+      return 0;
+    }
+
+    const updatesById = Object.fromEntries(
+      recoverableTiles.map((tile) => [tile.id, createLinkPreviewRefreshPatch(tile)]),
+    );
+
+    updateExistingCards(updatesById);
+    log("info", "Refreshing failed previews", { count: recoverableTiles.length });
+    toast(
+      "info",
+      recoverableTiles.length === 1
+        ? "Refreshing 1 failed preview..."
+        : `Refreshing ${recoverableTiles.length} failed previews...`,
+    );
+
+    await runWithConcurrency(recoverableTiles, PREVIEW_REFRESH_CONCURRENCY, async (tile) => {
+      await queueLinkPreview({
+        ...tile,
+        ...updatesById[tile.id],
+      });
+    });
+
+    return recoverableTiles.length;
+  }, [log, queueLinkPreview, toast, updateExistingCards]);
 
   const openWorkspaceFolder = useCallback(async () => {
     log("info", "Opening folder picker...");
@@ -338,15 +417,8 @@ export function useCanvasCommands({
   }, [updateExistingCard]);
 
   const retryTilePreview = useCallback((tile) => {
-    if (!tile) {
-      return;
-    }
-
-    log("info", `Retrying preview for card ${tile.id}`);
-    toast("info", "Retrying link preview...");
-    updateExistingCard(tile.id, { status: "loading" });
-    void queueLinkPreview(tile);
-  }, [log, queueLinkPreview, toast, updateExistingCard]);
+    void refreshTilePreview(tile);
+  }, [refreshTilePreview]);
 
   const openTileLink = useCallback(async (tile) => {
     if (!tile?.url) {
@@ -623,6 +695,8 @@ export function useCanvasCommands({
     commitCurrentWorkspace,
     replaceTiles,
     importResolvedDrop,
+    refreshRecoverableTilePreviews,
+    refreshTilePreview,
     retryTilePreview,
     updateTileFromMediaLoad,
   }), [
@@ -643,6 +717,8 @@ export function useCanvasCommands({
     commitCurrentWorkspace,
     replaceTiles,
     removeTileFromRackCommand,
+    refreshRecoverableTilePreviews,
+    refreshTilePreview,
     retryTilePreview,
     updateTileFromMediaLoad,
   ]);

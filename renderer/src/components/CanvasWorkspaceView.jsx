@@ -9,7 +9,12 @@ import TileContextMenu from "./TileContextMenu";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
-import { isBookmarkLinkCard, isEditableElement } from "../lib/workspace";
+import {
+  canRefreshLinkPreviewCard,
+  isBookmarkLinkCard,
+  isEditableElement,
+  shouldRecoverLinkPreviewCard,
+} from "../lib/workspace";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -152,6 +157,41 @@ async function copyTextToClipboard(text) {
   } finally {
     document.body.removeChild(input);
   }
+}
+
+function buildPreviewDiagnosticsExport(card) {
+  const diagnostics = card?.previewDiagnostics && typeof card.previewDiagnostics === "object"
+    ? card.previewDiagnostics
+    : {};
+
+  const { previewDiagnostics, ...rawFinalPersistedCardPayload } = card ?? {};
+  const finalPersistedCardPayload = {
+    ...rawFinalPersistedCardPayload,
+    image: typeof rawFinalPersistedCardPayload.image === "string" && rawFinalPersistedCardPayload.image.startsWith("data:")
+      ? `[data-url omitted: ${rawFinalPersistedCardPayload.image.length} chars]`
+      : (rawFinalPersistedCardPayload.image || ""),
+  };
+
+  return {
+    schemaVersion: 1,
+    originalUrl: diagnostics.originalUrl || card?.url || "",
+    canonicalUrl: diagnostics.canonicalUrl || card?.url || "",
+    classification: diagnostics.classification || "",
+    resolverKey: diagnostics.resolverKey || "",
+    previewStatus: diagnostics.previewStatus || card?.status || "",
+    reason: diagnostics.reason || card?.previewError || "",
+    rejectionReason: diagnostics.rejectionReason || "",
+    title: diagnostics.title || card?.title || "",
+    description: diagnostics.description || card?.description || "",
+    siteName: diagnostics.siteName || card?.siteName || "",
+    candidateImageUrls: Array.isArray(diagnostics.candidateImageUrls) ? diagnostics.candidateImageUrls : [],
+    chosenFinalImageUrl: diagnostics.chosenFinalImageUrl || "",
+    allowScreenshotFallback: diagnostics.allowScreenshotFallback === true,
+    screenshotFallbackUsed: diagnostics.screenshotFallbackUsed === true,
+    documentSignals: diagnostics.documentSignals ?? {},
+    resolverMetadata: diagnostics.resolverMetadata ?? {},
+    finalPersistedCardPayload,
+  };
 }
 
 function CanvasPerformanceOverlay({
@@ -809,6 +849,16 @@ export default function CanvasWorkspaceView() {
   }, [log, saveHomeUiState, toast]);
 
   const radialMenu = interactions.contextMenu;
+  const recoverablePreviewTiles = useMemo(
+    () => workspace.cards.filter((card) => shouldRecoverLinkPreviewCard(card)),
+    [workspace.cards],
+  );
+  const activeContextTile = radialMenu?.kind === "tile"
+    ? (tileById[radialMenu.card?.id] ?? radialMenu.card ?? null)
+    : null;
+  const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
+    || isBookmarkLinkCard(activeContextTile);
+  const canCopyPreviewDiagnostics = isBookmarkLinkCard(activeContextTile);
 
   const handleRadialFolder = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -855,11 +905,48 @@ export default function CanvasWorkspaceView() {
     return Boolean(tile);
   }, [commands, radialMenu]);
 
+  const handleRefreshFailedPreviews = useCallback(async () => {
+    const refreshedCount = await commands.refreshRecoverableTilePreviews(recoverablePreviewTiles);
+    return refreshedCount > 0;
+  }, [commands, recoverablePreviewTiles]);
+
+  const handleRefreshTilePreview = useCallback(async () => {
+    if (!activeContextTile) {
+      return false;
+    }
+
+    return commands.refreshTilePreview(activeContextTile);
+  }, [activeContextTile, commands]);
+
+  const handleCopyPreviewDiagnostics = useCallback(async () => {
+    if (!canCopyPreviewDiagnostics || !activeContextTile) {
+      return false;
+    }
+
+    try {
+      const payload = buildPreviewDiagnosticsExport(activeContextTile);
+      await copyTextToClipboard(JSON.stringify(payload, null, 2));
+      toast("success", "Preview diagnostics copied");
+      return true;
+    } catch (error) {
+      log("error", "Copy preview diagnostics failed", error?.message || "Could not copy preview diagnostics.");
+      toast("error", "Could not copy preview diagnostics");
+      return false;
+    }
+  }, [activeContextTile, canCopyPreviewDiagnostics, log, toast]);
+
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
     snapEnabled: snapSettings.enabled,
     deleteDisabled: (radialMenu?.selectionIds?.length ?? 0) === 0,
+    failedPreviewRefreshCount: radialMenu?.kind === "canvas" ? recoverablePreviewTiles.length : 0,
+    showSinglePreviewRefresh: radialMenu?.kind === "tile" && canShowRefreshPreviewAction,
+    showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
+    singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     handlers: {
+      onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
+      onRefreshFailedPreviews: handleRefreshFailedPreviews,
+      onRefreshPreview: handleRefreshTilePreview,
       onToggleSnapping: () => {
         toggleCanvasSnapping();
         return true;
@@ -874,6 +961,13 @@ export default function CanvasWorkspaceView() {
     handleRadialFolder,
     handleRadialLink,
     handleRadialRack,
+    handleCopyPreviewDiagnostics,
+    handleRefreshFailedPreviews,
+    handleRefreshTilePreview,
+    canCopyPreviewDiagnostics,
+    canShowRefreshPreviewAction,
+    activeContextTile,
+    recoverablePreviewTiles.length,
     radialMenu,
     snapSettings.enabled,
     toggleCanvasSnapping,

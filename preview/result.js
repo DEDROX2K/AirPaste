@@ -17,6 +17,7 @@ function createResolvedPreviewResult(overrides = {}) {
     metadata: {},
     candidateImageUrls: [],
     allowScreenshotFallback: false,
+    diagnostics: null,
     ...overrides,
   };
 }

@@ -259,6 +259,14 @@ function normalizeLinkAsset(asset) {
   };
 }
 
+function normalizePreviewDiagnostics(previewDiagnostics) {
+  if (!previewDiagnostics || typeof previewDiagnostics !== "object" || Array.isArray(previewDiagnostics)) {
+    return null;
+  }
+
+  return JSON.parse(JSON.stringify(previewDiagnostics));
+}
+
 function stripNoteLine(line) {
   return String(line ?? "")
     .trim()
@@ -370,6 +378,7 @@ function normalizeCard(card, index = 0) {
     status: isLinkLikeCard && PREVIEW_STATE_VALUES.includes(card?.status)
       ? card.status
       : "idle",
+    previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
     asset: type === "link" ? linkAsset : null,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
@@ -1873,6 +1882,14 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     ...previewCardState,
     updatedAt: nowIso(),
   });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[preview] final-mapped-card", {
+      cardId,
+      url,
+      card: nextCard,
+    });
+  }
 
   workspace.cards.splice(cardIndex, 1, nextCard);
   await workspaceService.saveWorkspace(folderPath, workspace);

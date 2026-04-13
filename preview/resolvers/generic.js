@@ -92,6 +92,26 @@ async function fetchImageDataUrl(url) {
   }
 }
 
+function isPinterestImageUrl(url) {
+  return /https?:\/\/(?:i\.)?pinimg\.com\//i.test(String(url ?? ""));
+}
+
+function upgradePinterestImageUrl(url) {
+  if (!url) {
+    return "";
+  }
+
+  return url.replace(/i\.pinimg\.com\/(?:\d+x|\d+x\d+_RS)\//i, "i.pinimg.com/originals/");
+}
+
+function logPinterestImageDebug(event, payload) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  console.debug(`[preview:pinterest:image] ${event}`, payload);
+}
+
 async function fetchPreviewDocument(url) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PREVIEW_DOCUMENT_TIMEOUT_MS);
@@ -190,7 +210,6 @@ function upgradeArtworkUrl(url) {
   nextUrl = nextUrl.replace(/00004851/ig, "0000b273");
   nextUrl = nextUrl.replace(/\/\d{2,4}x\d{2,4}(?:bb|sr)(?=[./?])/i, "/1600x1600bb");
   nextUrl = nextUrl.replace(/\/cover\/\d+x\d+-/i, "/cover/1000x1000-");
-  nextUrl = nextUrl.replace(/i\.pinimg\.com\/(?:\d+x|\d+x\d+_RS)\//i, "i.pinimg.com/originals/");
 
   if (/pbs\.twimg\.com\/media\//i.test(nextUrl) || /pbs\.twimg\.com\/ext_tw_video_thumb\//i.test(nextUrl)) {
     if (/[?&]name=/i.test(nextUrl)) {
@@ -202,6 +221,25 @@ function upgradeArtworkUrl(url) {
 
   nextUrl = nextUrl.replace(/\/(?:hqdefault|mqdefault|sddefault)\.jpg(?=$|[?#])/i, "/maxresdefault.jpg");
   return nextUrl;
+}
+
+function expandCandidateUrl(url) {
+  const normalizedUrl = String(url ?? "").trim();
+
+  if (!normalizedUrl) {
+    return [];
+  }
+
+  if (isPinterestImageUrl(normalizedUrl)) {
+    const upgradedUrl = upgradePinterestImageUrl(normalizedUrl);
+    logPinterestImageDebug("candidate:expanded", {
+      extractedCandidate: normalizedUrl,
+      upgradedCandidate: upgradedUrl,
+    });
+    return uniqueValues([upgradedUrl, normalizedUrl]);
+  }
+
+  return [upgradeArtworkUrl(normalizedUrl)];
 }
 
 function isLikelyPreviewImageUrl(url) {
@@ -241,29 +279,60 @@ function isBlockedPreviewImageUrl(url) {
 }
 
 async function resolvePreviewImage(candidateUrls) {
-  const uniqueCandidates = uniqueValues(candidateUrls)
-    .map((candidateUrl) => upgradeArtworkUrl(candidateUrl))
+  const acquisition = await acquirePreviewImage(candidateUrls);
+  return acquisition.image;
+}
+
+async function acquirePreviewImage(candidateUrls) {
+  const attemptedCandidateUrls = uniqueValues(candidateUrls)
+    .flatMap((candidateUrl) => expandCandidateUrl(candidateUrl))
     .filter((candidateUrl) => (
       candidateUrl
       && !isBlockedPreviewImageUrl(candidateUrl)
       && isLikelyPreviewImageUrl(candidateUrl)
     ));
 
-  let remoteFallbackUrl = "";
+  const remoteFallbackUrl = attemptedCandidateUrls.find((candidateUrl) => (
+    !isPinterestImageUrl(candidateUrl) || !candidateUrl.toLowerCase().includes("/originals/")
+  )) ?? attemptedCandidateUrls[0] ?? "";
 
-  for (const candidateUrl of uniqueCandidates) {
-    if (!remoteFallbackUrl) {
-      remoteFallbackUrl = candidateUrl;
-    }
-
+  for (const candidateUrl of attemptedCandidateUrls) {
     const dataUrl = await fetchImageDataUrl(candidateUrl);
 
+    if (isPinterestImageUrl(candidateUrl)) {
+      logPinterestImageDebug(dataUrl ? "fetch:success" : "fetch:failure", {
+        candidateUrl,
+      });
+    }
+
     if (dataUrl) {
-      return dataUrl;
+      if (isPinterestImageUrl(candidateUrl)) {
+        logPinterestImageDebug("image:chosen", {
+          finalChosenImageUrl: candidateUrl,
+        });
+      }
+
+      return {
+        image: dataUrl,
+        chosenImageUrl: candidateUrl,
+        attemptedCandidateUrls,
+        remoteFallbackUrl,
+      };
     }
   }
 
-  return remoteFallbackUrl;
+  if (isPinterestImageUrl(remoteFallbackUrl)) {
+    logPinterestImageDebug("image:chosen", {
+      finalChosenImageUrl: remoteFallbackUrl,
+    });
+  }
+
+  return {
+    image: remoteFallbackUrl,
+    chosenImageUrl: remoteFallbackUrl,
+    attemptedCandidateUrls,
+    remoteFallbackUrl,
+  };
 }
 
 function bufferToDataUrl(buffer, mimeType) {
@@ -445,6 +514,7 @@ async function resolveGenericLinkPreview(url) {
 }
 
 module.exports = {
+  acquirePreviewImage,
   capturePreviewScreenshot,
   closePreviewBrowser,
   fetchJson,

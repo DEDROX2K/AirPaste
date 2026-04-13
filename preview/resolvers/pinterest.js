@@ -26,6 +26,14 @@ function upgradePinterestImageUrl(url) {
   return url.replace(/i\.pinimg\.com\/(?:\d+x|\d+x\d+_RS)\//i, "i.pinimg.com/originals/");
 }
 
+function logPinterestDebug(event, payload) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  console.debug(`[preview:pinterest] ${event}`, payload);
+}
+
 function isRejectedPinterestImageUrl(url) {
   const normalizedUrl = String(url ?? "").toLowerCase();
 
@@ -158,8 +166,15 @@ function extractPinterestDocumentData(html, finalUrl) {
     $("source[srcset*='pinimg.com']").first().attr("srcset")?.split(",")?.pop()?.trim()?.split(" ")?.[0],
     ...jsonLdCandidates.flatMap((entry) => entry.imageCandidates),
   ]
-    .map((candidate) => upgradePinterestImageUrl(resolveUrl(candidate, finalUrl)))
+    .map((candidate) => resolveUrl(candidate, finalUrl))
     .filter(Boolean);
+
+  stableImageCandidates.forEach((candidate) => {
+    logPinterestDebug("candidate:extracted", {
+      extractedCandidate: candidate,
+      upgradedCandidate: upgradePinterestImageUrl(candidate),
+    });
+  });
 
   const imageCandidates = uniqueValues(stableImageCandidates)
     .filter((candidate) => !isRejectedPinterestImageUrl(candidate))
