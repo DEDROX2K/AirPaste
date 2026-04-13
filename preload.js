@@ -2,6 +2,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("airpaste", {
   openFolder: () => ipcRenderer.invoke("airpaste:openFolder"),
+  listDomes: () => ipcRenderer.invoke("airpaste:listDomes"),
+  getActiveDome: () => ipcRenderer.invoke("airpaste:getActiveDome"),
+  createDome: (parentFolderPath, name) => ipcRenderer.invoke("airpaste:createDome", parentFolderPath, name),
+  openDome: () => ipcRenderer.invoke("airpaste:openDome"),
+  switchDome: (domeId) => ipcRenderer.invoke("airpaste:switchDome", domeId),
+  removeDome: (domeId) => ipcRenderer.invoke("airpaste:removeDome", domeId),
+  revealDome: (domePath) => ipcRenderer.invoke("airpaste:revealDome", domePath),
   createWorkspace: (folderPath) => ipcRenderer.invoke("airpaste:createWorkspace", folderPath),
   loadWorkspace: (folderPath) => ipcRenderer.invoke("airpaste:loadWorkspace", folderPath),
   saveWorkspace: (folderPath, data) => ipcRenderer.invoke("airpaste:saveWorkspace", folderPath, data),

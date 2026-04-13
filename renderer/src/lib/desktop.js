@@ -1,7 +1,49 @@
 const airpasteBridge = window.airpaste ?? {};
 const electronBridge = window.electronAPI ?? {};
 
+async function invokeWithFallback(invoke, fallbackValue) {
+  try {
+    return await invoke();
+  } catch (error) {
+    const message = String(error?.message ?? "");
+    if (message.includes("No handler registered")) {
+      return typeof fallbackValue === "function" ? fallbackValue() : fallbackValue;
+    }
+    throw error;
+  }
+}
+
 export const desktop = {
+  dome: {
+    listDomes: (...args) => invokeWithFallback(
+      () => airpasteBridge.listDomes?.(...args) ?? Promise.resolve({ activeDomeId: null, recentDomes: [] }),
+      { activeDomeId: null, recentDomes: [] },
+    ),
+    getActiveDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.getActiveDome?.(...args) ?? Promise.resolve(null),
+      null,
+    ),
+    createDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.createDome?.(...args) ?? Promise.resolve(null),
+      null,
+    ),
+    openDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.openDome?.(...args) ?? Promise.resolve(null),
+      null,
+    ),
+    switchDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.switchDome?.(...args) ?? Promise.resolve(null),
+      null,
+    ),
+    removeDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.removeDome?.(...args) ?? Promise.resolve({ activeDomeId: null, recentDomes: [] }),
+      { activeDomeId: null, recentDomes: [] },
+    ),
+    revealDome: (...args) => invokeWithFallback(
+      () => airpasteBridge.revealDome?.(...args) ?? Promise.resolve({ opened: false }),
+      { opened: false },
+    ),
+  },
   workspace: {
     openFolder: (...args) => airpasteBridge.openFolder?.(...args) ?? Promise.resolve(null),
     createWorkspace: (...args) => airpasteBridge.createWorkspace?.(...args) ?? Promise.resolve(null),

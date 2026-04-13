@@ -5,6 +5,7 @@ import HomeShell from "./components/HomeShell";
 import PageEditorView from "./components/PageEditorView";
 import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
+import { AppButton, AppSurface } from "./components/ui/app";
 import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
 import { useTheme } from "./hooks/useTheme";
@@ -40,38 +41,40 @@ function StartupSplash({ isLoading, onCreateNewWorkspace, onOpenExistingWorkspac
 
       <div className="startup-splash__inner">
         <section className="startup-splash__content">
-          <p className="startup-splash__eyebrow">AirPaste</p>
-          <h1 className="startup-splash__title">Paste first. Organize when you&rsquo;re ready.</h1>
-          <p className="startup-splash__description">
+          <p className="startup-splash__eyebrow ap-type-subheading">AirPaste</p>
+          <h1 className="startup-splash__title ap-type-display">Paste first. Organize when you&rsquo;re ready.</h1>
+          <p className="startup-splash__description ap-type-body">
             A local-first desktop canvas for collecting bookmarks, links, and images without sending
             them anywhere else.
           </p>
 
           <div className="startup-splash__actions">
             {STARTUP_ACTIONS.map((action) => (
-              <button
+              <AppButton
                 key={action.id}
                 className="startup-splash__action"
+                tone="surface"
+                block
                 type="button"
                 onClick={actionHandlers[action.id]}
                 disabled={isLoading}
               >
                 <span className="startup-splash__action-icon" aria-hidden="true" />
                 <span className="startup-splash__action-copy">
-                  <span className="startup-splash__action-title">{action.title}</span>
-                  <span className="startup-splash__action-description">{action.description}</span>
+                  <span className="startup-splash__action-title ap-type-heading-3">{action.title}</span>
+                  <span className="startup-splash__action-description ap-type-body-sm">{action.description}</span>
                 </span>
-              </button>
+              </AppButton>
             ))}
           </div>
 
-          <p className="startup-splash__caption">Every workspace stays tied to a folder on your machine.</p>
+          <p className="startup-splash__caption ap-type-caption">Every workspace stays tied to a folder on your machine.</p>
         </section>
 
         <aside className="startup-splash__hero" aria-hidden="true">
-          <div className="startup-splash__hero-card">
+          <AppSurface className="startup-splash__hero-card" variant="elevated">
             <img className="startup-splash__hero-image" src={STARTUP_SPLASH_IMAGE_SRC} alt="" />
-          </div>
+          </AppSurface>
         </aside>
       </div>
     </main>

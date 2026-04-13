@@ -1,0 +1,192 @@
+/**
+ * AirPaste Design System — motion.css
+ *
+ * Motion tokens and transition utilities.
+ * All animated components should pull from these values.
+ *
+ * Import after tokens.css and theme.css.
+ */
+
+/* ─── Duration Tokens ──────────────────────────────────────────────────── */
+:root {
+  --ap-duration-instant:    0ms;
+  --ap-duration-fast:       100ms;
+  --ap-duration-normal:     150ms;
+  --ap-duration-moderate:   200ms;
+  --ap-duration-slow:       300ms;
+  --ap-duration-deliberate: 400ms;
+
+  /* ─── Easing Tokens ──────────────────────────────────────────── */
+  --ap-ease-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --ap-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ap-ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --ap-ease-spring:     cubic-bezier(0.35, 1.35, 0.45, 1);
+  --ap-ease-linear:     linear;
+
+  /* ─── Composite Transition Shorthands ───────────────────────── */
+  /* For use in transition: property var(--ap-transition-X) */
+  --ap-transition-fast:     var(--ap-duration-fast) var(--ap-ease-standard);
+  --ap-transition-normal:   var(--ap-duration-normal) var(--ap-ease-standard);
+  --ap-transition-moderate: var(--ap-duration-moderate) var(--ap-ease-standard);
+  --ap-transition-slow:     var(--ap-duration-slow) var(--ap-ease-standard);
+  --ap-transition-enter:    var(--ap-duration-moderate) var(--ap-ease-decelerate);
+  --ap-transition-exit:     var(--ap-duration-normal) var(--ap-ease-accelerate);
+  --ap-transition-spring:   var(--ap-duration-moderate) var(--ap-ease-spring);
+}
+
+/* ─── Reduced Motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ap-duration-instant:    0ms;
+    --ap-duration-fast:       0ms;
+    --ap-duration-normal:     0ms;
+    --ap-duration-moderate:   0ms;
+    --ap-duration-slow:       0ms;
+    --ap-duration-deliberate: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Transition Utility Classes ───────────────────────────────────────── */
+
+/* Standard properties — opacity and color */
+.ap-transition-colors {
+  transition:
+    color           var(--ap-transition-normal),
+    background-color var(--ap-transition-normal),
+    border-color    var(--ap-transition-normal),
+    fill            var(--ap-transition-normal),
+    stroke          var(--ap-transition-normal);
+}
+
+/* Transform-based — movement, scale */
+.ap-transition-transform {
+  transition: transform var(--ap-transition-normal);
+}
+
+/* Opacity */
+.ap-transition-opacity {
+  transition: opacity var(--ap-transition-normal);
+}
+
+/* Shadow */
+.ap-transition-shadow {
+  transition: box-shadow var(--ap-transition-normal);
+}
+
+/* Common combined — interactive elements */
+.ap-transition-interactive {
+  transition:
+    color            var(--ap-transition-fast),
+    background-color var(--ap-transition-fast),
+    border-color     var(--ap-transition-fast),
+    box-shadow       var(--ap-transition-fast),
+    opacity          var(--ap-transition-fast),
+    transform        var(--ap-transition-spring);
+}
+
+/* Panel/surface open-close */
+.ap-transition-panel {
+  transition:
+    opacity   var(--ap-transition-enter),
+    transform var(--ap-transition-enter);
+}
+
+/* ─── Enter / Exit Keyframes ───────────────────────────────────────────── */
+
+/* Fade in */
+@keyframes ap-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Fade out */
+@keyframes ap-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Fade in + scale up (panel/popover entry) */
+@keyframes ap-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide in from top */
+@keyframes ap-slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide in from bottom */
+@keyframes ap-slide-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Rise — cards entering on page load */
+@keyframes ap-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Animation Utility Classes ────────────────────────────────────────── */
+.ap-animate-fade-in {
+  animation: ap-fade-in var(--ap-duration-moderate) var(--ap-ease-decelerate) both;
+}
+
+.ap-animate-scale-in {
+  animation: ap-scale-in var(--ap-duration-moderate) var(--ap-ease-decelerate) both;
+}
+
+.ap-animate-slide-in-top {
+  animation: ap-slide-in-top var(--ap-duration-moderate) var(--ap-ease-decelerate) both;
+}
+
+.ap-animate-slide-in-bottom {
+  animation: ap-slide-in-bottom var(--ap-duration-moderate) var(--ap-ease-decelerate) both;
+}
+
+.ap-animate-rise {
+  animation: ap-rise var(--ap-duration-slow) var(--ap-ease-decelerate) both;
+}
+
+/* Stagger helpers — add delay to successive elements */
+.ap-stagger-1 { animation-delay: calc(1 * 60ms); }
+.ap-stagger-2 { animation-delay: calc(2 * 60ms); }
+.ap-stagger-3 { animation-delay: calc(3 * 60ms); }
+.ap-stagger-4 { animation-delay: calc(4 * 60ms); }
+.ap-stagger-5 { animation-delay: calc(5 * 60ms); }
+.ap-stagger-6 { animation-delay: calc(6 * 60ms); }

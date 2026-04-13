@@ -26,7 +26,7 @@ import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
   normalizeCanvasSnapSettings,
 } from "../systems/snapping/canvasSnapSettings";
-import { AppEmptyState } from "./ui/app";
+import { AppButton, AppEmptyState } from "./ui/app";
 import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
 import {
@@ -62,7 +62,7 @@ function IconHome() {
 function WorkspaceViewToggle({ mode, onChange }) {
   return (
     <div className="workspace-view-toggle" role="tablist" aria-label="Workspace view mode">
-      <button
+      <AppButton tone="unstyled"
         type="button"
         className={`workspace-view-toggle__button${mode === "flat" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("flat")}
@@ -71,8 +71,8 @@ function WorkspaceViewToggle({ mode, onChange }) {
         aria-label="Canvas view"
       >
         <img className="workspace-view-toggle__icon" src="/icons/canvas.png" alt="" aria-hidden="true" />
-      </button>
-      <button
+      </AppButton>
+      <AppButton tone="unstyled"
         type="button"
         className={`workspace-view-toggle__button${mode === "globe" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("globe")}
@@ -81,8 +81,8 @@ function WorkspaceViewToggle({ mode, onChange }) {
         aria-label="Globe view"
       >
         <img className="workspace-view-toggle__icon" src="/globe.svg" alt="" aria-hidden="true" />
-      </button>
-      <button
+      </AppButton>
+      <AppButton tone="unstyled"
         type="button"
         className={`workspace-view-toggle__button${mode === "grid" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("grid")}
@@ -91,7 +91,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         aria-label="Grid view"
       >
         <img className="workspace-view-toggle__icon" src="/icons/grid.png" alt="" aria-hidden="true" />
-      </button>
+      </AppButton>
     </div>
   );
 }
@@ -190,6 +190,7 @@ function buildPreviewDiagnosticsExport(card) {
     screenshotFallbackUsed: diagnostics.screenshotFallbackUsed === true,
     documentSignals: diagnostics.documentSignals ?? {},
     resolverMetadata: diagnostics.resolverMetadata ?? {},
+    trace: Array.isArray(diagnostics.trace) ? diagnostics.trace : [],
     finalPersistedCardPayload,
   };
 }
@@ -310,13 +311,13 @@ function CanvasPerformanceOverlay({
         <span>PERF</span>
         <div className="canvas-perf-overlay__header-actions">
           <span>{isCanvasMoving ? "moving" : "idle"}</span>
-          <button
+          <AppButton tone="unstyled"
             className="canvas-perf-overlay__copy"
             type="button"
             onClick={() => { void handleCopyPerf(); }}
           >
             Copy
-          </button>
+          </AppButton>
         </div>
       </div>
       <svg
@@ -977,50 +978,11 @@ export default function CanvasWorkspaceView() {
   if (isGridMode) {
     return (
       <main className="canvas-stage canvas-stage--grid">
-        {createPortal(
-          <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
-            <div className="canvas-search">
-              <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-              <input
-                id="tile-search"
-                ref={searchInputRef}
-                className="canvas-search__input"
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search tiles…"
-                aria-label="Search tiles"
-              />
-              {searchQuery ? (
-                <button
-                  className="canvas-search__clear"
-                  type="button"
-                  aria-label="Clear search"
-                  onClick={() => {
-                    setSearchQuery("");
-                    focusSearchInput();
-                  }}
-                >
-                  &times;
-                </button>
-              ) : (
-                <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
-              )}
-            </div>
-          </div>,
-          document.getElementById("titlebar-center-slot") || document.body,
-        )}
-        {createPortal(
-          <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
-            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          </div>,
-          document.getElementById("titlebar-right-slot") || document.body,
-        )}
         <div className="canvas-stage__fab">
           <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} side="top" />
+        </div>
+        <div className="canvas-stage__bottom-controls">
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
         </div>
         <WorkspaceTopbarTrail
           canvasName={canvasName}
@@ -1043,48 +1005,9 @@ export default function CanvasWorkspaceView() {
 
   return (
     <main className="canvas-stage">
-      {/* ── Search Portal ── */}
-      {createPortal(
-        <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
-          <div className="canvas-search">
-            <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              id="tile-search"
-              ref={searchInputRef}
-              className="canvas-search__input"
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search tiles\u2026"
-              aria-label="Search tiles"
-            />
-            {searchQuery ? (
-              <button
-                className="canvas-search__clear"
-                type="button"
-                aria-label="Clear search"
-                onClick={() => {
-                  setSearchQuery("");
-                  focusSearchInput();
-                }}
-              >
-                &times;
-              </button>
-            ) : (
-              <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
-            )}
-          </div>
-        </div>,
-        document.getElementById("titlebar-center-slot") || document.body
-      )}
-
       {/* ── Right Tools Portal ── */}
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
-          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           <CanvasZoomMenu
             zoom={isGlobeMode ? globeZoomValue : workspace.viewport.zoom}
             canFitAll={isGlobeMode ? filteredTiles.length > 0 : Boolean(layout.allTilesBounds)}
@@ -1105,6 +1028,40 @@ export default function CanvasWorkspaceView() {
           disabled={!folderPath || folderLoading}
           side="top"
         />
+      </div>
+      <div className="canvas-stage__bottom-controls">
+        <div className="canvas-search">
+          <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            id="tile-search"
+            ref={searchInputRef}
+            className="canvas-search__input"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search tiles\u2026"
+            aria-label="Search tiles"
+          />
+          {searchQuery ? (
+            <AppButton tone="unstyled"
+              className="canvas-search__clear"
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setSearchQuery("");
+                focusSearchInput();
+              }}
+            >
+              &times;
+            </AppButton>
+          ) : (
+            <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
+          )}
+        </div>
+        <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
       </div>
 
       {/* ── Top bar ── */}
@@ -1148,17 +1105,18 @@ export default function CanvasWorkspaceView() {
         }}
       >
         {isGlobeMode ? (
-          <GlobeWorkspaceView
-            allCards={workspace.cards}
-            cards={filteredTiles}
-            view={workspaceView}
-            setWorkspaceView={setWorkspaceView}
-            updateExistingCards={updateExistingCards}
-            openTileLink={commands.openTileLink}
-            updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
-            retryTilePreview={commands.retryTilePreview}
-            onVisibleCountChange={setGlobeVisibleTileCount}
-          />
+            <GlobeWorkspaceView
+              allCards={workspace.cards}
+              cards={filteredTiles}
+              view={workspaceView}
+              setWorkspaceView={setWorkspaceView}
+              updateExistingCards={updateExistingCards}
+              openTileLink={commands.openTileLink}
+              updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
+              retryTilePreview={commands.retryTilePreview}
+              onRemoveTile={(tileId) => commands.deleteTiles([tileId])}
+              onVisibleCountChange={setGlobeVisibleTileCount}
+            />
         ) : (
           <>
             <div ref={canvas.gridRef} className="canvas__grid" style={canvas.gridStyleVars} />
@@ -1211,9 +1169,9 @@ export default function CanvasWorkspaceView() {
             </div>
             <h2 className="canvas__empty-title">No workspace open</h2>
             <p className="canvas__empty-description">Open a local folder to start saving links and media.</p>
-            <button className="canvas__empty-action" type="button" onClick={commands.openWorkspaceFolder}>
+            <AppButton tone="unstyled" className="canvas__empty-action" type="button" onClick={commands.openWorkspaceFolder}>
               Open Folder
-            </button>
+            </AppButton>
           </section>
         ) : totalTileCount === 0 ? (
           <AppEmptyState
@@ -1248,3 +1206,4 @@ export default function CanvasWorkspaceView() {
     </main>
   );
 }
+

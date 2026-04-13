@@ -109,11 +109,19 @@ function createHomeState() {
   };
 }
 
+function createDomesState() {
+  return {
+    activeDomeId: null,
+    recentDomes: [],
+  };
+}
+
 export function AppProvider({ children }) {
   const { activeTab, openTab, closeTabsForEntity, renameTabForEntity, showHomeTab } = useTabs();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
   const [homeData, setHomeData] = useState(createHomeState());
+  const [domesState, setDomesState] = useState(createDomesState());
   const [folderLoading, setFolderLoading] = useState(false);
   const [error, setError] = useState("");
   const [workspacesByPath, setWorkspacesByPath] = useState({});
@@ -163,6 +171,10 @@ export function AppProvider({ children }) {
     return pagesByPath[currentEditor.filePath] ?? null;
   }, [currentEditor, pagesByPath]);
 
+  const activeDome = useMemo(() => (
+    domesState.recentDomes.find((entry) => entry.id === domesState.activeDomeId) ?? null
+  ), [domesState.activeDomeId, domesState.recentDomes]);
+
   const applyHomeData = useCallback((payload) => {
     setHomeData({
       workspace: payload?.workspace ?? null,
@@ -187,6 +199,19 @@ export function AppProvider({ children }) {
     showHomeTab();
   }, [showHomeTab]);
 
+  const applyDomesState = useCallback((payload) => {
+    setDomesState({
+      activeDomeId: typeof payload?.activeDomeId === "string" ? payload.activeDomeId : null,
+      recentDomes: Array.isArray(payload?.recentDomes) ? payload.recentDomes : [],
+    });
+  }, []);
+
+  const refreshDomes = useCallback(async () => {
+    const payload = await desktop.dome.listDomes();
+    applyDomesState(payload);
+    return payload;
+  }, [applyDomesState]);
+
   const refreshHomeData = useCallback(async (targetFolderPath = folderPath, currentFolderPath = undefined) => {
     if (!targetFolderPath) return null;
     const payload = await desktop.workspace.getHomeData(targetFolderPath, currentFolderPath);
@@ -209,6 +234,7 @@ export function AppProvider({ children }) {
       workspaceDraftBaseRef.current = {};
       applyHomeData(payload);
       showHomeTab();
+      void refreshDomes().catch(() => {});
       return nextFolderPath;
     } catch (loadError) {
       setError(loadError.message || "Unable to open that folder.");
@@ -217,39 +243,100 @@ export function AppProvider({ children }) {
     } finally {
       setFolderLoading(false);
     }
-  }, [applyHomeData, clearWorkspaceState, showHomeTab]);
+  }, [applyHomeData, clearWorkspaceState, refreshDomes, showHomeTab]);
 
   const openExistingWorkspace = useCallback(async () => {
+    try {
+      const dome = await desktop.dome.openDome();
+      if (dome?.path) {
+        await refreshDomes().catch(() => {});
+        return loadFolder(dome.path);
+      }
+    } catch {
+      // Fall through to legacy folder picker flow.
+    }
     const selectedPath = await desktop.workspace.openFolder();
     if (!selectedPath) return null;
     return loadFolder(selectedPath);
-  }, [loadFolder]);
+  }, [loadFolder, refreshDomes]);
 
-  const createNewWorkspace = useCallback(async () => {
-    const selectedPath = await desktop.workspace.openFolder();
-    if (!selectedPath) return null;
+  const createNewDome = useCallback(async (name = "New Dome") => {
+    const selectedParentPath = await desktop.workspace.openFolder();
+    if (!selectedParentPath) return null;
     setFolderLoading(true);
     setError("");
     try {
-      await desktop.workspace.createWorkspace(selectedPath);
-      return await loadFolder(selectedPath);
+      const dome = await desktop.dome.createDome(selectedParentPath, name);
+      if (!dome?.path) return null;
+      await refreshDomes().catch(() => {});
+      return await loadFolder(dome.path);
     } catch (createError) {
-      setError(createError.message || "Unable to create workspace in this folder.");
+      setError(createError.message || "Unable to create Dome in this folder.");
       clearWorkspaceState();
       return null;
     } finally {
       setFolderLoading(false);
     }
-  }, [clearWorkspaceState, loadFolder]);
+  }, [clearWorkspaceState, loadFolder, refreshDomes]);
+
+  const switchDome = useCallback(async (domeId) => {
+    if (!domeId) return null;
+    setFolderLoading(true);
+    setError("");
+    try {
+      const dome = await desktop.dome.switchDome(domeId);
+      await refreshDomes().catch(() => {});
+      if (!dome?.path) return null;
+      return await loadFolder(dome.path);
+    } catch (switchError) {
+      setError(switchError.message || "Unable to switch Dome.");
+      return null;
+    } finally {
+      setFolderLoading(false);
+    }
+  }, [loadFolder, refreshDomes]);
+
+  const removeDome = useCallback(async (domeId) => {
+    const payload = await desktop.dome.removeDome(domeId);
+    applyDomesState(payload);
+    if (payload?.activeDomeId) {
+      const active = payload.recentDomes?.find((entry) => entry.id === payload.activeDomeId);
+      if (active?.path && active.path !== folderPath) {
+        await loadFolder(active.path);
+      }
+    } else if (!payload?.activeDomeId) {
+      clearWorkspaceState();
+    }
+    return payload;
+  }, [applyDomesState, clearWorkspaceState, folderPath, loadFolder]);
+
+  const revealDome = useCallback(async (domePath) => {
+    return desktop.dome.revealDome(domePath);
+  }, []);
+
+  const createNewWorkspace = useCallback(async () => {
+    return createNewDome("New Dome");
+  }, [createNewDome]);
 
   useEffect(() => {
     let cancelled = false;
     async function boot() {
       try {
-        const lastFolder = await desktop.workspace.getLastFolder();
-        if (!cancelled && lastFolder) await loadFolder(lastFolder);
+        const active = await desktop.dome.getActiveDome();
+        const domes = await desktop.dome.listDomes();
+        if (!cancelled) {
+          applyDomesState(domes);
+        }
+        if (!cancelled && active?.path && active.valid && active.exists) {
+          await loadFolder(active.path);
+        } else if (!cancelled) {
+          const lastFolder = await desktop.workspace.getLastFolder();
+          if (lastFolder) {
+            await loadFolder(lastFolder);
+          }
+        }
       } catch (bootError) {
-        if (!cancelled) setError(bootError.message || "Unable to restore previous workspace.");
+        if (!cancelled) setError(bootError.message || "Unable to restore previous Dome.");
       } finally {
         if (!cancelled) setBooting(false);
       }
@@ -258,7 +345,7 @@ export function AppProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [loadFolder]);
+  }, [applyDomesState, loadFolder]);
 
   const openCanvasFile = useCallback(async (filePath) => {
     const doc = await desktop.workspace.loadCanvas(filePath);
@@ -732,7 +819,9 @@ export function AppProvider({ children }) {
   }, [currentPage, folderPath, refreshHomeData, renameTabForEntity]);
 
   const value = useMemo(() => ({
+    activeDome,
     booting,
+    createNewDome,
     createCanvasEntry,
     createNewLinkCard,
     createNewRackCard,
@@ -746,6 +835,7 @@ export function AppProvider({ children }) {
     discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
+    domes: domesState.recentDomes,
     error,
     folderLoading,
     folderPath,
@@ -753,15 +843,19 @@ export function AppProvider({ children }) {
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
+    refreshDomes,
     refreshHomeData,
+    removeDome,
     renameItemEntry,
     reorderExistingCards,
     replaceWorkspaceCards,
     saveHomeUiState,
+    revealDome,
     setError,
     setViewport,
     setWorkspaceView,
     showHome,
+    switchDome,
     toggleItemStarred,
     redoWorkspaceChange,
     undoWorkspaceChange,
@@ -770,7 +864,9 @@ export function AppProvider({ children }) {
     updateExistingCards,
     workspace,
   }), [
+    activeDome,
     booting,
+    createNewDome,
     createCanvasEntry,
     createNewLinkCard,
     createNewRackCard,
@@ -784,6 +880,7 @@ export function AppProvider({ children }) {
     discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
+    domesState.recentDomes,
     error,
     folderLoading,
     folderPath,
@@ -791,15 +888,19 @@ export function AppProvider({ children }) {
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
+    refreshDomes,
     refreshHomeData,
+    removeDome,
     renameItemEntry,
     reorderExistingCards,
     replaceWorkspaceCards,
     saveHomeUiState,
+    revealDome,
     setError,
     setViewport,
     setWorkspaceView,
     showHome,
+    switchDome,
     toggleItemStarred,
     redoWorkspaceChange,
     undoWorkspaceChange,

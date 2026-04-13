@@ -156,6 +156,7 @@ function buildPreviewDiagnostics({
   validation,
   imageAcquisition,
   documentSignals,
+  trace = [],
   error = null,
 }) {
   const bodyText = typeof documentSignals?.bodyText === "string"
@@ -189,6 +190,7 @@ function buildPreviewDiagnostics({
       bodyTextExcerpt: bodyText,
     },
     resolverMetadata: result.metadata ?? {},
+    trace: Array.isArray(trace) ? trace : [],
     ...(error
       ? {
         error: {
@@ -204,8 +206,18 @@ function buildPreviewDiagnostics({
 
 async function resolveUrlToPreview(url) {
   const normalizedUrl = normalizeExternalUrl(url);
+  const trace = [];
+  const traceStep = (step, status, detail = {}) => {
+    trace.push({
+      ts: new Date().toISOString(),
+      step,
+      status,
+      ...detail,
+    });
+  };
 
   if (!normalizedUrl) {
+    traceStep("normalize-url", "error", { reason: "invalid_url" });
     return createBlockedResult("", PREVIEW_REJECTION_REASON.UNKNOWN, {
       status: PREVIEW_STATUS.ERROR,
       reason: "Preview resolution failed",
@@ -213,9 +225,18 @@ async function resolveUrlToPreview(url) {
   }
 
   try {
+    traceStep("normalize-url", "ok", { canonicalUrl: normalizedUrl });
     const classification = classifyPreviewTarget(normalizedUrl);
+    traceStep("classify", "ok", {
+      resolverKey: classification.resolverKey,
+      classification: classification.classification,
+    });
     logPreviewDebug("classification", classification);
     const { result: baseResult, documentSignals } = await selectResolver(classification, normalizedUrl);
+    traceStep("resolve", "ok", {
+      resolverKey: classification.resolverKey,
+      resolvedKind: classification.resolvedKind || "",
+    });
     logPreviewDebug("resolver-selection", {
       resolverKey: classification.resolverKey,
       classification: classification.classification,
@@ -228,8 +249,21 @@ async function resolveUrlToPreview(url) {
       canonicalUrl: normalizedUrl,
     });
     const validation = validateResolvedPreview(result, documentSignals);
+    traceStep("validate", "ok", {
+      status: validation.status,
+      reason: validation.reason || "",
+      rejectionReason: validation.rejectionReason || "",
+      acceptImage: Boolean(validation.acceptImage),
+    });
     logPreviewDebug("validation", validation);
     const imageAcquisition = await applyImageAcquisition(result, validation);
+    traceStep("acquire-image", imageAcquisition.image ? "ok" : "warn", {
+      attemptedCount: Array.isArray(imageAcquisition.attemptedCandidateUrls)
+        ? imageAcquisition.attemptedCandidateUrls.length
+        : 0,
+      usedScreenshotFallback: imageAcquisition.screenshotFallbackUsed === true,
+      hasImage: Boolean(imageAcquisition.image),
+    });
     const title = firstString(result.title, documentSignals?.ogTitle, documentSignals?.pageTitle);
     const siteName = firstString(result.siteName, getHostname(result.canonicalUrl || normalizedUrl));
     const description = validation.status === PREVIEW_STATUS.BLOCKED
@@ -245,6 +279,11 @@ async function resolveUrlToPreview(url) {
       validation,
       imageAcquisition,
       documentSignals,
+      trace,
+    });
+    traceStep("finalize", "ok", {
+      finalStatus,
+      hasImage: Boolean(imageAcquisition.image),
     });
 
     return createResolvedPreviewResult({
@@ -269,6 +308,9 @@ async function resolveUrlToPreview(url) {
     });
   } catch (error) {
     const classification = classifyPreviewTarget(normalizedUrl);
+    traceStep("resolve", "error", {
+      message: error?.message || "Preview resolution failed",
+    });
     const diagnostics = buildPreviewDiagnostics({
       inputUrl: normalizedUrl,
       classification,
@@ -285,6 +327,7 @@ async function resolveUrlToPreview(url) {
         screenshotFallbackUsed: false,
       },
       documentSignals: {},
+      trace,
       error,
     });
     return createResolvedPreviewResult({

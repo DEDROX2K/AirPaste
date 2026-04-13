@@ -1,5 +1,6 @@
 export * from "./AppButton"
 export * from "./AppCard"
+export * from "./AppSurface"
 export * from "./AppContextMenu"
 export * from "./AppDialog"
 export * from "./AppDropdownMenu"

@@ -1,0 +1,244 @@
+/**
+ * AirPaste Design System — typography.css
+ *
+ * Applies the type system globally and exposes utility classes
+ * for use in components. Components should use these classes
+ * rather than writing their own font-size/weight/line-height rules.
+ *
+ * Import after tokens.css and theme.css.
+ */
+
+/* ─── Font Imports ──────────────────────────────────────────────────────
+   In production, serve these as local assets or via a font manager.
+   These @import rules are for development convenience only.
+───────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap');
+
+/* ─── Base Reset ───────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-base);
+  font-weight: var(--ap-weight-regular);
+  line-height: var(--ap-leading-normal);
+  color: var(--ap-text-primary);
+  background-color: var(--ap-bg-page);
+  margin: 0;
+}
+
+/* ─── Heading Reset ────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ap-font-display);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-tight);
+  letter-spacing: var(--ap-tracking-snug);
+  color: var(--ap-text-primary);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+/* ─── Size Utilities ───────────────────────────────────────────────────── */
+.ap-text-2xs   { font-size: var(--ap-text-2xs); }
+.ap-text-xs    { font-size: var(--ap-text-xs); }
+.ap-text-sm    { font-size: var(--ap-text-sm); }
+.ap-text-base  { font-size: var(--ap-text-base); }
+.ap-text-md    { font-size: var(--ap-text-md); }
+.ap-text-lg    { font-size: var(--ap-text-lg); }
+.ap-text-xl    { font-size: var(--ap-text-xl); }
+.ap-text-2xl   { font-size: var(--ap-text-2xl); }
+.ap-text-3xl   { font-size: var(--ap-text-3xl); }
+.ap-text-4xl   { font-size: var(--ap-text-4xl); }
+
+/* ─── Weight Utilities ─────────────────────────────────────────────────── */
+.ap-weight-regular  { font-weight: var(--ap-weight-regular); }
+.ap-weight-medium   { font-weight: var(--ap-weight-medium); }
+.ap-weight-semibold { font-weight: var(--ap-weight-semibold); }
+.ap-weight-bold     { font-weight: var(--ap-weight-bold); }
+
+/* ─── Color Utilities ──────────────────────────────────────────────────── */
+.ap-text-primary     { color: var(--ap-text-primary); }
+.ap-text-secondary   { color: var(--ap-text-secondary); }
+.ap-text-tertiary    { color: var(--ap-text-tertiary); }
+.ap-text-placeholder { color: var(--ap-text-placeholder); }
+.ap-text-disabled    { color: var(--ap-text-disabled); }
+.ap-text-accent      { color: var(--ap-text-accent); }
+
+/* ─── Leading Utilities ────────────────────────────────────────────────── */
+.ap-leading-tight   { line-height: var(--ap-leading-tight); }
+.ap-leading-snug    { line-height: var(--ap-leading-snug); }
+.ap-leading-normal  { line-height: var(--ap-leading-normal); }
+.ap-leading-relaxed { line-height: var(--ap-leading-relaxed); }
+
+/* ─── Tracking Utilities ───────────────────────────────────────────────── */
+.ap-tracking-tight  { letter-spacing: var(--ap-tracking-tight); }
+.ap-tracking-snug   { letter-spacing: var(--ap-tracking-snug); }
+.ap-tracking-normal { letter-spacing: var(--ap-tracking-normal); }
+.ap-tracking-wide   { letter-spacing: var(--ap-tracking-wide); }
+.ap-tracking-wider  { letter-spacing: var(--ap-tracking-wider); }
+
+/* ─── Family Utilities ─────────────────────────────────────────────────── */
+.ap-font-display { font-family: var(--ap-font-display); }
+.ap-font-body    { font-family: var(--ap-font-body); }
+.ap-font-mono    { font-family: var(--ap-font-mono); }
+
+/* ─── Semantic Typography Roles ────────────────────────────────────────── */
+
+/* Display heading — welcome screens, hero */
+.ap-type-display {
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-4xl);
+  font-weight: var(--ap-weight-bold);
+  line-height: var(--ap-leading-tight);
+  letter-spacing: var(--ap-tracking-tight);
+}
+
+/* Page heading */
+.ap-type-heading-1 {
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-3xl);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-tight);
+  letter-spacing: var(--ap-tracking-snug);
+}
+
+/* Section heading */
+.ap-type-heading-2 {
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-2xl);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-snug);
+  letter-spacing: var(--ap-tracking-snug);
+}
+
+/* Card / panel heading */
+.ap-type-heading-3 {
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-lg);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-snug);
+  letter-spacing: var(--ap-tracking-normal);
+}
+
+/* Subheading / label section */
+.ap-type-subheading {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-xs);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-normal);
+  letter-spacing: var(--ap-tracking-wider);
+  text-transform: uppercase;
+  color: var(--ap-text-tertiary);
+}
+
+/* Standard body */
+.ap-type-body {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-base);
+  font-weight: var(--ap-weight-regular);
+  line-height: var(--ap-leading-normal);
+  letter-spacing: var(--ap-tracking-normal);
+}
+
+/* Small body */
+.ap-type-body-sm {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-sm);
+  font-weight: var(--ap-weight-regular);
+  line-height: var(--ap-leading-normal);
+  letter-spacing: var(--ap-tracking-normal);
+}
+
+/* Caption / metadata */
+.ap-type-caption {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-xs);
+  font-weight: var(--ap-weight-regular);
+  line-height: var(--ap-leading-normal);
+  letter-spacing: var(--ap-tracking-normal);
+  color: var(--ap-text-tertiary);
+}
+
+/* Label — button text, tabs, nav */
+.ap-type-label {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-sm);
+  font-weight: var(--ap-weight-medium);
+  line-height: var(--ap-leading-tight);
+  letter-spacing: var(--ap-tracking-normal);
+}
+
+/* Label small — badge text, tag text */
+.ap-type-label-sm {
+  font-family: var(--ap-font-body);
+  font-size: var(--ap-text-2xs);
+  font-weight: var(--ap-weight-semibold);
+  line-height: var(--ap-leading-tight);
+  letter-spacing: var(--ap-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* Code / mono */
+.ap-type-mono {
+  font-family: var(--ap-font-mono);
+  font-size: var(--ap-text-sm);
+  font-weight: var(--ap-weight-regular);
+  line-height: var(--ap-leading-normal);
+  letter-spacing: var(--ap-tracking-normal);
+}
+
+/* ─── Truncation ────────────────────────────────────────────────────────── */
+.ap-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.ap-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* ─── Scrollbar Styling ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ap-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ap-scrollbar-thumb);
+  border-radius: var(--ap-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ap-scrollbar-thumb-hover);
+}

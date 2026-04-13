@@ -133,7 +133,7 @@ export function DevConsole() {
   return (
     <div id="dev-console" className={`dev-console ${open ? "dev-console--open" : ""}`}>
       {/* ── Tab handle ── */}
-      <button
+      <AppButton tone="unstyled"
         id="dev-console-toggle"
         className="dev-console__tab"
         type="button"
@@ -145,7 +145,7 @@ export function DevConsole() {
         {entries.some((e) => e.level === "error") && (
           <span className="dev-console__tab-badge">!</span>
         )}
-      </button>
+      </AppButton>
 
       {open && (
         <div className="dev-console__panel">
@@ -223,13 +223,13 @@ export function DevConsole() {
                           : String(entry.detail)}
                       </span>
                     )}
-                    <button
+                    <AppButton tone="unstyled"
                       className="dev-console__copy-row"
                       type="button"
                       onClick={() => { void handleCopyText(serializeEntry(entry), "Log line"); }}
                     >
                       Copy
-                    </button>
+                    </AppButton>
                   </div>
                 );
               })
@@ -240,3 +240,4 @@ export function DevConsole() {
     </div>
   );
 }
+

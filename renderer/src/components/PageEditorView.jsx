@@ -16,6 +16,7 @@ import {
   pageEditorExtensions,
   serializeEditorDocument,
 } from "../lib/pageDocument";
+import { AppButton } from "./ui/app";
 
 const EMPTY_DOCUMENT = {
   type: "doc",
@@ -24,7 +25,7 @@ const EMPTY_DOCUMENT = {
 
 function ToolbarButton({ active = false, disabled = false, label, onClick, children }) {
   return (
-    <button
+    <AppButton tone="unstyled"
       type="button"
       className={`page-editor__toolbar-button ${active ? "page-editor__toolbar-button--active" : ""}`}
       aria-label={label}
@@ -34,7 +35,7 @@ function ToolbarButton({ active = false, disabled = false, label, onClick, child
       onClick={onClick}
     >
       {children}
-    </button>
+    </AppButton>
   );
 }
 
@@ -153,10 +154,10 @@ export default function PageEditorView() {
   return (
     <main className="page-editor">
       <header className="page-editor__header">
-        <button type="button" className="page-editor__back-button" onClick={() => void showHome()}>
+        <AppButton tone="unstyled" type="button" className="page-editor__back-button" onClick={() => void showHome()}>
           <ArrowLeft size={16} />
           <span>Back</span>
-        </button>
+        </AppButton>
 
         <div className="page-editor__meta">
           <div className="page-editor__meta-primary">
@@ -260,3 +261,4 @@ export default function PageEditorView() {
     </main>
   );
 }
+

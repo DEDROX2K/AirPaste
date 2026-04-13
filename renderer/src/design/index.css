@@ -1,0 +1,22 @@
+/**
+ * AirPaste Design System — index.css
+ *
+ * Master entry point. Import this single file to get the full design system.
+ *
+ * Import order is load order. Do not reorder.
+ *
+ * Usage in React entry (main.jsx or App.jsx):
+ *   import './design/index.css'
+ */
+
+/* 1. Raw tokens — primitive values, no semantic meaning */
+@import './tokens.css';
+
+/* 2. Semantic theme — maps tokens to roles, light + dark */
+@import './theme.css';
+
+/* 3. Typography — font imports, base reset, type utilities */
+@import './typography.css';
+
+/* 4. Motion — animation tokens, keyframes, transition utilities */
+@import './motion.css';

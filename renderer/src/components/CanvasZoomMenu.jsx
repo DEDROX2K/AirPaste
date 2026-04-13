@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppButton } from "./ui/app";
 
 const ZOOM_PRESETS = [50, 100, 200];
 
@@ -94,7 +95,7 @@ export default function CanvasZoomMenu({
 
   return (
     <div ref={rootRef} className="zoom-menu">
-      <button
+      <AppButton tone="unstyled"
         className={`zoom-menu__trigger${isOpen ? " zoom-menu__trigger--open" : ""}`}
         type="button"
         aria-haspopup="menu"
@@ -103,7 +104,7 @@ export default function CanvasZoomMenu({
       >
         <span>{zoomLabel}</span>
         <span className="zoom-menu__caret" aria-hidden="true">⌄</span>
-      </button>
+      </AppButton>
 
       {isOpen ? (
         <div className="zoom-menu__panel" role="menu" onPointerDown={(event) => event.stopPropagation()}>
@@ -127,26 +128,26 @@ export default function CanvasZoomMenu({
           </div>
 
           <div className="zoom-menu__section">
-            <button className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomIn)}>
+            <AppButton tone="unstyled" className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomIn)}>
               <span>Zoom in</span>
               <kbd>Ctrl++</kbd>
-            </button>
-            <button className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomOut)}>
+            </AppButton>
+            <AppButton tone="unstyled" className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomOut)}>
               <span>Zoom out</span>
               <kbd>Ctrl+-</kbd>
-            </button>
-            <button className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomToFitAll)} disabled={!canFitAll}>
+            </AppButton>
+            <AppButton tone="unstyled" className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomToFitAll)} disabled={!canFitAll}>
               <span>Zoom to fit</span>
               <kbd>Shift+1</kbd>
-            </button>
-            <button className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomToFitSelection)} disabled={!canFitSelection}>
+            </AppButton>
+            <AppButton tone="unstyled" className="zoom-menu__action" type="button" onClick={() => runMenuAction(onZoomToFitSelection)} disabled={!canFitSelection}>
               <span>Zoom to selection</span>
-            </button>
+            </AppButton>
           </div>
 
           <div className="zoom-menu__section">
             {ZOOM_PRESETS.map((preset) => (
-              <button
+              <AppButton tone="unstyled"
                 key={preset}
                 className="zoom-menu__action"
                 type="button"
@@ -154,7 +155,7 @@ export default function CanvasZoomMenu({
               >
                 <span>{`Zoom to ${preset}%`}</span>
                 {preset === 100 ? <kbd>Ctrl+0</kbd> : <span />}
-              </button>
+              </AppButton>
             ))}
           </div>
         </div>
@@ -162,3 +163,4 @@ export default function CanvasZoomMenu({
     </div>
   );
 }
+

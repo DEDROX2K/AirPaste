@@ -368,15 +368,6 @@ export default function GridWorkspaceView({
 
   return (
     <div className="grid-workspace">
-      <header className="grid-workspace__header">
-        {totalCount > 0 ? (
-          <p className="grid-workspace__count">
-            {hasActiveSearch
-              ? `${filteredTiles.length} of ${totalCount}`
-              : `${totalCount} ${totalCount === 1 ? "tile" : "tiles"}`}
-          </p>
-        ) : null}
-      </header>
 
       <div className="grid-workspace__scroll">
         {totalCount === 0 ? (

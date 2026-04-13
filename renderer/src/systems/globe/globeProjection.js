@@ -3,8 +3,16 @@ import * as THREE from "three";
 const CAMERA_POSITION = new THREE.Vector3();
 const PROJECT_VECTOR = new THREE.Vector3();
 
+function smoothstep(edge0, edge1, value) {
+  if (edge0 === edge1) {
+    return value < edge0 ? 0 : 1;
+  }
+
+  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - (2 * t));
+}
+
 export function rotatePointByYawPitch(point, yaw, pitch) {
-  // The globe is conceptually rotated instead of moving every tile independently.
   const cosYaw = Math.cos(yaw);
   const sinYaw = Math.sin(yaw);
   const cosPitch = Math.cos(pitch);
@@ -42,18 +50,23 @@ export function getTileVisibility(worldPoint, cameraDistance) {
     + (toCameraZ * toCameraZ),
   ));
 
-  // Dotting the surface normal against the camera ray gives a cheap front-face test.
   const facing = (
     (normalX * (toCameraX / toCameraLength))
     + (normalY * (toCameraY / toCameraLength))
     + (normalZ * (toCameraZ / toCameraLength))
   );
   const hemisphere = worldPoint.z / radius;
+  const silhouetteFade = smoothstep(-0.1, 0.42, facing);
+  const backsideFade = smoothstep(-0.28, 0.2, hemisphere);
+  const opacity = silhouetteFade * backsideFade;
 
   return {
     facing,
     hemisphere,
-    isVisible: facing > 0.1 && hemisphere > -0.18,
+    silhouetteFade,
+    backsideFade,
+    opacity,
+    isVisible: opacity > 0.025,
   };
 }
 

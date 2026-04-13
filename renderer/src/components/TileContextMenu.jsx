@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AppButton } from "./ui/app";
 
 const MENU_GAP = 12;
 const MENU_MIN_WIDTH = 220;
@@ -54,7 +55,7 @@ function ContextMenuItem({ action, isPending, onSelect }) {
     .join(" ");
 
   return (
-    <button
+    <AppButton tone="unstyled"
       className={className}
       type="button"
       role={action.kind === "toggle" ? "menuitemcheckbox" : "menuitem"}
@@ -75,7 +76,7 @@ function ContextMenuItem({ action, isPending, onSelect }) {
       <span className="tile-context-menu__item-shortcut" aria-hidden="true">
         {action.kind === "toggle" ? (action.isActive ? "On" : "Off") : ""}
       </span>
-    </button>
+    </AppButton>
   );
 }
 
@@ -179,3 +180,4 @@ export default function TileContextMenu({ menu, actions = [], onClose }) {
     portalRoot,
   );
 }
+

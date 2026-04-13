@@ -1,0 +1,180 @@
+/**
+ * AirPaste Design System — tokens.css
+ *
+ * Raw design tokens. These are the primitive values.
+ * Do not use these directly in components. Use semantic tokens from theme.css.
+ *
+ * Token naming convention:
+ *   --ap-[category]-[scale/name]
+ */
+
+:root {
+  /* ─── Color: Neutral (Stone) ───────────────────────────────── */
+  --ap-stone-50:    #FAFAF9;
+  --ap-stone-100:   #F5F5F4;
+  --ap-stone-150:   #EFEDE9; /* custom between 100/200 */
+  --ap-stone-200:   #E7E5E4;
+  --ap-stone-300:   #D6D3D1;
+  --ap-stone-400:   #A8A29E;
+  --ap-stone-500:   #78716C;
+  --ap-stone-600:   #57534E;
+  --ap-stone-700:   #44403C;
+  --ap-stone-750:   #3A3633; /* custom between 700/800 */
+  --ap-stone-800:   #292524;
+  --ap-stone-850:   #211F1D; /* custom between 800/900 */
+  --ap-stone-900:   #1C1917;
+  --ap-stone-950:   #0C0A09;
+
+  /* ─── Color: Accent (Iris) ─────────────────────────────────── */
+  --ap-iris-50:     #F5F5FF;
+  --ap-iris-100:    #EEF0FF;
+  --ap-iris-200:    #E0E3FF;
+  --ap-iris-300:    #C4C9FD;
+  --ap-iris-400:    #818CF8;
+  --ap-iris-500:    #6366F1;
+  --ap-iris-600:    #4F46E5;
+  --ap-iris-700:    #4338CA;
+  --ap-iris-800:    #3730A3;
+  --ap-iris-900:    #312E81;
+
+  /* ─── Color: Semantic ───────────────────────────────────────── */
+  --ap-success-tint:  #F0FDF4;
+  --ap-success-base:  #16A34A;
+  --ap-success-dark:  #15803D;
+
+  --ap-warning-tint:  #FFFBEB;
+  --ap-warning-base:  #D97706;
+  --ap-warning-dark:  #B45309;
+
+  --ap-danger-tint:   #FEF2F2;
+  --ap-danger-base:   #DC2626;
+  --ap-danger-dark:   #B91C1C;
+
+  --ap-info-tint:     #F0F9FF;
+  --ap-info-base:     #0284C7;
+  --ap-info-dark:     #0369A1;
+
+  /* ─── Typography: Families ──────────────────────────────────── */
+  --ap-font-display:  "Mona Sans", "DM Sans", system-ui, sans-serif;
+  --ap-font-body:     "Geist", "Inter", system-ui, sans-serif;
+  --ap-font-mono:     "Geist Mono", "Fira Code", monospace;
+
+  /* ─── Typography: Scale ─────────────────────────────────────── */
+  --ap-text-2xs:   0.625rem;   /* 10px */
+  --ap-text-xs:    0.75rem;    /* 12px */
+  --ap-text-sm:    0.8125rem;  /* 13px */
+  --ap-text-base:  0.875rem;   /* 14px */
+  --ap-text-md:    1rem;       /* 16px */
+  --ap-text-lg:    1.125rem;   /* 18px */
+  --ap-text-xl:    1.25rem;    /* 20px */
+  --ap-text-2xl:   1.5rem;     /* 24px */
+  --ap-text-3xl:   1.875rem;   /* 30px */
+  --ap-text-4xl:   2.25rem;    /* 36px */
+
+  /* ─── Typography: Line Heights ──────────────────────────────── */
+  --ap-leading-tight:    1.2;
+  --ap-leading-snug:     1.35;
+  --ap-leading-normal:   1.5;
+  --ap-leading-relaxed:  1.65;
+
+  /* ─── Typography: Font Weights ──────────────────────────────── */
+  --ap-weight-regular:   400;
+  --ap-weight-medium:    500;
+  --ap-weight-semibold:  600;
+  --ap-weight-bold:      700;
+
+  /* ─── Typography: Letter Spacing ────────────────────────────── */
+  --ap-tracking-tight:    -0.025em;
+  --ap-tracking-snug:     -0.01em;
+  --ap-tracking-normal:    0em;
+  --ap-tracking-wide:      0.025em;
+  --ap-tracking-wider:     0.05em;
+
+  /* ─── Spacing ───────────────────────────────────────────────── */
+  --ap-space-0:     0px;
+  --ap-space-0\.5:  2px;
+  --ap-space-1:     4px;
+  --ap-space-1\.5:  6px;
+  --ap-space-2:     8px;
+  --ap-space-2\.5:  10px;
+  --ap-space-3:     12px;
+  --ap-space-4:     16px;
+  --ap-space-5:     20px;
+  --ap-space-6:     24px;
+  --ap-space-8:     32px;
+  --ap-space-10:    40px;
+  --ap-space-12:    48px;
+  --ap-space-16:    64px;
+  --ap-space-20:    80px;
+  --ap-space-24:    96px;
+
+  /* ─── Radius ────────────────────────────────────────────────── */
+  --ap-radius-none:   0px;
+  --ap-radius-xs:     3px;
+  --ap-radius-sm:     5px;
+  --ap-radius-md:     8px;
+  --ap-radius-lg:     12px;
+  --ap-radius-xl:     16px;
+  --ap-radius-2xl:    20px;
+  --ap-radius-3xl:    28px;
+  --ap-radius-full:   9999px;
+
+  /* ─── Shadows ───────────────────────────────────────────────── */
+  --ap-shadow-none:   none;
+
+  --ap-shadow-xs:
+    0 1px 2px rgba(12, 10, 9, 0.06);
+
+  --ap-shadow-sm:
+    0 1px 3px rgba(12, 10, 9, 0.08),
+    0 1px 2px rgba(12, 10, 9, 0.05);
+
+  --ap-shadow-md:
+    0 4px 8px rgba(12, 10, 9, 0.08),
+    0 2px 4px rgba(12, 10, 9, 0.05);
+
+  --ap-shadow-lg:
+    0 8px 24px rgba(12, 10, 9, 0.10),
+    0 4px 8px rgba(12, 10, 9, 0.05);
+
+  --ap-shadow-xl:
+    0 16px 40px rgba(12, 10, 9, 0.12),
+    0 8px 16px rgba(12, 10, 9, 0.07);
+
+  --ap-shadow-2xl:
+    0 24px 64px rgba(12, 10, 9, 0.14),
+    0 12px 24px rgba(12, 10, 9, 0.08);
+
+  --ap-shadow-inner:
+    inset 0 2px 4px rgba(12, 10, 9, 0.08);
+
+  /* ─── Borders ───────────────────────────────────────────────── */
+  --ap-border-none:    0px;
+  --ap-border-thin:    1px;
+  --ap-border-base:    1.5px;
+  --ap-border-thick:   2px;
+
+  /* ─── Opacity ───────────────────────────────────────────────── */
+  --ap-opacity-0:         0;
+  --ap-opacity-disabled:  0.4;
+  --ap-opacity-muted:     0.6;
+  --ap-opacity-subtle:    0.8;
+  --ap-opacity-full:      1;
+
+  /* ─── Blur ──────────────────────────────────────────────────── */
+  --ap-blur-none:   0px;
+  --ap-blur-xs:     4px;
+  --ap-blur-sm:     8px;
+  --ap-blur-md:     12px;
+  --ap-blur-lg:     20px;
+
+  /* ─── Z-index ───────────────────────────────────────────────── */
+  --ap-z-base:       0;
+  --ap-z-raised:     10;
+  --ap-z-sticky:     100;
+  --ap-z-dropdown:   200;
+  --ap-z-overlay:    300;
+  --ap-z-modal:      400;
+  --ap-z-toast:      500;
+  --ap-z-tooltip:    600;
+}

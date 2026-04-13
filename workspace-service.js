@@ -4,14 +4,19 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 
 const LEGACY_FILES = ["workspace.json", "data.json"];
-const WORKSPACE_META_FILE = "airpaste.json";
 const INTERNAL_DIR = ".airpaste";
+const DOME_FILE = "dome.json";
 const INDEX_FILE = "index.json";
 const UI_STATE_FILE = "ui-state.json";
 const PREVIEWS_DIR = "previews";
 const PROJECTS_DIR = "projects";
+const CANVASES_DIR = "canvases";
+const PAGES_DIR = "pages";
+const TILES_DIR = "tiles";
 const ASSETS_DIR = "assets";
 const CANVAS_SUFFIX = ".airpaste.json";
+const LEGACY_ROOT_META_FILE = "airpaste.json";
+const DOME_SETTINGS_FILE = "settings.json";
 const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
 const MAX_RECENTS = 25;
@@ -100,12 +105,20 @@ function sanitizeName(name, fallback = "untitled") {
   return normalized || fallback;
 }
 
-function workspaceMetaPath(root) {
-  return path.join(root, WORKSPACE_META_FILE);
-}
-
 function internalPath(root) {
   return path.join(root, INTERNAL_DIR);
+}
+
+function domeMetaPath(root) {
+  return path.join(internalPath(root), DOME_FILE);
+}
+
+function legacyRootMetaPath(root) {
+  return path.join(root, LEGACY_ROOT_META_FILE);
+}
+
+function domeSettingsPath(root) {
+  return path.join(root, DOME_SETTINGS_FILE);
 }
 
 function indexPath(root) {
@@ -363,22 +376,39 @@ async function ensureRootReady(root) {
   if (!(await isDirectory(root))) throw new Error("Selected folder is no longer available.");
   await fs.mkdir(internalPath(root), { recursive: true });
   await fs.mkdir(previewDirPath(root), { recursive: true });
+  await fs.mkdir(path.join(root, CANVASES_DIR), { recursive: true });
+  await fs.mkdir(path.join(root, PAGES_DIR), { recursive: true });
+  await fs.mkdir(path.join(root, TILES_DIR), { recursive: true });
   await fs.mkdir(assetsDirPath(root), { recursive: true });
 
-  const metaFile = workspaceMetaPath(root);
+  const legacyMetaFile = legacyRootMetaPath(root);
+  const metaFile = domeMetaPath(root);
+  const legacyMeta = (await exists(legacyMetaFile))
+    ? await readJson(legacyMetaFile, LEGACY_ROOT_META_FILE)
+    : null;
   const meta = (await exists(metaFile))
-    ? await readJson(metaFile, WORKSPACE_META_FILE)
+    ? await readJson(metaFile, DOME_FILE)
     : {
       version: 3,
-      name: path.basename(root),
+      name: firstString(legacyMeta?.name, path.basename(root)),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
   meta.version = 3;
-  meta.name = firstString(meta.name, path.basename(root));
+  meta.name = firstString(meta.name, legacyMeta?.name, path.basename(root));
   meta.createdAt = typeof meta.createdAt === "string" ? meta.createdAt : nowIso();
   meta.updatedAt = nowIso();
   await safeWriteJson(metaFile, meta);
+  if (!(await exists(domeSettingsPath(root)))) {
+    await safeWriteJson(domeSettingsPath(root), {
+      version: 1,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  }
+  if (legacyMeta && (await exists(legacyMetaFile))) {
+    await fs.rm(legacyMetaFile, { force: true });
+  }
   return meta;
 }
 
@@ -585,7 +615,11 @@ async function ensureReady(root) {
 async function workspaceRootFromFile(filePath) {
   let dir = path.dirname(path.resolve(filePath));
   while (true) {
-    if (await exists(workspaceMetaPath(dir)) || await exists(indexPath(dir))) return dir;
+    if (
+      await exists(domeMetaPath(dir))
+      || await exists(indexPath(dir))
+      || await exists(legacyRootMetaPath(dir))
+    ) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -711,7 +745,8 @@ async function savePage(filePath, markdown) {
 
 async function createCanvas(root, name, targetFolderPath = "") {
   await ensureReady(root);
-  const dir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  const effectiveTarget = normalizeFolder(targetFolderPath) || CANVASES_DIR;
+  const dir = resolveWorkspacePath(root, effectiveTarget);
   await fs.mkdir(dir, { recursive: true });
   const finalPath = await uniqueFile(path.join(dir, `${sanitizeName(firstString(name, "Canvas"), "Canvas")}${CANVAS_SUFFIX}`));
   await safeWriteJson(finalPath, {
@@ -730,7 +765,8 @@ async function createCanvas(root, name, targetFolderPath = "") {
 
 async function createPage(root, name, targetFolderPath = "") {
   await ensureReady(root);
-  const dir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  const effectiveTarget = normalizeFolder(targetFolderPath) || PAGES_DIR;
+  const dir = resolveWorkspacePath(root, effectiveTarget);
   await fs.mkdir(dir, { recursive: true });
   const base = sanitizeName(firstString(name, "Page"), "Page");
   const finalPath = await uniqueFile(path.join(dir, `${base}.md`));
@@ -919,7 +955,60 @@ async function createWorkspace(root) {
 }
 
 async function isValidWorkspace(root) {
-  return isDirectory(root);
+  if (!(await isDirectory(root))) return false;
+  return exists(domeMetaPath(root));
+}
+
+async function inspectDome(root) {
+  if (!(await isDirectory(root))) {
+    return {
+      exists: false,
+      valid: false,
+      reason: "missing",
+      path: path.resolve(root),
+      name: path.basename(root),
+    };
+  }
+
+  const absRoot = path.resolve(root);
+  const hasDomeMeta = await exists(domeMetaPath(absRoot));
+  const hasLegacyMeta = await exists(legacyRootMetaPath(absRoot));
+  const hasIndex = await exists(indexPath(absRoot));
+  const valid = hasDomeMeta;
+
+  let name = path.basename(absRoot);
+  if (hasDomeMeta) {
+    try {
+      const meta = await readJson(domeMetaPath(absRoot), DOME_FILE);
+      name = firstString(meta.name, name);
+    } catch {
+      // Keep fallback name.
+    }
+  }
+
+  return {
+    exists: true,
+    valid,
+    reason: valid ? "valid" : (hasLegacyMeta || hasIndex ? "legacy" : "uninitialized"),
+    path: absRoot,
+    name,
+  };
+}
+
+async function createDome(root, name = "") {
+  const absRoot = path.resolve(root);
+  await fs.mkdir(absRoot, { recursive: true });
+  await ensureRootReady(absRoot);
+  const meta = await readJson(domeMetaPath(absRoot), DOME_FILE);
+  meta.name = firstString(name, meta.name, path.basename(absRoot));
+  meta.updatedAt = nowIso();
+  await safeWriteJson(domeMetaPath(absRoot), meta);
+  await ensureReady(absRoot);
+  return {
+    id: createHash("sha1").update(absRoot.toLowerCase()).digest("hex").slice(0, 16),
+    name: meta.name,
+    path: absRoot,
+  };
 }
 
 function resolveWorkspaceAssetPath(root, relativePath) {
@@ -961,6 +1050,7 @@ async function getItemForFilePath(root, filePath) {
 
 module.exports = {
   createCanvas,
+  createDome,
   createPage,
   createWorkspace,
   deleteFile,
@@ -969,6 +1059,7 @@ module.exports = {
   getRecentItems,
   getStarredItems,
   importImageAsset,
+  inspectDome,
   isValidWorkspace,
   listFiles,
   loadCanvas,

@@ -1,5 +1,6 @@
 import { useTabs } from "../context/useTabs";
 import { desktop } from "../lib/desktop";
+import { AppButton } from "./ui/app";
 import "./TopTabBar.css";
 
 function IconClose() {
@@ -42,42 +43,11 @@ function IconWindowClose() {
   );
 }
 
-function IconSearch() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M16.65 16.65L21 21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function focusSearchInput() {
-  const selectors = [
-    "#tile-search",
-    ".home-search__input",
-    "input[type='search']",
-  ];
-
-  for (const selector of selectors) {
-    const element = document.querySelector(selector);
-    if (!(element instanceof HTMLInputElement)) {
-      continue;
-    }
-    if (element.disabled) {
-      continue;
-    }
-
-    element.focus();
-    element.select?.();
-    return;
-  }
-}
-
 function TitleBarControls() {
   return (
     <div className="titlebar-controls">
 
-      <button
+      <AppButton tone="unstyled"
         className="titlebar-btn titlebar-btn--minimize"
         type="button"
         title="Minimize"
@@ -85,9 +55,9 @@ function TitleBarControls() {
         onClick={() => desktop.window.minimize()}
       >
         <IconWindowMinimize />
-      </button>
+      </AppButton>
 
-      <button
+      <AppButton tone="unstyled"
         className="titlebar-btn titlebar-btn--maximize"
         type="button"
         title="Toggle maximize"
@@ -95,9 +65,9 @@ function TitleBarControls() {
         onClick={() => desktop.window.maximize()}
       >
         <IconWindowToggle />
-      </button>
+      </AppButton>
 
-      <button
+      <AppButton tone="unstyled"
         className="titlebar-btn titlebar-btn--close"
         type="button"
         title="Close"
@@ -105,7 +75,7 @@ function TitleBarControls() {
         onClick={() => desktop.window.close()}
       >
         <IconWindowClose />
-      </button>
+      </AppButton>
     </div>
   );
 }
@@ -156,7 +126,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
                   <>
                     <span className="titlebar-tab-label">{tab.title}</span>
                     {tab.closable ? (
-                      <button
+                      <AppButton tone="unstyled"
                         className="titlebar-tab-close"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -166,7 +136,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
                         aria-label="Close tab"
                       >
                         <IconClose />
-                      </button>
+                      </AppButton>
                     ) : null}
                   </>
                 )}
@@ -186,3 +156,4 @@ export function TopTabBar({ usesCustomTitlebar }) {
     </div>
   );
 }
+
