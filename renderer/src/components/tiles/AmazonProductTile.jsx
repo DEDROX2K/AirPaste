@@ -1,8 +1,11 @@
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { useToast } from "../../hooks/useToast";
+import { useAppContext } from "../../context/useAppContext";
+import { recordPreviewTierSelection } from "../../lib/perf";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
 
 function stopTileActionEvent(event) {
   event.preventDefault();
@@ -53,8 +56,10 @@ function AmazonProductTile({
   onFocusOut,
   onOpenLink,
   onPressStart,
+  renderHint,
 }) {
   const { toast } = useToast();
+  const { folderPath } = useAppContext();
   const surfaceGesture = useTileGesture({
     card,
     onDragStart: onBeginDrag,
@@ -64,6 +69,14 @@ function AmazonProductTile({
   const domainLabel = getDomainLabel(card);
   const rating = formatRating(card.productRating);
   const reviewCount = formatReviewCount(card.productReviewCount);
+  const previewTier = renderHint?.previewTier ?? "original";
+  const { src: previewSource } = useTilePreviewSource({
+    card,
+    folderPath,
+    previewTier,
+    imageEnabled: renderHint?.imageEnabled !== false,
+    devicePixelRatio: typeof window !== "undefined" ? window.devicePixelRatio : 1,
+  });
 
   const handleOpenLinkClick = async (event) => {
     stopTileActionEvent(event);
@@ -75,13 +88,18 @@ function AmazonProductTile({
     }
   };
 
+  useEffect(() => {
+    recordPreviewTierSelection(card.id, previewTier);
+  }, [card.id, previewTier]);
+
   return (
     <TileShell
       card={card}
+      renderHint={renderHint}
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--amazon-product"
-      toolbar={(
+      toolbar={renderHint?.showToolbar === false ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
           <p className="card__label">{title}</p>
         </div>
@@ -95,12 +113,12 @@ function AmazonProductTile({
         <div className="card__surface-frame card__surface-frame--interactive" {...surfaceGesture}>
           <div className="card__surface card__surface--amazon-product" title={title}>
             <div className="card__amazon-product-media">
-              {card.image ? (
+              {previewSource ? (
                 <TileImageReveal
                   className="card__amazon-product-image"
-                  src={card.image}
+                  src={previewSource}
                   alt={title}
-                  enableReveal
+                  enableReveal={renderHint?.disableImageReveal !== true}
                 />
               ) : (
                 <div className="card__amazon-product-placeholder">
@@ -119,7 +137,7 @@ function AmazonProductTile({
 
               <h3 className="card__amazon-product-title">{title}</h3>
 
-              {card.description ? (
+              {card.description && renderHint?.simplify !== true ? (
                 <p className="card__amazon-product-description">{card.description}</p>
               ) : null}
 
@@ -136,15 +154,17 @@ function AmazonProductTile({
                   ) : null}
                 </div>
 
-                <button
-                  className="card__amazon-product-cta"
-                  type="button"
-                  onPointerDown={stopTileActionPointerEvent}
-                  onPointerUp={stopTileActionPointerEvent}
-                  onClick={handleOpenLinkClick}
-                >
-                  Open product
-                </button>
+                {renderHint?.showActions === false ? null : (
+                  <button
+                    className="card__amazon-product-cta"
+                    type="button"
+                    onPointerDown={stopTileActionPointerEvent}
+                    onPointerUp={stopTileActionPointerEvent}
+                    onClick={handleOpenLinkClick}
+                  >
+                    Open product
+                  </button>
+                )}
               </div>
             </div>
           </div>

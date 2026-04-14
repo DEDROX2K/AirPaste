@@ -12,6 +12,7 @@ function getPerfStore() {
       },
       boardRenders: {
         count: 0,
+        movingCount: 0,
         reasons: new Map(),
       },
       summary: {},
@@ -19,6 +20,18 @@ function getPerfStore() {
       hitTests: new Map(),
       images: [],
       cardRenders: new Map(),
+      previewTiers: {
+        byCard: new Map(),
+        counts: new Map(),
+      },
+      saves: {
+        count: 0,
+        totalSerializeMs: 0,
+        totalSaveMs: 0,
+        maxSaveMs: 0,
+        maxSerializeMs: 0,
+        lastSample: null,
+      },
       commits: [],
     };
   }
@@ -55,14 +68,18 @@ export function recordCardRender(cardId, cardType) {
   }
 }
 
-export function recordBoardRender(changedKeys = []) {
+export function recordBoardRender(changedKeys = [], options = {}) {
   const perfStore = getPerfStore();
 
   if (!perfStore) {
     return;
   }
 
+  const isMoving = options?.isMoving === true;
   perfStore.boardRenders.count += 1;
+  if (isMoving) {
+    perfStore.boardRenders.movingCount += 1;
+  }
 
   changedKeys.forEach((key) => {
     perfStore.boardRenders.reasons.set(
@@ -79,9 +96,63 @@ export function recordBoardRender(changedKeys = []) {
   ) {
     console.debug("[perf] canvas-board render", {
       count: perfStore.boardRenders.count,
+      movingCount: perfStore.boardRenders.movingCount,
       changedKeys,
     });
   }
+}
+
+export function recordPreviewTierSelection(cardId, tier) {
+  const perfStore = getPerfStore();
+
+  if (!perfStore || !cardId || !tier) {
+    return;
+  }
+
+  const previousTier = perfStore.previewTiers.byCard.get(cardId) ?? null;
+  if (previousTier === tier) {
+    return;
+  }
+
+  if (previousTier) {
+    const previousCount = perfStore.previewTiers.counts.get(previousTier) ?? 0;
+    perfStore.previewTiers.counts.set(previousTier, Math.max(0, previousCount - 1));
+  }
+
+  perfStore.previewTiers.byCard.set(cardId, tier);
+  perfStore.previewTiers.counts.set(
+    tier,
+    (perfStore.previewTiers.counts.get(tier) ?? 0) + 1,
+  );
+}
+
+export function recordSaveSample(sample) {
+  const perfStore = getPerfStore();
+
+  if (!perfStore || !sample) {
+    return;
+  }
+
+  const serializeMs = Number.isFinite(sample.serializeMs) ? sample.serializeMs : 0;
+  const saveMs = Number.isFinite(sample.saveMs) ? sample.saveMs : 0;
+  const totalMs = Number.isFinite(sample.totalMs) ? sample.totalMs : serializeMs + saveMs;
+  const payloadBytes = Number.isFinite(sample.payloadBytes) ? sample.payloadBytes : 0;
+  const status = sample.status === "error" ? "error" : "success";
+
+  perfStore.saves.count += 1;
+  perfStore.saves.totalSerializeMs += serializeMs;
+  perfStore.saves.totalSaveMs += saveMs;
+  perfStore.saves.maxSaveMs = Math.max(perfStore.saves.maxSaveMs, saveMs);
+  perfStore.saves.maxSerializeMs = Math.max(perfStore.saves.maxSerializeMs, serializeMs);
+  perfStore.saves.lastSample = {
+    path: typeof sample.path === "string" ? sample.path : "",
+    serializeMs,
+    saveMs,
+    totalMs,
+    payloadBytes,
+    status,
+    timestamp: Date.now(),
+  };
 }
 
 export function recordDerivedMetric(name, durationMs, details = {}) {

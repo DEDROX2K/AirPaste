@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:createPage", folderPath, name, targetFolderPath),
   loadCanvas: (filePath) =>
     ipcRenderer.invoke("airpaste:loadCanvas", filePath),
-  saveCanvas: (filePath, data) =>
-    ipcRenderer.invoke("airpaste:saveCanvas", filePath, data),
+  saveCanvas: (filePath, data, options = null) =>
+    ipcRenderer.invoke("airpaste:saveCanvas", filePath, data, options),
   loadPage: (filePath) =>
     ipcRenderer.invoke("airpaste:loadPage", filePath),
   savePage: (filePath, markdown) =>
@@ -50,8 +50,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:cancelLinkPreview", folderPath, cardId),
   importImageAsset: (folderPath, payload) =>
     ipcRenderer.invoke("airpaste:importImageAsset", folderPath, payload),
-  resolveAssetUrl: (folderPath, relativePath) =>
-    ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath),
+  resolveAssetUrl: (folderPath, relativePath, options) =>
+    ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
     const handler = (_event, payload) => listener(payload);

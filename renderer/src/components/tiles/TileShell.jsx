@@ -7,6 +7,7 @@ function preventNativeDrag(event) {
 function TileShell({
   card,
   tileMeta,
+  renderHint = null,
   dragVisualDelta = null,
   className = "",
   toolbar = null,
@@ -26,10 +27,12 @@ function TileShell({
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
     tileMeta?.isRackAttached ? "card--rack-attached" : "",
     tileMeta?.isRackDropTarget ? "card--rack-drop-target" : "",
+    renderHint?.simplify ? "card--simplified" : "",
+    renderHint?.previewTier ? `card--lod-${renderHint.previewTier}` : "",
     className,
   ]
     .filter(Boolean)
-    .join(" "), [card.type, className, tileMeta]);
+    .join(" "), [card.type, className, renderHint?.previewTier, renderHint?.simplify, tileMeta]);
 
   const style = useMemo(() => ({
     ...(tileMeta?.styleVars ?? {}),
@@ -41,6 +44,7 @@ function TileShell({
     <article
       className={classNames}
       data-interaction-state={tileMeta?.interactionState ?? "idle"}
+      data-preview-tier={renderHint?.previewTier ?? "original"}
       style={style}
       onContextMenu={(event) => onContextMenu(card, event)}
       onPointerEnter={() => onHoverChange(card.id, true)}

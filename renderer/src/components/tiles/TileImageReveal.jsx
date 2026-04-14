@@ -44,6 +44,7 @@ function TileImageReveal({
         alt={alt}
         draggable={false}
         decoding="async"
+        loading="lazy"
         onLoad={handleImageLoad}
         onError={handleImageError}
       />

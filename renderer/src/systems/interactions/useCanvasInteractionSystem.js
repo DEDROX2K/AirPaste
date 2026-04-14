@@ -15,7 +15,6 @@ import {
   getSelectedTileIdsInRect,
   MARQUEE_DRAG_THRESHOLD,
   normalizeRect,
-  pointInsideRect,
 } from "../layout/tileLayout";
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 
@@ -38,6 +37,7 @@ export function useCanvasInteractionSystem({
   resetKey,
   snapSettings,
   viewportZoom,
+  suppressHoverUpdates = false,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedTileIds, setSelectedTileIds] = useState([]);
@@ -74,6 +74,15 @@ export function useCanvasInteractionSystem({
   useEffect(() => {
     snapSettingsRef.current = snapSettings;
   }, [snapSettings]);
+
+  useEffect(() => {
+    if (!suppressHoverUpdates) {
+      return;
+    }
+
+    setHoveredTileId(null);
+    setFocusedTileId((currentId) => (draggingTileIds.length > 0 ? currentId : null));
+  }, [draggingTileIds.length, suppressHoverUpdates]);
 
   const clearRackDropPreview = useCallback(() => {
     setRackDropPreview(null);
@@ -235,6 +244,10 @@ export function useCanvasInteractionSystem({
   }, [canvas, selectedTileIdSet, selectedTileIds, selectTile]);
 
   const handleTileHoverChange = useCallback((tileId, isHovered) => {
+    if (suppressHoverUpdates) {
+      return;
+    }
+
     setHoveredTileId((currentId) => {
       if (isHovered) {
         return tileId;
@@ -242,17 +255,23 @@ export function useCanvasInteractionSystem({
 
       return currentId === tileId ? null : currentId;
     });
-  }, []);
+  }, [suppressHoverUpdates]);
 
   const handleTileFocusIn = useCallback((tileId) => {
-    setFocusedTileId(tileId);
-  }, []);
+    if (suppressHoverUpdates) {
+      return;
+    }
 
-  const handleTileFocusOut = useCallback((tileId, event) => {
-    const nextFocusedElement = event.relatedTarget;
+    setFocusedTileId(tileId);
+  }, [suppressHoverUpdates]);
+
+  const handleTileFocusOut = useCallback((tileId) => {
+    if (suppressHoverUpdates) {
+      return;
+    }
 
     setFocusedTileId((currentId) => (currentId === tileId ? null : currentId));
-  }, []);
+  }, [suppressHoverUpdates]);
 
   const beginCanvasMarqueeSelection = useCallback((event) => {
     const startCanvasPoint = canvas.clientToCanvasPoint(event.clientX, event.clientY);
@@ -709,7 +728,7 @@ export function useCanvasInteractionSystem({
 
     setSelectedTileIds([]);
     canvas.beginCanvasPan(event);
-  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, commands]);
+  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu]);
 
   const handleCanvasContextMenu = useCallback((event) => {
     if (!isCanvasBackgroundTarget(event)) {

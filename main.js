@@ -1,4 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+} = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
@@ -23,6 +30,13 @@ const PREVIEW_CAPTURE_TIMEOUT_MS = 15000;
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
 const PREVIEW_DOCUMENT_TIMEOUT_MS = 12000;
 const PREVIEW_JPEG_QUALITY = 58;
+const ASSET_PREVIEW_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "asset-lod"]);
+const ASSET_PREVIEW_TIER_WIDTHS = Object.freeze({
+  thumbnail: 256,
+  medium: 768,
+  high: 1536,
+  original: Infinity,
+});
 const REMOTE_IMAGE_TIMEOUT_MS = 12000;
 const REMOTE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const PREVIEW_VIEWPORT = Object.freeze({
@@ -517,6 +531,85 @@ async function resolveWorkspaceQueueKeyForFile(filePath) {
 
     dir = parent;
   }
+}
+
+function isLikelyImageAsset(assetPath) {
+  const ext = path.extname(String(assetPath ?? "")).toLowerCase().replace(/^\./, "");
+  return ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif"].includes(ext);
+}
+
+function normalizeAssetPreviewOptions(options = null) {
+  const safe = options && typeof options === "object" ? options : {};
+  const requestedTier = typeof safe.previewTier === "string" ? safe.previewTier.trim().toLowerCase() : "original";
+  const previewTier = Object.prototype.hasOwnProperty.call(ASSET_PREVIEW_TIER_WIDTHS, requestedTier)
+    ? requestedTier
+    : "original";
+  const devicePixelRatio = Number.isFinite(safe.devicePixelRatio)
+    ? Math.max(1, Math.min(2, Number(safe.devicePixelRatio)))
+    : 1;
+
+  return {
+    previewTier,
+    devicePixelRatio,
+  };
+}
+
+function getAssetPreviewTargetWidth(imageWidth, options) {
+  const tierWidth = ASSET_PREVIEW_TIER_WIDTHS[options.previewTier] ?? Infinity;
+
+  if (!Number.isFinite(tierWidth)) {
+    return imageWidth;
+  }
+
+  return Math.max(64, Math.round(Math.min(imageWidth, tierWidth * options.devicePixelRatio)));
+}
+
+async function resolveAssetVariantPath(folderPath, assetPath, options) {
+  if (!folderPath || !assetPath || !isLikelyImageAsset(assetPath) || options.previewTier === "original") {
+    return assetPath;
+  }
+
+  const image = nativeImage.createFromPath(assetPath);
+
+  if (image.isEmpty()) {
+    return assetPath;
+  }
+
+  const imageSize = image.getSize();
+  const imageWidth = Number.isFinite(imageSize?.width) ? imageSize.width : 0;
+  if (imageWidth <= 0) {
+    return assetPath;
+  }
+
+  const targetWidth = getAssetPreviewTargetWidth(imageWidth, options);
+  if (targetWidth >= imageWidth) {
+    return assetPath;
+  }
+
+  const sourceStat = await fs.stat(assetPath).catch(() => null);
+  const sourceMtimeToken = Number.isFinite(sourceStat?.mtimeMs)
+    ? Math.round(sourceStat.mtimeMs)
+    : 0;
+  const variantDir = path.join(folderPath, ...ASSET_PREVIEW_DIR_SEGMENTS);
+  await fs.mkdir(variantDir, { recursive: true });
+
+  const sourceHash = createHash("sha1")
+    .update(path.resolve(assetPath).toLowerCase())
+    .digest("hex")
+    .slice(0, 16);
+  const variantName = `${sourceHash}-${sourceMtimeToken}-${targetWidth}.png`;
+  const variantPath = path.join(variantDir, variantName);
+
+  if (!(await pathExists(variantPath))) {
+    const resizedImage = image.resize({
+      width: targetWidth,
+      quality: "good",
+    });
+    const variantBuffer = resizedImage.toPNG();
+    await fs.writeFile(variantPath, variantBuffer);
+  }
+
+  return variantPath;
 }
 
 function createDomeId(domePath) {
@@ -2239,14 +2332,16 @@ ipcMain.handle("airpaste:importImageAsset", async (_event, folderPath, payload) 
   ));
 });
 
-ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePath) => {
+ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePath, options = null) => {
   const assetPath = workspaceService.resolveWorkspaceAssetPath(folderPath, relativePath);
 
   if (!assetPath) {
     return "";
   }
 
-  return pathToFileURL(assetPath).toString();
+  const normalizedOptions = normalizeAssetPreviewOptions(options);
+  const resolvedPath = await resolveAssetVariantPath(folderPath, assetPath, normalizedOptions);
+  return pathToFileURL(resolvedPath).toString();
 });
 
 const workspaceActionHandlers = Object.freeze({
@@ -2289,9 +2384,9 @@ ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
   return withWorkspaceQueue(queueKey, () => workspaceService.loadCanvas(filePath));
 });
 
-ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data) => {
+ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data, options = null) => {
   const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-  return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data));
+  return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data, options));
 });
 
 ipcMain.handle("airpaste:loadPage", async (_event, filePath) => {

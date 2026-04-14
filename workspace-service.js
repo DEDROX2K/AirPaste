@@ -668,6 +668,7 @@ async function loadCanvas(filePath) {
     version: Number.isFinite(raw.version) ? raw.version : 5,
     viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
     cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
+    view: raw.view === null || isObject(raw.view) ? raw.view : null,
   };
   await recordRecentItem(root, abs);
   return {
@@ -681,30 +682,62 @@ async function loadCanvas(filePath) {
   };
 }
 
-async function saveCanvas(filePath, data) {
+async function saveCanvas(filePath, data, options = null) {
   const abs = path.resolve(filePath);
   if (!abs.toLowerCase().endsWith(CANVAS_SUFFIX)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
   const root = await workspaceRootFromFile(abs);
   if (!root) throw new Error("Could not resolve the workspace for this canvas.");
   await ensureReady(root);
   ensureInside(root, abs);
+  const saveOptions = isObject(options) ? options : {};
   const existing = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
   const workspace = isObject(data) ? data : DEFAULT_WORKSPACE;
   const payload = {
     version: 2,
     type: "canvas",
-    name: firstString(existing.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
+    name: firstString(workspace.name, existing.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
     createdAt: typeof existing.createdAt === "string" ? existing.createdAt : nowIso(),
     updatedAt: nowIso(),
-    viewport: isObject(workspace.viewport) ? workspace.viewport : DEFAULT_WORKSPACE.viewport,
-    cards: Array.isArray(workspace.cards) ? workspace.cards : [],
+    viewport: isObject(workspace.viewport)
+      ? workspace.viewport
+      : isObject(existing.viewport)
+        ? existing.viewport
+        : DEFAULT_WORKSPACE.viewport,
+    cards: Array.isArray(workspace.cards)
+      ? workspace.cards
+      : Array.isArray(existing.cards)
+        ? existing.cards
+        : [],
+    view: workspace.view === null || isObject(workspace.view)
+      ? workspace.view
+      : existing.view ?? null,
   };
   await safeWriteJson(abs, payload);
   const rel = toWorkspaceRel(root, abs);
-  await writePreview(root, rel, payload, payload.name);
-  await ensureReady(root);
-  await recordRecentItem(root, abs);
-  return loadCanvas(abs);
+  const changedKeys = Array.isArray(saveOptions.changedKeys)
+    ? saveOptions.changedKeys.filter((key) => typeof key === "string" && key.trim().length > 0)
+    : [];
+  const shouldUpdatePreview = changedKeys.length === 0
+    || changedKeys.includes("cards")
+    || changedKeys.includes("name");
+
+  if (shouldUpdatePreview) {
+    await writePreview(root, rel, payload, payload.name);
+  }
+
+  if (saveOptions.returnWorkspace !== false) {
+    await ensureReady(root);
+    await recordRecentItem(root, abs);
+    return loadCanvas(abs);
+  }
+
+  return {
+    type: "canvas",
+    path: rel,
+    filePath: abs,
+    updatedAt: payload.updatedAt,
+    changedKeys,
+  };
 }
 
 async function loadPage(filePath) {

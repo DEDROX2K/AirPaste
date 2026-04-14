@@ -130,6 +130,8 @@ export function useTileLayoutSystem({
             isRackDropTarget,
             rackId: entry.rackId ?? null,
             rackSlotIndex: entry.rackSlotIndex ?? null,
+            renderWidth: entry.width,
+            renderHeight: entry.height,
             interactionState,
             styleVars: isRackAttached
               ? getRackAttachedStyleVars(tile, {

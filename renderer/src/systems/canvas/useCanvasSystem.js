@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { recordInteractionCommit } from "../../lib/perf";
 import {
   clampViewportZoom,
@@ -20,7 +20,6 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const panStateRef = useRef(null);
   const viewportRef = useRef(viewport);
   const pendingViewportRef = useRef(null);
-  const wheelCommitFrameRef = useRef(0);
   const wheelStopTimeoutRef = useRef(0);
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
@@ -55,26 +54,25 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     });
   }, [contentElement, gridElement]);
 
-  const scheduleViewportCommit = useCallback((nextViewport) => {
-    pendingViewportRef.current = nextViewport;
+  const commitPendingViewport = useCallback(() => {
+    const pendingViewport = pendingViewportRef.current;
 
-    if (wheelCommitFrameRef.current) {
+    if (!pendingViewport) {
       return;
     }
 
-    wheelCommitFrameRef.current = window.requestAnimationFrame(() => {
-      wheelCommitFrameRef.current = 0;
-      const pendingViewport = pendingViewportRef.current;
-
-      if (!pendingViewport) {
-        return;
-      }
-
-      pendingViewportRef.current = null;
-      viewportRef.current = pendingViewport;
-      onViewportChange(pendingViewport);
-    });
+    pendingViewportRef.current = null;
+    viewportRef.current = pendingViewport;
+    onViewportChange(pendingViewport);
   }, [onViewportChange]);
+
+  const scheduleViewportCommit = useCallback((nextViewport, options = {}) => {
+    pendingViewportRef.current = nextViewport;
+
+    if (options.immediate) {
+      commitPendingViewport();
+    }
+  }, [commitPendingViewport]);
 
   const markZoomActive = useCallback(() => {
     setIsZooming(true);
@@ -85,9 +83,10 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
     wheelStopTimeoutRef.current = window.setTimeout(() => {
       wheelStopTimeoutRef.current = 0;
+      commitPendingViewport();
       setIsZooming(false);
     }, 120);
-  }, []);
+  }, [commitPendingViewport]);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -97,6 +96,14 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       applyViewportStyleVars(viewport);
     }
   }, [applyViewportStyleVars, viewport]);
+
+  useEffect(() => {
+    if (!gridElement && !contentElement) {
+      return;
+    }
+
+    applyViewportStyleVars(viewportRef.current);
+  }, [applyViewportStyleVars, contentElement, gridElement]);
 
   useEffect(() => {
     const container = containerElement;
@@ -170,8 +177,11 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [measureContainerRect]);
 
   const zoomToWorldPoint = useCallback((canvasPoint, worldPoint, nextZoom) => {
-    onViewportChange(getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom));
-  }, [onViewportChange]);
+    const nextViewport = getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom);
+    viewportRef.current = nextViewport;
+    applyViewportStyleVars(nextViewport);
+    scheduleViewportCommit(nextViewport, { immediate: true });
+  }, [applyViewportStyleVars, scheduleViewportCommit]);
 
   const zoomAtCanvasPoint = useCallback((canvasPoint, nextZoom) => {
     const vp = viewportRef.current;
@@ -209,9 +219,11 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       return false;
     }
 
+    viewportRef.current = nextViewport;
+    applyViewportStyleVars(nextViewport);
     onViewportChange(nextViewport);
     return true;
-  }, [containerElement, onViewportChange]);
+  }, [applyViewportStyleVars, containerElement, onViewportChange]);
 
   const beginCanvasPan = useCallback((event) => {
     if (event.button !== 0 && event.button !== 1) {
@@ -254,7 +266,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       viewportRef.current = nextViewport;
       applyViewportStyleVars(nextViewport);
       markZoomActive();
-      scheduleViewportCommit(nextViewport);
+      scheduleViewportCommit(nextViewport, { immediate: false });
     }
 
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -318,17 +330,10 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   }, [applyViewportStyleVars, onViewportChange]);
 
   useEffect(() => () => {
-    if (wheelCommitFrameRef.current) {
-      window.cancelAnimationFrame(wheelCommitFrameRef.current);
-    }
-
     if (wheelStopTimeoutRef.current) {
       window.clearTimeout(wheelStopTimeoutRef.current);
     }
   }, []);
-
-  const gridStyleVars = useMemo(() => getCanvasGridStyleVars(viewport), [viewport]);
-  const contentStyleVars = useMemo(() => getCanvasContentStyleVars(viewport), [viewport]);
 
   return {
     containerRef,
@@ -337,9 +342,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     isPanning,
     isZooming,
     viewport,
+    getViewportSnapshot: () => viewportRef.current,
     containerRect: containerRectRef.current,
-    gridStyleVars,
-    contentStyleVars,
     clientToCanvasPoint: toCanvasPoint,
     clientToWorldPoint: toWorldPoint,
     getViewportCenter,

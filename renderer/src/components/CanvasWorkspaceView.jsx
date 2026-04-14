@@ -5,6 +5,7 @@ import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GlobeWorkspaceView from "./GlobeWorkspaceView";
 import GridWorkspaceView from "./GridWorkspaceView";
+import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
@@ -40,24 +41,7 @@ import {
   getDefaultCameraDistance,
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
-
-function IconFolder() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function IconHome() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 10.5L12 3l9 7.5" />
-      <path d="M5 9.8V21h14V9.8" />
-      <path d="M9.5 21v-6h5v6" />
-    </svg>
-  );
-}
+import { buildTileRenderHint } from "../systems/canvas/tileLod";
 
 function WorkspaceViewToggle({ mode, onChange }) {
   return (
@@ -96,13 +80,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
   );
 }
 
-function WorkspaceTopbarTrail({
-  canvasName,
-  folderLabel,
-  folderLoading,
-  onOpenHome,
-  onOpenWorkspaceFolder,
-}) {
+function WorkspaceTopbarTrail() {
   return (
     <header className="canvas-topbar">
 
@@ -164,7 +142,7 @@ function buildPreviewDiagnosticsExport(card) {
     ? card.previewDiagnostics
     : {};
 
-  const { previewDiagnostics, ...rawFinalPersistedCardPayload } = card ?? {};
+  const { ...rawFinalPersistedCardPayload } = card ?? {};
   const finalPersistedCardPayload = {
     ...rawFinalPersistedCardPayload,
     image: typeof rawFinalPersistedCardPayload.image === "string" && rawFinalPersistedCardPayload.image.startsWith("data:")
@@ -195,11 +173,69 @@ function buildPreviewDiagnosticsExport(card) {
   };
 }
 
+function areStyleVarSetsEqual(left, right) {
+  const leftKeys = Object.keys(left ?? {});
+  const rightKeys = Object.keys(right ?? {});
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  for (let index = 0; index < leftKeys.length; index += 1) {
+    const key = leftKeys[index];
+    if (left?.[key] !== right?.[key]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areTileMetaEquivalent(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.isDragging === right.isDragging
+    && left.isSelected === right.isSelected
+    && left.isFocused === right.isFocused
+    && left.isHovered === right.isHovered
+    && left.isMergeTarget === right.isMergeTarget
+    && left.isRackAttached === right.isRackAttached
+    && left.isParentDragging === right.isParentDragging
+    && left.isParentSelected === right.isParentSelected
+    && left.isGroupingTarget === right.isGroupingTarget
+    && left.isGroupingArmed === right.isGroupingArmed
+    && left.isFolderZoneTarget === right.isFolderZoneTarget
+    && left.isRackDropTarget === right.isRackDropTarget
+    && left.rackId === right.rackId
+    && left.rackSlotIndex === right.rackSlotIndex
+    && left.interactionState === right.interactionState
+    && left.renderWidth === right.renderWidth
+    && left.renderHeight === right.renderHeight
+    && areStyleVarSetsEqual(left.styleVars, right.styleVars);
+}
+
+function areRenderHintsEqual(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.previewTier === right.previewTier
+    && left.simplify === right.simplify
+    && left.imageEnabled === right.imageEnabled
+    && left.showToolbar === right.showToolbar
+    && left.showActions === right.showActions
+    && left.disableImageReveal === right.disableImageReveal;
+}
+
 function CanvasPerformanceOverlay({
   visibleTileCount,
+  renderedTileCount,
   totalTileCount,
   activeDragLayers,
   isCanvasMoving,
+  previewTierCounts,
 }) {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState({
@@ -209,7 +245,10 @@ function CanvasPerformanceOverlay({
     pointerAvgMs: 0,
     pointerMaxMs: 0,
     boardRenderCount: 0,
+    boardMovingRenderCount: 0,
     latestCommitMs: 0,
+    latestSaveMs: 0,
+    latestSerializeMs: 0,
     fpsHistory: [],
     frameMsHistory: [],
   });
@@ -239,6 +278,7 @@ function CanvasPerformanceOverlay({
         const pointerStats = readPointerMoveStats();
         const perfStore = window.__AIRPASTE_PERF__ ?? null;
         const latestCommit = perfStore?.commits?.[perfStore.commits.length - 1] ?? null;
+        const latestSave = perfStore?.saves?.lastSample ?? null;
 
         setSnapshot((currentSnapshot) => ({
           fps,
@@ -247,7 +287,10 @@ function CanvasPerformanceOverlay({
           pointerAvgMs: pointerStats?.avgMs ?? 0,
           pointerMaxMs: pointerStats?.maxMs ?? 0,
           boardRenderCount: perfStore?.boardRenders?.count ?? 0,
+          boardMovingRenderCount: perfStore?.boardRenders?.movingCount ?? 0,
           latestCommitMs: latestCommit?.durationMs ?? 0,
+          latestSaveMs: latestSave?.saveMs ?? 0,
+          latestSerializeMs: latestSave?.serializeMs ?? 0,
           fpsHistory: [...currentSnapshot.fpsHistory, fps].slice(-PERF_HISTORY_LIMIT),
           frameMsHistory: [...currentSnapshot.frameMsHistory, averageFrameMs].slice(-PERF_HISTORY_LIMIT),
         }));
@@ -277,23 +320,36 @@ function CanvasPerformanceOverlay({
     `Frame ms: ${roundMetric(snapshot.frameMs)} ms`,
     `Dropped: ${snapshot.droppedFrames}`,
     `Visible: ${visibleTileCount}/${totalTileCount}`,
+    `Rendered: ${renderedTileCount}`,
     `Drag layers: ${activeDragLayers}`,
     `Pointer avg: ${roundMetric(snapshot.pointerAvgMs)} ms`,
     `Pointer max: ${roundMetric(snapshot.pointerMaxMs)} ms`,
     `Renders: ${snapshot.boardRenderCount}`,
+    `Move renders: ${snapshot.boardMovingRenderCount}`,
+    `Save: ${roundMetric(snapshot.latestSaveMs)} ms`,
+    `Serialize: ${roundMetric(snapshot.latestSerializeMs)} ms`,
     `Commit: ${roundMetric(snapshot.latestCommitMs)} ms`,
+    `LOD: t${previewTierCounts.thumbnail} m${previewTierCounts.medium} h${previewTierCounts.high} o${previewTierCounts.original}`,
     `State: ${isCanvasMoving ? "moving" : "idle"}`,
   ].join("\n"), [
     activeDragLayers,
     isCanvasMoving,
     snapshot.boardRenderCount,
+    snapshot.boardMovingRenderCount,
     snapshot.droppedFrames,
     snapshot.fps,
     snapshot.frameMs,
     snapshot.latestCommitMs,
+    snapshot.latestSaveMs,
+    snapshot.latestSerializeMs,
     snapshot.pointerAvgMs,
     snapshot.pointerMaxMs,
     totalTileCount,
+    renderedTileCount,
+    previewTierCounts.high,
+    previewTierCounts.medium,
+    previewTierCounts.original,
+    previewTierCounts.thumbnail,
     visibleTileCount,
   ]);
   const handleCopyPerf = useCallback(async () => {
@@ -345,11 +401,16 @@ function CanvasPerformanceOverlay({
         <span>Frame {roundMetric(snapshot.frameMs)} ms</span>
         <span>Dropped {snapshot.droppedFrames}</span>
         <span>Visible {visibleTileCount}/{totalTileCount}</span>
+        <span>Rendered {renderedTileCount}</span>
         <span>Drag layers {activeDragLayers}</span>
         <span>Pointer avg {roundMetric(snapshot.pointerAvgMs)} ms</span>
         <span>Pointer max {roundMetric(snapshot.pointerMaxMs)} ms</span>
         <span>Renders {snapshot.boardRenderCount}</span>
+        <span>Move renders {snapshot.boardMovingRenderCount}</span>
+        <span>Save {roundMetric(snapshot.latestSaveMs)} ms</span>
+        <span>Serialize {roundMetric(snapshot.latestSerializeMs)} ms</span>
         <span>Commit {roundMetric(snapshot.latestCommitMs)} ms</span>
+        <span>LOD t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
         <span>State {isCanvasMoving ? "moving" : "idle"}</span>
       </div>
     </div>
@@ -361,6 +422,10 @@ export default function CanvasWorkspaceView() {
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
   const searchInputRef = useRef(null);
   const previousBoardSnapshotRef = useRef(null);
+  const tileMetaCacheRef = useRef(new Map());
+  const tileRenderHintCacheRef = useRef(new Map());
+  const lodFrozenZoomRef = useRef(1);
+  const lodFreezeActiveRef = useRef(false);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const {
     canRedo,
@@ -373,6 +438,7 @@ export default function CanvasWorkspaceView() {
     homeData,
     openExistingWorkspace,
     saveHomeUiState,
+    setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
     showHome,
@@ -390,14 +456,24 @@ export default function CanvasWorkspaceView() {
   const { log } = useLog();
   const { toast } = useToast();
   const [globeVisibleTileCount, setGlobeVisibleTileCount] = useState(0);
+  const [cullingTick, setCullingTick] = useState(0);
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGlobeMode = workspaceView.mode === "globe";
   const isGridMode = workspaceView.mode === "grid";
+  const sceneSurfaceEnabled = useMemo(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    const mode = window.localStorage?.getItem("airpaste.workspaceSurfaceMode");
+    return mode !== "dom";
+  }, []);
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
+  const cameraIsMoving = canvas.isPanning || canvas.isZooming;
 
   const commands = useCanvasCommands({
     folderPath,
@@ -432,12 +508,14 @@ export default function CanvasWorkspaceView() {
     commands,
     resetKey: folderPath,
     snapSettings,
-    viewportZoom: workspace.viewport.zoom,
+    viewportZoom: canvas.getViewportSnapshot().zoom,
+    suppressHoverUpdates: cameraIsMoving,
   });
+  const resetTransientState = interactions.resetTransientState;
 
   useEffect(() => {
-    interactions.resetTransientState();
-  }, [interactions.resetTransientState, workspaceView.mode]);
+    resetTransientState();
+  }, [resetTransientState, workspaceView.mode]);
 
   useEffect(() => {
     setSearchQuery("");
@@ -496,14 +574,59 @@ export default function CanvasWorkspaceView() {
     });
     return nextDraggingTileIdSet;
   }, [interactions.draggingTileIds]);
-  const isCanvasMoving = canvas.isPanning || canvas.isZooming || interactions.draggingTileIds.length > 0;
+  const isCanvasMoving = cameraIsMoving || interactions.draggingTileIds.length > 0;
+  const liveViewport = canvas.getViewportSnapshot();
+
+  useEffect(() => {
+    if (isGridMode || isGlobeMode) {
+      return undefined;
+    }
+
+    let rafId = 0;
+    let lastSampleTime = 0;
+
+    if (isCanvasMoving) {
+      const tick = (now) => {
+        if (now - lastSampleTime >= 120) {
+          lastSampleTime = now;
+          setCullingTick((currentTick) => currentTick + 1);
+        }
+
+        rafId = window.requestAnimationFrame(tick);
+      };
+
+      rafId = window.requestAnimationFrame(tick);
+    } else {
+      setCullingTick((currentTick) => currentTick + 1);
+    }
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [isCanvasMoving, isGlobeMode, isGridMode]);
+
+  useEffect(() => {
+    setCanvasInteractionState?.(isCanvasMoving);
+    return () => {
+      setCanvasInteractionState?.(false);
+    };
+  }, [isCanvasMoving, setCanvasInteractionState]);
+
   const visibleWorldRect = useMemo(() => {
     if (isGridMode || isGlobeMode) {
       return null;
     }
 
-    return canvas.getVisibleWorldRect(isCanvasMoving ? 240 : 120);
-  }, [canvas, isCanvasMoving, isGlobeMode, isGridMode, workspace.viewport.x, workspace.viewport.y, workspace.viewport.zoom]);
+    const zoom = Math.max(0.2, liveViewport.zoom);
+    const overscan = isCanvasMoving
+      ? Math.max(280, 440 / zoom)
+      : Math.max(160, 220 / zoom);
+    const cullingSampleOffset = cullingTick < 0 ? 1 : 0;
+
+    return canvas.getVisibleWorldRect(overscan + cullingSampleOffset);
+  }, [canvas, cullingTick, isCanvasMoving, isGlobeMode, isGridMode, liveViewport.zoom]);
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
@@ -514,6 +637,136 @@ export default function CanvasWorkspaceView() {
     draggingTileIds: interactions.draggingTileIds,
     visibleWorldRect,
   });
+  const viewportZoomForRender = useMemo(() => {
+    if (isCanvasMoving) {
+      if (!lodFreezeActiveRef.current) {
+        lodFreezeActiveRef.current = true;
+        lodFrozenZoomRef.current = liveViewport.zoom;
+      }
+
+      return lodFrozenZoomRef.current;
+    }
+
+    lodFreezeActiveRef.current = false;
+    lodFrozenZoomRef.current = liveViewport.zoom;
+    return liveViewport.zoom;
+  }, [isCanvasMoving, liveViewport.zoom]);
+  const stableTileMetaById = useMemo(() => {
+    const previousCache = tileMetaCacheRef.current;
+    const nextCache = new Map();
+    const nextTileMetaById = {};
+
+    layout.rootTiles.forEach((tile) => {
+      const nextMeta = layout.tileMetaById[tile.id];
+      const previousMeta = previousCache.get(tile.id);
+      const stableMeta = previousMeta && areTileMetaEquivalent(previousMeta, nextMeta)
+        ? previousMeta
+        : nextMeta;
+
+      nextCache.set(tile.id, stableMeta);
+      nextTileMetaById[tile.id] = stableMeta;
+    });
+
+    tileMetaCacheRef.current = nextCache;
+    return nextTileMetaById;
+  }, [layout.rootTiles, layout.tileMetaById]);
+  const tileRenderHintsById = useMemo(() => {
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+    const previousCache = tileRenderHintCacheRef.current;
+    const nextCache = new Map();
+    const nextHints = {};
+
+    layout.rootTiles.forEach((tile) => {
+      const previousHint = previousCache.get(tile.id) ?? null;
+      const nextHint = buildTileRenderHint({
+        tile,
+        tileMeta: stableTileMetaById[tile.id],
+        viewportZoom: viewportZoomForRender,
+        isCanvasMoving,
+        devicePixelRatio: dpr,
+        previousHint,
+      });
+      const stableHint = previousHint && areRenderHintsEqual(previousHint, nextHint)
+        ? previousHint
+        : nextHint;
+
+      nextCache.set(tile.id, stableHint);
+      nextHints[tile.id] = stableHint;
+    });
+
+    tileRenderHintCacheRef.current = nextCache;
+    return nextHints;
+  }, [isCanvasMoving, layout.rootTiles, stableTileMetaById, viewportZoomForRender]);
+  const previewTierCounts = useMemo(() => {
+    return layout.rootTiles.reduce((counts, tile) => {
+      const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";
+
+      if (!Object.prototype.hasOwnProperty.call(counts, tier)) {
+        counts[tier] = 0;
+      }
+
+      counts[tier] += 1;
+      return counts;
+    }, {
+      thumbnail: 0,
+      medium: 0,
+      high: 0,
+      original: 0,
+    });
+  }, [layout.rootTiles, tileRenderHintsById]);
+  const overlayTileIdSet = useMemo(() => {
+    if (!sceneSurfaceEnabled || isGlobeMode) {
+      return new Set();
+    }
+
+    const nextSet = new Set([
+      ...interactions.selectedTileIds,
+      ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
+      ...interactions.draggingTileIds,
+    ]);
+
+    return nextSet;
+  }, [
+    interactions.draggingTileIds,
+    interactions.focusedTileId,
+    interactions.selectedTileIds,
+    isGlobeMode,
+    sceneSurfaceEnabled,
+  ]);
+  const sceneTiles = useMemo(() => (
+    sceneSurfaceEnabled
+      ? layout.rootTiles.filter((tile) => !overlayTileIdSet.has(tile.id))
+      : layout.rootTiles
+  ), [layout.rootTiles, overlayTileIdSet, sceneSurfaceEnabled]);
+  const overlayTiles = useMemo(() => (
+    sceneSurfaceEnabled
+      ? layout.rootTiles.filter((tile) => overlayTileIdSet.has(tile.id))
+      : layout.rootTiles
+  ), [layout.rootTiles, overlayTileIdSet, sceneSurfaceEnabled]);
+
+  const handleSceneTilePressStart = useCallback((tile, event) => (
+    interactions.handleTilePressStart(tile, event)
+  ), [interactions]);
+
+  const handleSceneTileDragStart = useCallback((tile, event) => {
+    interactions.beginTileDrag(tile, event);
+  }, [interactions]);
+
+  const handleSceneTileContextMenu = useCallback((tile, event) => {
+    interactions.handleTileContextMenu(tile, event);
+  }, [interactions]);
+
+  const handleSceneTileHoverChange = useCallback((tileId, isHovered) => {
+    interactions.handleTileHoverChange(tileId, isHovered);
+  }, [interactions]);
+
+  const handleSceneBackgroundPointerDown = useCallback((event) => {
+    interactions.handleCanvasPointerDown(event);
+  }, [interactions]);
+
+  const handleSceneBackgroundContextMenu = useCallback((event) => {
+    interactions.handleCanvasContextMenu(event);
+  }, [interactions]);
 
   const zoomToFitAll = useCallback(() => {
     canvas.zoomToBounds(layout.allTilesBounds);
@@ -761,19 +1014,23 @@ export default function CanvasWorkspaceView() {
   const visibleTileCount = isGlobeMode
     ? globeVisibleTileCount
     : (layout.visibleTileCount ?? layout.rootTiles.length);
+  const renderedTileCount = layout.rootTiles.length;
   const hasActiveSearch = deferredSearchQuery.trim().length > 0;
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
   const performanceMode = useMemo(() => ({
-    simplifyDuringMotion: false,
-  }), []);
+    simplifyDuringMotion: isCanvasMoving,
+    sceneSurfaceEnabled,
+  }), [isCanvasMoving, sceneSurfaceEnabled]);
 
   const boardSnapshot = useMemo(() => ({
+    surfaceRenderer: sceneSurfaceEnabled ? "scene" : "dom",
     viewMode: workspaceView.mode,
-    viewport: `${Math.round(canvas.viewport.x)}:${Math.round(canvas.viewport.y)}:${canvas.viewport.zoom.toFixed(2)}`,
+    viewport: `${Math.round(liveViewport.x)}:${Math.round(liveViewport.y)}:${liveViewport.zoom.toFixed(2)}`,
     cardCount: workspace.cards.length,
     filteredTileCount: filteredTiles.length,
     visibleTileCount,
+    renderedTileCount,
     globeVisibleTileCount: isGlobeMode ? globeVisibleTileCount : null,
     selectedCount: interactions.selectedTileIds.length,
     hoveredTileId: interactions.hoveredTileId,
@@ -790,9 +1047,6 @@ export default function CanvasWorkspaceView() {
     globeCameraDistance: isGlobeMode ? Math.round(workspaceView.cameraDistance ?? 0) : null,
   }), [
     canvas.isPanning,
-    canvas.viewport.x,
-    canvas.viewport.y,
-    canvas.viewport.zoom,
     dropImport.isDropTarget,
     filteredTiles.length,
     globeVisibleTileCount,
@@ -804,10 +1058,15 @@ export default function CanvasWorkspaceView() {
     interactions.rackDropPreview?.rackId,
     interactions.selectedTileIds.length,
     isGlobeMode,
+    liveViewport.x,
+    liveViewport.y,
+    liveViewport.zoom,
+    renderedTileCount,
     snapSettings.enabled,
     visibleTileCount,
     workspaceView.cameraDistance,
     workspaceView.mode,
+    sceneSurfaceEnabled,
     workspace.cards.length,
   ]);
 
@@ -817,18 +1076,29 @@ export default function CanvasWorkspaceView() {
       ? Object.keys(boardSnapshot).filter((key) => previousSnapshot[key] !== boardSnapshot[key])
       : ["initial-render"];
 
-    recordBoardRender(changedKeys);
+    recordBoardRender(changedKeys, { isMoving: isCanvasMoving });
     previousBoardSnapshotRef.current = boardSnapshot;
-  }, [boardSnapshot]);
+  }, [boardSnapshot, isCanvasMoving]);
 
   useEffect(() => {
     setPerfSummary({
       visibleTileCount,
+      renderedTileCount,
       totalTileCount,
       activeDragLayers: interactions.draggingTileIds.length,
+      previewTierCounts,
       perfMode: performanceMode,
+      surfaceRenderer: sceneSurfaceEnabled ? "scene" : "dom",
     });
-  }, [interactions.draggingTileIds.length, performanceMode, totalTileCount, visibleTileCount]);
+  }, [
+    interactions.draggingTileIds.length,
+    performanceMode,
+    previewTierCounts,
+    renderedTileCount,
+    sceneSurfaceEnabled,
+    totalTileCount,
+    visibleTileCount,
+  ]);
 
   const toggleCanvasSnapping = useCallback(() => {
     setSnapSettings((currentSettings) => {
@@ -1009,7 +1279,7 @@ export default function CanvasWorkspaceView() {
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
           <CanvasZoomMenu
-            zoom={isGlobeMode ? globeZoomValue : workspace.viewport.zoom}
+            zoom={isGlobeMode ? globeZoomValue : viewportZoomForRender}
             canFitAll={isGlobeMode ? filteredTiles.length > 0 : Boolean(layout.allTilesBounds)}
             canFitSelection={!isGlobeMode && Boolean(layout.selectedTilesBounds)}
             onZoomIn={isGlobeMode ? handleGlobeZoomIn : canvas.zoomIn}
@@ -1083,14 +1353,14 @@ export default function CanvasWorkspaceView() {
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
-        onPointerDown={(event) => {
-          if (isGlobeMode) {
+      onPointerDown={(event) => {
+          if (isGlobeMode || sceneSurfaceEnabled) {
             return;
           }
 
           interactions.handleCanvasPointerDown(event);
         }}
-        onContextMenu={isGlobeMode ? undefined : interactions.handleCanvasContextMenu}
+        onContextMenu={isGlobeMode || sceneSurfaceEnabled ? undefined : interactions.handleCanvasContextMenu}
         onClick={(event) => {
           if (isGlobeMode) {
             if (!isEditableElement(event.target)) {
@@ -1119,14 +1389,36 @@ export default function CanvasWorkspaceView() {
             />
         ) : (
           <>
-            <div ref={canvas.gridRef} className="canvas__grid" style={canvas.gridStyleVars} />
-            <div ref={canvas.contentRef} className="canvas__content" style={canvas.contentStyleVars}>
-              {layout.rootTiles.map((card) => (
+            {sceneSurfaceEnabled ? (
+              <SceneWorkspaceSurface
+                folderPath={folderPath}
+                tiles={sceneTiles}
+                tileMetaById={stableTileMetaById}
+                tileRenderHintsById={tileRenderHintsById}
+                isCanvasMoving={isCanvasMoving}
+                cameraSnapshot={workspace.viewport}
+                getViewportSnapshot={canvas.getViewportSnapshot}
+                onTilePressStart={handleSceneTilePressStart}
+                onTileDragStart={handleSceneTileDragStart}
+                onTileContextMenu={handleSceneTileContextMenu}
+                onTileHoverChange={handleSceneTileHoverChange}
+                onBackgroundPointerDown={handleSceneBackgroundPointerDown}
+                onBackgroundContextMenu={handleSceneBackgroundContextMenu}
+              />
+            ) : (
+              <div ref={canvas.gridRef} className="canvas__grid" />
+            )}
+            <div
+              ref={canvas.contentRef}
+              className={`canvas__content${sceneSurfaceEnabled ? " canvas__content--overlay" : ""}`}
+            >
+              {(sceneSurfaceEnabled ? overlayTiles : layout.rootTiles).map((card) => (
                 <Card
                   key={card.id}
                   card={card}
-                  tileMeta={layout.tileMetaById[card.id]}
-                  viewportZoom={workspace.viewport.zoom}
+                  tileMeta={stableTileMetaById[card.id]}
+                  viewportZoom={viewportZoomForRender}
+                  renderHint={tileRenderHintsById[card.id]}
                   dragVisualDelta={interactions.dragVisualDelta}
                   dragVisualTileIdSet={draggingTileIdSet}
                   childTiles={layout.rackTileChildrenByRackId[card.id] ?? []}
@@ -1153,9 +1445,11 @@ export default function CanvasWorkspaceView() {
         {!isGlobeMode ? (
           <CanvasPerformanceOverlay
             visibleTileCount={visibleTileCount}
+            renderedTileCount={renderedTileCount}
             totalTileCount={totalTileCount}
             activeDragLayers={interactions.draggingTileIds.length}
             isCanvasMoving={isCanvasMoving}
+            previewTierCounts={previewTierCounts}
           />
         ) : null}
 

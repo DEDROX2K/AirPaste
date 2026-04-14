@@ -7,11 +7,11 @@ import {
 } from "../../lib/workspace";
 import { useAppContext } from "../../context/useAppContext";
 import { useToast } from "../../hooks/useToast";
-import { desktop } from "../../lib/desktop";
-import { recordImageSample } from "../../lib/perf";
+import { recordImageSample, recordPreviewTierSelection } from "../../lib/perf";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
 
 function formatShortUrl(url) {
   try {
@@ -74,21 +74,30 @@ function LinkTile({
   onPressStart,
   onMediaLoad,
   onRetry,
+  renderHint,
 }) {
   const { toast } = useToast();
   const { folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
-  const [resolvedImageSrc, setResolvedImageSrc] = useState("");
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
-  const mediaSrc = isImageTile ? (resolvedImageSrc || card.image) : card.image;
-  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError;
+  const previewTier = renderHint?.previewTier ?? "original";
+  const { src: previewSource } = useTilePreviewSource({
+    card,
+    folderPath,
+    previewTier,
+    imageEnabled: renderHint?.imageEnabled !== false,
+    devicePixelRatio: typeof window !== "undefined" ? window.devicePixelRatio : 1,
+  });
+  const mediaSrc = isImageTile ? (previewSource || card.image) : previewSource;
+  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
   const previewFallbackReason = hasImageError
     ? "The preview image failed to load."
     : card.previewError || "";
-  const enableReveal = true;
+  const enableReveal = renderHint?.disableImageReveal !== true;
+  const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const surfaceFrameClassName = [
@@ -128,36 +137,11 @@ function LinkTile({
   useEffect(() => {
     setHasImageError(false);
     setHasLoadedImage(false);
-  }, [card.id, card.image, resolvedImageSrc]);
+  }, [card.id, card.image, previewSource]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function resolveImageSource() {
-      if (!isImageTile || !card.asset?.relativePath || !folderPath) {
-        setResolvedImageSrc("");
-        return;
-      }
-
-      try {
-        const assetUrl = await desktop.workspace.resolveAssetUrl(folderPath, card.asset.relativePath);
-
-        if (!cancelled) {
-          setResolvedImageSrc(assetUrl || "");
-        }
-      } catch {
-        if (!cancelled) {
-          setResolvedImageSrc("");
-        }
-      }
-    }
-
-    void resolveImageSource();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [card.asset?.relativePath, folderPath, isImageTile]);
+    recordPreviewTierSelection(card.id, previewTier);
+  }, [card.id, previewTier]);
 
   const handleMediaLoad = (event) => {
     setHasLoadedImage(true);
@@ -188,7 +172,10 @@ function LinkTile({
   const mediaMarkup = (
     <>
       {isImageTile ? null : (
-        <div className="card__link-actions" aria-label="Link actions">
+        <div
+          className={`card__link-actions${showLinkActions ? "" : " card__link-actions--hidden"}`}
+          aria-label="Link actions"
+        >
           <button
             className="card__link-action"
             type="button"
@@ -261,7 +248,7 @@ function LinkTile({
           <p className="card__link-loading-label">Loading preview</p>
         </div>
       ) : (
-        <div className="card__placeholder">
+        <div className={`card__placeholder${renderHint?.simplify ? " card__placeholder--simplified" : ""}`}>
           <p className="card__placeholder-title">{linkTitle}</p>
           <p className="card__placeholder-subtitle">
             {isImageTile
@@ -276,10 +263,11 @@ function LinkTile({
   return (
     <TileShell
       card={card}
+      renderHint={renderHint}
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className={isMusicCard ? "card--music" : ""}
-      toolbar={(
+      toolbar={renderHint?.showToolbar === false ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
           <p className="card__label">{label}</p>
         </div>

@@ -13,8 +13,10 @@ import {
   updateCards,
 } from "../lib/workspace";
 import { desktop } from "../lib/desktop";
+import { recordSaveSample } from "../lib/perf";
 
 const SAVE_DELAY_MS = 250;
+const CANVAS_SAVE_DELAY_MS = 420;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 20;
 
 function getWorkspaceHistoryLimit() {
@@ -65,6 +67,64 @@ function areWorkspacesEqual(a, b) {
   }
 
   return true;
+}
+
+function mergeCanvasDirtyFields(currentFields = null, nextFields = null) {
+  return {
+    viewport: Boolean(currentFields?.viewport || nextFields?.viewport),
+    cards: Boolean(currentFields?.cards || nextFields?.cards),
+    view: Boolean(currentFields?.view || nextFields?.view),
+    name: Boolean(currentFields?.name || nextFields?.name),
+  };
+}
+
+function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
+  if (!nextWorkspace) {
+    return {
+      viewport: false,
+      cards: false,
+      view: false,
+      name: false,
+    };
+  }
+
+  if (!previousWorkspace) {
+    return {
+      viewport: true,
+      cards: true,
+      view: true,
+      name: true,
+    };
+  }
+
+  return {
+    viewport: previousWorkspace.viewport !== nextWorkspace.viewport,
+    cards: previousWorkspace.cards !== nextWorkspace.cards,
+    view: previousWorkspace.view !== nextWorkspace.view,
+    name: previousWorkspace.name !== nextWorkspace.name,
+  };
+}
+
+function buildCanvasSavePayload(workspace, dirtyFields = null) {
+  const payload = {};
+
+  if (dirtyFields?.viewport) {
+    payload.viewport = workspace?.viewport ?? null;
+  }
+
+  if (dirtyFields?.cards) {
+    payload.cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
+  }
+
+  if (dirtyFields?.view) {
+    payload.view = workspace?.view ?? null;
+  }
+
+  if (dirtyFields?.name && typeof workspace?.name === "string") {
+    payload.name = workspace.name;
+  }
+
+  return payload;
 }
 
 function createWorkspaceHistory(workspace, limit = getWorkspaceHistoryLimit()) {
@@ -126,11 +186,17 @@ export function AppProvider({ children }) {
   const [error, setError] = useState("");
   const [workspacesByPath, setWorkspacesByPath] = useState({});
   const [pagesByPath, setPagesByPath] = useState({});
+  const [canvasInteractionVersion, setCanvasInteractionVersion] = useState(0);
 
   const saveTimeoutRef = useRef(null);
   const pageSaveTimeoutRef = useRef(null);
   const skipCanvasSaveRef = useRef({});
   const skipPageSaveRef = useRef({});
+  const pendingCanvasSaveRef = useRef({});
+  const pendingCanvasDirtyFieldsRef = useRef({});
+  const canvasInteractionStateRef = useRef({});
+  const lastSavedCanvasWorkspaceRef = useRef({});
+  const lastObservedCanvasWorkspaceRef = useRef({});
   const workspaceDraftBaseRef = useRef({});
   const workspacesRef = useRef(workspacesByPath);
   const pagesRef = useRef(pagesByPath);
@@ -195,6 +261,11 @@ export function AppProvider({ children }) {
     setPagesByPath({});
     skipCanvasSaveRef.current = {};
     skipPageSaveRef.current = {};
+    pendingCanvasSaveRef.current = {};
+    pendingCanvasDirtyFieldsRef.current = {};
+    canvasInteractionStateRef.current = {};
+    lastSavedCanvasWorkspaceRef.current = {};
+    lastObservedCanvasWorkspaceRef.current = {};
     workspaceDraftBaseRef.current = {};
     showHomeTab();
   }, [showHomeTab]);
@@ -231,6 +302,11 @@ export function AppProvider({ children }) {
       setPagesByPath({});
       skipCanvasSaveRef.current = {};
       skipPageSaveRef.current = {};
+      pendingCanvasSaveRef.current = {};
+      pendingCanvasDirtyFieldsRef.current = {};
+      canvasInteractionStateRef.current = {};
+      lastSavedCanvasWorkspaceRef.current = {};
+      lastObservedCanvasWorkspaceRef.current = {};
       workspaceDraftBaseRef.current = {};
       applyHomeData(payload);
       showHomeTab();
@@ -558,6 +634,29 @@ export function AppProvider({ children }) {
     }
   }, [renameTabForEntity]);
 
+  const setCanvasInteractionState = useCallback((isInteracting, options = {}) => {
+    const targetPath = options?.targetPath ?? activeCanvasPathRef.current;
+
+    if (!targetPath) {
+      return;
+    }
+
+    const normalizedValue = isInteracting === true;
+    const previousValue = canvasInteractionStateRef.current[targetPath] === true;
+
+    if (previousValue === normalizedValue) {
+      return;
+    }
+
+    canvasInteractionStateRef.current[targetPath] = normalizedValue;
+
+    if (normalizedValue) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    setCanvasInteractionVersion((currentVersion) => currentVersion + 1);
+  }, []);
+
   const updateWorkspaceState = useCallback((updater, options = {}) => {
     const activePath = options.targetPath ?? activeCanvasPathRef.current;
     if (!activePath) return;
@@ -730,24 +829,152 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const activeCanvasPath = activeCanvasPathRef.current;
     if (!folderPath || !activeCanvasPath) return undefined;
+    const canvasEntry = workspacesRef.current[activeCanvasPath];
+    const workspaceToEvaluate = normalizeWorkspaceHistory(canvasEntry).present;
+    const previousWorkspace = lastObservedCanvasWorkspaceRef.current[activeCanvasPath] ?? null;
+    const hasWorkspaceChanged = previousWorkspace !== workspaceToEvaluate;
+
+    if (hasWorkspaceChanged) {
+      pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = mergeCanvasDirtyFields(
+        pendingCanvasDirtyFieldsRef.current[activeCanvasPath],
+        getCanvasDirtyFields(previousWorkspace, workspaceToEvaluate),
+      );
+      lastObservedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
+      pendingCanvasSaveRef.current[activeCanvasPath] = true;
+    }
+
     if (skipCanvasSaveRef.current[activeCanvasPath]) {
       skipCanvasSaveRef.current[activeCanvasPath] = false;
+      pendingCanvasSaveRef.current[activeCanvasPath] = false;
+      pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
+        viewport: false,
+        cards: false,
+        view: false,
+        name: false,
+      };
+      lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
+
       return undefined;
     }
+
     if (workspaceDraftBaseRef.current[activeCanvasPath]) {
       return undefined;
     }
+
+    if (!pendingCanvasSaveRef.current[activeCanvasPath]) {
+      return undefined;
+    }
+
+    if (canvasInteractionStateRef.current[activeCanvasPath]) {
+      return undefined;
+    }
+
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
+      if (canvasInteractionStateRef.current[activeCanvasPath]) {
+        pendingCanvasSaveRef.current[activeCanvasPath] = true;
+        return;
+      }
+
       const canvas = workspacesRef.current[activeCanvasPath];
       const workspaceToSave = normalizeWorkspaceHistory(canvas).present;
       if (!workspaceToSave) return;
-      void desktop.workspace.saveCanvas(activeCanvasPath, workspaceToSave).catch((saveError) => {
-        setError(saveError.message || "Unable to save the current canvas.");
-      });
-    }, SAVE_DELAY_MS);
+      const dirtyFields = pendingCanvasDirtyFieldsRef.current[activeCanvasPath];
+      const savePayload = buildCanvasSavePayload(workspaceToSave, dirtyFields);
+      const changedKeys = Object.keys(savePayload);
+
+      if (!changedKeys.length) {
+        pendingCanvasSaveRef.current[activeCanvasPath] = false;
+        return;
+      }
+
+      const totalStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const serializeStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      let serializedPayload = "";
+
+      try {
+        serializedPayload = JSON.stringify(savePayload);
+      } catch (serializeError) {
+        recordSaveSample({
+          path: activeCanvasPath,
+          serializeMs: 0,
+          saveMs: 0,
+          totalMs: 0,
+          payloadBytes: 0,
+          status: "error",
+        });
+        setError(serializeError?.message || "Unable to serialize the current canvas.");
+        return;
+      }
+
+      const serializeEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const serializeMs = serializeEnd - serializeStart;
+
+      if (canvasInteractionStateRef.current[activeCanvasPath]) {
+        pendingCanvasSaveRef.current[activeCanvasPath] = true;
+        return;
+      }
+
+      const saveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+      void desktop.workspace.saveCanvas(activeCanvasPath, savePayload, {
+        partial: true,
+        returnWorkspace: false,
+        changedKeys,
+      })
+        .then(() => {
+          const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+          const saveMs = saveEnd - saveStart;
+          const totalMs = saveEnd - totalStart;
+          const latestCanvas = workspacesRef.current[activeCanvasPath];
+          const latestWorkspace = normalizeWorkspaceHistory(latestCanvas).present;
+          const hasNewerChanges = latestWorkspace !== workspaceToSave;
+
+          if (hasNewerChanges) {
+            pendingCanvasSaveRef.current[activeCanvasPath] = true;
+            pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = mergeCanvasDirtyFields(
+              pendingCanvasDirtyFieldsRef.current[activeCanvasPath],
+              getCanvasDirtyFields(workspaceToSave, latestWorkspace),
+            );
+          } else {
+            pendingCanvasSaveRef.current[activeCanvasPath] = false;
+            pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
+              viewport: false,
+              cards: false,
+              view: false,
+              name: false,
+            };
+            lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToSave;
+          }
+
+          recordSaveSample({
+            path: activeCanvasPath,
+            serializeMs,
+            saveMs,
+            totalMs,
+            payloadBytes: serializedPayload.length,
+            status: "success",
+          });
+        })
+        .catch((saveError) => {
+          const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+          const saveMs = saveEnd - saveStart;
+          const totalMs = saveEnd - totalStart;
+
+          pendingCanvasSaveRef.current[activeCanvasPath] = true;
+          recordSaveSample({
+            path: activeCanvasPath,
+            serializeMs,
+            saveMs,
+            totalMs,
+            payloadBytes: serializedPayload.length,
+            status: "error",
+          });
+          setError(saveError.message || "Unable to save the current canvas.");
+        });
+    }, CANVAS_SAVE_DELAY_MS);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [folderPath, workspaceHistory.present]);
+  }, [canvasInteractionVersion, folderPath, workspaceHistory.present]);
 
   useEffect(() => {
     const activePagePath = activePagePathRef.current;
@@ -852,6 +1079,7 @@ export function AppProvider({ children }) {
     saveHomeUiState,
     revealDome,
     setError,
+    setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
     showHome,
@@ -897,6 +1125,7 @@ export function AppProvider({ children }) {
     saveHomeUiState,
     revealDome,
     setError,
+    setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
     showHome,

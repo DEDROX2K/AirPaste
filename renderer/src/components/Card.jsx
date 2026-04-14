@@ -24,6 +24,7 @@ function areCardPropsEqual(previousProps, nextProps) {
     && previousProps.dragVisualTileIdSet === nextProps.dragVisualTileIdSet
     && previousProps.childTiles === nextProps.childTiles
     && previousProps.rackState === nextProps.rackState
+    && previousProps.renderHint === nextProps.renderHint
     && previousProps.performanceMode === nextProps.performanceMode
     && previousProps.onBeginDrag === nextProps.onBeginDrag
     && previousProps.onContextMenu === nextProps.onContextMenu

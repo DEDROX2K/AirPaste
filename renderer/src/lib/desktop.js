@@ -56,7 +56,8 @@ export const desktop = {
     getRecentItems: (...args) => airpasteBridge.getRecentItems?.(...args) ?? Promise.resolve([]),
     getStarredItems: (...args) => airpasteBridge.getStarredItems?.(...args) ?? Promise.resolve([]),
     loadCanvas: (...args) => airpasteBridge.loadCanvas?.(...args) ?? Promise.resolve(null),
-    saveCanvas: (...args) => airpasteBridge.saveCanvas?.(...args) ?? Promise.resolve(null),
+    saveCanvas: (filePath, data, options = null) =>
+      airpasteBridge.saveCanvas?.(filePath, data, options) ?? Promise.resolve(null),
     loadPage: (...args) => airpasteBridge.loadPage?.(...args) ?? Promise.resolve(null),
     savePage: (...args) => airpasteBridge.savePage?.(...args) ?? Promise.resolve(null),
     renameFile: (...args) => airpasteBridge.renameFile?.(...args) ?? Promise.resolve(null),
@@ -69,7 +70,8 @@ export const desktop = {
     fetchLinkPreview: (...args) => airpasteBridge.fetchLinkPreview?.(...args) ?? Promise.resolve({ queued: false }),
     cancelLinkPreview: (...args) => airpasteBridge.cancelLinkPreview?.(...args) ?? Promise.resolve({ cancelled: false }),
     importImageAsset: (...args) => airpasteBridge.importImageAsset?.(...args) ?? Promise.resolve(null),
-    resolveAssetUrl: (...args) => airpasteBridge.resolveAssetUrl?.(...args) ?? Promise.resolve(""),
+    resolveAssetUrl: (folderPath, relativePath, options = null) =>
+      airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),
     getLastFolder: (...args) => airpasteBridge.getLastFolder?.(...args) ?? Promise.resolve(null),
     restoreLastWorkspace: async () => {
