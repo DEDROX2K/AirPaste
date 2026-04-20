@@ -1,4 +1,3 @@
-/* global process, require */
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 

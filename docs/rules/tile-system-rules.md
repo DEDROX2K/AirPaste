@@ -26,8 +26,7 @@
 
 ## Performance
 - Heavy tiles such as 3D, game, and physics tiles must be lazy-loaded.
-- Animations should pause when tiles are offscreen or inactive.
+- Animations should pause when tiles are offscreen.
 - Avoid unnecessary React re-renders during drag and gesture updates.
 - Do not hide or remove tile images as a performance optimization path; degrade effects/motion first, never content.
 - If visual style constraints require shadowless cards, enforce shadow removal without touching image visibility.
-

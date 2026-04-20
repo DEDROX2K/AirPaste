@@ -18,7 +18,7 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const shouldResize = currentCard.type !== nextType;
   const domainFallback = getHostname(result.canonicalUrl || currentCard.url);
   const safeStatus = PREVIEW_STATE_VALUES.includes(result.status) ? result.status : "error";
-  const keepImage = safeStatus === "ready";
+  const keepImage = Boolean(result.image) && safeStatus !== PREVIEW_STATUS.BLOCKED && safeStatus !== PREVIEW_STATUS.ERROR;
   const contentKind = result.kind === PREVIEW_KIND.IMAGE ? LINK_CONTENT_KIND_IMAGE : LINK_CONTENT_KIND_BOOKMARK;
   const isAmazonCard = nextType === AMAZON_PRODUCT_CARD_TYPE;
   const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"

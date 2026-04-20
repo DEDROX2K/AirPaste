@@ -2,8 +2,6 @@ import { memo, useEffect, useState } from "react";
 
 const loadedImageSources = new Set();
 
-export { loadedImageSources };
-
 function TileImageReveal({
   src,
   alt,

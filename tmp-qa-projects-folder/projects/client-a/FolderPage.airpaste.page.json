@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "type": "page",
+  "title": "FolderPage",
+  "createdAt": "2026-04-20T21:15:41.137Z",
+  "updatedAt": "2026-04-20T21:15:41.137Z",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph"
+      }
+    ]
+  }
+}

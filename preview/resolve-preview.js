@@ -228,6 +228,16 @@ async function applyImageAcquisition(result, validation) {
   }
 
   if (!validation.acceptImage) {
+    if (result.allowScreenshotFallback && validation.status !== PREVIEW_STATUS.BLOCKED) {
+      const screenshotImage = await capturePreviewScreenshot(result.canonicalUrl);
+      return {
+        image: screenshotImage,
+        chosenImageUrl: "",
+        attemptedCandidateUrls: result.candidateImageUrls ?? [],
+        screenshotFallbackUsed: Boolean(screenshotImage),
+      };
+    }
+
     return {
       image: "",
       chosenImageUrl: "",

@@ -1,0 +1,33 @@
+{
+  "version": 5,
+  "workspace": {
+    "name": "Projects QA",
+    "createdAt": "2026-04-20T21:15:40.750Z",
+    "updatedAt": "2026-04-20T21:15:41.347Z"
+  },
+  "items": [
+    {
+      "path": "projects/client-a/FolderCanvas.airpaste.json",
+      "type": "canvas",
+      "name": "FolderCanvas",
+      "updatedAt": "2026-04-20T21:15:40.834Z",
+      "starred": false,
+      "thumbnail": ".airpaste/previews/82b86eb6db9c16e3.svg",
+      "excerpt": ""
+    },
+    {
+      "path": "projects/client-a/FolderPage.airpaste.page.json",
+      "type": "page",
+      "name": "FolderPage",
+      "updatedAt": "2026-04-20T21:15:41.138Z",
+      "starred": false,
+      "thumbnail": null,
+      "excerpt": ""
+    }
+  ],
+  "recentItemPaths": [
+    "projects/client-a/FolderPage.airpaste.page.json",
+    "projects/client-a/FolderCanvas.airpaste.json"
+  ],
+  "starredItemPaths": []
+}

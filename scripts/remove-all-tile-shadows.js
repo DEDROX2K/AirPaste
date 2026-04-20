@@ -25,14 +25,8 @@ if (launchPanelH1Start !== -1 && firstCardStart !== -1) {
     console.log('Fixed corruption block.');
 }
 
-// 2. Remove shadows specifically from tile-related classes
-// We define a range for tile styles to avoid affecting non-tile UI.
-const cardSectionStart = content.indexOf('.card {');
-// Grid section usually starts with .grid-workspace
-const gridSectionStart = content.indexOf('.grid-workspace');
-
-// We will process the whole file but be specific about what we replace.
-// Selectors provided by user and found in analysis.
+// 2. Remove shadows specifically from tile-related classes.
+// We process the whole file but keep the replacements tightly scoped to tile selectors.
 
 const selectorsToStrip = [
     // Box shadows

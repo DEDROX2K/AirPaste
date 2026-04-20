@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   addTileToRack,
   canRefreshLinkPreviewCard,
@@ -10,7 +10,6 @@ import {
   LINK_CONTENT_KIND_IMAGE,
   removeCard,
   removeTileFromRack,
-  RACK_CARD_TYPE,
   shouldRecoverLinkPreviewCard,
   updateCards,
 } from "../../lib/workspace";

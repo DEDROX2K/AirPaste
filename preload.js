@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("airpaste", {
   openFolder: () => ipcRenderer.invoke("airpaste:openFolder"),
+  openFiles: () => ipcRenderer.invoke("airpaste:openFiles"),
   listDomes: () => ipcRenderer.invoke("airpaste:listDomes"),
   getActiveDome: () => ipcRenderer.invoke("airpaste:getActiveDome"),
   createDome: (parentFolderPath, name) => ipcRenderer.invoke("airpaste:createDome", parentFolderPath, name),
@@ -19,6 +20,8 @@ contextBridge.exposeInMainWorld("airpaste", {
   getStarredItems: (folderPath) => ipcRenderer.invoke("airpaste:getStarredItems", folderPath),
   createCanvas: (folderPath, name, targetFolderPath) =>
     ipcRenderer.invoke("airpaste:createCanvas", folderPath, name, targetFolderPath),
+  createFolder: (folderPath, name, targetFolderPath) =>
+    ipcRenderer.invoke("airpaste:createFolder", folderPath, name, targetFolderPath),
   createPage: (folderPath, name, targetFolderPath) =>
     ipcRenderer.invoke("airpaste:createPage", folderPath, name, targetFolderPath),
   loadCanvas: (filePath) =>
@@ -31,8 +34,12 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:savePage", filePath, markdown),
   renameFile: (folderPath, filePath, name) =>
     ipcRenderer.invoke("airpaste:renameFile", folderPath, filePath, name),
+  renameEntry: (folderPath, filePath, name) =>
+    ipcRenderer.invoke("airpaste:renameEntry", folderPath, filePath, name),
   deleteFile: (folderPath, filePath) =>
     ipcRenderer.invoke("airpaste:deleteFile", folderPath, filePath),
+  deleteEntry: (folderPath, filePath) =>
+    ipcRenderer.invoke("airpaste:deleteEntry", folderPath, filePath),
   markItemStarred: (folderPath, filePath, starred) =>
     ipcRenderer.invoke("airpaste:markItemStarred", folderPath, filePath, starred),
   recordRecentItem: (folderPath, filePath) =>
@@ -50,6 +57,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:cancelLinkPreview", folderPath, cardId),
   importImageAsset: (folderPath, payload) =>
     ipcRenderer.invoke("airpaste:importImageAsset", folderPath, payload),
+  importFiles: (folderPath, sourcePaths, targetFolderPath) =>
+    ipcRenderer.invoke("airpaste:importFiles", folderPath, sourcePaths, targetFolderPath),
   resolveAssetUrl: (folderPath, relativePath, options) =>
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),

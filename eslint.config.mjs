@@ -14,8 +14,13 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ["main.js", "preload.js", "preview/**/*.js"],
+    files: [
+      "*.js",
+      "preview/**/*.js",
+      "scripts/**/*.js",
+    ],
     languageOptions: {
+      sourceType: "commonjs",
       globals: {
         ...globals.node,
       },

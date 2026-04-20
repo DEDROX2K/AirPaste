@@ -142,6 +142,9 @@ const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
 let previewBrowserPromise = null;
+// During filesystem v2 stabilization, preview resolution must not mutate
+// workspace files through legacy workspace-document assumptions.
+const STORAGE_V2_STABILIZATION = true;
 
 function nowIso() {
   return new Date().toISOString();
@@ -2106,6 +2109,10 @@ async function fetchPreviewData(url) {
 }
 
 async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
+  if (STORAGE_V2_STABILIZATION) {
+    return null;
+  }
+
   const jobKey = `${folderPath}:${cardId}`;
 
   if (cancelledPreviewJobs.has(jobKey)) {
@@ -2165,6 +2172,10 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
 }
 
 async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error) {
+  if (STORAGE_V2_STABILIZATION) {
+    return null;
+  }
+
   const workspace = await workspaceService.readWorkspaceDocument(folderPath);
   let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
 
@@ -2261,6 +2272,18 @@ ipcMain.handle("airpaste:openFolder", async () => {
   }
 
   return result.filePaths[0];
+});
+
+ipcMain.handle("airpaste:openFiles", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile", "multiSelections"],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return [];
+  }
+
+  return result.filePaths;
 });
 
 ipcMain.handle("airpaste:listDomes", async () => {
@@ -2402,12 +2425,18 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.getStarredItems(folderPath),
   "airpaste:createCanvas": (folderPath, name, targetFolderPath) =>
     workspaceService.createCanvas(folderPath, name, targetFolderPath),
+  "airpaste:createFolder": (folderPath, name, targetFolderPath) =>
+    workspaceService.createFolder(folderPath, name, targetFolderPath),
   "airpaste:createPage": (folderPath, name, targetFolderPath) =>
     workspaceService.createPage(folderPath, name, targetFolderPath),
   "airpaste:renameFile": (folderPath, filePath, name) =>
     workspaceService.renameFile(folderPath, filePath, name),
+  "airpaste:renameEntry": (folderPath, entryPath, name) =>
+    workspaceService.renameEntry(folderPath, entryPath, name),
   "airpaste:deleteFile": (folderPath, filePath) =>
     workspaceService.deleteFile(folderPath, filePath),
+  "airpaste:deleteEntry": (folderPath, entryPath) =>
+    workspaceService.deleteEntry(folderPath, entryPath),
   "airpaste:markItemStarred": (folderPath, filePath, starred) =>
     workspaceService.markItemStarred(folderPath, filePath, starred),
   "airpaste:recordRecentItem": (folderPath, filePath) =>
@@ -2425,6 +2454,10 @@ for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
     withWorkspaceQueue(folderPath, () => handler(folderPath, ...args))
   ));
 }
+
+ipcMain.handle("airpaste:importFiles", async (_event, folderPath, sourcePaths, targetFolderPath = "") => (
+  withWorkspaceQueue(folderPath, () => workspaceService.importFiles(folderPath, sourcePaths, targetFolderPath))
+));
 
 ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
   const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
@@ -2467,6 +2500,13 @@ ipcMain.handle("airpaste:openFile", async (_event, filePath) => {
 });
 
 ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, url, cardSnapshot) => {
+  if (STORAGE_V2_STABILIZATION) {
+    return {
+      queued: false,
+      disabled: true,
+    };
+  }
+
   if (!folderPath || !cardId || !url) {
     return { queued: false };
   }

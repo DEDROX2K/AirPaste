@@ -1,0 +1,33 @@
+{
+  "version": 5,
+  "workspace": {
+    "name": "QA Dome",
+    "createdAt": "2026-04-20T21:14:28.334Z",
+    "updatedAt": "2026-04-20T21:14:29.191Z"
+  },
+  "items": [
+    {
+      "path": "client-a/FolderCanvasRenamed.airpaste.json",
+      "type": "canvas",
+      "name": "FolderCanvasRenamed",
+      "updatedAt": "2026-04-20T21:14:28.944Z",
+      "starred": false,
+      "thumbnail": ".airpaste/previews/3ff21a45d46c3d54.svg",
+      "excerpt": ""
+    },
+    {
+      "path": "pages/Journal.airpaste.page.json",
+      "type": "page",
+      "name": "Journal",
+      "updatedAt": "2026-04-20T21:14:28.600Z",
+      "starred": false,
+      "thumbnail": null,
+      "excerpt": ""
+    }
+  ],
+  "recentItemPaths": [
+    "client-a/FolderCanvasRenamed.airpaste.json",
+    "pages/Journal.airpaste.page.json"
+  ],
+  "starredItemPaths": []
+}

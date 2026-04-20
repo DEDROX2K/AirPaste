@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "homeView": "grid",
+  "sortBy": "updatedAt",
+  "filter": "all",
+  "selectedSection": "home",
+  "currentFolderPath": "projects/client-a",
+  "homeScrollTop": 0,
+  "canvasSnapToGrid": false,
+  "canvasSnapGridSize": 32,
+  "lastOpenedItemPath": "projects/client-a/FolderPage.airpaste.page.json",
+  "lastOpenedCanvasPath": "projects/client-a/FolderCanvas.airpaste.json",
+  "lastHomeRoute": {
+    "selectedSection": "home",
+    "currentFolderPath": "",
+    "scrollTop": 0
+  }
+}

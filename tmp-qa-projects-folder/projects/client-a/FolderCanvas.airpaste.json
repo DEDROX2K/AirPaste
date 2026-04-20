@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "type": "canvas",
+  "name": "FolderCanvas",
+  "createdAt": "2026-04-20T21:15:40.830Z",
+  "updatedAt": "2026-04-20T21:15:40.830Z",
+  "viewport": {
+    "x": 180,
+    "y": 120,
+    "zoom": 1
+  },
+  "cards": [],
+  "drawings": {
+    "version": 1,
+    "objects": []
+  }
+}

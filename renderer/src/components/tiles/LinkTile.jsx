@@ -106,6 +106,8 @@ function LinkTile({
   const previewTier = renderHint?.previewTier ?? "original";
   const videoRecipe = useMemo(() => getVideoTileRecipe(card.sourceType), [card.sourceType]);
   const videoDurationLabel = useMemo(() => formatVideoDuration(card.duration), [card.duration]);
+  const isPlainVideoLink = isVideoCard
+    && (videoRecipe.key === "youtube" || videoRecipe.key === "youtube-shorts");
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
     [card, loadedVideoAspectRatio],
@@ -151,8 +153,8 @@ function LinkTile({
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     isMusicCard ? "card__surface-frame--music" : "",
-    isVideoCard ? "card__surface-frame--video" : "",
-    isVideoCard ? `card__surface-frame--video-${videoRecipe.key}` : "",
+    isVideoCard && !isPlainVideoLink ? "card__surface-frame--video" : "",
+    isVideoCard && !isPlainVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
   ]
     .filter(Boolean)
@@ -294,7 +296,7 @@ function LinkTile({
           </button>
         </div>
       )}
-      {isVideoCard ? (
+      {isVideoCard && !isPlainVideoLink ? (
         <div className={`card__video card__video--${videoRecipe.key}`}>
           <div className="card__video-media-region">
             <div
@@ -448,7 +450,7 @@ function LinkTile({
             </div>
           ) : (
             <a
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard ? " card__surface--video" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}`}
               href={card.url}
               target="_blank"
               rel="noreferrer"

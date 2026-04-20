@@ -25,6 +25,16 @@ function getWorkspaceHistoryLimit() {
   return DEFAULT_WORKSPACE_HISTORY_LIMIT;
 }
 
+function normalizeFsPath(value) {
+  return String(value ?? "").replaceAll("\\", "/");
+}
+
+function isSameOrDescendantPath(targetPath, basePath) {
+  const normalizedTarget = normalizeFsPath(targetPath);
+  const normalizedBase = normalizeFsPath(basePath);
+  return normalizedTarget === normalizedBase || normalizedTarget.startsWith(`${normalizedBase}/`);
+}
+
 function areObjectsEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return !a && !b;
@@ -520,13 +530,18 @@ export function AppProvider({ children }) {
 
   const openHomeItem = useCallback(async (item) => {
     if (!item?.filePath) return null;
+    if (item.type === "folder") {
+      const payload = await desktop.workspace.getHomeData(folderPath, item.path);
+      applyHomeData(payload);
+      return item;
+    }
     if (item.type === "canvas") return openCanvasFile(item.filePath);
     if (item.type === "page") return openPageFile(item.filePath);
     await desktop.workspace.openFile(item.filePath);
     await desktop.workspace.recordRecentItem(folderPath, item.filePath).catch(() => {});
     await refreshHomeData(folderPath);
     return item;
-  }, [folderPath, openCanvasFile, openPageFile, refreshHomeData]);
+  }, [applyHomeData, folderPath, openCanvasFile, openPageFile, refreshHomeData]);
 
   const showHome = useCallback(async () => {
     showHomeTab();
@@ -617,6 +632,13 @@ export function AppProvider({ children }) {
     return doc;
   }, [folderPath, homeData.currentFolderPath, openCanvasFile]);
 
+  const createFolderEntry = useCallback(async (name, targetFolderPath = homeData.currentFolderPath) => {
+    if (!folderPath) return null;
+    const folder = await desktop.workspace.createFolder(folderPath, name, targetFolderPath);
+    await refreshHomeData(folderPath, targetFolderPath);
+    return folder;
+  }, [folderPath, homeData.currentFolderPath, refreshHomeData]);
+
   const createPageEntry = useCallback(async (name, targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return null;
     const doc = await desktop.workspace.createPage(folderPath, name, targetFolderPath);
@@ -624,9 +646,53 @@ export function AppProvider({ children }) {
     return doc;
   }, [folderPath, homeData.currentFolderPath, openPageFile]);
 
+  const importFilesIntoFolder = useCallback(async (targetFolderPath = homeData.currentFolderPath) => {
+    if (!folderPath) return [];
+    const sourcePaths = await desktop.workspace.openFiles();
+    if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) return [];
+    const imported = await desktop.workspace.importFiles(folderPath, sourcePaths, targetFolderPath);
+    await refreshHomeData(folderPath, targetFolderPath);
+    return imported;
+  }, [folderPath, homeData.currentFolderPath, refreshHomeData]);
+
   const renameItemEntry = useCallback(async (item, name) => {
     if (!folderPath || !item?.filePath) return null;
-    const renamed = await desktop.workspace.renameFile(folderPath, item.filePath, name);
+    const renamed = item.type === "folder"
+      ? await desktop.workspace.renameEntry(folderPath, item.filePath, name)
+      : await desktop.workspace.renameFile(folderPath, item.filePath, name);
+
+    if (item.type === "folder") {
+      setWorkspacesByPath((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(prev)) {
+          if (!isSameOrDescendantPath(key, item.filePath)) continue;
+          const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
+          next[replacementKey] = next[key];
+          delete next[key];
+          if (workspaceDraftBaseRef.current[key]) {
+            workspaceDraftBaseRef.current[replacementKey] = workspaceDraftBaseRef.current[key];
+            delete workspaceDraftBaseRef.current[key];
+          }
+        }
+        return next;
+      });
+      setPagesByPath((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(prev)) {
+          if (!isSameOrDescendantPath(key, item.filePath)) continue;
+          const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
+          next[replacementKey] = {
+            ...next[key],
+            filePath: replacementKey,
+          };
+          delete next[key];
+        }
+        return next;
+      });
+      await refreshHomeData(folderPath, renamed.path);
+      return renamed;
+    }
+
     rebindTabEntity(item.filePath, renamed.filePath, renamed.name);
     setWorkspacesByPath((prev) => {
       if (!prev[item.filePath]) return prev;
@@ -661,6 +727,26 @@ export function AppProvider({ children }) {
 
   const deleteItemEntry = useCallback(async (item) => {
     if (!folderPath || !item?.filePath) return false;
+    if (item.type === "folder") {
+      await desktop.workspace.deleteEntry(folderPath, item.filePath);
+      const workspaceKeys = Object.keys(workspacesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
+      const pageKeys = Object.keys(pagesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
+      [...workspaceKeys, ...pageKeys].forEach((key) => closeTabsForEntity(key));
+      workspaceKeys.forEach((key) => { delete workspaceDraftBaseRef.current[key]; });
+      setWorkspacesByPath((prev) => {
+        const next = { ...prev };
+        workspaceKeys.forEach((key) => { delete next[key]; });
+        return next;
+      });
+      setPagesByPath((prev) => {
+        const next = { ...prev };
+        pageKeys.forEach((key) => { delete next[key]; });
+        return next;
+      });
+      await refreshHomeData(folderPath);
+      return true;
+    }
+
     await desktop.workspace.deleteFile(folderPath, item.filePath);
     closeTabsForEntity(item.filePath);
     delete workspaceDraftBaseRef.current[item.filePath];
@@ -1148,6 +1234,7 @@ export function AppProvider({ children }) {
     booting,
     createNewDome,
     createCanvasEntry,
+    createFolderEntry,
     createNewLinkCard,
     createNewRackCard,
     createNewWorkspace,
@@ -1165,6 +1252,7 @@ export function AppProvider({ children }) {
     folderLoading,
     folderPath,
     homeData,
+    importFilesIntoFolder,
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
@@ -1194,6 +1282,7 @@ export function AppProvider({ children }) {
     booting,
     createNewDome,
     createCanvasEntry,
+    createFolderEntry,
     createNewLinkCard,
     createNewRackCard,
     createNewWorkspace,
@@ -1211,6 +1300,7 @@ export function AppProvider({ children }) {
     folderLoading,
     folderPath,
     homeData,
+    importFilesIntoFolder,
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,

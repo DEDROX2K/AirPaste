@@ -1,0 +1,43 @@
+{
+  "version": 5,
+  "workspace": {
+    "name": "Collision QA",
+    "createdAt": "2026-04-20T21:14:28.304Z",
+    "updatedAt": "2026-04-20T21:14:28.743Z"
+  },
+  "items": [
+    {
+      "path": "canvases/Alpha 2.airpaste.json",
+      "type": "canvas",
+      "name": "Alpha 2",
+      "updatedAt": "2026-04-20T21:14:28.632Z",
+      "starred": false,
+      "thumbnail": ".airpaste/previews/afd1fe8c2783a51f.svg",
+      "excerpt": ""
+    },
+    {
+      "path": "canvases/Alpha.airpaste.json",
+      "type": "canvas",
+      "name": "Alpha",
+      "updatedAt": "2026-04-20T21:14:28.342Z",
+      "starred": false,
+      "thumbnail": ".airpaste/previews/faa5249db0d26c1a.svg",
+      "excerpt": ""
+    },
+    {
+      "path": "pages/Notes.airpaste.page.json",
+      "type": "page",
+      "name": "Notes",
+      "updatedAt": "2026-04-20T21:14:28.523Z",
+      "starred": false,
+      "thumbnail": null,
+      "excerpt": ""
+    }
+  ],
+  "recentItemPaths": [
+    "pages/Notes.airpaste.page.json",
+    "canvases/Alpha 2.airpaste.json",
+    "canvases/Alpha.airpaste.json"
+  ],
+  "starredItemPaths": []
+}

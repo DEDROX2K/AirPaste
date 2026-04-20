@@ -1,46 +1,43 @@
-/* global crypto, module, require */
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { createHash } = require("node:crypto");
+const { createHash, randomUUID } = require("node:crypto");
 const { getSchema } = require("@tiptap/core");
 const StarterKit = require("@tiptap/starter-kit").default;
 const Link = require("@tiptap/extension-link").default;
 const MarkdownIt = require("markdown-it");
-const { MarkdownParser } = require("prosemirror-markdown");
+const { MarkdownParser, defaultMarkdownSerializer } = require("prosemirror-markdown");
 
-const LEGACY_FILES = ["workspace.json", "data.json"];
 const INTERNAL_DIR = ".airpaste";
-const DOME_FILE = "dome.json";
+const TMP_DIR = "tmp";
 const INDEX_FILE = "index.json";
+const DOME_FILE = "dome.json";
 const UI_STATE_FILE = "ui-state.json";
-const PREVIEWS_DIR = "previews";
-const PROJECTS_DIR = "projects";
-const CANVASES_DIR = "canvases";
-const PAGES_DIR = "pages";
-const TILES_DIR = "tiles";
-const ASSETS_DIR = "assets";
+const STATE_FILE = "state.json";
 const CANVAS_SUFFIX = ".airpaste.json";
-const PAGE_SUFFIX = ".airpaste.page.json";
-const LEGACY_NUMBERED_CANVAS_RE = /\.airpaste \d+\.json$/i;
-const LEGACY_NUMBERED_PAGE_RE = /\.airpaste\.page \d+\.json$/i;
-const LEGACY_ROOT_META_FILE = "airpaste.json";
-const DOME_SETTINGS_FILE = "settings.json";
-const TEMP_SUFFIX = ".tmp";
-const BACKUP_SUFFIX = ".bak";
+const PAGE_SUFFIX = ".md";
 const MAX_RECENTS = 25;
-
-const INDEX_VERSION = 5;
-const UI_STATE_VERSION = 3;
-
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
+
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
+const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
+const DOC_EXTS = new Set(["pdf"]);
+const SKIP_DIRS = new Set([
+  INTERNAL_DIR,
+  ".git",
+  "node_modules",
+  "dist",
+  "dist-renderer",
+  "release",
+  "build",
+  ".tmp",
+  ".tmp.driveupload",
+]);
+
 const DEFAULT_DRAWINGS = Object.freeze({
   version: 1,
   objects: [],
 });
-const DEFAULT_PAGE_DOCUMENT = Object.freeze({
-  type: "doc",
-  content: [{ type: "paragraph" }],
-});
+
 const DEFAULT_WORKSPACE = Object.freeze({
   version: 5,
   viewport: { x: 180, y: 120, zoom: 1 },
@@ -48,8 +45,13 @@ const DEFAULT_WORKSPACE = Object.freeze({
   drawings: DEFAULT_DRAWINGS,
 });
 
+const DEFAULT_PAGE_DOCUMENT = Object.freeze({
+  type: "doc",
+  content: [{ type: "paragraph" }],
+});
+
 const DEFAULT_UI_STATE = Object.freeze({
-  version: UI_STATE_VERSION,
+  version: 3,
   homeView: "grid",
   sortBy: "updatedAt",
   filter: "all",
@@ -67,21 +69,13 @@ const DEFAULT_UI_STATE = Object.freeze({
   },
 });
 
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
-const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
-const DOC_EXTS = new Set(["pdf"]);
-const SKIP_DIRS = new Set([
-  INTERNAL_DIR,
-  ".git",
-  "node_modules",
-  "dist",
-  "dist-renderer",
-  "release",
-  "build",
-  ".tmp",
-  ".tmp.driveupload",
-]);
-const LEGACY_PAGE_EXTENSIONS = [
+const DEFAULT_STATE = Object.freeze({
+  version: 1,
+  recentDocumentIds: [],
+  starredDocumentIds: [],
+});
+
+const pageExtensions = [
   StarterKit.configure({
     link: false,
     strike: false,
@@ -91,7 +85,7 @@ const LEGACY_PAGE_EXTENSIONS = [
     openOnClick: false,
   }),
 ];
-const pageSchema = getSchema(LEGACY_PAGE_EXTENSIONS);
+const pageSchema = getSchema(pageExtensions);
 const markdownTokenizer = new MarkdownIt("commonmark", {
   html: false,
   linkify: true,
@@ -136,16 +130,26 @@ function nowIso() {
 }
 
 function firstString(...values) {
-  return values.find((v) => typeof v === "string" && v.trim())?.trim() ?? "";
+  return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
 }
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeLineEndings(value) {
+  return String(value ?? "").replace(/\r\n/g, "\n");
+}
+
 function normalizeRel(value, fallback = "") {
-  const normalized = String(value ?? "").replaceAll("\\", "/").trim().replace(/^\/+/, "").replace(/\/+/g, "/");
-  if (!normalized || normalized === ".") return fallback;
+  const normalized = String(value ?? "")
+    .replaceAll("\\", "/")
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "/");
+  if (!normalized || normalized === ".") {
+    return fallback;
+  }
   return normalized;
 }
 
@@ -165,43 +169,13 @@ function stripExt(fileName) {
 
 function stripCanvasSuffix(fileName) {
   const name = String(fileName ?? "");
-  const lower = name.toLowerCase();
-  if (lower.endsWith(CANVAS_SUFFIX)) {
-    return name.slice(0, -CANVAS_SUFFIX.length);
-  }
-  if (LEGACY_NUMBERED_CANVAS_RE.test(lower)) {
-    return name.replace(/\.airpaste \d+\.json$/i, "");
-  }
-  return stripExt(name);
-}
-
-function stripPageSuffix(fileName) {
-  const name = String(fileName ?? "");
-  const lower = name.toLowerCase();
-  if (lower.endsWith(PAGE_SUFFIX)) {
-    return name.slice(0, -PAGE_SUFFIX.length);
-  }
-  if (LEGACY_NUMBERED_PAGE_RE.test(lower)) {
-    return name.replace(/\.airpaste\.page \d+\.json$/i, "");
-  }
-  return stripExt(name);
-}
-
-function isCanvasPath(filePath) {
-  const lower = String(filePath ?? "").toLowerCase();
-  return lower.endsWith(CANVAS_SUFFIX) || LEGACY_NUMBERED_CANVAS_RE.test(lower);
-}
-
-function isPagePath(filePath) {
-  const lower = String(filePath ?? "").toLowerCase();
-  return lower.endsWith(PAGE_SUFFIX) || LEGACY_NUMBERED_PAGE_RE.test(lower);
+  return name.toLowerCase().endsWith(CANVAS_SUFFIX) ? name.slice(0, -CANVAS_SUFFIX.length) : stripExt(name);
 }
 
 function sanitizeName(name, fallback = "untitled") {
-  const withoutControls = Array.from(String(name ?? ""))
+  const normalized = Array.from(String(name ?? ""))
     .map((char) => (char.charCodeAt(0) < 32 ? " " : char))
-    .join("");
-  const normalized = withoutControls
+    .join("")
     .trim()
     .replace(/[<>:"/\\|?*]/g, " ")
     .replace(/\s+/g, " ")
@@ -210,36 +184,43 @@ function sanitizeName(name, fallback = "untitled") {
   return normalized || fallback;
 }
 
+function normalizePageContent(content) {
+  if (!content || typeof content !== "object" || content.type !== "doc") {
+    return DEFAULT_PAGE_DOCUMENT;
+  }
+  return content;
+}
+
+function normalizeDrawingsPayload(drawings) {
+  const safeDrawings = isObject(drawings) ? drawings : DEFAULT_DRAWINGS;
+  return {
+    version: Number.isFinite(safeDrawings.version) ? Math.max(1, Math.round(safeDrawings.version)) : DEFAULT_DRAWINGS.version,
+    objects: Array.isArray(safeDrawings.objects) ? safeDrawings.objects : [],
+  };
+}
+
 function internalPath(root) {
   return path.join(root, INTERNAL_DIR);
+}
+
+function tmpPath(root) {
+  return path.join(internalPath(root), TMP_DIR);
 }
 
 function domeMetaPath(root) {
   return path.join(internalPath(root), DOME_FILE);
 }
 
-function legacyRootMetaPath(root) {
-  return path.join(root, LEGACY_ROOT_META_FILE);
-}
-
-function domeSettingsPath(root) {
-  return path.join(root, DOME_SETTINGS_FILE);
-}
-
-function indexPath(root) {
-  return path.join(internalPath(root), INDEX_FILE);
-}
-
 function uiStatePath(root) {
   return path.join(internalPath(root), UI_STATE_FILE);
 }
 
-function previewDirPath(root) {
-  return path.join(internalPath(root), PREVIEWS_DIR);
+function statePath(root) {
+  return path.join(internalPath(root), STATE_FILE);
 }
 
-function assetsDirPath(root) {
-  return path.join(root, ASSETS_DIR);
+function indexPath(root) {
+  return path.join(internalPath(root), INDEX_FILE);
 }
 
 function ensureInside(root, target) {
@@ -258,7 +239,9 @@ function resolveWorkspacePath(root, relativePath = "") {
 
 function toWorkspaceRel(root, value) {
   const raw = String(value ?? "").trim();
-  if (!raw) throw new Error("File path is required.");
+  if (!raw) {
+    throw new Error("File path is required.");
+  }
   const abs = path.isAbsolute(raw) ? ensureInside(root, raw) : resolveWorkspacePath(root, raw);
   return normalizeRel(path.relative(root, abs), "");
 }
@@ -272,9 +255,9 @@ async function exists(target) {
   }
 }
 
-async function isDirectory(dir) {
+async function isDirectory(target) {
   try {
-    return (await fs.stat(dir)).isDirectory();
+    return (await fs.stat(target)).isDirectory();
   } catch {
     return false;
   }
@@ -284,10 +267,25 @@ async function readJson(filePath, label) {
   const raw = await fs.readFile(filePath, "utf8");
   try {
     const parsed = JSON.parse(raw);
-    if (!isObject(parsed)) throw new Error(`${label} must contain a JSON object.`);
+    if (!isObject(parsed)) {
+      throw new Error(`${label} must contain a JSON object.`);
+    }
     return parsed;
   } catch (error) {
-    if (error instanceof SyntaxError) throw new Error(`${label} contains invalid JSON.`);
+    if (error instanceof SyntaxError) {
+      throw new Error(`${label} contains invalid JSON.`);
+    }
+    throw error;
+  }
+}
+
+async function readJsonIfExists(filePath, fallback) {
+  try {
+    return await readJson(filePath, path.basename(filePath));
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return fallback;
+    }
     throw error;
   }
 }
@@ -296,110 +294,176 @@ async function readText(filePath, fallback = "") {
   try {
     return await fs.readFile(filePath, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") return fallback;
+    if (error?.code === "ENOENT") {
+      return fallback;
+    }
     throw error;
   }
 }
 
-async function safeWriteText(filePath, text) {
-  const dir = path.dirname(filePath);
-  const opId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const temp = `${filePath}${TEMP_SUFFIX}-${opId}`;
-  const backup = `${filePath}${BACKUP_SUFFIX}-${opId}`;
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(temp, text, "utf8");
-  await fs.rm(backup, { force: true }).catch(() => {});
+async function atomicWriteText(root, targetPath, text) {
+  const absTarget = path.resolve(targetPath);
+  await ensureInternalDirs(root);
+  await fs.mkdir(path.dirname(absTarget), { recursive: true });
 
-  let movedPreviousFile = false;
+  const opId = `${Date.now()}-${randomUUID()}`;
+  const tempFile = path.join(tmpPath(root), `${opId}.tmp`);
+  const backupFile = path.join(tmpPath(root), `${opId}.bak`);
+  const hadExisting = await exists(absTarget);
 
-  if (await exists(filePath)) {
-    try {
-      await fs.rename(filePath, backup);
-      movedPreviousFile = true;
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        throw error;
-      }
-    }
-  }
+  await fs.writeFile(tempFile, text, "utf8");
 
   try {
-    await fs.rename(temp, filePath);
+    if (hadExisting) {
+      await fs.rename(absTarget, backupFile);
+    }
+
+    await fs.rename(tempFile, absTarget);
+
+    if (hadExisting) {
+      await fs.rm(backupFile, { force: true }).catch(() => {});
+    }
   } catch (error) {
-    if (movedPreviousFile) {
-      await fs.rename(backup, filePath).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(() => {});
+
+    if (hadExisting && (await exists(backupFile))) {
+      await fs.rename(backupFile, absTarget).catch(() => {});
     }
+
     throw error;
-  } finally {
-    await fs.rm(temp, { force: true }).catch(() => {});
-    await fs.rm(backup, { force: true }).catch(() => {});
   }
 }
 
-async function safeWriteJson(filePath, value) {
-  await safeWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+async function atomicWriteJson(root, targetPath, data) {
+  await atomicWriteText(root, targetPath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-function detectType(fileName, relativePath = "") {
-  const lower = String(fileName ?? "").toLowerCase();
-  const rel = normalizeRel(relativePath, "");
-  const relLower = rel.toLowerCase();
-  if (
-    relLower === LEGACY_ROOT_META_FILE
-    || relLower === DOME_SETTINGS_FILE
-    || LEGACY_FILES.includes(lower)
-    || lower.endsWith(TEMP_SUFFIX)
-    || lower.endsWith(BACKUP_SUFFIX)
-  ) {
-    return null;
-  }
-  if (isPagePath(lower)) return "page";
-  if (isCanvasPath(lower)) return "canvas";
-  if (lower.endsWith(".md")) return "page";
-  const ext = fileExt(lower);
-  if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) return "asset";
-  return "file";
+async function ensureInternalDirs(root) {
+  const absRoot = path.resolve(root);
+  await fs.mkdir(internalPath(absRoot), { recursive: true });
+  await fs.mkdir(tmpPath(absRoot), { recursive: true });
+  return absRoot;
 }
 
-function normalizeLineEndings(value) {
-  return String(value ?? "").replace(/\r\n/g, "\n");
+function normalizeUiState(uiState) {
+  const safe = isObject(uiState) ? uiState : {};
+  return {
+    ...DEFAULT_UI_STATE,
+    ...safe,
+    version: DEFAULT_UI_STATE.version,
+    selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
+    homeView: ["grid", "list"].includes(safe.homeView) ? safe.homeView : "grid",
+    sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
+    filter: ["all", "canvases", "pages", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
+    currentFolderPath: normalizeFolder(safe.currentFolderPath),
+    lastOpenedItemPath: typeof safe.lastOpenedItemPath === "string" ? normalizeRel(safe.lastOpenedItemPath, "") : null,
+    lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
+  };
 }
 
-function markdownName(markdown, fallback) {
-  const lines = normalizeLineEndings(markdown).split("\n");
-  let index = 0;
+function normalizeWorkspaceState(data) {
+  const safe = isObject(data) ? data : {};
+  const recentDocumentIds = Array.isArray(safe.recentDocumentIds)
+    ? safe.recentDocumentIds.filter((value) => typeof value === "string" && value.trim().length > 0)
+    : [];
+  const starredDocumentIds = Array.isArray(safe.starredDocumentIds)
+    ? safe.starredDocumentIds.filter((value) => typeof value === "string" && value.trim().length > 0)
+    : [];
 
-  if (lines[0] === "---") {
-    index = 1;
-    while (index < lines.length && lines[index] !== "---" && lines[index] !== "...") {
-      index += 1;
-    }
-    if (index < lines.length) {
-      index += 1;
-    } else {
-      index = 0;
-    }
-  }
-
-  while (index < lines.length && !lines[index].trim()) {
-    index += 1;
-  }
-
-  const match = (lines[index] ?? "").match(/^#\s+(.+?)\s*$/);
-  return match?.[1]?.trim() || fallback;
+  return {
+    version: 1,
+    recentDocumentIds: [...new Set(recentDocumentIds)].slice(0, MAX_RECENTS),
+    starredDocumentIds: [...new Set(starredDocumentIds)],
+  };
 }
 
-function normalizePageContent(content) {
-  if (!isObject(content) || content.type !== "doc") {
-    return DEFAULT_PAGE_DOCUMENT;
+async function ensureWorkspaceScaffold(root) {
+  const absRoot = path.resolve(root);
+  if (!(await isDirectory(absRoot))) {
+    throw new Error("Selected folder is no longer available.");
   }
 
-  return content;
+  await ensureInternalDirs(absRoot);
+
+  if (!(await exists(domeMetaPath(absRoot)))) {
+    await atomicWriteJson(absRoot, domeMetaPath(absRoot), {
+      version: 1,
+      name: path.basename(absRoot),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  }
+
+  if (!(await exists(uiStatePath(absRoot)))) {
+    await atomicWriteJson(absRoot, uiStatePath(absRoot), DEFAULT_UI_STATE);
+  }
+
+  if (!(await exists(statePath(absRoot)))) {
+    await atomicWriteJson(absRoot, statePath(absRoot), DEFAULT_STATE);
+  }
+
+  return absRoot;
+}
+
+async function readWorkspaceMeta(root) {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const meta = await readJsonIfExists(domeMetaPath(absRoot), {
+    version: 1,
+    name: path.basename(absRoot),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+  return {
+    version: 1,
+    name: firstString(meta.name, path.basename(absRoot)),
+    createdAt: typeof meta.createdAt === "string" ? meta.createdAt : nowIso(),
+    updatedAt: typeof meta.updatedAt === "string" ? meta.updatedAt : nowIso(),
+  };
+}
+
+async function writeWorkspaceMeta(root, partial = {}) {
+  const current = await readWorkspaceMeta(root);
+  const next = {
+    ...current,
+    ...(isObject(partial) ? partial : {}),
+    version: 1,
+    name: firstString(partial.name, current.name, path.basename(root)),
+    updatedAt: nowIso(),
+  };
+  await atomicWriteJson(root, domeMetaPath(root), next);
+  return next;
+}
+
+async function readUiState(root) {
+  await ensureWorkspaceScaffold(root);
+  return normalizeUiState(await readJsonIfExists(uiStatePath(root), DEFAULT_UI_STATE));
+}
+
+async function writeUiState(root, partialState) {
+  const next = normalizeUiState({
+    ...(await readUiState(root)),
+    ...(isObject(partialState) ? partialState : {}),
+  });
+  await atomicWriteJson(root, uiStatePath(root), next);
+  return next;
+}
+
+async function readWorkspaceState(root) {
+  await ensureWorkspaceScaffold(root);
+  return normalizeWorkspaceState(await readJsonIfExists(statePath(root), DEFAULT_STATE));
+}
+
+async function writeWorkspaceState(root, partialState) {
+  const next = normalizeWorkspaceState({
+    ...(await readWorkspaceState(root)),
+    ...(isObject(partialState) ? partialState : {}),
+  });
+  await atomicWriteJson(root, statePath(root), next);
+  return next;
 }
 
 function extractFrontmatter(markdown) {
   const normalized = normalizeLineEndings(markdown);
-
   if (!normalized.startsWith("---\n")) {
     return { frontmatter: "", content: normalized };
   }
@@ -415,97 +479,82 @@ function extractFrontmatter(markdown) {
   };
 }
 
-function readFrontmatterTitle(frontmatter) {
+function parseFrontmatter(frontmatter) {
+  const fields = {};
+  const order = [];
   const lines = normalizeLineEndings(frontmatter).split("\n");
 
   for (const line of lines) {
-    const match = line.match(/^title:\s*(.+?)\s*$/i);
-    if (match) {
-      return match[1].replace(/^["']|["']$/g, "").trim();
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*?)\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    const [, key, rawValue] = match;
+    fields[key] = rawValue.replace(/^["']|["']$/g, "");
+    if (!order.includes(key)) {
+      order.push(key);
     }
   }
 
-  return "";
+  return { fields, order };
 }
 
-function extractLeadingMarkdownTitle(content, fallbackTitle) {
-  const lines = normalizeLineEndings(content).split("\n");
-  let cursor = 0;
+function quoteFrontmatterValue(value) {
+  return JSON.stringify(String(value ?? ""));
+}
 
-  while (cursor < lines.length && lines[cursor].trim() === "") {
-    cursor += 1;
-  }
-
-  const headingLine = lines[cursor] ?? "";
-  const headingMatch = headingLine.match(/^#\s+(.+?)\s*$/);
-
-  if (!headingMatch) {
-    return {
-      title: fallbackTitle || "Page",
-      body: content,
-    };
-  }
-
-  const nextLines = [...lines.slice(0, cursor), ...lines.slice(cursor + 1)];
-
-  if ((nextLines[cursor] ?? "").trim() === "") {
-    nextLines.splice(cursor, 1);
-  }
-
-  return {
-    title: headingMatch[1].trim() || fallbackTitle || "Page",
-    body: nextLines.join("\n").replace(/^\n+/, ""),
+function buildPageFrontmatter(data, existingFields = {}, existingOrder = []) {
+  const canonicalFields = {
+    id: data.id,
+    title: data.title,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
   };
+  const mergedFields = {
+    ...(isObject(existingFields) ? existingFields : {}),
+    ...canonicalFields,
+  };
+  const canonicalOrder = ["id", "title", "createdAt", "updatedAt"];
+  const fieldOrder = [...new Set([
+    ...canonicalOrder,
+    ...(Array.isArray(existingOrder) ? existingOrder.filter((key) => !canonicalOrder.includes(key)) : []),
+  ])];
+
+  return [
+    "---",
+    ...fieldOrder
+      .filter((key) => typeof mergedFields[key] === "string" && mergedFields[key].trim().length > 0)
+      .map((key) => `${key}: ${quoteFrontmatterValue(mergedFields[key])}`),
+    "---",
+    "",
+  ].join("\n");
 }
 
-function legacyMarkdownToPageDocument(markdown, fallbackTitle = "Page") {
-  const normalized = normalizeLineEndings(markdown);
-  const { frontmatter, content } = extractFrontmatter(normalized);
-  const frontmatterTitle = readFrontmatterTitle(frontmatter);
-  const { title, body } = extractLeadingMarkdownTitle(content, frontmatterTitle || fallbackTitle);
-  const trimmedBody = body.trim();
-
-  if (!trimmedBody) {
-    return {
-      title,
-      content: DEFAULT_PAGE_DOCUMENT,
-    };
+function markdownToPageDocument(markdown) {
+  const normalized = normalizeLineEndings(markdown).trim();
+  if (!normalized) {
+    return DEFAULT_PAGE_DOCUMENT;
   }
 
   try {
-    return {
-      title,
-      content: markdownParser.parse(trimmedBody).toJSON(),
-    };
+    return markdownParser.parse(normalized).toJSON();
   } catch {
-    return {
-      title,
-      content: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [{ type: "text", text: trimmedBody.replace(/\s+/g, " ").slice(0, 5000) }],
-          },
-        ],
-      },
-    };
+    return DEFAULT_PAGE_DOCUMENT;
   }
 }
 
-async function readJsonIfExists(filePath, label, fallback) {
+function pageDocumentToMarkdown(content) {
   try {
-    return await readJson(filePath, label);
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return fallback;
-    }
-    throw error;
+    const doc = pageSchema.nodeFromJSON(normalizePageContent(content));
+    return defaultMarkdownSerializer.serialize(doc).trim();
+  } catch {
+    return "";
   }
 }
 
-function collectPageText(node, parts) {
-  if (!isObject(node)) {
+function flattenText(node, parts) {
+  if (!node || typeof node !== "object") {
     return;
   }
 
@@ -514,471 +563,230 @@ function collectPageText(node, parts) {
   }
 
   if (Array.isArray(node.content)) {
-    node.content.forEach((child) => collectPageText(child, parts));
+    node.content.forEach((child) => flattenText(child, parts));
   }
 }
 
-function pageExcerptFromContent(content) {
+function pageExcerptFromContent(content, maxLength = 220) {
   const parts = [];
-  collectPageText(normalizePageContent(content), parts);
-  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 220);
+  flattenText(normalizePageContent(content), parts);
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function markdownExcerpt(markdown) {
-  const normalized = String(markdown ?? "").replace(/\r\n/g, "\n");
-  let content = normalized;
+function isCanvasPath(filePath) {
+  return String(filePath ?? "").toLowerCase().endsWith(CANVAS_SUFFIX);
+}
 
-  if (content.startsWith("---\n")) {
-    const frontmatterMatch = content.match(/^---\n[\s\S]*?\n(?:---|\.\.\.)\n*/);
-    if (frontmatterMatch) {
-      content = content.slice(frontmatterMatch[0].length);
-    }
+function isPagePath(filePath) {
+  return String(filePath ?? "").toLowerCase().endsWith(PAGE_SUFFIX);
+}
+
+function detectType(fileName) {
+  const lower = String(fileName ?? "").toLowerCase();
+  if (lower.endsWith(CANVAS_SUFFIX)) {
+    return "canvas";
   }
+  if (lower.endsWith(PAGE_SUFFIX)) {
+    return "page";
+  }
+  const ext = fileExt(lower);
+  if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) {
+    return "asset";
+  }
+  return "file";
+}
 
-  const lines = content.split("\n");
-  let index = 0;
+function detectEntryType(stats, entryName) {
+  if (stats?.isDirectory?.()) {
+    return "folder";
+  }
+  return detectType(entryName);
+}
 
-  while (index < lines.length && !lines[index].trim()) {
+function legacyDocumentId(relativePath) {
+  return `legacy-${createHash("sha1").update(normalizeRel(relativePath, "")).digest("hex")}`;
+}
+
+async function uniquePath(dir, baseName, suffix) {
+  let nextPath = path.join(dir, `${baseName}${suffix}`);
+  let index = 2;
+  while (await exists(nextPath)) {
+    nextPath = path.join(dir, `${baseName} ${index}${suffix}`);
     index += 1;
   }
-
-  if (/^#\s+/.test(lines[index] ?? "")) {
-    index += 1;
-  }
-
-  return lines
-    .slice(index)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(" ")
-    .slice(0, 220);
-}
-
-function mapItemForResponse(root, item) {
-  return {
-    path: item.path,
-    filePath: resolveWorkspacePath(root, item.path),
-    type: item.type,
-    name: item.name,
-    updatedAt: item.updatedAt,
-    starred: item.starred === true,
-    thumbnail: item.thumbnail ?? null,
-    thumbnailPath: item.thumbnail ?? null,
-    excerpt: item.excerpt ?? "",
-  };
-}
-
-function compareUpdatedDesc(a, b) {
-  if (a.updatedAt === b.updatedAt) return a.name.localeCompare(b.name);
-  return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
-}
-
-function previewRelativePath(relativeCanvasPath) {
-  const hash = createHash("sha1").update(relativeCanvasPath).digest("hex").slice(0, 16);
-  return path.posix.join(INTERNAL_DIR, PREVIEWS_DIR, `${hash}.svg`);
-}
-
-function buildPreviewSvg(workspace, title) {
-  const cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
-  const label = firstString(title, cards.length > 0 ? `${cards.length} items` : "Empty canvas");
-  const safeLabel = label.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
-  return [
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"360\" viewBox=\"0 0 640 360\">",
-    "<defs><linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0%\" stop-color=\"#111315\"/><stop offset=\"100%\" stop-color=\"#0b0d10\"/></linearGradient></defs>",
-    "<rect x=\"0\" y=\"0\" width=\"640\" height=\"360\" fill=\"url(#bg)\"/>",
-    `<text x="24" y="334" fill="rgba(236,238,241,.76)" font-family="Inter,Segoe UI,sans-serif" font-size="18" font-weight="600">${safeLabel}</text>`,
-    "</svg>",
-  ].join("\n");
-}
-
-async function writePreview(root, relativePath, workspace, title) {
-  const rel = previewRelativePath(relativePath);
-  await safeWriteText(resolveWorkspacePath(root, rel), buildPreviewSvg(workspace, title));
-  return rel;
-}
-
-function defaultIndex(meta) {
-  return {
-    version: INDEX_VERSION,
-    workspace: {
-      name: meta.name,
-      createdAt: meta.createdAt,
-      updatedAt: meta.updatedAt,
-    },
-    items: [],
-    recentItemPaths: [],
-    starredItemPaths: [],
-  };
-}
-
-function normalizeUiState(uiState) {
-  const safe = isObject(uiState) ? uiState : {};
-  return {
-    ...DEFAULT_UI_STATE,
-    ...safe,
-    version: UI_STATE_VERSION,
-    selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
-    homeView: ["grid", "list"].includes(safe.homeView) ? safe.homeView : "grid",
-    sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
-    filter: ["all", "canvases", "pages", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
-    currentFolderPath: normalizeFolder(safe.currentFolderPath),
-    lastOpenedItemPath: typeof safe.lastOpenedItemPath === "string" ? normalizeRel(safe.lastOpenedItemPath, "") : null,
-    lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
-  };
-}
-
-function normalizeDrawingsPayload(drawings) {
-  const safeDrawings = isObject(drawings) ? drawings : DEFAULT_DRAWINGS;
-
-  return {
-    version: Number.isFinite(safeDrawings.version) ? Math.max(1, Math.round(safeDrawings.version)) : DEFAULT_DRAWINGS.version,
-    objects: Array.isArray(safeDrawings.objects) ? safeDrawings.objects : [],
-  };
-}
-
-async function ensureRootReady(root) {
-  if (!(await isDirectory(root))) throw new Error("Selected folder is no longer available.");
-  await fs.mkdir(internalPath(root), { recursive: true });
-  await fs.mkdir(previewDirPath(root), { recursive: true });
-  await fs.mkdir(path.join(root, CANVASES_DIR), { recursive: true });
-  await fs.mkdir(path.join(root, PAGES_DIR), { recursive: true });
-  await fs.mkdir(path.join(root, TILES_DIR), { recursive: true });
-  await fs.mkdir(assetsDirPath(root), { recursive: true });
-
-  const legacyMetaFile = legacyRootMetaPath(root);
-  const metaFile = domeMetaPath(root);
-  const legacyMeta = (await exists(legacyMetaFile))
-    ? await readJson(legacyMetaFile, LEGACY_ROOT_META_FILE)
-    : null;
-  const meta = (await exists(metaFile))
-    ? await readJson(metaFile, DOME_FILE)
-    : {
-      version: 3,
-      name: firstString(legacyMeta?.name, path.basename(root)),
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-  meta.version = 3;
-  meta.name = firstString(meta.name, legacyMeta?.name, path.basename(root));
-  meta.createdAt = typeof meta.createdAt === "string" ? meta.createdAt : nowIso();
-  meta.updatedAt = nowIso();
-  await safeWriteJson(metaFile, meta);
-  if (!(await exists(domeSettingsPath(root)))) {
-    await safeWriteJson(domeSettingsPath(root), {
-      version: 1,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    });
-  }
-  if (legacyMeta && (await exists(legacyMetaFile))) {
-    await fs.rm(legacyMetaFile, { force: true });
-  }
-  return meta;
-}
-
-async function uniqueFile(initialPath) {
-  let next = initialPath;
-  let n = 2;
-  while (await exists(next)) {
-    const ext = path.extname(initialPath);
-    const stem = initialPath.slice(0, -ext.length);
-    next = `${stem} ${n}${ext}`;
-    n += 1;
-  }
-  return next;
-}
-
-async function uniqueDocumentFile(dir, baseName, suffix) {
-  let next = path.join(dir, `${baseName}${suffix}`);
-  let n = 2;
-  while (await exists(next)) {
-    next = path.join(dir, `${baseName} ${n}${suffix}`);
-    n += 1;
-  }
-  return next;
-}
-
-async function migrateLegacy(root) {
-  for (const legacyName of LEGACY_FILES) {
-    const legacyPath = path.join(root, legacyName);
-    if (!(await exists(legacyPath))) continue;
-    const raw = await readJson(legacyPath, legacyName);
-    const filePath = await uniqueDocumentFile(root, DEFAULT_WORKSPACE_NAME, CANVAS_SUFFIX);
-    const payload = {
-      version: 2,
-      type: "canvas",
-      name: DEFAULT_WORKSPACE_NAME,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-      viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
-      cards: Array.isArray(raw.cards) ? raw.cards : [],
-      drawings: normalizeDrawingsPayload(raw.drawings),
-    };
-    await safeWriteJson(filePath, payload);
-    await fs.rm(legacyPath, { force: true });
-  }
-
-  const legacyProjects = path.join(root, PROJECTS_DIR);
-  if (!(await exists(legacyProjects))) return;
-
-  const queue = [legacyProjects];
-  while (queue.length > 0) {
-    const dir = queue.shift();
-    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      const abs = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        queue.push(abs);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-
-      const lower = entry.name.toLowerCase();
-      if (lower === "project.json" || lower === "space.json") continue;
-
-      if (lower.endsWith(".md") && abs.includes(`${path.sep}pages${path.sep}`)) {
-        const md = await readText(abs, "");
-        const name = markdownName(md, stripExt(entry.name) || "Page");
-        await safeWriteText(await uniqueFile(path.join(root, `${sanitizeName(name, "Page")}.md`)), md);
-      } else if (lower.endsWith(".json") && abs.includes(`${path.sep}canvases${path.sep}`)) {
-        let raw;
-        try {
-          raw = await readJson(abs, entry.name);
-        } catch {
-          continue;
-        }
-        const name = firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas");
-        await safeWriteJson(await uniqueDocumentFile(root, sanitizeName(name, "Canvas"), CANVAS_SUFFIX), {
-          version: 2,
-          type: "canvas",
-          name,
-          createdAt: nowIso(),
-          updatedAt: nowIso(),
-          viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
-          cards: Array.isArray(raw.tiles) ? raw.tiles : Array.isArray(raw.cards) ? raw.cards : [],
-        });
-      }
-    }
-  }
-
-  await fs.rm(legacyProjects, { recursive: true, force: true });
-}
-
-async function scanFiles(root) {
-  const items = [];
-  const stack = [root];
-
-  while (stack.length > 0) {
-    const dir = stack.pop();
-    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      const abs = path.join(dir, entry.name);
-      const rel = normalizeRel(path.relative(root, abs), "");
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) continue;
-        stack.push(abs);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-
-      const type = detectType(entry.name, rel);
-      if (!type) continue;
-
-      const stat = await fs.stat(abs);
-      if (type === "canvas") {
-        let name = stripCanvasSuffix(entry.name) || "Canvas";
-        let workspace = DEFAULT_WORKSPACE;
-        try {
-          const raw = await readJson(abs, entry.name);
-          name = firstString(raw.name, name);
-          workspace = {
-            version: Number.isFinite(raw.version) ? raw.version : 5,
-            viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
-            cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
-          };
-        } catch {
-          // Keep corrupt files visible for rename/delete.
-        }
-        items.push({ path: rel, type, name, updatedAt: stat.mtime.toISOString(), excerpt: "", workspace });
-      } else if (type === "page") {
-        const lower = entry.name.toLowerCase();
-        let page = {
-          title: stripPageSuffix(entry.name) || "Page",
-          content: DEFAULT_PAGE_DOCUMENT,
-          excerpt: "",
-        };
-        if (isPagePath(lower)) {
-          try {
-            const raw = await readJson(abs, entry.name);
-            page = {
-              title: firstString(raw.title, stripPageSuffix(entry.name), "Page"),
-              content: normalizePageContent(raw.content),
-              excerpt: pageExcerptFromContent(raw.content),
-            };
-          } catch {
-            // Keep corrupt files visible for rename/delete.
-          }
-        } else {
-          const markdown = await readText(abs, "");
-          const legacyPage = legacyMarkdownToPageDocument(markdown, stripPageSuffix(entry.name) || "Page");
-          page = {
-            title: legacyPage.title,
-            content: legacyPage.content,
-            excerpt: markdownExcerpt(markdown),
-          };
-        }
-        items.push({
-          path: rel,
-          type,
-          name: page.title,
-          updatedAt: stat.mtime.toISOString(),
-          excerpt: page.excerpt,
-        });
-      } else {
-        items.push({
-          path: rel,
-          type,
-          name: type === "file" ? entry.name : (stripExt(entry.name) || entry.name),
-          updatedAt: stat.mtime.toISOString(),
-          excerpt: "",
-        });
-      }
-    }
-  }
-
-  return items.sort((a, b) => a.path.localeCompare(b.path));
-}
-
-async function rebuildIndex(root) {
-  await migrateLegacy(root);
-  const meta = await ensureRootReady(root);
-  const prev = await readJsonIfExists(indexPath(root), INDEX_FILE, defaultIndex(meta));
-  const scanned = await scanFiles(root);
-  const prevByPath = new Map((Array.isArray(prev.items) ? prev.items : []).map((item) => [normalizeRel(item.path, ""), item]));
-
-  const items = [];
-  for (const scannedItem of scanned) {
-    const prevItem = prevByPath.get(scannedItem.path);
-    let thumbnail = prevItem?.thumbnail ?? prevItem?.thumbnailPath ?? null;
-    if (scannedItem.type === "canvas") {
-      const thumbAbs = thumbnail ? resolveWorkspacePath(root, thumbnail) : null;
-      if (!thumbnail || !(await exists(thumbAbs))) {
-        thumbnail = await writePreview(root, scannedItem.path, scannedItem.workspace, scannedItem.name);
-      }
-    } else {
-      thumbnail = null;
-    }
-    items.push({
-      path: scannedItem.path,
-      type: scannedItem.type,
-      name: scannedItem.name,
-      updatedAt: scannedItem.updatedAt,
-      starred: prevItem?.starred === true,
-      thumbnail,
-      excerpt: scannedItem.excerpt ?? "",
-    });
-  }
-
-  const pathSet = new Set(items.map((item) => item.path));
-  const recentItemPaths = (Array.isArray(prev.recentItemPaths) ? prev.recentItemPaths : [])
-    .map((value) => normalizeRel(value, ""))
-    .filter((value, index, list) => value && list.indexOf(value) === index && pathSet.has(value))
-    .slice(0, MAX_RECENTS);
-  const starredItemPaths = items.filter((item) => item.starred).map((item) => item.path);
-
-  const nextIndex = {
-    version: INDEX_VERSION,
-    workspace: {
-      name: meta.name,
-      createdAt: meta.createdAt,
-      updatedAt: meta.updatedAt,
-    },
-    items,
-    recentItemPaths,
-    starredItemPaths,
-  };
-  await safeWriteJson(indexPath(root), nextIndex);
-
-  const prevUi = await readJsonIfExists(uiStatePath(root), UI_STATE_FILE, DEFAULT_UI_STATE);
-  const uiState = normalizeUiState(prevUi);
-  if (uiState.lastOpenedItemPath && !pathSet.has(uiState.lastOpenedItemPath)) uiState.lastOpenedItemPath = null;
-  if (uiState.lastOpenedCanvasPath && !pathSet.has(uiState.lastOpenedCanvasPath)) uiState.lastOpenedCanvasPath = null;
-  await safeWriteJson(uiStatePath(root), uiState);
-
-  return { meta, index: nextIndex, uiState };
-}
-
-async function ensureReady(root) {
-  return rebuildIndex(root);
+  return nextPath;
 }
 
 async function workspaceRootFromFile(filePath) {
   let dir = path.dirname(path.resolve(filePath));
   while (true) {
-    if (
-      await exists(domeMetaPath(dir))
-      || await exists(indexPath(dir))
-      || await exists(legacyRootMetaPath(dir))
-    ) return dir;
+    if (await exists(path.join(dir, INTERNAL_DIR))) {
+      return dir;
+    }
     const parent = path.dirname(dir);
-    if (parent === dir) return null;
+    if (parent === dir) {
+      return null;
+    }
     dir = parent;
   }
 }
 
-async function markItemStarred(root, filePath, starred) {
-  const { index } = await ensureReady(root);
-  const rel = toWorkspaceRel(root, filePath);
-  const item = index.items.find((entry) => entry.path === rel);
-  if (!item) throw new Error("The selected file no longer exists.");
-  const nextItems = index.items.map((entry) => (entry.path === rel ? { ...entry, starred: starred === true } : entry));
-  const next = {
-    ...index,
-    items: nextItems,
-    starredItemPaths: nextItems.filter((entry) => entry.starred).map((entry) => entry.path),
+function mapScannedItemForResponse(root, item, state) {
+  const starredIds = new Set(state.starredDocumentIds);
+  return {
+    id: item.id ?? null,
+    path: item.path,
+    filePath: resolveWorkspacePath(root, item.path),
+    type: item.type,
+    name: item.name,
+    updatedAt: item.updatedAt,
+    starred: item.type !== "folder" && Boolean(item.id && starredIds.has(item.id)),
+    thumbnail: null,
+    thumbnailPath: null,
+    excerpt: item.excerpt ?? "",
   };
-  await safeWriteJson(indexPath(root), next);
-  return mapItemForResponse(root, nextItems.find((entry) => entry.path === rel));
 }
 
-async function recordRecentItem(root, filePath) {
-  const { index } = await ensureReady(root);
-  const rel = toWorkspaceRel(root, filePath);
-  if (!index.items.some((item) => item.path === rel)) throw new Error("The selected file no longer exists.");
-  const nextRecent = [rel, ...index.recentItemPaths.filter((item) => item !== rel)].slice(0, MAX_RECENTS);
-  await safeWriteJson(indexPath(root), { ...index, recentItemPaths: nextRecent });
-  const ui = normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
-  ui.lastOpenedItemPath = rel;
-  if (rel.endsWith(CANVAS_SUFFIX)) ui.lastOpenedCanvasPath = rel;
-  await safeWriteJson(uiStatePath(root), ui);
-  return nextRecent;
+function compareUpdatedDesc(a, b) {
+  if (a.updatedAt === b.updatedAt) {
+    return a.name.localeCompare(b.name);
+  }
+  return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
+}
+
+async function scanWorkspace(folderPath) {
+  const root = await ensureWorkspaceScaffold(folderPath);
+  const items = [];
+  const stack = [root];
+
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const absPath = path.join(currentDir, entry.name);
+      const relPath = normalizeRel(path.relative(root, absPath), "");
+
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) {
+          continue;
+        }
+        const stat = await fs.stat(absPath);
+        items.push({
+          id: null,
+          path: relPath,
+          type: "folder",
+          name: entry.name,
+          updatedAt: stat.mtime.toISOString(),
+          excerpt: "",
+        });
+        stack.push(absPath);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const type = detectType(entry.name);
+      const stat = await fs.stat(absPath);
+
+      if (type === "canvas") {
+        let raw = {};
+        try {
+          raw = await readJson(absPath, entry.name);
+        } catch {
+          raw = {};
+        }
+
+        items.push({
+          id: firstString(raw.id, legacyDocumentId(relPath)),
+          path: relPath,
+          type,
+          name: firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas"),
+          updatedAt: stat.mtime.toISOString(),
+          excerpt: "",
+        });
+        continue;
+      }
+
+      if (type === "page") {
+        const markdown = await readText(absPath, "");
+        const { frontmatter, content } = extractFrontmatter(markdown);
+        const meta = parseFrontmatter(frontmatter);
+        const doc = markdownToPageDocument(content);
+
+        items.push({
+          id: firstString(meta.id, legacyDocumentId(relPath)),
+          path: relPath,
+          type,
+          name: firstString(meta.title, stripExt(entry.name), "Page"),
+          updatedAt: stat.mtime.toISOString(),
+          excerpt: pageExcerptFromContent(doc),
+        });
+        continue;
+      }
+
+      items.push({
+        id: null,
+        path: relPath,
+        type,
+        name: type === "asset" ? stripExt(entry.name) || entry.name : entry.name,
+        updatedAt: stat.mtime.toISOString(),
+        excerpt: "",
+      });
+    }
+  }
+
+  return {
+    folderPath: root,
+    workspace: await readWorkspaceMeta(root),
+    items: items.sort((a, b) => a.path.localeCompare(b.path)),
+  };
+}
+
+async function openWorkspace(folderPath) {
+  const root = await ensureWorkspaceScaffold(folderPath);
+  await writeWorkspaceMeta(root);
+  return {
+    folderPath: root,
+    workspace: await readWorkspaceMeta(root),
+  };
 }
 
 async function loadCanvas(filePath) {
   const abs = path.resolve(filePath);
-  if (!isCanvasPath(abs)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  if (!isCanvasPath(abs)) {
+    throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  }
+
   const root = await workspaceRootFromFile(abs);
-  if (!root) throw new Error("Could not resolve the workspace for this canvas.");
-  await ensureReady(root);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this canvas.");
+  }
+
   ensureInside(root, abs);
   const raw = await readJson(abs, path.basename(abs));
   const stat = await fs.stat(abs);
   const rel = toWorkspaceRel(root, abs);
+
   const workspace = {
-    version: Number.isFinite(raw.version) ? raw.version : 5,
+    version: Number.isFinite(raw.version) ? raw.version : DEFAULT_WORKSPACE.version,
     viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
-    cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
+    cards: Array.isArray(raw.cards) ? raw.cards : [],
     drawings: normalizeDrawingsPayload(raw.drawings),
     view: raw.view === null || isObject(raw.view) ? raw.view : null,
+    name: firstString(raw.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
   };
+
   await recordRecentItem(root, abs);
+
   return {
+    id: firstString(raw.id, legacyDocumentId(rel)),
     type: "canvas",
     path: rel,
     filePath: abs,
-    name: firstString(raw.name, stripCanvasSuffix(path.basename(abs))),
-    createdAt: raw.createdAt ?? stat.birthtime.toISOString(),
+    name: workspace.name,
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : stat.birthtime.toISOString(),
     updatedAt: stat.mtime.toISOString(),
     workspace,
   };
@@ -986,54 +794,47 @@ async function loadCanvas(filePath) {
 
 async function saveCanvas(filePath, data, options = null) {
   const abs = path.resolve(filePath);
-  if (!isCanvasPath(abs)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  if (!isCanvasPath(abs)) {
+    throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  }
+
   const root = await workspaceRootFromFile(abs);
-  if (!root) throw new Error("Could not resolve the workspace for this canvas.");
-  await ensureReady(root);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this canvas.");
+  }
+
   ensureInside(root, abs);
+  const current = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
+  const input = isObject(data) ? data : {};
   const saveOptions = isObject(options) ? options : {};
-  const existing = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
-  const workspace = isObject(data) ? data : DEFAULT_WORKSPACE;
+  const nextName = firstString(input.name, current.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
   const payload = {
     version: 2,
     type: "canvas",
-    name: firstString(workspace.name, existing.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
-    createdAt: typeof existing.createdAt === "string" ? existing.createdAt : nowIso(),
+    id: firstString(current.id, input.id, randomUUID()),
+    name: nextName,
+    createdAt: typeof current.createdAt === "string" ? current.createdAt : nowIso(),
     updatedAt: nowIso(),
-    viewport: isObject(workspace.viewport)
-      ? workspace.viewport
-      : isObject(existing.viewport)
-        ? existing.viewport
+    viewport: isObject(input.viewport)
+      ? input.viewport
+      : isObject(current.viewport)
+        ? current.viewport
         : DEFAULT_WORKSPACE.viewport,
-    cards: Array.isArray(workspace.cards)
-      ? workspace.cards
-      : Array.isArray(existing.cards)
-        ? existing.cards
+    cards: Array.isArray(input.cards)
+      ? input.cards
+      : Array.isArray(current.cards)
+        ? current.cards
         : [],
-    drawings: normalizeDrawingsPayload(
-      isObject(workspace.drawings)
-        ? workspace.drawings
-        : existing.drawings,
-    ),
-    view: workspace.view === null || isObject(workspace.view)
-      ? workspace.view
-      : existing.view ?? null,
+    drawings: normalizeDrawingsPayload(input.drawings ?? current.drawings),
+    view: input.view === null || isObject(input.view)
+      ? input.view
+      : (current.view ?? null),
   };
-  await safeWriteJson(abs, payload);
-  const rel = toWorkspaceRel(root, abs);
-  const changedKeys = Array.isArray(saveOptions.changedKeys)
-    ? saveOptions.changedKeys.filter((key) => typeof key === "string" && key.trim().length > 0)
-    : [];
-  const shouldUpdatePreview = changedKeys.length === 0
-    || changedKeys.includes("cards")
-    || changedKeys.includes("name");
 
-  if (shouldUpdatePreview) {
-    await writePreview(root, rel, payload, payload.name);
-  }
+  await atomicWriteJson(root, abs, payload);
+  const rel = toWorkspaceRel(root, abs);
 
   if (saveOptions.returnWorkspace !== false) {
-    await ensureReady(root);
     await recordRecentItem(root, abs);
     return loadCanvas(abs);
   }
@@ -1043,206 +844,346 @@ async function saveCanvas(filePath, data, options = null) {
     path: rel,
     filePath: abs,
     updatedAt: payload.updatedAt,
-    changedKeys,
+    changedKeys: Array.isArray(saveOptions.changedKeys) ? saveOptions.changedKeys : [],
+  };
+}
+
+async function parsePageFile(filePath) {
+  const markdown = await readText(filePath, "");
+  const { frontmatter, content } = extractFrontmatter(markdown);
+  const meta = parseFrontmatter(frontmatter);
+  const document = markdownToPageDocument(content);
+  return {
+    id: firstString(meta.fields.id, randomUUID()),
+    title: firstString(meta.fields.title, stripExt(path.basename(filePath)), "Page"),
+    createdAt: firstString(meta.fields.createdAt, nowIso()),
+    updatedAt: firstString(meta.fields.updatedAt, nowIso()),
+    content: document,
+    excerpt: pageExcerptFromContent(document),
+    frontmatterFields: meta.fields,
+    frontmatterOrder: meta.order,
   };
 }
 
 async function loadPage(filePath) {
   const abs = path.resolve(filePath);
-  const lower = abs.toLowerCase();
-  if (!lower.endsWith(".md") && !isPagePath(lower)) {
-    throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
+  if (!isPagePath(abs)) {
+    throw new Error(`Page path must end with "${PAGE_SUFFIX}".`);
   }
+
   const root = await workspaceRootFromFile(abs);
-  if (!root) throw new Error("Could not resolve the workspace for this page.");
-  await ensureReady(root);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this page.");
+  }
+
   ensureInside(root, abs);
+  const parsed = await parsePageFile(abs);
   const stat = await fs.stat(abs);
   const rel = toWorkspaceRel(root, abs);
-  let title = stripPageSuffix(path.basename(abs)) || "Page";
-  let content = DEFAULT_PAGE_DOCUMENT;
-  let excerpt = "";
-
-  if (isPagePath(lower)) {
-    const raw = await readJson(abs, path.basename(abs));
-    title = firstString(raw.title, title);
-    content = normalizePageContent(raw.content);
-    excerpt = pageExcerptFromContent(content);
-  } else {
-    const markdown = await readText(abs, "");
-    const legacyPage = legacyMarkdownToPageDocument(markdown, title);
-    title = legacyPage.title;
-    content = legacyPage.content;
-    excerpt = markdownExcerpt(markdown);
-  }
 
   await recordRecentItem(root, abs);
+
   return {
+    id: firstString(parsed.id, legacyDocumentId(rel)),
     type: "page",
     path: rel,
     filePath: abs,
-    name: title,
-    title,
-    content,
-    storageFormat: lower.endsWith(PAGE_SUFFIX) ? "tiptap-json" : "markdown-legacy",
-    createdAt: stat.birthtime.toISOString(),
+    name: parsed.title,
+    title: parsed.title,
+    content: parsed.content,
+    storageFormat: "markdown",
+    createdAt: parsed.createdAt || stat.birthtime.toISOString(),
     updatedAt: stat.mtime.toISOString(),
-    excerpt,
+    excerpt: parsed.excerpt,
   };
 }
 
 async function savePage(filePath, pageData) {
   const abs = path.resolve(filePath);
-  const lower = abs.toLowerCase();
-  if (!lower.endsWith(".md") && !isPagePath(lower)) {
-    throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
+  if (!isPagePath(abs)) {
+    throw new Error(`Page path must end with "${PAGE_SUFFIX}".`);
   }
+
   const root = await workspaceRootFromFile(abs);
-  if (!root) throw new Error("Could not resolve the workspace for this page.");
-  await ensureReady(root);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this page.");
+  }
+
   ensureInside(root, abs);
-  const input = isObject(pageData) ? pageData : {};
-  const title = firstString(input.title, stripPageSuffix(path.basename(abs)), "Page");
-  const content = normalizePageContent(input.content);
-  let targetPath = abs;
-  let createdAt = nowIso();
 
+  let existing = null;
   if (await exists(abs)) {
-    const stat = await fs.stat(abs).catch(() => null);
-    if (stat) {
-      createdAt = stat.birthtime.toISOString();
-    }
+    existing = await parsePageFile(abs);
   }
 
-  if (isPagePath(lower)) {
-    try {
-      const existing = await readJson(abs, path.basename(abs));
-      createdAt = typeof existing.createdAt === "string" ? existing.createdAt : createdAt;
-    } catch {
-      // Fall back to file stat timestamp.
-    }
-  } else {
-    const dir = path.dirname(abs);
-    const base = stripExt(path.basename(abs));
-    targetPath = await uniqueDocumentFile(dir, base, PAGE_SUFFIX);
+  let title = existing?.title ?? (stripExt(path.basename(abs)) || "Page");
+  let content = existing?.content ?? DEFAULT_PAGE_DOCUMENT;
+  let frontmatterFields = existing?.frontmatterFields ?? {};
+  let frontmatterOrder = existing?.frontmatterOrder ?? [];
+
+  if (typeof pageData === "string") {
+    const { frontmatter, content: markdownBody } = extractFrontmatter(pageData);
+    const meta = parseFrontmatter(frontmatter);
+    title = firstString(meta.fields.title, title);
+    content = markdownToPageDocument(markdownBody);
+    frontmatterFields = {
+      ...frontmatterFields,
+      ...meta.fields,
+    };
+    frontmatterOrder = [...new Set([...frontmatterOrder, ...meta.order])];
+  } else if (isObject(pageData)) {
+    title = firstString(pageData.title, title);
+    content = normalizePageContent(pageData.content);
   }
 
-  await safeWriteJson(targetPath, {
-    version: 1,
-    type: "page",
+  const payload = {
+    id: firstString(existing?.id, randomUUID()),
     title,
-    createdAt,
+    createdAt: firstString(existing?.createdAt, nowIso()),
     updatedAt: nowIso(),
     content,
-  });
+  };
 
-  if (targetPath !== abs) {
-    await fs.rm(abs, { force: true }).catch(() => {});
-  }
-  await ensureReady(root);
-  await recordRecentItem(root, targetPath);
-  return loadPage(targetPath);
+  const markdown = `${buildPageFrontmatter(payload, frontmatterFields, frontmatterOrder)}${pageDocumentToMarkdown(payload.content)}\n`;
+  await atomicWriteText(root, abs, markdown);
+  await recordRecentItem(root, abs);
+  return loadPage(abs);
 }
 
-async function createCanvas(root, name, targetFolderPath = "") {
-  await ensureReady(root);
-  const effectiveTarget = normalizeFolder(targetFolderPath) || CANVASES_DIR;
-  const dir = resolveWorkspacePath(root, effectiveTarget);
-  await fs.mkdir(dir, { recursive: true });
-  const finalPath = await uniqueDocumentFile(
-    dir,
+async function createCanvas(folderPath, name, targetFolderPath = "") {
+  const root = await ensureWorkspaceScaffold(folderPath);
+  const targetDir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const filePath = await uniquePath(
+    targetDir,
     sanitizeName(firstString(name, "Canvas"), "Canvas"),
     CANVAS_SUFFIX,
   );
-  await safeWriteJson(finalPath, {
+
+  await atomicWriteJson(root, filePath, {
     version: 2,
     type: "canvas",
-    name: stripCanvasSuffix(path.basename(finalPath)),
+    id: randomUUID(),
+    name: stripCanvasSuffix(path.basename(filePath)),
     createdAt: nowIso(),
     updatedAt: nowIso(),
     viewport: DEFAULT_WORKSPACE.viewport,
     cards: [],
     drawings: DEFAULT_DRAWINGS,
+    view: null,
   });
-  await ensureReady(root);
-  await recordRecentItem(root, finalPath);
-  return loadCanvas(finalPath);
+
+  return loadCanvas(filePath);
 }
 
-async function createPage(root, name, targetFolderPath = "") {
-  await ensureReady(root);
-  const effectiveTarget = normalizeFolder(targetFolderPath) || PAGES_DIR;
-  const dir = resolveWorkspacePath(root, effectiveTarget);
-  await fs.mkdir(dir, { recursive: true });
-  const base = sanitizeName(firstString(name, "Page"), "Page");
-  const finalPath = await uniqueDocumentFile(dir, base, PAGE_SUFFIX);
-  await safeWriteJson(finalPath, {
-    version: 1,
-    type: "page",
-    title: stripPageSuffix(path.basename(finalPath)),
+async function createPage(folderPath, name, targetFolderPath = "") {
+  const root = await ensureWorkspaceScaffold(folderPath);
+  const targetDir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const filePath = await uniquePath(
+    targetDir,
+    sanitizeName(firstString(name, "Page"), "Page"),
+    PAGE_SUFFIX,
+  );
+
+  const payload = {
+    id: randomUUID(),
+    title: stripExt(path.basename(filePath)),
     createdAt: nowIso(),
     updatedAt: nowIso(),
     content: DEFAULT_PAGE_DOCUMENT,
-  });
-  await ensureReady(root);
-  await recordRecentItem(root, finalPath);
-  return loadPage(finalPath);
+  };
+
+  await atomicWriteText(root, filePath, `${buildPageFrontmatter(payload)}\n`);
+  return loadPage(filePath);
 }
 
 async function renameFile(root, filePath, nextName) {
-  const rel = toWorkspaceRel(root, filePath);
-  const abs = resolveWorkspacePath(root, rel);
-  if (!(await exists(abs))) throw new Error("The selected file no longer exists.");
-  const type = detectType(path.basename(abs));
-  if (!type || type === "asset" || type === "file") throw new Error("Only canvas and page files can be renamed from AirPaste.");
-  const ext = type === "canvas" ? CANVAS_SUFFIX : (path.basename(abs).toLowerCase().endsWith(".md") ? ".md" : PAGE_SUFFIX);
-  const renamed = await uniqueFile(path.join(path.dirname(abs), `${sanitizeName(nextName, "untitled")}${ext}`));
-  await fs.rename(abs, renamed);
-  if (type === "canvas") {
-    const payload = await readJson(renamed, path.basename(renamed));
-    payload.name = stripCanvasSuffix(path.basename(renamed));
-    payload.updatedAt = nowIso();
-    await safeWriteJson(renamed, payload);
-  } else if (path.basename(renamed).toLowerCase().endsWith(PAGE_SUFFIX)) {
-    const payload = await readJson(renamed, path.basename(renamed));
-    payload.title = firstString(nextName, payload.title, stripPageSuffix(path.basename(renamed)), "Page");
-    payload.updatedAt = nowIso();
-    await safeWriteJson(renamed, payload);
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const rel = toWorkspaceRel(absRoot, filePath);
+  const abs = resolveWorkspacePath(absRoot, rel);
+
+  if (!(await exists(abs))) {
+    throw new Error("The selected file no longer exists.");
   }
-  await ensureReady(root);
+
+  const type = detectType(path.basename(abs));
+  if (type !== "canvas" && type !== "page") {
+    throw new Error("Only canvas and page files can be renamed from AirPaste.");
+  }
+
+  const nextBaseName = sanitizeName(nextName, type === "canvas" ? "Canvas" : "Page");
+  const currentBaseName = type === "canvas" ? stripCanvasSuffix(path.basename(abs)) : stripExt(path.basename(abs));
+
+  if (currentBaseName === nextBaseName) {
+    return type === "canvas" ? loadCanvas(abs) : loadPage(abs);
+  }
+
+  const renamed = await uniquePath(path.dirname(abs), nextBaseName, type === "canvas" ? CANVAS_SUFFIX : PAGE_SUFFIX);
+  await fs.rename(abs, renamed);
+
+  if (type === "canvas") {
+    const raw = await readJson(renamed, path.basename(renamed));
+    raw.name = nextBaseName;
+    raw.updatedAt = nowIso();
+    await atomicWriteJson(absRoot, renamed, raw);
+  } else {
+    const page = await parsePageFile(renamed);
+    page.title = nextBaseName;
+    page.updatedAt = nowIso();
+    await atomicWriteText(
+      absRoot,
+      renamed,
+      `${buildPageFrontmatter(page, page.frontmatterFields, page.frontmatterOrder)}${pageDocumentToMarkdown(page.content)}\n`,
+    );
+  }
+
+  const uiState = await readUiState(absRoot);
+  if (uiState.lastOpenedItemPath === rel) {
+    uiState.lastOpenedItemPath = toWorkspaceRel(absRoot, renamed);
+  }
+  if (uiState.lastOpenedCanvasPath === rel) {
+    uiState.lastOpenedCanvasPath = toWorkspaceRel(absRoot, renamed);
+  }
+  await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
+
   return type === "canvas" ? loadCanvas(renamed) : loadPage(renamed);
 }
 
 async function deleteFile(root, filePath) {
-  const rel = toWorkspaceRel(root, filePath);
-  const abs = resolveWorkspacePath(root, rel);
-  if (!(await exists(abs))) return { deleted: false };
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const rel = toWorkspaceRel(absRoot, filePath);
+  const abs = resolveWorkspacePath(absRoot, rel);
+
+  if (!(await exists(abs))) {
+    return { deleted: false };
+  }
+
   const type = detectType(path.basename(abs));
-  if (!type || type === "asset" || type === "file") throw new Error("Only canvas and page files can be deleted from AirPaste.");
+  if (type !== "canvas" && type !== "page") {
+    throw new Error("Only canvas and page files can be deleted from AirPaste.");
+  }
+
+  let deletedId = null;
+  if (type === "canvas") {
+    try {
+      const raw = await readJson(abs, path.basename(abs));
+      deletedId = firstString(raw.id);
+    } catch {
+      deletedId = null;
+    }
+  } else {
+    try {
+      const page = await parsePageFile(abs);
+      deletedId = page.id;
+    } catch {
+      deletedId = null;
+    }
+  }
+
   await fs.rm(abs, { force: true });
-  await ensureReady(root);
+
+  if (deletedId) {
+    const state = await readWorkspaceState(absRoot);
+    await writeWorkspaceState(absRoot, {
+      recentDocumentIds: state.recentDocumentIds.filter((id) => id !== deletedId),
+      starredDocumentIds: state.starredDocumentIds.filter((id) => id !== deletedId),
+    });
+  }
+
+  const uiState = await readUiState(absRoot);
+  if (uiState.lastOpenedItemPath === rel) {
+    uiState.lastOpenedItemPath = null;
+  }
+  if (uiState.lastOpenedCanvasPath === rel) {
+    uiState.lastOpenedCanvasPath = null;
+  }
+  await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
+
   return { deleted: true, path: rel };
 }
 
 async function listFiles(root) {
-  const { index } = await ensureReady(root);
-  return index.items.map((item) => mapItemForResponse(root, item)).sort(compareUpdatedDesc);
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  return scan.items.map((item) => mapScannedItemForResponse(root, item, state)).sort(compareUpdatedDesc);
+}
+
+async function getItemForFilePath(root, filePath) {
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  const rel = toWorkspaceRel(root, filePath);
+  const item = scan.items.find((entry) => entry.path === rel);
+  return item ? mapScannedItemForResponse(root, item, state) : null;
+}
+
+async function recordRecentItem(root, filePath) {
+  const scan = await scanWorkspace(root);
+  const rel = toWorkspaceRel(root, filePath);
+  const item = scan.items.find((entry) => entry.path === rel);
+  if (!item?.id) {
+    throw new Error("The selected file no longer exists.");
+  }
+
+  const state = await readWorkspaceState(root);
+  const recentDocumentIds = [item.id, ...state.recentDocumentIds.filter((id) => id !== item.id)].slice(0, MAX_RECENTS);
+  await writeWorkspaceState(root, { recentDocumentIds });
+
+  const uiState = await readUiState(root);
+  uiState.lastOpenedItemPath = rel;
+  if (item.type === "canvas") {
+    uiState.lastOpenedCanvasPath = rel;
+  }
+  await atomicWriteJson(root, uiStatePath(root), uiState);
+
+  return recentDocumentIds;
+}
+
+async function markItemStarred(root, filePath, starred) {
+  const scan = await scanWorkspace(root);
+  const rel = toWorkspaceRel(root, filePath);
+  const item = scan.items.find((entry) => entry.path === rel);
+  if (!item?.id) {
+    throw new Error("The selected file no longer exists.");
+  }
+
+  const state = await readWorkspaceState(root);
+  const starredDocumentIds = starred === true
+    ? [...new Set([...state.starredDocumentIds, item.id])]
+    : state.starredDocumentIds.filter((id) => id !== item.id);
+
+  await writeWorkspaceState(root, { starredDocumentIds });
+  return mapScannedItemForResponse(root, item, { ...state, starredDocumentIds });
 }
 
 async function getRecentItems(root) {
-  const { index } = await ensureReady(root);
-  const byPath = new Map(index.items.map((item) => [item.path, item]));
-  return index.recentItemPaths.map((rel) => byPath.get(rel)).filter(Boolean).map((item) => mapItemForResponse(root, item));
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  const byId = new Map(scan.items.filter((item) => item.id).map((item) => [item.id, item]));
+  return state.recentDocumentIds
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((item) => mapScannedItemForResponse(root, item, state));
 }
 
 async function getStarredItems(root) {
-  const { index } = await ensureReady(root);
-  return index.items.filter((item) => item.starred).sort(compareUpdatedDesc).map((item) => mapItemForResponse(root, item));
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  const starredIds = new Set(state.starredDocumentIds);
+  return scan.items
+    .filter((item) => item.id && starredIds.has(item.id))
+    .map((item) => mapScannedItemForResponse(root, item, state))
+    .sort(compareUpdatedDesc);
 }
 
 function folderSet(items) {
   const set = new Set([""]);
   for (const item of items) {
+    if (item.type === "folder") {
+      set.add(normalizeFolder(item.path));
+    }
     const parts = item.path.split("/");
     let cursor = "";
     for (let index = 0; index < parts.length - 1; index += 1) {
@@ -1254,160 +1195,207 @@ function folderSet(items) {
 }
 
 async function getHomeData(root, requestedFolderPath = null) {
-  const { meta, index, uiState } = await ensureReady(root);
-  const folders = folderSet(index.items);
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  const uiState = await readUiState(root);
+  const items = scan.items.map((item) => mapScannedItemForResponse(root, item, state));
+  const folders = folderSet(items);
+
   let currentFolderPath = normalizeFolder(requestedFolderPath ?? uiState.currentFolderPath);
-  if (!folders.has(currentFolderPath)) currentFolderPath = "";
+  if (!folders.has(currentFolderPath)) {
+    currentFolderPath = "";
+  }
+
   if (currentFolderPath !== uiState.currentFolderPath) {
-    await saveUiState(root, { currentFolderPath });
+    await writeUiState(root, { currentFolderPath });
   }
 
   const folderEntriesMap = new Map();
   const files = [];
-  for (const item of index.items) {
-    const parent = normalizeFolder(path.posix.dirname(item.path));
-    if ((parent === "." ? "" : parent) === currentFolderPath) {
-      files.push(mapItemForResponse(root, item));
+
+  for (const item of items) {
+    if (item.type === "folder") {
+      const folderPath = normalizeFolder(item.path);
+      const parent = normalizeFolder(path.posix.dirname(folderPath));
+      const normalizedParent = parent === "." ? "" : parent;
+      if (normalizedParent === currentFolderPath) {
+        folderEntriesMap.set(folderPath, {
+          type: "folder",
+          path: folderPath,
+          filePath: item.filePath,
+          name: item.name,
+          updatedAt: item.updatedAt,
+        });
+      }
       continue;
     }
+
+    const parent = normalizeFolder(path.posix.dirname(item.path));
+    if ((parent === "." ? "" : parent) === currentFolderPath) {
+      files.push(item);
+      continue;
+    }
+
     const prefix = currentFolderPath ? `${currentFolderPath}/` : "";
-    if (!item.path.startsWith(prefix)) continue;
+    if (!item.path.startsWith(prefix)) {
+      continue;
+    }
+
     const rest = item.path.slice(prefix.length);
     const first = rest.split("/")[0];
-    if (!first || !rest.includes("/")) continue;
+    if (!first || !rest.includes("/")) {
+      continue;
+    }
+
     const folderPath = currentFolderPath ? `${currentFolderPath}/${first}` : first;
     const existing = folderEntriesMap.get(folderPath);
     if (!existing || existing.updatedAt < item.updatedAt) {
-      folderEntriesMap.set(folderPath, { type: "folder", path: folderPath, name: first, updatedAt: item.updatedAt });
+      folderEntriesMap.set(folderPath, {
+        type: "folder",
+        path: folderPath,
+        name: first,
+        updatedAt: item.updatedAt,
+      });
     }
   }
 
-  const byPath = new Map(index.items.map((item) => [item.path, item]));
+  const byId = new Map(items.filter((item) => item.id).map((item) => [item.id, item]));
+  const recentItems = state.recentDocumentIds.map((id) => byId.get(id)).filter(Boolean);
+  const starredItems = items.filter((item) => item.starred);
+
   return {
     workspace: {
-      name: meta.name,
-      createdAt: meta.createdAt,
-      updatedAt: meta.updatedAt,
+      name: scan.workspace.name,
+      createdAt: scan.workspace.createdAt,
+      updatedAt: scan.workspace.updatedAt,
     },
     currentFolderPath,
     folders: [...folderEntriesMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     files: files.sort(compareUpdatedDesc),
-    allFiles: index.items.map((item) => mapItemForResponse(root, item)).sort(compareUpdatedDesc),
-    recentItems: index.recentItemPaths.map((rel) => byPath.get(rel)).filter(Boolean).map((item) => mapItemForResponse(root, item)),
-    starredItems: index.items.filter((item) => item.starred).sort(compareUpdatedDesc).map((item) => mapItemForResponse(root, item)),
-    uiState,
+    allFiles: items.sort(compareUpdatedDesc),
+    recentItems,
+    starredItems: starredItems.sort(compareUpdatedDesc),
+    uiState: await readUiState(root),
   };
 }
 
 async function loadUiState(root) {
-  const { uiState } = await ensureReady(root);
-  return uiState;
+  return readUiState(root);
 }
 
 async function saveUiState(root, partialState) {
-  const { uiState } = await ensureReady(root);
-  const current = normalizeUiState(uiState);
-  const next = normalizeUiState({ ...current, ...(isObject(partialState) ? partialState : {}) });
-  await safeWriteJson(uiStatePath(root), next);
-  return next;
+  return writeUiState(root, partialState);
 }
 
 async function loadIndex(root) {
-  const { index } = await ensureReady(root);
-  return index;
+  await ensureWorkspaceScaffold(root);
+  return readJsonIfExists(indexPath(root), null);
 }
 
 async function saveIndex(root, index) {
-  const { meta } = await ensureReady(root);
-  const next = {
-    ...defaultIndex(meta),
-    ...(isObject(index) ? index : {}),
-    version: INDEX_VERSION,
-    workspace: {
-      name: meta.name,
-      createdAt: meta.createdAt,
-      updatedAt: meta.updatedAt,
-    },
-  };
-  await safeWriteJson(indexPath(root), next);
+  await ensureWorkspaceScaffold(root);
+  const next = isObject(index) ? index : {};
+  await atomicWriteJson(root, indexPath(root), next);
   return next;
 }
 
+async function rebuildIndex(root) {
+  const scan = await scanWorkspace(root);
+  const state = await readWorkspaceState(root);
+  const items = scan.items.map((item) => mapScannedItemForResponse(root, item, state));
+  const payload = {
+    version: 1,
+    workspace: scan.workspace,
+    items,
+    recentDocumentIds: state.recentDocumentIds,
+    starredDocumentIds: state.starredDocumentIds,
+  };
+  await atomicWriteJson(root, indexPath(root), payload);
+  return payload;
+}
+
+async function pickPrimaryCanvas(root) {
+  const scan = await scanWorkspace(root);
+  const uiState = await readUiState(root);
+
+  if (uiState.lastOpenedCanvasPath) {
+    const candidate = scan.items.find((item) => item.type === "canvas" && item.path === uiState.lastOpenedCanvasPath);
+    if (candidate) {
+      return resolveWorkspacePath(root, candidate.path);
+    }
+  }
+
+  const firstCanvas = scan.items
+    .filter((item) => item.type === "canvas")
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+
+  return firstCanvas ? resolveWorkspacePath(root, firstCanvas.path) : null;
+}
+
 async function readWorkspaceDocument(root) {
-  const { index, uiState } = await ensureReady(root);
-  const candidates = [
-    uiState.lastOpenedCanvasPath,
-    ...index.recentItemPaths,
-    ...index.items.filter((item) => item.type === "canvas").map((item) => item.path),
-  ].filter(Boolean);
-  const canvasRel = candidates.find((rel) => index.items.some((item) => item.path === rel && item.type === "canvas"));
-  if (!canvasRel) return { ...DEFAULT_WORKSPACE };
-  const canvas = await loadCanvas(resolveWorkspacePath(root, canvasRel));
+  const canvasPath = await pickPrimaryCanvas(root);
+  if (!canvasPath) {
+    return { ...DEFAULT_WORKSPACE };
+  }
+  const canvas = await loadCanvas(canvasPath);
   return canvas.workspace;
 }
 
-async function loadWorkspace(root) {
-  await ensureReady(root);
-  return { folderPath: root };
-}
-
 async function saveWorkspace(root, data) {
-  const { index, uiState } = await ensureReady(root);
-  const candidates = [
-    uiState.lastOpenedCanvasPath,
-    ...index.recentItemPaths,
-    ...index.items.filter((item) => item.type === "canvas").map((item) => item.path),
-  ].filter(Boolean);
-  let canvasRel = candidates.find((rel) => index.items.some((item) => item.path === rel && item.type === "canvas"));
-  if (!canvasRel) {
+  let canvasPath = await pickPrimaryCanvas(root);
+  if (!canvasPath) {
     const created = await createCanvas(root, DEFAULT_WORKSPACE_NAME);
-    canvasRel = created.path;
+    canvasPath = created.filePath;
   }
-  const saved = await saveCanvas(resolveWorkspacePath(root, canvasRel), data);
+  const saved = await saveCanvas(canvasPath, data);
   return saved.workspace;
 }
 
+async function loadWorkspace(root) {
+  const opened = await openWorkspace(root);
+  return { folderPath: opened.folderPath };
+}
+
 async function createWorkspace(root) {
-  await ensureReady(root);
-  return { folderPath: root };
+  const opened = await openWorkspace(root);
+  return { folderPath: opened.folderPath };
 }
 
 async function isValidWorkspace(root) {
-  if (!(await isDirectory(root))) return false;
-  return exists(domeMetaPath(root));
+  if (!(await isDirectory(root))) {
+    return false;
+  }
+  return exists(domeMetaPath(path.resolve(root)));
 }
 
 async function inspectDome(root) {
-  if (!(await isDirectory(root))) {
+  const absRoot = path.resolve(root);
+  if (!(await isDirectory(absRoot))) {
     return {
       exists: false,
       valid: false,
       reason: "missing",
-      path: path.resolve(root),
-      name: path.basename(root),
+      path: absRoot,
+      name: path.basename(absRoot),
     };
   }
 
-  const absRoot = path.resolve(root);
-  const hasDomeMeta = await exists(domeMetaPath(absRoot));
-  const hasLegacyMeta = await exists(legacyRootMetaPath(absRoot));
-  const hasIndex = await exists(indexPath(absRoot));
-  const valid = hasDomeMeta;
-
+  const valid = await exists(domeMetaPath(absRoot));
   let name = path.basename(absRoot);
-  if (hasDomeMeta) {
+
+  if (valid) {
     try {
       const meta = await readJson(domeMetaPath(absRoot), DOME_FILE);
       name = firstString(meta.name, name);
     } catch {
-      // Keep fallback name.
+      // Ignore invalid metadata and fall back to folder name.
     }
   }
 
   return {
     exists: true,
     valid,
-    reason: valid ? "valid" : (hasLegacyMeta || hasIndex ? "legacy" : "uninitialized"),
+    reason: valid ? "valid" : "uninitialized",
     path: absRoot,
     name,
   };
@@ -1416,12 +1404,10 @@ async function inspectDome(root) {
 async function createDome(root, name = "") {
   const absRoot = path.resolve(root);
   await fs.mkdir(absRoot, { recursive: true });
-  await ensureRootReady(absRoot);
-  const meta = await readJson(domeMetaPath(absRoot), DOME_FILE);
-  meta.name = firstString(name, meta.name, path.basename(absRoot));
-  meta.updatedAt = nowIso();
-  await safeWriteJson(domeMetaPath(absRoot), meta);
-  await ensureReady(absRoot);
+  await ensureWorkspaceScaffold(absRoot);
+  const meta = await writeWorkspaceMeta(absRoot, {
+    name: firstString(name, path.basename(absRoot)),
+  });
   return {
     id: createHash("sha1").update(absRoot.toLowerCase()).digest("hex").slice(0, 16),
     name: meta.name,
@@ -1430,7 +1416,10 @@ async function createDome(root, name = "") {
 }
 
 function resolveWorkspaceAssetPath(root, relativePath) {
-  if (!root || !relativePath) return null;
+  if (!root || !relativePath) {
+    return null;
+  }
+
   try {
     return resolveWorkspacePath(root, relativePath);
   } catch {
@@ -1439,19 +1428,33 @@ function resolveWorkspaceAssetPath(root, relativePath) {
 }
 
 async function importImageAsset(root, payload) {
-  await ensureReady(root);
-  if (!isObject(payload)) throw new Error("Image import payload is required.");
+  const absRoot = await ensureWorkspaceScaffold(root);
+  if (!isObject(payload)) {
+    throw new Error("Image import payload is required.");
+  }
+
   const sourcePath = firstString(payload.sourcePath);
-  if (!sourcePath) throw new Error("Image import payload is missing sourcePath.");
+  if (!sourcePath) {
+    throw new Error("Image import payload is missing sourcePath.");
+  }
+
   const sourceStat = await fs.stat(sourcePath).catch(() => null);
-  if (!sourceStat || !sourceStat.isFile()) throw new Error("The selected image file could not be found.");
+  if (!sourceStat?.isFile()) {
+    throw new Error("The selected image file could not be found.");
+  }
+
   const ext = fileExt(payload.fileName || sourcePath) || "png";
-  const base = sanitizeName(stripExt(firstString(payload.fileName, path.basename(sourcePath), `asset-${crypto.randomUUID()}`)), "asset");
-  const targetPath = await uniqueFile(path.join(assetsDirPath(root), `${base}.${ext}`));
-  await fs.copyFile(sourcePath, targetPath);
+  const fileName = await uniquePath(
+    absRoot,
+    sanitizeName(stripExt(firstString(payload.fileName, path.basename(sourcePath), `asset-${randomUUID()}`)), "asset"),
+    `.${ext}`,
+  );
+
+  await fs.copyFile(sourcePath, fileName);
+
   return {
-    relativePath: toWorkspaceRel(root, targetPath),
-    fileName: path.basename(targetPath),
+    relativePath: toWorkspaceRel(absRoot, fileName),
+    fileName: path.basename(fileName),
     mimeType: firstString(payload.mimeType),
     sizeBytes: sourceStat.size,
     width: Number.isFinite(payload.width) ? Math.max(0, payload.width) : 0,
@@ -1459,23 +1462,192 @@ async function importImageAsset(root, payload) {
   };
 }
 
-async function getItemForFilePath(root, filePath) {
-  const { index } = await ensureReady(root);
-  const rel = toWorkspaceRel(root, filePath);
-  const item = index.items.find((entry) => entry.path === rel);
-  return item ? mapItemForResponse(root, item) : null;
+async function createFolder(root, name, targetFolderPath = "") {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const targetDir = resolveWorkspacePath(absRoot, normalizeFolder(targetFolderPath));
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const baseName = sanitizeName(firstString(name, "Folder"), "Folder");
+  let folderPath = path.join(targetDir, baseName);
+  let suffix = 2;
+  while (await exists(folderPath)) {
+    folderPath = path.join(targetDir, `${baseName} ${suffix}`);
+    suffix += 1;
+  }
+
+  await fs.mkdir(folderPath, { recursive: true });
+  const stat = await fs.stat(folderPath);
+  return {
+    type: "folder",
+    path: toWorkspaceRel(absRoot, folderPath),
+    filePath: folderPath,
+    name: path.basename(folderPath),
+    updatedAt: stat.mtime.toISOString(),
+    starred: false,
+    excerpt: "",
+  };
+}
+
+function remapUiStatePath(currentPath, fromRel, toRel) {
+  if (currentPath === fromRel) {
+    return toRel;
+  }
+  if (typeof currentPath === "string" && currentPath.startsWith(`${fromRel}/`)) {
+    return `${toRel}${currentPath.slice(fromRel.length)}`;
+  }
+  return currentPath;
+}
+
+async function renameEntry(root, entryPath, nextName) {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const rel = toWorkspaceRel(absRoot, entryPath);
+  const abs = resolveWorkspacePath(absRoot, rel);
+
+  if (!(await exists(abs))) {
+    throw new Error("The selected entry no longer exists.");
+  }
+
+  const stats = await fs.stat(abs);
+  const type = detectEntryType(stats, path.basename(abs));
+
+  if (type === "canvas" || type === "page") {
+    return renameFile(absRoot, abs, nextName);
+  }
+
+  const nextBaseName = sanitizeName(nextName, type === "folder" ? "Folder" : "File");
+  const extension = type === "asset" || type === "file" ? path.extname(abs) : "";
+  const currentBaseName = type === "folder" ? path.basename(abs) : stripExt(path.basename(abs));
+
+  if (currentBaseName === nextBaseName) {
+    const item = await getItemForFilePath(absRoot, abs);
+    if (item) {
+      return item;
+    }
+  }
+
+  let renamed = type === "folder"
+    ? path.join(path.dirname(abs), nextBaseName)
+    : path.join(path.dirname(abs), `${nextBaseName}${extension}`);
+  let suffix = 2;
+  while (await exists(renamed)) {
+    renamed = type === "folder"
+      ? path.join(path.dirname(abs), `${nextBaseName} ${suffix}`)
+      : path.join(path.dirname(abs), `${nextBaseName} ${suffix}${extension}`);
+    suffix += 1;
+  }
+
+  await fs.rename(abs, renamed);
+
+  const nextRel = toWorkspaceRel(absRoot, renamed);
+  const uiState = await readUiState(absRoot);
+  uiState.currentFolderPath = remapUiStatePath(uiState.currentFolderPath, rel, nextRel) ?? "";
+  uiState.lastOpenedItemPath = remapUiStatePath(uiState.lastOpenedItemPath, rel, nextRel) ?? null;
+  uiState.lastOpenedCanvasPath = remapUiStatePath(uiState.lastOpenedCanvasPath, rel, nextRel) ?? null;
+  await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
+
+  const stat = await fs.stat(renamed);
+  return {
+    type,
+    path: nextRel,
+    filePath: renamed,
+    name: path.basename(renamed, extension || undefined),
+    updatedAt: stat.mtime.toISOString(),
+    starred: false,
+    excerpt: "",
+  };
+}
+
+async function deleteEntry(root, entryPath) {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const rel = toWorkspaceRel(absRoot, entryPath);
+  const abs = resolveWorkspacePath(absRoot, rel);
+
+  if (!(await exists(abs))) {
+    return { deleted: false };
+  }
+
+  const stats = await fs.stat(abs);
+  const type = detectEntryType(stats, path.basename(abs));
+
+  if (type === "canvas" || type === "page") {
+    return deleteFile(absRoot, abs);
+  }
+
+  await fs.rm(abs, { recursive: true, force: true });
+
+  const remaining = await scanWorkspace(absRoot);
+  const remainingIds = new Set(remaining.items.filter((item) => item.id).map((item) => item.id));
+  const state = await readWorkspaceState(absRoot);
+  await writeWorkspaceState(absRoot, {
+    recentDocumentIds: state.recentDocumentIds.filter((id) => remainingIds.has(id)),
+    starredDocumentIds: state.starredDocumentIds.filter((id) => remainingIds.has(id)),
+  });
+
+  const uiState = await readUiState(absRoot);
+  if (uiState.currentFolderPath === rel || uiState.currentFolderPath?.startsWith(`${rel}/`)) {
+    uiState.currentFolderPath = "";
+  }
+  if (uiState.lastOpenedItemPath === rel || uiState.lastOpenedItemPath?.startsWith(`${rel}/`)) {
+    uiState.lastOpenedItemPath = null;
+  }
+  if (uiState.lastOpenedCanvasPath === rel || uiState.lastOpenedCanvasPath?.startsWith(`${rel}/`)) {
+    uiState.lastOpenedCanvasPath = null;
+  }
+  await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
+
+  return { deleted: true, path: rel };
+}
+
+async function importFiles(root, sourcePaths, targetFolderPath = "") {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const targetDir = resolveWorkspacePath(absRoot, normalizeFolder(targetFolderPath));
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const sources = Array.isArray(sourcePaths)
+    ? sourcePaths.filter((value) => typeof value === "string" && value.trim().length > 0)
+    : [];
+  if (sources.length === 0) {
+    return [];
+  }
+
+  const imported = [];
+  for (const sourcePath of sources) {
+    const sourceStat = await fs.stat(sourcePath).catch(() => null);
+    if (!sourceStat?.isFile()) {
+      continue;
+    }
+
+    const parsed = path.parse(sourcePath);
+    let targetPath = path.join(targetDir, `${sanitizeName(parsed.name, "file")}${parsed.ext}`);
+    let suffix = 2;
+    while (await exists(targetPath)) {
+      targetPath = path.join(targetDir, `${sanitizeName(parsed.name, "file")} ${suffix}${parsed.ext}`);
+      suffix += 1;
+    }
+
+    await fs.copyFile(sourcePath, targetPath);
+    const item = await getItemForFilePath(absRoot, targetPath);
+    if (item) {
+      imported.push(item);
+    }
+  }
+
+  return imported;
 }
 
 module.exports = {
   createCanvas,
   createDome,
+  createFolder,
   createPage,
   createWorkspace,
+  deleteEntry,
   deleteFile,
   getHomeData,
   getItemForFilePath,
   getRecentItems,
   getStarredItems,
+  importFiles,
   importImageAsset,
   inspectDome,
   isValidWorkspace,
@@ -1486,9 +1658,11 @@ module.exports = {
   loadUiState,
   loadWorkspace,
   markItemStarred,
+  openWorkspace,
   readWorkspaceDocument,
   rebuildIndex,
   recordRecentItem,
+  renameEntry,
   renameFile,
   resolveWorkspaceAssetPath,
   saveCanvas,
@@ -1496,4 +1670,5 @@ module.exports = {
   savePage,
   saveUiState,
   saveWorkspace,
+  scanWorkspace,
 };

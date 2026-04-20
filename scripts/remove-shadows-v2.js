@@ -26,10 +26,10 @@ const shadowsToStrip = [
     /box-shadow:\s+0\s+28px\s+46px\s+rgba\(95,\s+62,\s+16,\s+0\.32\),\s+0\s+0\s+0\s+2px\s+rgba\(217,\s+245,\s+255,\s+0\.92\),\s+0\s+0\s+0\s+6px\s+rgba\(255,\s+255,\s+255,\s+0\.12\);/g,
     /filter: drop-shadow\(0 24px 42px rgba\(0, 0, 0, 0\.26\)\);/g,
     /filter: drop-shadow\(0 28px 40px rgba\(0, 0, 0, 0\.24\)\);/g,
-);
+];
 
 shadowsToStrip.forEach(regex => {
-    content = content.replace(regex, (match) => {
+    content = content.replace(regex, () => {
         // If it was a multi-line shadow, replace it with a single comment.
         return '/* box-shadow: removed */';
     });

@@ -1,7 +1,5 @@
 import { getSchema } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
-import TextAlign from "@tiptap/extension-text-align";
-import { TextStyle } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
 import MarkdownIt from "markdown-it";
 import { MarkdownParser } from "prosemirror-markdown";
@@ -21,10 +19,6 @@ export const pageEditorExtensions = [
   Link.configure({
     autolink: true,
     openOnClick: false,
-  }),
-  TextStyle,
-  TextAlign.configure({
-    types: ["heading", "paragraph"],
   }),
 ];
 

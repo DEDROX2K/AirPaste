@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "type": "page",
+  "title": "Journal",
+  "createdAt": "2026-04-20T21:14:28.452Z",
+  "updatedAt": "2026-04-20T21:14:28.598Z",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph"
+      }
+    ]
+  }
+}
