@@ -13,15 +13,10 @@ import {
 import { useAppContext } from "../context/useAppContext";
 import {
   createEditorDocument,
+  EMPTY_PAGE_DOCUMENT,
   pageEditorExtensions,
-  serializeEditorDocument,
 } from "../lib/pageDocument";
 import { AppButton } from "./ui/app";
-
-const EMPTY_DOCUMENT = {
-  type: "doc",
-  content: [{ type: "paragraph" }],
-};
 
 function ToolbarButton({ active = false, disabled = false, label, onClick, children }) {
   return (
@@ -49,7 +44,6 @@ function saveStatusLabel(status) {
 export default function PageEditorView() {
   const { currentPage, showHome, updateCurrentPageDraft } = useAppContext();
   const [title, setTitle] = useState("");
-  const [frontmatter, setFrontmatter] = useState("");
   const [pageSeed, setPageSeed] = useState(null);
   const pageFilePath = currentPage?.filePath ?? null;
 
@@ -58,19 +52,9 @@ export default function PageEditorView() {
       return;
     }
 
-    const markdown = serializeEditorDocument({
-      frontmatter,
-      title: nextTitle,
-      doc: editor.state.doc,
-    });
-
-    if (markdown === currentPage.markdown && nextTitle === currentPage.name) {
-      return;
-    }
-
     updateCurrentPageDraft({
-      markdown,
       title: nextTitle,
+      content: editor.getJSON(),
     });
   });
 
@@ -78,7 +62,7 @@ export default function PageEditorView() {
     {
       immediatelyRender: false,
       extensions: pageEditorExtensions,
-      content: pageSeed?.bodyDocument ?? EMPTY_DOCUMENT,
+      content: pageSeed?.bodyDocument ?? EMPTY_PAGE_DOCUMENT,
       editorProps: {
         attributes: {
           class: "page-editor__content",
@@ -94,31 +78,34 @@ export default function PageEditorView() {
     if (!currentPage) {
       setPageSeed(null);
       setTitle("");
-      setFrontmatter("");
       return;
     }
 
-    const nextSeed = createEditorDocument(currentPage.markdown, currentPage.name);
+    const nextSeed = createEditorDocument(
+      {
+        title: currentPage.title,
+        content: currentPage.content,
+      },
+      currentPage.name,
+    );
     setPageSeed(nextSeed);
   }, [pageFilePath]);
 
   useEffect(() => {
     if (!currentPage || !pageSeed) {
       setTitle("");
-      setFrontmatter("");
       return;
     }
 
     setTitle(pageSeed.title);
-    setFrontmatter(pageSeed.frontmatter);
-  }, [pageFilePath, pageSeed, currentPage]);
+  }, [pageFilePath, pageSeed]);
 
   useEffect(() => {
     if (!editor || !pageSeed) {
       return;
     }
 
-    editor.commands.setContent(pageSeed.bodyDocument ?? EMPTY_DOCUMENT, false);
+    editor.commands.setContent(pageSeed.bodyDocument ?? EMPTY_PAGE_DOCUMENT, false);
   }, [editor, pageSeed]);
 
   if (!currentPage) {
@@ -161,7 +148,7 @@ export default function PageEditorView() {
 
         <div className="page-editor__meta">
           <div className="page-editor__meta-primary">
-            <span className="page-editor__file-name">{currentPage.name}</span>
+            <span className="page-editor__file-name">{currentPage.title || currentPage.name}</span>
             <span className="page-editor__save-state">{saveStatusLabel(currentPage.saveStatus)}</span>
           </div>
           <div className="page-editor__meta-secondary">{currentPage.path}</div>

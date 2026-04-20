@@ -91,8 +91,8 @@ function isLikelyRemoteImage(url) {
 function drawBackground(ctx, canvasWidth, canvasHeight, viewport) {
   ctx.save();
   const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
-  gradient.addColorStop(0, "#0b0d10");
-  gradient.addColorStop(1, "#101419");
+  gradient.addColorStop(0, "#f7f4ee");
+  gradient.addColorStop(1, "#efebe3");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   ctx.restore();
@@ -109,7 +109,7 @@ function drawBackground(ctx, canvasWidth, canvasHeight, viewport) {
   const offsetY = ((viewport?.y ?? 0) % gridSpacing + gridSpacing) % gridSpacing;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(206, 214, 224, 0.08)";
+  ctx.strokeStyle = "rgba(94, 82, 68, 0.10)";
   ctx.lineWidth = 1;
   ctx.beginPath();
 

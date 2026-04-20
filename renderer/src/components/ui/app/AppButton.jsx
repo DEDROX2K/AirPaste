@@ -29,6 +29,34 @@ const AppButton = React.forwardRef(
       )
     }
 
+    if (tone === "accent") {
+      return (
+        <button
+          ref={ref}
+          className={cn(
+            "ap-ui-button ap-ui-button--accent ap-type-label",
+            block ? "ap-ui-button--block" : "",
+            className,
+          )}
+          {...props}
+        />
+      )
+    }
+
+    if (tone === "danger") {
+      return (
+        <button
+          ref={ref}
+          className={cn(
+            "ap-ui-button ap-ui-button--danger ap-type-label",
+            block ? "ap-ui-button--block" : "",
+            className,
+          )}
+          {...props}
+        />
+      )
+    }
+
     return (
       <Button
         ref={ref}

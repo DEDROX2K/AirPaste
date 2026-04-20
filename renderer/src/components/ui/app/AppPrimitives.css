@@ -56,6 +56,39 @@
   text-align: left;
 }
 
+.ap-ui-button--accent {
+  border-color: var(--ap-border-accent);
+  background: var(--ap-accent-bg);
+  color: var(--ap-text-on-accent);
+  box-shadow: var(--ap-shadow-panel);
+}
+
+.ap-ui-button--accent:hover:not(:disabled) {
+  background: var(--ap-accent-bg-hover);
+  border-color: var(--ap-border-accent);
+  box-shadow: var(--ap-shadow-modal);
+}
+
+.ap-ui-button--accent:active:not(:disabled) {
+  background: var(--ap-accent-bg-active);
+}
+
+.ap-ui-button--danger {
+  border-color: var(--ap-border-danger);
+  background: color-mix(in srgb, var(--ap-danger-base) 14%, var(--ap-surface-raised));
+  color: var(--ap-danger-base);
+  box-shadow: var(--ap-shadow-card);
+}
+
+.ap-ui-button--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ap-danger-base) 20%, var(--ap-surface-raised));
+  border-color: var(--ap-border-danger);
+}
+
+.ap-ui-button--danger:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ap-danger-base) 26%, var(--ap-surface-raised));
+}
+
 .ap-ui-surface {
   border: var(--ap-border-thin) solid var(--ap-border-default);
   border-radius: var(--ap-radius-2xl);

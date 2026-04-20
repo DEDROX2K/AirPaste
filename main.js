@@ -2394,9 +2394,9 @@ ipcMain.handle("airpaste:loadPage", async (_event, filePath) => {
   return withWorkspaceQueue(queueKey, () => workspaceService.loadPage(filePath));
 });
 
-ipcMain.handle("airpaste:savePage", async (_event, filePath, markdown) => {
+ipcMain.handle("airpaste:savePage", async (_event, filePath, pageData) => {
   const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-  return withWorkspaceQueue(queueKey, () => workspaceService.savePage(filePath, markdown));
+  return withWorkspaceQueue(queueKey, () => workspaceService.savePage(filePath, pageData));
 });
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {

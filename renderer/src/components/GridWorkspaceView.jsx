@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Card from "./Card";
 import { useAppContext } from "../context/useAppContext";
 import { AppEmptyState } from "./ui/app";
-import { filterTiles } from "../utils/searchTiles";
 
 const COLUMN_WIDTH_MIN = 240;
 const COLUMN_WIDTH_MAX = 320;
@@ -260,8 +259,6 @@ function MasonryGrid({
 }
 
 export default function GridWorkspaceView({
-  searchQuery,
-  setSearchQuery,
   openTileLink,
   updateTileFromMediaLoad,
   retryTilePreview,
@@ -278,10 +275,7 @@ export default function GridWorkspaceView({
   }, [workspace?.cards]);
 
   const allTiles = workspace.cards ?? [];
-  const filteredTiles = useMemo(
-    () => filterTiles(allTiles, searchQuery.trim()),
-    [allTiles, searchQuery],
-  );
+  const filteredTiles = allTiles;
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const selectTile = useCallback((tileId, event, { toggle = false, forceSingle = false } = {}) => {
@@ -347,7 +341,6 @@ export default function GridWorkspaceView({
     setFocusedTileId((current) => (current === tileId ? null : current));
   }, []);
 
-  const hasActiveSearch = searchQuery.trim().length > 0;
   const totalCount = allTiles.length;
 
   if (!folderPath && !folderLoading) {
@@ -377,21 +370,6 @@ export default function GridWorkspaceView({
             icon={(
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
-              </svg>
-            )}
-          />
-        ) : hasActiveSearch && filteredTiles.length === 0 ? (
-          <AppEmptyState
-            title={`No results for "${searchQuery.trim()}"`}
-            description="Try title, URL, or tile type."
-            actionLabel="Clear Search"
-            onAction={() => {
-              setSearchQuery("");
-            }}
-            icon={(
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
               </svg>
             )}
           />

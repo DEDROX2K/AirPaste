@@ -1,10 +1,17 @@
 import { getSchema } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
+import { TextStyle } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
 import MarkdownIt from "markdown-it";
-import { MarkdownParser, MarkdownSerializer } from "prosemirror-markdown";
+import { MarkdownParser } from "prosemirror-markdown";
 
-const UNTITLED_PAGE = "Untitled";
+export const UNTITLED_PAGE = "Untitled";
+
+export const EMPTY_PAGE_DOCUMENT = Object.freeze({
+  type: "doc",
+  content: [{ type: "paragraph" }],
+});
 
 export const pageEditorExtensions = [
   StarterKit.configure({
@@ -14,6 +21,10 @@ export const pageEditorExtensions = [
   Link.configure({
     autolink: true,
     openOnClick: false,
+  }),
+  TextStyle,
+  TextAlign.configure({
+    types: ["heading", "paragraph"],
   }),
 ];
 
@@ -58,89 +69,6 @@ const markdownParser = new MarkdownParser(schema, markdownTokenizer, {
   strong: { mark: "bold" },
 });
 
-const markdownSerializer = new MarkdownSerializer(
-  {
-    blockquote(state, node) {
-      state.wrapBlock("> ", null, node, () => state.renderContent(node));
-    },
-    bulletList(state, node) {
-      state.renderList(node, "  ", () => "* ");
-    },
-    codeBlock(state, node) {
-      state.write(`\`\`\`${node.attrs.language || ""}`);
-      state.ensureNewLine();
-      state.text(node.textContent, false);
-      state.ensureNewLine();
-      state.write("```");
-      state.closeBlock(node);
-    },
-    hardBreak(state, node, parent, index) {
-      for (let i = index + 1; i < parent.childCount; i += 1) {
-        if (parent.child(i).type !== node.type) {
-          state.write("\\\n");
-          return;
-        }
-      }
-    },
-    heading(state, node) {
-      state.write(`${state.repeat("#", node.attrs.level)} `);
-      state.renderInline(node);
-      state.closeBlock(node);
-    },
-    horizontalRule(state, node) {
-      state.write("---");
-      state.closeBlock(node);
-    },
-    listItem(state, node) {
-      state.renderContent(node);
-    },
-    orderedList(state, node) {
-      const start = node.attrs.start || 1;
-      const maxW = String(start + node.childCount - 1).length;
-      const space = (value) => state.repeat(" ", maxW - String(value).length);
-      state.renderList(node, "  ", (index) => {
-        const value = start + index;
-        return `${space(value)}${value}. `;
-      });
-    },
-    paragraph(state, node) {
-      state.renderInline(node);
-      state.closeBlock(node);
-    },
-    text(state, node) {
-      state.text(node.text || "");
-    },
-  },
-  {
-    bold: {
-      open: "**",
-      close: "**",
-      mixable: true,
-      expelEnclosingWhitespace: true,
-    },
-    code: {
-      open: "`",
-      close: "`",
-      escape: false,
-    },
-    italic: {
-      open: "*",
-      close: "*",
-      mixable: true,
-      expelEnclosingWhitespace: true,
-    },
-    link: {
-      open: "[",
-      close(state, mark) {
-        const href = String(mark.attrs.href || "").replace(/[()"]/g, "\\$&");
-        const title = mark.attrs.title ? ` "${String(mark.attrs.title).replace(/"/g, '\\"')}"` : "";
-        return `](${href}${title})`;
-      },
-      mixable: false,
-    },
-  },
-);
-
 function normalizeLineEndings(value) {
   return String(value ?? "").replace(/\r\n/g, "\n");
 }
@@ -168,33 +96,12 @@ function readFrontmatterTitle(frontmatter) {
 
   for (const line of lines) {
     const match = line.match(/^title:\s*(.+?)\s*$/i);
-    if (!match) {
-      continue;
+    if (match) {
+      return match[1].replace(/^["']|["']$/g, "").trim();
     }
-
-    return match[1].replace(/^["']|["']$/g, "").trim();
   }
 
   return "";
-}
-
-function syncFrontmatterTitle(frontmatter, title) {
-  if (!frontmatter) {
-    return "";
-  }
-
-  const safeTitle = String(title || UNTITLED_PAGE).replace(/"/g, '\\"');
-  const lines = normalizeLineEndings(frontmatter).replace(/\n+$/, "").split("\n");
-  const titleLine = `title: "${safeTitle}"`;
-  const titleIndex = lines.findIndex((line, index) => index > 0 && /^title:\s*/i.test(line));
-
-  if (titleIndex >= 0) {
-    lines[titleIndex] = titleLine;
-  } else if (lines.length > 1) {
-    lines.splice(1, 0, titleLine);
-  }
-
-  return `${lines.join("\n")}\n`;
 }
 
 function extractLeadingTitle(content, fallbackTitle) {
@@ -227,60 +134,58 @@ function extractLeadingTitle(content, fallbackTitle) {
   };
 }
 
-function trimTrailingWhitespacePreservingStructure(value) {
-  return normalizeLineEndings(value).replace(/\s+$/, "");
+export function normalizePageContent(content) {
+  if (!content || typeof content !== "object" || content.type !== "doc") {
+    return EMPTY_PAGE_DOCUMENT;
+  }
+
+  return content;
 }
 
-export function parsePageMarkdown(markdown, fallbackTitle = UNTITLED_PAGE) {
-  const normalized = normalizeLineEndings(markdown);
-  const { frontmatter, content } = extractFrontmatter(normalized);
-  const frontmatterTitle = readFrontmatterTitle(frontmatter);
-  const { title, body } = extractLeadingTitle(content, frontmatterTitle || fallbackTitle);
+export function createEditorDocument(page, fallbackTitle = UNTITLED_PAGE) {
+  if (typeof page === "string") {
+    const normalized = normalizeLineEndings(page);
+    const { frontmatter, content } = extractFrontmatter(normalized);
+    const frontmatterTitle = readFrontmatterTitle(frontmatter);
+    const { title, body } = extractLeadingTitle(content, frontmatterTitle || fallbackTitle);
+
+    return {
+      title,
+      bodyDocument: body.trim()
+        ? markdownParser.parse(body).toJSON()
+        : EMPTY_PAGE_DOCUMENT,
+    };
+  }
 
   return {
-    frontmatter,
-    title,
-    bodyMarkdown: body,
+    title: String(page?.title || fallbackTitle || UNTITLED_PAGE).trim() || UNTITLED_PAGE,
+    bodyDocument: normalizePageContent(page?.content),
   };
 }
 
-export function serializePageMarkdown({ frontmatter = "", title = UNTITLED_PAGE, bodyMarkdown = "" }) {
-  const safeTitle = String(title || UNTITLED_PAGE).trim() || UNTITLED_PAGE;
-  const safeBody = trimTrailingWhitespacePreservingStructure(bodyMarkdown);
-  const nextFrontmatter = syncFrontmatterTitle(frontmatter, safeTitle);
-  const segments = [];
-
-  if (nextFrontmatter) {
-    segments.push(nextFrontmatter.replace(/\n+$/, ""));
+function flattenText(node, parts) {
+  if (!node || typeof node !== "object") {
+    return;
   }
 
-  segments.push(`# ${safeTitle}`);
-
-  if (safeBody) {
-    segments.push(safeBody);
+  if (typeof node.text === "string" && node.text.trim()) {
+    parts.push(node.text.trim());
   }
 
-  return `${segments.join("\n\n")}\n`;
+  if (Array.isArray(node.content)) {
+    node.content.forEach((child) => flattenText(child, parts));
+  }
 }
 
-export function createEditorDocument(markdown, fallbackTitle = UNTITLED_PAGE) {
-  const parsed = parsePageMarkdown(markdown, fallbackTitle);
-  const body = parsed.bodyMarkdown.trim()
-    ? markdownParser.parse(parsed.bodyMarkdown).toJSON()
-    : { type: "doc", content: [{ type: "paragraph" }] };
-
-  return {
-    ...parsed,
-    bodyDocument: body,
-  };
+export function getPageExcerpt(content, maxLength = 220) {
+  const parts = [];
+  flattenText(normalizePageContent(content), parts);
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-export function serializeEditorDocument({ frontmatter = "", title = UNTITLED_PAGE, doc }) {
-  const bodyMarkdown = trimTrailingWhitespacePreservingStructure(markdownSerializer.serialize(doc));
-
-  return serializePageMarkdown({
-    frontmatter,
-    title,
-    bodyMarkdown,
+export function createPageRevision({ title, content }) {
+  return JSON.stringify({
+    title: String(title || "").trim(),
+    content: normalizePageContent(content),
   });
 }

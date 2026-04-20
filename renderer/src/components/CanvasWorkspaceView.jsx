@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
@@ -28,7 +28,6 @@ import {
   normalizeCanvasSnapSettings,
 } from "../systems/snapping/canvasSnapSettings";
 import { AppButton, AppEmptyState } from "./ui/app";
-import { filterTiles } from "../utils/searchTiles";
 import { folderNameFromPath } from "../lib/home";
 import {
   readPointerMoveStats,
@@ -418,15 +417,12 @@ function CanvasPerformanceOverlay({
 }
 
 export default function CanvasWorkspaceView() {
-  const [searchQuery, setSearchQuery] = useState("");
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
-  const searchInputRef = useRef(null);
   const previousBoardSnapshotRef = useRef(null);
   const tileMetaCacheRef = useRef(new Map());
   const tileRenderHintCacheRef = useRef(new Map());
   const lodFrozenZoomRef = useRef(1);
   const lodFreezeActiveRef = useRef(false);
-  const deferredSearchQuery = useDeferredValue(searchQuery);
   const {
     canRedo,
     canUndo,
@@ -518,19 +514,8 @@ export default function CanvasWorkspaceView() {
   }, [resetTransientState, workspaceView.mode]);
 
   useEffect(() => {
-    setSearchQuery("");
-  }, [currentEditor.filePath, folderPath]);
-
-  useEffect(() => {
     setSnapSettings(normalizeCanvasSnapSettings(homeData?.uiState));
   }, [homeData?.uiState]);
-
-  const focusSearchInput = useCallback(() => {
-    const input = searchInputRef.current;
-    if (!input) return;
-    input.focus();
-    input.select();
-  }, []);
 
   const handleWorkspacePaste = useCallback(async (event) => {
     if (isEditableElement(document.activeElement)) {
@@ -547,15 +532,15 @@ export default function CanvasWorkspaceView() {
 
   const filteredTiles = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
-    const nextFilteredTiles = filterTiles(workspace.cards, deferredSearchQuery);
+    const nextFilteredTiles = workspace.cards;
     const end = typeof performance !== "undefined" ? performance.now() : Date.now();
     recordDerivedMetric("board:filteredTiles", end - start, {
-      queryLength: deferredSearchQuery.trim().length,
+      queryLength: 0,
       inputCount: workspace.cards.length,
       outputCount: nextFilteredTiles.length,
     });
     return nextFilteredTiles;
-  }, [deferredSearchQuery, workspace.cards]);
+  }, [workspace.cards]);
   const tileById = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextTileById = Object.fromEntries(workspace.cards.map((tile) => [tile.id, tile]));
@@ -882,7 +867,6 @@ export default function CanvasWorkspaceView() {
     function handleKeyDown(event) {
       const activeElement = document.activeElement;
       const activeElementIsEditable = isEditableElement(activeElement);
-      const editingAnotherField = activeElementIsEditable && activeElement !== searchInputRef.current;
 
       if (event.key === "Escape" && interactions.contextMenu) {
         event.preventDefault();
@@ -890,7 +874,7 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
-      if (editingAnotherField) return;
+      if (activeElementIsEditable) return;
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && !activeElementIsEditable) {
         const selectedTile = interactions.selectedTileIds.length === 1
@@ -933,12 +917,6 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        focusSearchInput();
-        return;
-      }
-
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
         if (isGlobeMode) {
@@ -976,16 +954,6 @@ export default function CanvasWorkspaceView() {
         } else {
           zoomToFitAll();
         }
-        return;
-      }
-
-      if (event.key === "Escape" && activeElement === searchInputRef.current) {
-        event.preventDefault();
-        if (searchQuery) {
-          setSearchQuery("");
-        } else {
-          searchInputRef.current.blur();
-        }
       }
     }
 
@@ -996,14 +964,12 @@ export default function CanvasWorkspaceView() {
     canRedo,
     canUndo,
     commands,
-    focusSearchInput,
     handleGlobeZoomIn,
     handleGlobeZoomOut,
     handleGlobeZoomToFitAll,
     interactions,
     isGlobeMode,
     redoWorkspaceChange,
-    searchQuery,
     copySelectedBookmarkLink,
     tileById,
     undoWorkspaceChange,
@@ -1015,7 +981,6 @@ export default function CanvasWorkspaceView() {
     ? globeVisibleTileCount
     : (layout.visibleTileCount ?? layout.rootTiles.length);
   const renderedTileCount = layout.rootTiles.length;
-  const hasActiveSearch = deferredSearchQuery.trim().length > 0;
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
   const performanceMode = useMemo(() => ({
@@ -1262,8 +1227,6 @@ export default function CanvasWorkspaceView() {
           onOpenWorkspaceFolder={commands.openWorkspaceFolder}
         />
         <GridWorkspaceView
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
           openTileLink={commands.openTileLink}
           updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
           retryTilePreview={commands.retryTilePreview}
@@ -1300,37 +1263,6 @@ export default function CanvasWorkspaceView() {
         />
       </div>
       <div className="canvas-stage__bottom-controls">
-        <div className="canvas-search">
-          <svg className="canvas-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            id="tile-search"
-            ref={searchInputRef}
-            className="canvas-search__input"
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search tiles\u2026"
-            aria-label="Search tiles"
-          />
-          {searchQuery ? (
-            <AppButton tone="unstyled"
-              className="canvas-search__clear"
-              type="button"
-              aria-label="Clear search"
-              onClick={() => {
-                setSearchQuery("");
-                focusSearchInput();
-              }}
-            >
-              &times;
-            </AppButton>
-          ) : (
-            <kbd className="canvas-search__kbd">{"\u2318"}K</kbd>
-          )}
-        </div>
         <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
       </div>
 
@@ -1474,18 +1406,6 @@ export default function CanvasWorkspaceView() {
             icon={
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
-              </svg>
-            }
-          />
-        ) : hasActiveSearch && filteredTiles.length === 0 ? (
-          <AppEmptyState
-            title={`No results for "${deferredSearchQuery.trim()}"`}
-            description="Try a title, URL, or tile type."
-            actionLabel="Clear Search"
-            onAction={() => { setSearchQuery(""); focusSearchInput(); }}
-            icon={
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
               </svg>
             }
           />

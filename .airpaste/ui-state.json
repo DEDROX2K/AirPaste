@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "homeView": "grid",
+  "sortBy": "updatedAt",
+  "filter": "all",
+  "selectedSection": "home",
+  "currentFolderPath": "",
+  "homeScrollTop": 0,
+  "canvasSnapToGrid": false,
+  "canvasSnapGridSize": 32,
+  "lastOpenedItemPath": "README.md",
+  "lastOpenedCanvasPath": null,
+  "lastHomeRoute": {
+    "selectedSection": "home",
+    "currentFolderPath": "",
+    "scrollTop": 0
+  }
+}

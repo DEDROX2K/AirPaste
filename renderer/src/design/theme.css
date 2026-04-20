@@ -102,117 +102,24 @@
 
 /* ═══════════════════════════════════════════════════════════════
    DARK MODE
+   Only enabled when explicitly requested via data-theme="dark".
 ═══════════════════════════════════════════════════════════════ */
-[data-theme="dark"],
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-
-    /* ─── Page / Canvas ───────────────────────────────────────── */
-    --ap-bg-page:         var(--ap-stone-900);
-    --ap-bg-base:         var(--ap-stone-850);
-    --ap-bg-sunken:       var(--ap-stone-950);
-
-    /* ─── Surfaces ────────────────────────────────────────────── */
-    --ap-surface-default:    var(--ap-stone-800);
-    --ap-surface-raised:     var(--ap-stone-750);
-    --ap-surface-overlay:    var(--ap-stone-800);
-    --ap-surface-overlay-bg: rgba(41, 37, 36, 0.90);
-    --ap-surface-modal:      var(--ap-stone-800);
-    --ap-surface-inset:      var(--ap-stone-850);
-
-    /* ─── Text ────────────────────────────────────────────────── */
-    --ap-text-primary:     var(--ap-stone-50);
-    --ap-text-secondary:   var(--ap-stone-400);
-    --ap-text-tertiary:    var(--ap-stone-500);
-    --ap-text-placeholder: var(--ap-stone-600);
-    --ap-text-disabled:    var(--ap-stone-700);
-    --ap-text-inverse:     var(--ap-stone-900);
-    --ap-text-accent:      var(--ap-iris-400);
-    --ap-text-on-accent:   #FFFFFF;
-
-    /* ─── Icons ───────────────────────────────────────────────── */
-    --ap-icon-default:   var(--ap-stone-300);
-    --ap-icon-muted:     var(--ap-stone-600);
-    --ap-icon-accent:    var(--ap-iris-400);
-
-    /* ─── Borders ─────────────────────────────────────────────── */
-    --ap-border-subtle:     var(--ap-stone-800);
-    --ap-border-default:    var(--ap-stone-700);
-    --ap-border-strong:     var(--ap-stone-600);
-    --ap-border-focus:      var(--ap-iris-500);
-    --ap-border-accent:     var(--ap-iris-400);
-    --ap-border-danger:     var(--ap-danger-base);
-
-    /* ─── Interactive: Default ────────────────────────────────── */
-    --ap-interactive-bg:          transparent;
-    --ap-interactive-bg-hover:    var(--ap-stone-750);
-    --ap-interactive-bg-active:   var(--ap-stone-700);
-    --ap-interactive-bg-selected: rgba(99, 102, 241, 0.15);
-    --ap-interactive-text-selected: var(--ap-iris-400);
-
-    /* ─── Accent fills ────────────────────────────────────────── */
-    --ap-accent-bg:         var(--ap-iris-500);
-    --ap-accent-bg-hover:   var(--ap-iris-600);
-    --ap-accent-bg-active:  var(--ap-iris-700);
-    --ap-accent-tint:       rgba(99, 102, 241, 0.12);
-    --ap-accent-tint-hover: rgba(99, 102, 241, 0.20);
-
-    /* ─── Shadows (semantic — dark uses stronger shadows) ──────── */
-    --ap-shadow-card:
-      0 1px 3px rgba(0, 0, 0, 0.25),
-      0 1px 2px rgba(0, 0, 0, 0.20);
-    --ap-shadow-card-hover:
-      0 4px 8px rgba(0, 0, 0, 0.30),
-      0 2px 4px rgba(0, 0, 0, 0.20);
-    --ap-shadow-panel:
-      0 8px 24px rgba(0, 0, 0, 0.35),
-      0 4px 8px rgba(0, 0, 0, 0.20);
-    --ap-shadow-modal:
-      0 16px 40px rgba(0, 0, 0, 0.40),
-      0 8px 16px rgba(0, 0, 0, 0.25);
-    --ap-shadow-welcome:
-      0 24px 64px rgba(0, 0, 0, 0.45),
-      0 12px 24px rgba(0, 0, 0, 0.28);
-
-    /* ─── Overlays ────────────────────────────────────────────── */
-    --ap-overlay-backdrop:  rgba(0, 0, 0, 0.6);
-    --ap-overlay-scrim:     rgba(0, 0, 0, 0.35);
-
-    /* ─── Semantic: Status ────────────────────────────────────── */
-    --ap-status-success-bg:    rgba(22, 163, 74, 0.12);
-    --ap-status-success-text:  #4ADE80;
-    --ap-status-success-border: rgba(22, 163, 74, 0.3);
-
-    --ap-status-warning-bg:    rgba(217, 119, 6, 0.12);
-    --ap-status-warning-text:  #FCD34D;
-    --ap-status-warning-border: rgba(217, 119, 6, 0.3);
-
-    --ap-status-danger-bg:     rgba(220, 38, 38, 0.12);
-    --ap-status-danger-text:   #F87171;
-    --ap-status-danger-border: rgba(220, 38, 38, 0.3);
-
-    --ap-status-info-bg:       rgba(2, 132, 199, 0.12);
-    --ap-status-info-text:     #38BDF8;
-    --ap-status-info-border:   rgba(2, 132, 199, 0.3);
-
-    /* ─── Scrollbar ───────────────────────────────────────────── */
-    --ap-scrollbar-track:       transparent;
-    --ap-scrollbar-thumb:       var(--ap-stone-700);
-    --ap-scrollbar-thumb-hover: var(--ap-stone-600);
-  }
-}
-
-/* Also apply dark mode when data-theme="dark" is explicitly set */
 [data-theme="dark"] {
+
+  /* ─── Page / Canvas ───────────────────────────────────────── */
   --ap-bg-page:         var(--ap-stone-900);
   --ap-bg-base:         var(--ap-stone-850);
   --ap-bg-sunken:       var(--ap-stone-950);
+
+  /* ─── Surfaces ────────────────────────────────────────────── */
   --ap-surface-default:    var(--ap-stone-800);
   --ap-surface-raised:     var(--ap-stone-750);
   --ap-surface-overlay:    var(--ap-stone-800);
   --ap-surface-overlay-bg: rgba(41, 37, 36, 0.90);
   --ap-surface-modal:      var(--ap-stone-800);
   --ap-surface-inset:      var(--ap-stone-850);
+
+  /* ─── Text ────────────────────────────────────────────────── */
   --ap-text-primary:     var(--ap-stone-50);
   --ap-text-secondary:   var(--ap-stone-400);
   --ap-text-tertiary:    var(--ap-stone-500);
@@ -221,44 +128,73 @@
   --ap-text-inverse:     var(--ap-stone-900);
   --ap-text-accent:      var(--ap-iris-400);
   --ap-text-on-accent:   #FFFFFF;
+
+  /* ─── Icons ───────────────────────────────────────────────── */
   --ap-icon-default:   var(--ap-stone-300);
   --ap-icon-muted:     var(--ap-stone-600);
   --ap-icon-accent:    var(--ap-iris-400);
+
+  /* ─── Borders ─────────────────────────────────────────────── */
   --ap-border-subtle:     var(--ap-stone-800);
   --ap-border-default:    var(--ap-stone-700);
   --ap-border-strong:     var(--ap-stone-600);
   --ap-border-focus:      var(--ap-iris-500);
   --ap-border-accent:     var(--ap-iris-400);
   --ap-border-danger:     var(--ap-danger-base);
+
+  /* ─── Interactive: Default ────────────────────────────────── */
   --ap-interactive-bg:          transparent;
   --ap-interactive-bg-hover:    var(--ap-stone-750);
   --ap-interactive-bg-active:   var(--ap-stone-700);
   --ap-interactive-bg-selected: rgba(99, 102, 241, 0.15);
   --ap-interactive-text-selected: var(--ap-iris-400);
+
+  /* ─── Accent fills ────────────────────────────────────────── */
   --ap-accent-bg:         var(--ap-iris-500);
   --ap-accent-bg-hover:   var(--ap-iris-600);
   --ap-accent-bg-active:  var(--ap-iris-700);
   --ap-accent-tint:       rgba(99, 102, 241, 0.12);
   --ap-accent-tint-hover: rgba(99, 102, 241, 0.20);
-  --ap-shadow-card:        0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.20);
-  --ap-shadow-card-hover:  0 4px 8px rgba(0, 0, 0, 0.30), 0 2px 4px rgba(0, 0, 0, 0.20);
-  --ap-shadow-panel:       0 8px 24px rgba(0, 0, 0, 0.35), 0 4px 8px rgba(0, 0, 0, 0.20);
-  --ap-shadow-modal:       0 16px 40px rgba(0, 0, 0, 0.40), 0 8px 16px rgba(0, 0, 0, 0.25);
-  --ap-shadow-welcome:     0 24px 64px rgba(0, 0, 0, 0.45), 0 12px 24px rgba(0, 0, 0, 0.28);
+
+  /* ─── Shadows (semantic — dark uses stronger shadows) ──────── */
+  --ap-shadow-card:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  --ap-shadow-card-hover:
+    0 4px 8px rgba(0, 0, 0, 0.30),
+    0 2px 4px rgba(0, 0, 0, 0.20);
+  --ap-shadow-panel:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 4px 8px rgba(0, 0, 0, 0.20);
+  --ap-shadow-modal:
+    0 16px 40px rgba(0, 0, 0, 0.40),
+    0 8px 16px rgba(0, 0, 0, 0.25);
+  --ap-shadow-welcome:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 12px 24px rgba(0, 0, 0, 0.28);
+
+  /* ─── Overlays ────────────────────────────────────────────── */
   --ap-overlay-backdrop:  rgba(0, 0, 0, 0.6);
   --ap-overlay-scrim:     rgba(0, 0, 0, 0.35);
+
+  /* ─── Semantic: Status ────────────────────────────────────── */
   --ap-status-success-bg:    rgba(22, 163, 74, 0.12);
   --ap-status-success-text:  #4ADE80;
   --ap-status-success-border: rgba(22, 163, 74, 0.3);
+
   --ap-status-warning-bg:    rgba(217, 119, 6, 0.12);
   --ap-status-warning-text:  #FCD34D;
   --ap-status-warning-border: rgba(217, 119, 6, 0.3);
+
   --ap-status-danger-bg:     rgba(220, 38, 38, 0.12);
   --ap-status-danger-text:   #F87171;
   --ap-status-danger-border: rgba(220, 38, 38, 0.3);
+
   --ap-status-info-bg:       rgba(2, 132, 199, 0.12);
   --ap-status-info-text:     #38BDF8;
   --ap-status-info-border:   rgba(2, 132, 199, 0.3);
+
+  /* ─── Scrollbar ───────────────────────────────────────────── */
   --ap-scrollbar-track:       transparent;
   --ap-scrollbar-thumb:       var(--ap-stone-700);
   --ap-scrollbar-thumb-hover: var(--ap-stone-600);

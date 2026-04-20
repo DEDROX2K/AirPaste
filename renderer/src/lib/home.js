@@ -123,7 +123,7 @@ export function filterItemsByPreference(items, filter) {
   }
 
   if (filter === "assets") {
-    return items.filter((item) => item.type === "asset");
+    return items.filter((item) => item.type === "asset" || item.type === "file");
   }
 
   if (filter === "starred") {

@@ -2,6 +2,11 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
+const { getSchema } = require("@tiptap/core");
+const StarterKit = require("@tiptap/starter-kit").default;
+const Link = require("@tiptap/extension-link").default;
+const MarkdownIt = require("markdown-it");
+const { MarkdownParser } = require("prosemirror-markdown");
 
 const LEGACY_FILES = ["workspace.json", "data.json"];
 const INTERNAL_DIR = ".airpaste";
@@ -15,6 +20,7 @@ const PAGES_DIR = "pages";
 const TILES_DIR = "tiles";
 const ASSETS_DIR = "assets";
 const CANVAS_SUFFIX = ".airpaste.json";
+const PAGE_SUFFIX = ".airpaste.page.json";
 const LEGACY_ROOT_META_FILE = "airpaste.json";
 const DOME_SETTINGS_FILE = "settings.json";
 const TEMP_SUFFIX = ".tmp";
@@ -25,6 +31,10 @@ const INDEX_VERSION = 5;
 const UI_STATE_VERSION = 3;
 
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
+const DEFAULT_PAGE_DOCUMENT = Object.freeze({
+  type: "doc",
+  content: [{ type: "paragraph" }],
+});
 const DEFAULT_WORKSPACE = Object.freeze({
   version: 5,
   viewport: { x: 180, y: 120, zoom: 1 },
@@ -54,6 +64,55 @@ const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "
 const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
 const DOC_EXTS = new Set(["pdf"]);
 const SKIP_DIRS = new Set([INTERNAL_DIR, ".git", "node_modules", "dist", "dist-renderer", "release", "build"]);
+const LEGACY_PAGE_EXTENSIONS = [
+  StarterKit.configure({
+    link: false,
+    strike: false,
+  }),
+  Link.configure({
+    autolink: true,
+    openOnClick: false,
+  }),
+];
+const pageSchema = getSchema(LEGACY_PAGE_EXTENSIONS);
+const markdownTokenizer = new MarkdownIt("commonmark", {
+  html: false,
+  linkify: true,
+});
+const markdownParser = new MarkdownParser(pageSchema, markdownTokenizer, {
+  blockquote: { block: "blockquote" },
+  bullet_list: { block: "bulletList" },
+  code_block: { block: "codeBlock", noCloseToken: true },
+  fence: {
+    block: "codeBlock",
+    getAttrs: (token) => ({ language: token.info || null }),
+    noCloseToken: true,
+  },
+  hardbreak: { node: "hardBreak" },
+  heading: {
+    block: "heading",
+    getAttrs: (token) => ({ level: Number(token.tag.slice(1)) || 1 }),
+  },
+  hr: { node: "horizontalRule" },
+  link: {
+    mark: "link",
+    getAttrs: (token) => ({
+      href: token.attrGet("href"),
+      title: token.attrGet("title") || null,
+    }),
+  },
+  list_item: { block: "listItem" },
+  ordered_list: {
+    block: "orderedList",
+    getAttrs: (token) => ({
+      start: Number(token.attrGet("start")) || 1,
+    }),
+  },
+  paragraph: { block: "paragraph" },
+  code_inline: { mark: "code" },
+  em: { mark: "italic" },
+  strong: { mark: "bold" },
+});
 
 function nowIso() {
   return new Date().toISOString();
@@ -90,6 +149,15 @@ function stripExt(fileName) {
 function stripCanvasSuffix(fileName) {
   const name = String(fileName ?? "");
   return name.toLowerCase().endsWith(CANVAS_SUFFIX) ? name.slice(0, -CANVAS_SUFFIX.length) : stripExt(name);
+}
+
+function stripPageSuffix(fileName) {
+  const name = String(fileName ?? "");
+  const lower = name.toLowerCase();
+  if (lower.endsWith(PAGE_SUFFIX)) {
+    return name.slice(0, -PAGE_SUFFIX.length);
+  }
+  return stripExt(name);
 }
 
 function sanitizeName(name, fallback = "untitled") {
@@ -235,17 +303,33 @@ async function safeWriteJson(filePath, value) {
   await safeWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function detectType(fileName) {
+function detectType(fileName, relativePath = "") {
   const lower = String(fileName ?? "").toLowerCase();
+  const rel = normalizeRel(relativePath, "");
+  const relLower = rel.toLowerCase();
+  if (
+    relLower === LEGACY_ROOT_META_FILE
+    || relLower === DOME_SETTINGS_FILE
+    || LEGACY_FILES.includes(lower)
+    || lower.endsWith(TEMP_SUFFIX)
+    || lower.endsWith(BACKUP_SUFFIX)
+  ) {
+    return null;
+  }
   if (lower.endsWith(CANVAS_SUFFIX)) return "canvas";
+  if (lower.endsWith(PAGE_SUFFIX)) return "page";
   if (lower.endsWith(".md")) return "page";
   const ext = fileExt(lower);
   if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) return "asset";
-  return null;
+  return "file";
+}
+
+function normalizeLineEndings(value) {
+  return String(value ?? "").replace(/\r\n/g, "\n");
 }
 
 function markdownName(markdown, fallback) {
-  const lines = String(markdown ?? "").replace(/\r\n/g, "\n").split("\n");
+  const lines = normalizeLineEndings(markdown).split("\n");
   let index = 0;
 
   if (lines[0] === "---") {
@@ -266,6 +350,141 @@ function markdownName(markdown, fallback) {
 
   const match = (lines[index] ?? "").match(/^#\s+(.+?)\s*$/);
   return match?.[1]?.trim() || fallback;
+}
+
+function normalizePageContent(content) {
+  if (!isObject(content) || content.type !== "doc") {
+    return DEFAULT_PAGE_DOCUMENT;
+  }
+
+  return content;
+}
+
+function extractFrontmatter(markdown) {
+  const normalized = normalizeLineEndings(markdown);
+
+  if (!normalized.startsWith("---\n")) {
+    return { frontmatter: "", content: normalized };
+  }
+
+  const match = normalized.match(/^---\n[\s\S]*?\n(?:---|\.\.\.)\n*/);
+  if (!match) {
+    return { frontmatter: "", content: normalized };
+  }
+
+  return {
+    frontmatter: match[0],
+    content: normalized.slice(match[0].length),
+  };
+}
+
+function readFrontmatterTitle(frontmatter) {
+  const lines = normalizeLineEndings(frontmatter).split("\n");
+
+  for (const line of lines) {
+    const match = line.match(/^title:\s*(.+?)\s*$/i);
+    if (match) {
+      return match[1].replace(/^["']|["']$/g, "").trim();
+    }
+  }
+
+  return "";
+}
+
+function extractLeadingMarkdownTitle(content, fallbackTitle) {
+  const lines = normalizeLineEndings(content).split("\n");
+  let cursor = 0;
+
+  while (cursor < lines.length && lines[cursor].trim() === "") {
+    cursor += 1;
+  }
+
+  const headingLine = lines[cursor] ?? "";
+  const headingMatch = headingLine.match(/^#\s+(.+?)\s*$/);
+
+  if (!headingMatch) {
+    return {
+      title: fallbackTitle || "Page",
+      body: content,
+    };
+  }
+
+  const nextLines = [...lines.slice(0, cursor), ...lines.slice(cursor + 1)];
+
+  if ((nextLines[cursor] ?? "").trim() === "") {
+    nextLines.splice(cursor, 1);
+  }
+
+  return {
+    title: headingMatch[1].trim() || fallbackTitle || "Page",
+    body: nextLines.join("\n").replace(/^\n+/, ""),
+  };
+}
+
+function legacyMarkdownToPageDocument(markdown, fallbackTitle = "Page") {
+  const normalized = normalizeLineEndings(markdown);
+  const { frontmatter, content } = extractFrontmatter(normalized);
+  const frontmatterTitle = readFrontmatterTitle(frontmatter);
+  const { title, body } = extractLeadingMarkdownTitle(content, frontmatterTitle || fallbackTitle);
+  const trimmedBody = body.trim();
+
+  if (!trimmedBody) {
+    return {
+      title,
+      content: DEFAULT_PAGE_DOCUMENT,
+    };
+  }
+
+  try {
+    return {
+      title,
+      content: markdownParser.parse(trimmedBody).toJSON(),
+    };
+  } catch {
+    return {
+      title,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: trimmedBody.replace(/\s+/g, " ").slice(0, 5000) }],
+          },
+        ],
+      },
+    };
+  }
+}
+
+async function readJsonIfExists(filePath, label, fallback) {
+  try {
+    return await readJson(filePath, label);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
+function collectPageText(node, parts) {
+  if (!isObject(node)) {
+    return;
+  }
+
+  if (typeof node.text === "string" && node.text.trim()) {
+    parts.push(node.text.trim());
+  }
+
+  if (Array.isArray(node.content)) {
+    node.content.forEach((child) => collectPageText(child, parts));
+  }
+}
+
+function pageExcerptFromContent(content) {
+  const parts = [];
+  collectPageText(normalizePageContent(content), parts);
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 220);
 }
 
 function markdownExcerpt(markdown) {
@@ -506,7 +725,7 @@ async function scanFiles(root) {
       }
       if (!entry.isFile()) continue;
 
-      const type = detectType(entry.name);
+      const type = detectType(entry.name, rel);
       if (!type) continue;
 
       const stat = await fs.stat(abs);
@@ -526,19 +745,44 @@ async function scanFiles(root) {
         }
         items.push({ path: rel, type, name, updatedAt: stat.mtime.toISOString(), excerpt: "", workspace });
       } else if (type === "page") {
-        const markdown = await readText(abs, "");
+        const lower = entry.name.toLowerCase();
+        let page = {
+          title: stripPageSuffix(entry.name) || "Page",
+          content: DEFAULT_PAGE_DOCUMENT,
+          excerpt: "",
+        };
+        if (lower.endsWith(PAGE_SUFFIX)) {
+          try {
+            const raw = await readJson(abs, entry.name);
+            page = {
+              title: firstString(raw.title, stripPageSuffix(entry.name), "Page"),
+              content: normalizePageContent(raw.content),
+              excerpt: pageExcerptFromContent(raw.content),
+            };
+          } catch {
+            // Keep corrupt files visible for rename/delete.
+          }
+        } else {
+          const markdown = await readText(abs, "");
+          const legacyPage = legacyMarkdownToPageDocument(markdown, stripPageSuffix(entry.name) || "Page");
+          page = {
+            title: legacyPage.title,
+            content: legacyPage.content,
+            excerpt: markdownExcerpt(markdown),
+          };
+        }
         items.push({
           path: rel,
           type,
-          name: markdownName(markdown, stripExt(entry.name) || "Page"),
+          name: page.title,
           updatedAt: stat.mtime.toISOString(),
-          excerpt: markdownExcerpt(markdown),
+          excerpt: page.excerpt,
         });
       } else {
         items.push({
           path: rel,
           type,
-          name: stripExt(entry.name) || entry.name,
+          name: type === "file" ? entry.name : (stripExt(entry.name) || entry.name),
           updatedAt: stat.mtime.toISOString(),
           excerpt: "",
         });
@@ -552,7 +796,7 @@ async function scanFiles(root) {
 async function rebuildIndex(root) {
   await migrateLegacy(root);
   const meta = await ensureRootReady(root);
-  const prev = (await exists(indexPath(root))) ? await readJson(indexPath(root), INDEX_FILE) : defaultIndex(meta);
+  const prev = await readJsonIfExists(indexPath(root), INDEX_FILE, defaultIndex(meta));
   const scanned = await scanFiles(root);
   const prevByPath = new Map((Array.isArray(prev.items) ? prev.items : []).map((item) => [normalizeRel(item.path, ""), item]));
 
@@ -599,7 +843,7 @@ async function rebuildIndex(root) {
   };
   await safeWriteJson(indexPath(root), nextIndex);
 
-  const prevUi = (await exists(uiStatePath(root))) ? await readJson(uiStatePath(root), UI_STATE_FILE) : DEFAULT_UI_STATE;
+  const prevUi = await readJsonIfExists(uiStatePath(root), UI_STATE_FILE, DEFAULT_UI_STATE);
   const uiState = normalizeUiState(prevUi);
   if (uiState.lastOpenedItemPath && !pathSet.has(uiState.lastOpenedItemPath)) uiState.lastOpenedItemPath = null;
   if (uiState.lastOpenedCanvasPath && !pathSet.has(uiState.lastOpenedCanvasPath)) uiState.lastOpenedCanvasPath = null;
@@ -742,38 +986,98 @@ async function saveCanvas(filePath, data, options = null) {
 
 async function loadPage(filePath) {
   const abs = path.resolve(filePath);
-  if (!abs.toLowerCase().endsWith(".md")) throw new Error("Page path must end with .md.");
+  const lower = abs.toLowerCase();
+  if (!lower.endsWith(".md") && !lower.endsWith(PAGE_SUFFIX)) {
+    throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
+  }
   const root = await workspaceRootFromFile(abs);
   if (!root) throw new Error("Could not resolve the workspace for this page.");
   await ensureReady(root);
   ensureInside(root, abs);
-  const markdown = await readText(abs, "");
   const stat = await fs.stat(abs);
   const rel = toWorkspaceRel(root, abs);
+  let title = stripPageSuffix(path.basename(abs)) || "Page";
+  let content = DEFAULT_PAGE_DOCUMENT;
+  let excerpt = "";
+
+  if (lower.endsWith(PAGE_SUFFIX)) {
+    const raw = await readJson(abs, path.basename(abs));
+    title = firstString(raw.title, title);
+    content = normalizePageContent(raw.content);
+    excerpt = pageExcerptFromContent(content);
+  } else {
+    const markdown = await readText(abs, "");
+    const legacyPage = legacyMarkdownToPageDocument(markdown, title);
+    title = legacyPage.title;
+    content = legacyPage.content;
+    excerpt = markdownExcerpt(markdown);
+  }
+
   await recordRecentItem(root, abs);
   return {
     type: "page",
     path: rel,
     filePath: abs,
-    name: markdownName(markdown, stripExt(path.basename(abs)) || "Page"),
-    markdown,
+    name: title,
+    title,
+    content,
+    storageFormat: lower.endsWith(PAGE_SUFFIX) ? "tiptap-json" : "markdown-legacy",
     createdAt: stat.birthtime.toISOString(),
     updatedAt: stat.mtime.toISOString(),
-    excerpt: markdownExcerpt(markdown),
+    excerpt,
   };
 }
 
-async function savePage(filePath, markdown) {
+async function savePage(filePath, pageData) {
   const abs = path.resolve(filePath);
-  if (!abs.toLowerCase().endsWith(".md")) throw new Error("Page path must end with .md.");
+  const lower = abs.toLowerCase();
+  if (!lower.endsWith(".md") && !lower.endsWith(PAGE_SUFFIX)) {
+    throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
+  }
   const root = await workspaceRootFromFile(abs);
   if (!root) throw new Error("Could not resolve the workspace for this page.");
   await ensureReady(root);
   ensureInside(root, abs);
-  await safeWriteText(abs, String(markdown ?? ""));
+  const input = isObject(pageData) ? pageData : {};
+  const title = firstString(input.title, stripPageSuffix(path.basename(abs)), "Page");
+  const content = normalizePageContent(input.content);
+  let targetPath = abs;
+  let createdAt = nowIso();
+
+  if (await exists(abs)) {
+    const stat = await fs.stat(abs).catch(() => null);
+    if (stat) {
+      createdAt = stat.birthtime.toISOString();
+    }
+  }
+
+  if (lower.endsWith(PAGE_SUFFIX)) {
+    try {
+      const existing = await readJson(abs, path.basename(abs));
+      createdAt = typeof existing.createdAt === "string" ? existing.createdAt : createdAt;
+    } catch {
+      // Fall back to file stat timestamp.
+    }
+  } else {
+    const migratedPath = path.join(path.dirname(abs), `${stripExt(path.basename(abs))}${PAGE_SUFFIX}`);
+    targetPath = (await exists(migratedPath)) && migratedPath !== abs ? await uniqueFile(migratedPath) : migratedPath;
+  }
+
+  await safeWriteJson(targetPath, {
+    version: 1,
+    type: "page",
+    title,
+    createdAt,
+    updatedAt: nowIso(),
+    content,
+  });
+
+  if (targetPath !== abs) {
+    await fs.rm(abs, { force: true }).catch(() => {});
+  }
   await ensureReady(root);
-  await recordRecentItem(root, abs);
-  return loadPage(abs);
+  await recordRecentItem(root, targetPath);
+  return loadPage(targetPath);
 }
 
 async function createCanvas(root, name, targetFolderPath = "") {
@@ -802,8 +1106,15 @@ async function createPage(root, name, targetFolderPath = "") {
   const dir = resolveWorkspacePath(root, effectiveTarget);
   await fs.mkdir(dir, { recursive: true });
   const base = sanitizeName(firstString(name, "Page"), "Page");
-  const finalPath = await uniqueFile(path.join(dir, `${base}.md`));
-  await safeWriteText(finalPath, `# ${stripExt(path.basename(finalPath))}\n\n`);
+  const finalPath = await uniqueFile(path.join(dir, `${base}${PAGE_SUFFIX}`));
+  await safeWriteJson(finalPath, {
+    version: 1,
+    type: "page",
+    title: stripPageSuffix(path.basename(finalPath)),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    content: DEFAULT_PAGE_DOCUMENT,
+  });
   await ensureReady(root);
   await recordRecentItem(root, finalPath);
   return loadPage(finalPath);
@@ -814,13 +1125,18 @@ async function renameFile(root, filePath, nextName) {
   const abs = resolveWorkspacePath(root, rel);
   if (!(await exists(abs))) throw new Error("The selected file no longer exists.");
   const type = detectType(path.basename(abs));
-  if (!type || type === "asset") throw new Error("Only canvas and page files can be renamed from AirPaste.");
-  const ext = type === "canvas" ? CANVAS_SUFFIX : ".md";
+  if (!type || type === "asset" || type === "file") throw new Error("Only canvas and page files can be renamed from AirPaste.");
+  const ext = type === "canvas" ? CANVAS_SUFFIX : (path.basename(abs).toLowerCase().endsWith(".md") ? ".md" : PAGE_SUFFIX);
   const renamed = await uniqueFile(path.join(path.dirname(abs), `${sanitizeName(nextName, "untitled")}${ext}`));
   await fs.rename(abs, renamed);
   if (type === "canvas") {
     const payload = await readJson(renamed, path.basename(renamed));
     payload.name = stripCanvasSuffix(path.basename(renamed));
+    payload.updatedAt = nowIso();
+    await safeWriteJson(renamed, payload);
+  } else if (path.basename(renamed).toLowerCase().endsWith(PAGE_SUFFIX)) {
+    const payload = await readJson(renamed, path.basename(renamed));
+    payload.title = firstString(nextName, payload.title, stripPageSuffix(path.basename(renamed)), "Page");
     payload.updatedAt = nowIso();
     await safeWriteJson(renamed, payload);
   }
@@ -833,7 +1149,7 @@ async function deleteFile(root, filePath) {
   const abs = resolveWorkspacePath(root, rel);
   if (!(await exists(abs))) return { deleted: false };
   const type = detectType(path.basename(abs));
-  if (!type || type === "asset") throw new Error("Only canvas and page files can be deleted from AirPaste.");
+  if (!type || type === "asset" || type === "file") throw new Error("Only canvas and page files can be deleted from AirPaste.");
   await fs.rm(abs, { force: true });
   await ensureReady(root);
   return { deleted: true, path: rel };
@@ -910,18 +1226,18 @@ async function getHomeData(root, requestedFolderPath = null) {
     allFiles: index.items.map((item) => mapItemForResponse(root, item)).sort(compareUpdatedDesc),
     recentItems: index.recentItemPaths.map((rel) => byPath.get(rel)).filter(Boolean).map((item) => mapItemForResponse(root, item)),
     starredItems: index.items.filter((item) => item.starred).sort(compareUpdatedDesc).map((item) => mapItemForResponse(root, item)),
-    uiState: normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE)),
+    uiState,
   };
 }
 
 async function loadUiState(root) {
-  await ensureReady(root);
-  return normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
+  const { uiState } = await ensureReady(root);
+  return uiState;
 }
 
 async function saveUiState(root, partialState) {
-  await ensureReady(root);
-  const current = normalizeUiState(await readJson(uiStatePath(root), UI_STATE_FILE));
+  const { uiState } = await ensureReady(root);
+  const current = normalizeUiState(uiState);
   const next = normalizeUiState({ ...current, ...(isObject(partialState) ? partialState : {}) });
   await safeWriteJson(uiStatePath(root), next);
   return next;

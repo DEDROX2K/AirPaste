@@ -242,20 +242,6 @@
   opacity: 0.6;
 }
 
-#titlebar-center-slot .search-shell {
-  min-height: var(--titlebar-control-height);
-  padding: 0 var(--ap-space-3);
-  border-radius: var(--ap-radius-lg);
-}
-
-#titlebar-center-slot .search-shell__input {
-  font-size: var(--ap-text-xs);
-}
-
-#titlebar-center-slot .search-shell__meta {
-  font-size: var(--ap-text-2xs);
-}
-
 .titlebar-controls {
   display: flex;
   align-items: center;

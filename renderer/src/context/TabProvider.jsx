@@ -149,6 +149,21 @@ export function TabProvider({ children }) {
     });
   }, []);
 
+  const rebindTabEntity = useCallback((previousEntityId, nextEntityId, nextTitle = null) => {
+    if (!previousEntityId || !nextEntityId) return;
+    setTabs((currentTabs) => currentTabs.map((tab) => {
+      if (tab.entityId !== previousEntityId) {
+        return tab;
+      }
+
+      return {
+        ...tab,
+        entityId: nextEntityId,
+        title: typeof nextTitle === "string" && nextTitle.trim() ? nextTitle.trim() : tab.title,
+      };
+    }));
+  }, []);
+
   const closeTabsForEntity = useCallback((entityId) => {
     if (!entityId) return;
     setTabs((currentTabs) => {
@@ -193,6 +208,7 @@ export function TabProvider({ children }) {
       setActiveTab: setActiveTabId,
       updateTabViewState,
       renameTabForEntity,
+      rebindTabEntity,
       closeTabsForEntity,
       showHomeTab,
     }),
@@ -203,6 +219,7 @@ export function TabProvider({ children }) {
       closeTab,
       updateTabViewState,
       renameTabForEntity,
+      rebindTabEntity,
       closeTabsForEntity,
       showHomeTab,
     ]
