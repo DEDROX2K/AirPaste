@@ -48,6 +48,52 @@ function areCardsEqual(a, b) {
     && areObjectsEqual(a.layout?.globe, b.layout?.globe);
 }
 
+function areNumberArraysEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areDrawingObjectsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return a.id === b.id
+    && a.type === b.type
+    && areNumberArraysEqual(a.points, b.points)
+    && areObjectsEqual(a.style, b.style)
+    && areObjectsEqual(a.meta, b.meta);
+}
+
+function areDrawingsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.version !== b.version) return false;
+
+  const aObjects = Array.isArray(a.objects) ? a.objects : [];
+  const bObjects = Array.isArray(b.objects) ? b.objects : [];
+
+  if (aObjects.length !== bObjects.length) {
+    return false;
+  }
+
+  for (let index = 0; index < aObjects.length; index += 1) {
+    if (!areDrawingObjectsEqual(aObjects[index], bObjects[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function areWorkspacesEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -57,6 +103,7 @@ function areWorkspacesEqual(a, b) {
     || !areObjectsEqual(a.viewport, b.viewport)
     || !areObjectsEqual(a.view, b.view)
     || a.cards.length !== b.cards.length
+    || !areDrawingsEqual(a.drawings, b.drawings)
   ) {
     return false;
   }
@@ -74,6 +121,7 @@ function mergeCanvasDirtyFields(currentFields = null, nextFields = null) {
   return {
     viewport: Boolean(currentFields?.viewport || nextFields?.viewport),
     cards: Boolean(currentFields?.cards || nextFields?.cards),
+    drawings: Boolean(currentFields?.drawings || nextFields?.drawings),
     view: Boolean(currentFields?.view || nextFields?.view),
     name: Boolean(currentFields?.name || nextFields?.name),
   };
@@ -84,6 +132,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
     return {
       viewport: false,
       cards: false,
+      drawings: false,
       view: false,
       name: false,
     };
@@ -93,6 +142,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
     return {
       viewport: true,
       cards: true,
+      drawings: true,
       view: true,
       name: true,
     };
@@ -101,6 +151,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
   return {
     viewport: previousWorkspace.viewport !== nextWorkspace.viewport,
     cards: previousWorkspace.cards !== nextWorkspace.cards,
+    drawings: previousWorkspace.drawings !== nextWorkspace.drawings,
     view: previousWorkspace.view !== nextWorkspace.view,
     name: previousWorkspace.name !== nextWorkspace.name,
   };
@@ -115,6 +166,10 @@ function buildCanvasSavePayload(workspace, dirtyFields = null) {
 
   if (dirtyFields?.cards) {
     payload.cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
+  }
+
+  if (dirtyFields?.drawings) {
+    payload.drawings = workspace?.drawings ?? null;
   }
 
   if (dirtyFields?.view) {
@@ -572,7 +627,7 @@ export function AppProvider({ children }) {
   const renameItemEntry = useCallback(async (item, name) => {
     if (!folderPath || !item?.filePath) return null;
     const renamed = await desktop.workspace.renameFile(folderPath, item.filePath, name);
-    closeTabsForEntity(item.filePath);
+    rebindTabEntity(item.filePath, renamed.filePath, renamed.name);
     setWorkspacesByPath((prev) => {
       if (!prev[item.filePath]) return prev;
       const next = { ...prev };
@@ -602,7 +657,7 @@ export function AppProvider({ children }) {
     });
     await refreshHomeData(folderPath);
     return renamed;
-  }, [closeTabsForEntity, folderPath, refreshHomeData]);
+  }, [folderPath, rebindTabEntity, refreshHomeData]);
 
   const deleteItemEntry = useCallback(async (item) => {
     if (!folderPath || !item?.filePath) return false;
@@ -874,6 +929,7 @@ export function AppProvider({ children }) {
       pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
         viewport: false,
         cards: false,
+        drawings: false,
         view: false,
         name: false,
       };
@@ -966,6 +1022,7 @@ export function AppProvider({ children }) {
             pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
               viewport: false,
               cards: false,
+              drawings: false,
               view: false,
               name: false,
             };

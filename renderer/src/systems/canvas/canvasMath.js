@@ -108,17 +108,29 @@ export function getViewportForWorldBounds(elementRect, worldRect, padding = DEFA
 }
 
 export function getCanvasGridStyleVars(viewport) {
+  const transform = getWorldToScreenTransform(viewport);
+
   return {
-    "--canvas-grid-size": `${CANVAS_GRID_SIZE * viewport.zoom}px`,
-    "--canvas-grid-offset-x": `${viewport.x}px`,
-    "--canvas-grid-offset-y": `${viewport.y}px`,
+    "--canvas-grid-size": `${CANVAS_GRID_SIZE * transform.zoom}px`,
+    "--canvas-grid-offset-x": `${transform.x}px`,
+    "--canvas-grid-offset-y": `${transform.y}px`,
   };
 }
 
 export function getCanvasContentStyleVars(viewport) {
+  const transform = getWorldToScreenTransform(viewport);
+
   return {
-    "--canvas-viewport-x": `${viewport.x}px`,
-    "--canvas-viewport-y": `${viewport.y}px`,
-    "--canvas-viewport-zoom": String(viewport.zoom),
+    "--canvas-viewport-x": `${transform.x}px`,
+    "--canvas-viewport-y": `${transform.y}px`,
+    "--canvas-viewport-zoom": String(transform.zoom),
   };
+}
+
+export function getWorldToScreenTransform(viewport) {
+  const x = Number.isFinite(viewport?.x) ? viewport.x : 0;
+  const y = Number.isFinite(viewport?.y) ? viewport.y : 0;
+  const zoom = Number.isFinite(viewport?.zoom) ? Math.max(0.01, viewport.zoom) : 1;
+
+  return { x, y, zoom };
 }

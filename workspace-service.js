@@ -21,6 +21,8 @@ const TILES_DIR = "tiles";
 const ASSETS_DIR = "assets";
 const CANVAS_SUFFIX = ".airpaste.json";
 const PAGE_SUFFIX = ".airpaste.page.json";
+const LEGACY_NUMBERED_CANVAS_RE = /\.airpaste \d+\.json$/i;
+const LEGACY_NUMBERED_PAGE_RE = /\.airpaste\.page \d+\.json$/i;
 const LEGACY_ROOT_META_FILE = "airpaste.json";
 const DOME_SETTINGS_FILE = "settings.json";
 const TEMP_SUFFIX = ".tmp";
@@ -31,6 +33,10 @@ const INDEX_VERSION = 5;
 const UI_STATE_VERSION = 3;
 
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
+const DEFAULT_DRAWINGS = Object.freeze({
+  version: 1,
+  objects: [],
+});
 const DEFAULT_PAGE_DOCUMENT = Object.freeze({
   type: "doc",
   content: [{ type: "paragraph" }],
@@ -39,6 +45,7 @@ const DEFAULT_WORKSPACE = Object.freeze({
   version: 5,
   viewport: { x: 180, y: 120, zoom: 1 },
   cards: [],
+  drawings: DEFAULT_DRAWINGS,
 });
 
 const DEFAULT_UI_STATE = Object.freeze({
@@ -63,7 +70,17 @@ const DEFAULT_UI_STATE = Object.freeze({
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
 const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
 const DOC_EXTS = new Set(["pdf"]);
-const SKIP_DIRS = new Set([INTERNAL_DIR, ".git", "node_modules", "dist", "dist-renderer", "release", "build"]);
+const SKIP_DIRS = new Set([
+  INTERNAL_DIR,
+  ".git",
+  "node_modules",
+  "dist",
+  "dist-renderer",
+  "release",
+  "build",
+  ".tmp",
+  ".tmp.driveupload",
+]);
 const LEGACY_PAGE_EXTENSIONS = [
   StarterKit.configure({
     link: false,
@@ -148,7 +165,14 @@ function stripExt(fileName) {
 
 function stripCanvasSuffix(fileName) {
   const name = String(fileName ?? "");
-  return name.toLowerCase().endsWith(CANVAS_SUFFIX) ? name.slice(0, -CANVAS_SUFFIX.length) : stripExt(name);
+  const lower = name.toLowerCase();
+  if (lower.endsWith(CANVAS_SUFFIX)) {
+    return name.slice(0, -CANVAS_SUFFIX.length);
+  }
+  if (LEGACY_NUMBERED_CANVAS_RE.test(lower)) {
+    return name.replace(/\.airpaste \d+\.json$/i, "");
+  }
+  return stripExt(name);
 }
 
 function stripPageSuffix(fileName) {
@@ -157,7 +181,20 @@ function stripPageSuffix(fileName) {
   if (lower.endsWith(PAGE_SUFFIX)) {
     return name.slice(0, -PAGE_SUFFIX.length);
   }
+  if (LEGACY_NUMBERED_PAGE_RE.test(lower)) {
+    return name.replace(/\.airpaste\.page \d+\.json$/i, "");
+  }
   return stripExt(name);
+}
+
+function isCanvasPath(filePath) {
+  const lower = String(filePath ?? "").toLowerCase();
+  return lower.endsWith(CANVAS_SUFFIX) || LEGACY_NUMBERED_CANVAS_RE.test(lower);
+}
+
+function isPagePath(filePath) {
+  const lower = String(filePath ?? "").toLowerCase();
+  return lower.endsWith(PAGE_SUFFIX) || LEGACY_NUMBERED_PAGE_RE.test(lower);
 }
 
 function sanitizeName(name, fallback = "untitled") {
@@ -316,8 +353,8 @@ function detectType(fileName, relativePath = "") {
   ) {
     return null;
   }
-  if (lower.endsWith(CANVAS_SUFFIX)) return "canvas";
-  if (lower.endsWith(PAGE_SUFFIX)) return "page";
+  if (isPagePath(lower)) return "page";
+  if (isCanvasPath(lower)) return "canvas";
   if (lower.endsWith(".md")) return "page";
   const ext = fileExt(lower);
   if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) return "asset";
@@ -591,6 +628,15 @@ function normalizeUiState(uiState) {
   };
 }
 
+function normalizeDrawingsPayload(drawings) {
+  const safeDrawings = isObject(drawings) ? drawings : DEFAULT_DRAWINGS;
+
+  return {
+    version: Number.isFinite(safeDrawings.version) ? Math.max(1, Math.round(safeDrawings.version)) : DEFAULT_DRAWINGS.version,
+    objects: Array.isArray(safeDrawings.objects) ? safeDrawings.objects : [],
+  };
+}
+
 async function ensureRootReady(root) {
   if (!(await isDirectory(root))) throw new Error("Selected folder is no longer available.");
   await fs.mkdir(internalPath(root), { recursive: true });
@@ -643,12 +689,22 @@ async function uniqueFile(initialPath) {
   return next;
 }
 
+async function uniqueDocumentFile(dir, baseName, suffix) {
+  let next = path.join(dir, `${baseName}${suffix}`);
+  let n = 2;
+  while (await exists(next)) {
+    next = path.join(dir, `${baseName} ${n}${suffix}`);
+    n += 1;
+  }
+  return next;
+}
+
 async function migrateLegacy(root) {
   for (const legacyName of LEGACY_FILES) {
     const legacyPath = path.join(root, legacyName);
     if (!(await exists(legacyPath))) continue;
     const raw = await readJson(legacyPath, legacyName);
-    const filePath = await uniqueFile(path.join(root, `${DEFAULT_WORKSPACE_NAME}${CANVAS_SUFFIX}`));
+    const filePath = await uniqueDocumentFile(root, DEFAULT_WORKSPACE_NAME, CANVAS_SUFFIX);
     const payload = {
       version: 2,
       type: "canvas",
@@ -657,6 +713,7 @@ async function migrateLegacy(root) {
       updatedAt: nowIso(),
       viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
       cards: Array.isArray(raw.cards) ? raw.cards : [],
+      drawings: normalizeDrawingsPayload(raw.drawings),
     };
     await safeWriteJson(filePath, payload);
     await fs.rm(legacyPath, { force: true });
@@ -692,7 +749,7 @@ async function migrateLegacy(root) {
           continue;
         }
         const name = firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas");
-        await safeWriteJson(await uniqueFile(path.join(root, `${sanitizeName(name, "Canvas")}${CANVAS_SUFFIX}`)), {
+        await safeWriteJson(await uniqueDocumentFile(root, sanitizeName(name, "Canvas"), CANVAS_SUFFIX), {
           version: 2,
           type: "canvas",
           name,
@@ -751,7 +808,7 @@ async function scanFiles(root) {
           content: DEFAULT_PAGE_DOCUMENT,
           excerpt: "",
         };
-        if (lower.endsWith(PAGE_SUFFIX)) {
+        if (isPagePath(lower)) {
           try {
             const raw = await readJson(abs, entry.name);
             page = {
@@ -900,7 +957,7 @@ async function recordRecentItem(root, filePath) {
 
 async function loadCanvas(filePath) {
   const abs = path.resolve(filePath);
-  if (!abs.toLowerCase().endsWith(CANVAS_SUFFIX)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  if (!isCanvasPath(abs)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
   const root = await workspaceRootFromFile(abs);
   if (!root) throw new Error("Could not resolve the workspace for this canvas.");
   await ensureReady(root);
@@ -912,6 +969,7 @@ async function loadCanvas(filePath) {
     version: Number.isFinite(raw.version) ? raw.version : 5,
     viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
     cards: Array.isArray(raw.cards) ? raw.cards : Array.isArray(raw.tiles) ? raw.tiles : [],
+    drawings: normalizeDrawingsPayload(raw.drawings),
     view: raw.view === null || isObject(raw.view) ? raw.view : null,
   };
   await recordRecentItem(root, abs);
@@ -928,7 +986,7 @@ async function loadCanvas(filePath) {
 
 async function saveCanvas(filePath, data, options = null) {
   const abs = path.resolve(filePath);
-  if (!abs.toLowerCase().endsWith(CANVAS_SUFFIX)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+  if (!isCanvasPath(abs)) throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
   const root = await workspaceRootFromFile(abs);
   if (!root) throw new Error("Could not resolve the workspace for this canvas.");
   await ensureReady(root);
@@ -952,6 +1010,11 @@ async function saveCanvas(filePath, data, options = null) {
       : Array.isArray(existing.cards)
         ? existing.cards
         : [],
+    drawings: normalizeDrawingsPayload(
+      isObject(workspace.drawings)
+        ? workspace.drawings
+        : existing.drawings,
+    ),
     view: workspace.view === null || isObject(workspace.view)
       ? workspace.view
       : existing.view ?? null,
@@ -987,7 +1050,7 @@ async function saveCanvas(filePath, data, options = null) {
 async function loadPage(filePath) {
   const abs = path.resolve(filePath);
   const lower = abs.toLowerCase();
-  if (!lower.endsWith(".md") && !lower.endsWith(PAGE_SUFFIX)) {
+  if (!lower.endsWith(".md") && !isPagePath(lower)) {
     throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
   }
   const root = await workspaceRootFromFile(abs);
@@ -1000,7 +1063,7 @@ async function loadPage(filePath) {
   let content = DEFAULT_PAGE_DOCUMENT;
   let excerpt = "";
 
-  if (lower.endsWith(PAGE_SUFFIX)) {
+  if (isPagePath(lower)) {
     const raw = await readJson(abs, path.basename(abs));
     title = firstString(raw.title, title);
     content = normalizePageContent(raw.content);
@@ -1031,7 +1094,7 @@ async function loadPage(filePath) {
 async function savePage(filePath, pageData) {
   const abs = path.resolve(filePath);
   const lower = abs.toLowerCase();
-  if (!lower.endsWith(".md") && !lower.endsWith(PAGE_SUFFIX)) {
+  if (!lower.endsWith(".md") && !isPagePath(lower)) {
     throw new Error(`Page path must end with "${PAGE_SUFFIX}" or ".md".`);
   }
   const root = await workspaceRootFromFile(abs);
@@ -1051,7 +1114,7 @@ async function savePage(filePath, pageData) {
     }
   }
 
-  if (lower.endsWith(PAGE_SUFFIX)) {
+  if (isPagePath(lower)) {
     try {
       const existing = await readJson(abs, path.basename(abs));
       createdAt = typeof existing.createdAt === "string" ? existing.createdAt : createdAt;
@@ -1059,8 +1122,9 @@ async function savePage(filePath, pageData) {
       // Fall back to file stat timestamp.
     }
   } else {
-    const migratedPath = path.join(path.dirname(abs), `${stripExt(path.basename(abs))}${PAGE_SUFFIX}`);
-    targetPath = (await exists(migratedPath)) && migratedPath !== abs ? await uniqueFile(migratedPath) : migratedPath;
+    const dir = path.dirname(abs);
+    const base = stripExt(path.basename(abs));
+    targetPath = await uniqueDocumentFile(dir, base, PAGE_SUFFIX);
   }
 
   await safeWriteJson(targetPath, {
@@ -1085,7 +1149,11 @@ async function createCanvas(root, name, targetFolderPath = "") {
   const effectiveTarget = normalizeFolder(targetFolderPath) || CANVASES_DIR;
   const dir = resolveWorkspacePath(root, effectiveTarget);
   await fs.mkdir(dir, { recursive: true });
-  const finalPath = await uniqueFile(path.join(dir, `${sanitizeName(firstString(name, "Canvas"), "Canvas")}${CANVAS_SUFFIX}`));
+  const finalPath = await uniqueDocumentFile(
+    dir,
+    sanitizeName(firstString(name, "Canvas"), "Canvas"),
+    CANVAS_SUFFIX,
+  );
   await safeWriteJson(finalPath, {
     version: 2,
     type: "canvas",
@@ -1094,6 +1162,7 @@ async function createCanvas(root, name, targetFolderPath = "") {
     updatedAt: nowIso(),
     viewport: DEFAULT_WORKSPACE.viewport,
     cards: [],
+    drawings: DEFAULT_DRAWINGS,
   });
   await ensureReady(root);
   await recordRecentItem(root, finalPath);
@@ -1106,7 +1175,7 @@ async function createPage(root, name, targetFolderPath = "") {
   const dir = resolveWorkspacePath(root, effectiveTarget);
   await fs.mkdir(dir, { recursive: true });
   const base = sanitizeName(firstString(name, "Page"), "Page");
-  const finalPath = await uniqueFile(path.join(dir, `${base}${PAGE_SUFFIX}`));
+  const finalPath = await uniqueDocumentFile(dir, base, PAGE_SUFFIX);
   await safeWriteJson(finalPath, {
     version: 1,
     type: "page",

@@ -7,12 +7,13 @@ import {
   MIN_GLOBE_RADIUS,
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
+import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawingTypes";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 7;
+export const WORKSPACE_SCHEMA_VERSION = 8;
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
 export const RACK_LEFT_CAP_WIDTH = 94;
@@ -208,6 +209,7 @@ export function createEmptyWorkspace() {
     viewport: { ...DEFAULT_VIEWPORT },
     view: getDefaultWorkspaceView(0),
     cards: [],
+    drawings: createEmptyDrawings(),
   };
 }
 
@@ -339,6 +341,7 @@ export function normalizeWorkspace(workspace) {
     },
     view: normalizeWorkspaceView(safeWorkspace.view, cards.length),
     cards,
+    drawings: normalizeDrawings(safeWorkspace.drawings),
   };
 }
 
@@ -394,6 +397,14 @@ function migrateWorkspace(rawWorkspace) {
       ...nextWorkspace,
       cards: flattenLegacyFolderCards(Array.isArray(nextWorkspace.cards) ? nextWorkspace.cards : []),
       version: 7,
+    };
+  }
+
+  if (version < 8) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      drawings: createEmptyDrawings(),
+      version: 8,
     };
   }
 

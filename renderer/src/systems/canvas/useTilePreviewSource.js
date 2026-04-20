@@ -80,22 +80,18 @@ export function useTilePreviewSource({
       return "";
     }
 
-    if (normalizedTier === PREVIEW_TIER.THUMBNAIL) {
-      return "";
-    }
-
     if (isImageTile) {
       return typeof card?.image === "string" ? card.image : "";
     }
 
     return typeof card?.image === "string" ? card.image : "";
-  }, [card?.image, imageEnabled, isImageTile, normalizedTier]);
+  }, [card?.image, imageEnabled, isImageTile]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function resolveSource() {
-      if (!imageEnabled || normalizedTier === PREVIEW_TIER.THUMBNAIL) {
+      if (!imageEnabled) {
         setResolvedImageSrc("");
         return;
       }

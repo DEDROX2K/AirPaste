@@ -20,6 +20,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const panStateRef = useRef(null);
   const viewportRef = useRef(viewport);
   const pendingViewportRef = useRef(null);
+  const viewportListenerSetRef = useRef(new Set());
   const wheelStopTimeoutRef = useRef(0);
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
@@ -41,6 +42,16 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     return containerRectRef.current;
   }, [containerElement]);
 
+  const notifyViewportListeners = useCallback((nextViewport) => {
+    viewportListenerSetRef.current.forEach((listener) => {
+      try {
+        listener(nextViewport);
+      } catch {
+        // Keep listener failures isolated from camera updates.
+      }
+    });
+  }, []);
+
   const applyViewportStyleVars = useCallback((nextViewport) => {
     const gridStyleVars = getCanvasGridStyleVars(nextViewport);
     const contentStyleVars = getCanvasContentStyleVars(nextViewport);
@@ -52,7 +63,26 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     Object.entries(contentStyleVars).forEach(([name, value]) => {
       contentElement?.style?.setProperty(name, value);
     });
-  }, [contentElement, gridElement]);
+    notifyViewportListeners(nextViewport);
+  }, [contentElement, gridElement, notifyViewportListeners]);
+
+  const subscribeViewportTransform = useCallback((listener) => {
+    if (typeof listener !== "function") {
+      return () => {};
+    }
+
+    viewportListenerSetRef.current.add(listener);
+
+    try {
+      listener(viewportRef.current);
+    } catch {
+      // Ignore immediate listener failures.
+    }
+
+    return () => {
+      viewportListenerSetRef.current.delete(listener);
+    };
+  }, []);
 
   const commitPendingViewport = useCallback(() => {
     const pendingViewport = pendingViewportRef.current;
@@ -349,6 +379,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     getViewportCenter,
     getVisibleWorldRect,
     beginCanvasPan,
+    subscribeViewportTransform,
     setZoom,
     zoomIn: () => zoomByStep(1),
     zoomOut: () => zoomByStep(-1),

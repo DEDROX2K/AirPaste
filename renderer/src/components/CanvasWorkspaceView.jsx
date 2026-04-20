@@ -7,6 +7,7 @@ import GlobeWorkspaceView from "./GlobeWorkspaceView";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
+import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
@@ -22,6 +23,11 @@ import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInt
 import { buildRadialMenuActions } from "../systems/interactions/radialMenuActions";
 import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
+import { useDrawingTool } from "../systems/drawing/useDrawingTool";
+import {
+  DRAWING_TOOL_MODE_LINE,
+  DRAWING_TOOL_MODE_SELECT,
+} from "../systems/drawing/drawingTypes";
 import {
   buildCanvasSnapUiStatePatch,
   DEFAULT_CANVAS_SNAP_SETTINGS,
@@ -40,7 +46,11 @@ import {
   getDefaultCameraDistance,
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
-import { buildTileRenderHint } from "../systems/canvas/tileLod";
+import {
+  buildTileRenderHint,
+  resolveWorkspaceLodLevel,
+  WORKSPACE_LOD_LEVEL,
+} from "../systems/canvas/tileLod";
 
 function WorkspaceViewToggle({ mode, onChange }) {
   return (
@@ -84,6 +94,51 @@ function WorkspaceTopbarTrail() {
     <header className="canvas-topbar">
 
     </header>
+  );
+}
+
+function DrawingToolControls({
+  activeTool,
+  strokeColor,
+  onToolChange,
+  onStrokeColorChange,
+}) {
+  const isLineToolActive = activeTool === DRAWING_TOOL_MODE_LINE;
+
+  return (
+    <div className="drawing-tool-controls" role="group" aria-label="Drawing tool controls">
+      <div className="drawing-tool-controls__mode" role="group" aria-label="Canvas tool mode">
+        <AppButton tone="unstyled"
+          type="button"
+          className={`drawing-tool-controls__button${activeTool === DRAWING_TOOL_MODE_SELECT ? " drawing-tool-controls__button--active" : ""}`}
+          onClick={() => onToolChange(DRAWING_TOOL_MODE_SELECT)}
+          aria-label="Switch to normal canvas mode"
+          aria-pressed={activeTool === DRAWING_TOOL_MODE_SELECT}
+          title="Normal mode"
+        >
+          <img className="drawing-tool-controls__icon" src="/icons/gesture_select.png" alt="" aria-hidden="true" />
+        </AppButton>
+        <AppButton tone="unstyled"
+          type="button"
+          className={`drawing-tool-controls__button${isLineToolActive ? " drawing-tool-controls__button--active" : ""}`}
+          onClick={() => onToolChange(DRAWING_TOOL_MODE_LINE)}
+          aria-label="Switch to line drawing mode"
+          aria-pressed={isLineToolActive}
+          title="Line tool"
+        >
+          <img className="drawing-tool-controls__icon" src="/icons/wysiwyg.png" alt="" aria-hidden="true" />
+        </AppButton>
+      </div>
+      <label className="drawing-tool-controls__style">
+        <span className="drawing-tool-controls__label">Color</span>
+        <input
+          className="drawing-tool-controls__color"
+          type="color"
+          value={strokeColor}
+          onChange={(event) => onStrokeColorChange(event.target.value)}
+        />
+      </label>
+    </div>
   );
 }
 
@@ -220,12 +275,14 @@ function areRenderHintsEqual(left, right) {
     return false;
   }
 
-  return left.previewTier === right.previewTier
+  return left.lodLevel === right.lodLevel
+    && left.previewTier === right.previewTier
     && left.simplify === right.simplify
     && left.imageEnabled === right.imageEnabled
     && left.showToolbar === right.showToolbar
     && left.showActions === right.showActions
-    && left.disableImageReveal === right.disableImageReveal;
+    && left.disableImageReveal === right.disableImageReveal
+    && left.usePreviewColorBlock === right.usePreviewColorBlock;
 }
 
 function CanvasPerformanceOverlay({
@@ -234,6 +291,8 @@ function CanvasPerformanceOverlay({
   totalTileCount,
   activeDragLayers,
   isCanvasMoving,
+  workspaceLodLevel,
+  lodLevelCounts,
   previewTierCounts,
 }) {
   const { toast } = useToast();
@@ -328,7 +387,9 @@ function CanvasPerformanceOverlay({
     `Save: ${roundMetric(snapshot.latestSaveMs)} ms`,
     `Serialize: ${roundMetric(snapshot.latestSerializeMs)} ms`,
     `Commit: ${roundMetric(snapshot.latestCommitMs)} ms`,
-    `LOD: t${previewTierCounts.thumbnail} m${previewTierCounts.medium} h${previewTierCounts.high} o${previewTierCounts.original}`,
+    `LOD mode: ${workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR ? "1 (far)" : "0 (normal)"}`,
+    `LOD tiles: 0=${lodLevelCounts.lod0} 1=${lodLevelCounts.lod1}`,
+    `Preview tiers: t${previewTierCounts.thumbnail} m${previewTierCounts.medium} h${previewTierCounts.high} o${previewTierCounts.original}`,
     `State: ${isCanvasMoving ? "moving" : "idle"}`,
   ].join("\n"), [
     activeDragLayers,
@@ -345,6 +406,9 @@ function CanvasPerformanceOverlay({
     snapshot.pointerMaxMs,
     totalTileCount,
     renderedTileCount,
+    workspaceLodLevel,
+    lodLevelCounts.lod0,
+    lodLevelCounts.lod1,
     previewTierCounts.high,
     previewTierCounts.medium,
     previewTierCounts.original,
@@ -409,7 +473,9 @@ function CanvasPerformanceOverlay({
         <span>Save {roundMetric(snapshot.latestSaveMs)} ms</span>
         <span>Serialize {roundMetric(snapshot.latestSerializeMs)} ms</span>
         <span>Commit {roundMetric(snapshot.latestCommitMs)} ms</span>
-        <span>LOD t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
+        <span>LOD mode {workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR ? "1 far" : "0 normal"}</span>
+        <span>LOD tiles 0:{lodLevelCounts.lod0} 1:{lodLevelCounts.lod1}</span>
+        <span>Preview t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
         <span>State {isCanvasMoving ? "moving" : "idle"}</span>
       </div>
     </div>
@@ -423,6 +489,7 @@ export default function CanvasWorkspaceView() {
   const tileRenderHintCacheRef = useRef(new Map());
   const lodFrozenZoomRef = useRef(1);
   const lodFreezeActiveRef = useRef(false);
+  const workspaceLodLevelRef = useRef(WORKSPACE_LOD_LEVEL.NORMAL);
   const {
     canRedo,
     canUndo,
@@ -470,6 +537,14 @@ export default function CanvasWorkspaceView() {
     onViewportChange: setViewport,
   });
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
+  const drawingTool = useDrawingTool({
+    drawings: workspace.drawings,
+    canvas,
+    commitWorkspaceChange,
+    enabled: !isGridMode && !isGlobeMode,
+  });
+  const clearDraftLine = drawingTool.clearDraftLine;
+  const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
 
   const commands = useCanvasCommands({
     folderPath,
@@ -505,7 +580,7 @@ export default function CanvasWorkspaceView() {
     resetKey: folderPath,
     snapSettings,
     viewportZoom: canvas.getViewportSnapshot().zoom,
-    suppressHoverUpdates: cameraIsMoving,
+    suppressHoverUpdates: cameraIsMoving || drawingTool.isLineToolActive,
   });
   const resetTransientState = interactions.resetTransientState;
 
@@ -636,6 +711,39 @@ export default function CanvasWorkspaceView() {
     lodFrozenZoomRef.current = liveViewport.zoom;
     return liveViewport.zoom;
   }, [isCanvasMoving, liveViewport.zoom]);
+  const interactionOverlayTileIdSet = useMemo(() => new Set([
+    ...interactions.selectedTileIds,
+    ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
+    ...interactions.draggingTileIds,
+  ]), [
+    interactions.draggingTileIds,
+    interactions.focusedTileId,
+    interactions.selectedTileIds,
+  ]);
+  const workspaceLodLevel = useMemo(() => {
+    if (isGridMode || isGlobeMode) {
+      return WORKSPACE_LOD_LEVEL.NORMAL;
+    }
+
+    const visibleCount = layout.visibleTileCount ?? layout.rootTiles.length;
+    return resolveWorkspaceLodLevel({
+      viewportZoom: viewportZoomForRender,
+      visibleTileCount: visibleCount,
+      previousLevel: workspaceLodLevelRef.current,
+    });
+  }, [
+    isGlobeMode,
+    isGridMode,
+    layout.rootTiles.length,
+    layout.visibleTileCount,
+    viewportZoomForRender,
+  ]);
+
+  useEffect(() => {
+    workspaceLodLevelRef.current = workspaceLodLevel;
+  }, [workspaceLodLevel]);
+
+  const useSceneSurface = sceneSurfaceEnabled && workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR;
   const stableTileMetaById = useMemo(() => {
     const previousCache = tileMetaCacheRef.current;
     const nextCache = new Map();
@@ -656,7 +764,6 @@ export default function CanvasWorkspaceView() {
     return nextTileMetaById;
   }, [layout.rootTiles, layout.tileMetaById]);
   const tileRenderHintsById = useMemo(() => {
-    const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
     const previousCache = tileRenderHintCacheRef.current;
     const nextCache = new Map();
     const nextHints = {};
@@ -664,12 +771,8 @@ export default function CanvasWorkspaceView() {
     layout.rootTiles.forEach((tile) => {
       const previousHint = previousCache.get(tile.id) ?? null;
       const nextHint = buildTileRenderHint({
-        tile,
-        tileMeta: stableTileMetaById[tile.id],
-        viewportZoom: viewportZoomForRender,
-        isCanvasMoving,
-        devicePixelRatio: dpr,
-        previousHint,
+        lodLevel: workspaceLodLevel,
+        forceFullFidelity: interactionOverlayTileIdSet.has(tile.id),
       });
       const stableHint = previousHint && areRenderHintsEqual(previousHint, nextHint)
         ? previousHint
@@ -681,7 +784,7 @@ export default function CanvasWorkspaceView() {
 
     tileRenderHintCacheRef.current = nextCache;
     return nextHints;
-  }, [isCanvasMoving, layout.rootTiles, stableTileMetaById, viewportZoomForRender]);
+  }, [interactionOverlayTileIdSet, layout.rootTiles, workspaceLodLevel]);
   const previewTierCounts = useMemo(() => {
     return layout.rootTiles.reduce((counts, tile) => {
       const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";
@@ -699,35 +802,35 @@ export default function CanvasWorkspaceView() {
       original: 0,
     });
   }, [layout.rootTiles, tileRenderHintsById]);
-  const overlayTileIdSet = useMemo(() => {
-    if (!sceneSurfaceEnabled || isGlobeMode) {
-      return new Set();
-    }
+  const lodLevelCounts = useMemo(() => (
+    layout.rootTiles.reduce((counts, tile) => {
+      const level = tileRenderHintsById[tile.id]?.lodLevel ?? WORKSPACE_LOD_LEVEL.NORMAL;
 
-    const nextSet = new Set([
-      ...interactions.selectedTileIds,
-      ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
-      ...interactions.draggingTileIds,
-    ]);
+      if (level === WORKSPACE_LOD_LEVEL.FAR) {
+        counts.lod1 += 1;
+      } else {
+        counts.lod0 += 1;
+      }
 
-    return nextSet;
-  }, [
-    interactions.draggingTileIds,
-    interactions.focusedTileId,
-    interactions.selectedTileIds,
-    isGlobeMode,
-    sceneSurfaceEnabled,
-  ]);
+      return counts;
+    }, {
+      lod0: 0,
+      lod1: 0,
+    })
+  ), [layout.rootTiles, tileRenderHintsById]);
+  const overlayTileIdSet = useMemo(() => (
+    useSceneSurface ? interactionOverlayTileIdSet : new Set()
+  ), [interactionOverlayTileIdSet, useSceneSurface]);
   const sceneTiles = useMemo(() => (
-    sceneSurfaceEnabled
+    useSceneSurface
       ? layout.rootTiles.filter((tile) => !overlayTileIdSet.has(tile.id))
       : layout.rootTiles
-  ), [layout.rootTiles, overlayTileIdSet, sceneSurfaceEnabled]);
+  ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
   const overlayTiles = useMemo(() => (
-    sceneSurfaceEnabled
+    useSceneSurface
       ? layout.rootTiles.filter((tile) => overlayTileIdSet.has(tile.id))
       : layout.rootTiles
-  ), [layout.rootTiles, overlayTileIdSet, sceneSurfaceEnabled]);
+  ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
 
   const handleSceneTilePressStart = useCallback((tile, event) => (
     interactions.handleTilePressStart(tile, event)
@@ -868,10 +971,17 @@ export default function CanvasWorkspaceView() {
       const activeElement = document.activeElement;
       const activeElementIsEditable = isEditableElement(activeElement);
 
-      if (event.key === "Escape" && interactions.contextMenu) {
-        event.preventDefault();
-        interactions.closeContextMenu();
-        return;
+      if (event.key === "Escape") {
+        if (clearDraftLine()) {
+          event.preventDefault();
+          return;
+        }
+
+        if (interactions.contextMenu) {
+          event.preventDefault();
+          interactions.closeContextMenu();
+          return;
+        }
       }
 
       if (activeElementIsEditable) return;
@@ -910,11 +1020,19 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
-      if (event.key === "Delete" && !activeElementIsEditable && interactions.selectedTileIds.length > 0) {
-        event.preventDefault();
-        commands.deleteTiles(interactions.selectedTileIds);
-        interactions.closeContextMenu();
-        return;
+      if (event.key === "Delete" && !activeElementIsEditable) {
+        if (deleteSelectedDrawingObject()) {
+          event.preventDefault();
+          interactions.closeContextMenu();
+          return;
+        }
+
+        if (interactions.selectedTileIds.length > 0) {
+          event.preventDefault();
+          commands.deleteTiles(interactions.selectedTileIds);
+          interactions.closeContextMenu();
+          return;
+        }
       }
 
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
@@ -969,6 +1087,8 @@ export default function CanvasWorkspaceView() {
     handleGlobeZoomToFitAll,
     interactions,
     isGlobeMode,
+    clearDraftLine,
+    deleteSelectedDrawingObject,
     redoWorkspaceChange,
     copySelectedBookmarkLink,
     tileById,
@@ -985,11 +1105,13 @@ export default function CanvasWorkspaceView() {
   const canvasName = currentEditor.name || "Canvas";
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: isCanvasMoving,
-    sceneSurfaceEnabled,
-  }), [isCanvasMoving, sceneSurfaceEnabled]);
+    sceneSurfaceEnabled: useSceneSurface,
+    workspaceLodLevel,
+  }), [isCanvasMoving, useSceneSurface, workspaceLodLevel]);
 
   const boardSnapshot = useMemo(() => ({
-    surfaceRenderer: sceneSurfaceEnabled ? "scene" : "dom",
+    surfaceRenderer: useSceneSurface ? "scene" : "dom",
+    workspaceLodLevel,
     viewMode: workspaceView.mode,
     viewport: `${Math.round(liveViewport.x)}:${Math.round(liveViewport.y)}:${liveViewport.zoom.toFixed(2)}`,
     cardCount: workspace.cards.length,
@@ -1031,7 +1153,8 @@ export default function CanvasWorkspaceView() {
     visibleTileCount,
     workspaceView.cameraDistance,
     workspaceView.mode,
-    sceneSurfaceEnabled,
+    useSceneSurface,
+    workspaceLodLevel,
     workspace.cards.length,
   ]);
 
@@ -1052,17 +1175,21 @@ export default function CanvasWorkspaceView() {
       totalTileCount,
       activeDragLayers: interactions.draggingTileIds.length,
       previewTierCounts,
+      lodLevelCounts,
       perfMode: performanceMode,
-      surfaceRenderer: sceneSurfaceEnabled ? "scene" : "dom",
+      surfaceRenderer: useSceneSurface ? "scene" : "dom",
+      workspaceLodLevel,
     });
   }, [
     interactions.draggingTileIds.length,
+    lodLevelCounts,
     performanceMode,
     previewTierCounts,
     renderedTileCount,
-    sceneSurfaceEnabled,
+    useSceneSurface,
     totalTileCount,
     visibleTileCount,
+    workspaceLodLevel,
   ]);
 
   const toggleCanvasSnapping = useCallback(() => {
@@ -1264,6 +1391,14 @@ export default function CanvasWorkspaceView() {
       </div>
       <div className="canvas-stage__bottom-controls">
         <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+        {!isGlobeMode ? (
+          <DrawingToolControls
+            activeTool={drawingTool.activeTool}
+            strokeColor={drawingTool.strokeColor}
+            onToolChange={drawingTool.handleToolModeChange}
+            onStrokeColorChange={drawingTool.setStrokeColor}
+          />
+        ) : null}
       </div>
 
       {/* ── Top bar ── */}
@@ -1286,13 +1421,13 @@ export default function CanvasWorkspaceView() {
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
       onPointerDown={(event) => {
-          if (isGlobeMode || sceneSurfaceEnabled) {
+          if (isGlobeMode || useSceneSurface) {
             return;
           }
 
           interactions.handleCanvasPointerDown(event);
         }}
-        onContextMenu={isGlobeMode || sceneSurfaceEnabled ? undefined : interactions.handleCanvasContextMenu}
+        onContextMenu={isGlobeMode || useSceneSurface ? undefined : interactions.handleCanvasContextMenu}
         onClick={(event) => {
           if (isGlobeMode) {
             if (!isEditableElement(event.target)) {
@@ -1321,7 +1456,8 @@ export default function CanvasWorkspaceView() {
             />
         ) : (
           <>
-            {sceneSurfaceEnabled ? (
+            <div ref={canvas.gridRef} className="canvas__grid" />
+            {useSceneSurface ? (
               <SceneWorkspaceSurface
                 folderPath={folderPath}
                 tiles={sceneTiles}
@@ -1337,14 +1473,27 @@ export default function CanvasWorkspaceView() {
                 onBackgroundPointerDown={handleSceneBackgroundPointerDown}
                 onBackgroundContextMenu={handleSceneBackgroundContextMenu}
               />
-            ) : (
-              <div ref={canvas.gridRef} className="canvas__grid" />
-            )}
+            ) : null}
+            <DrawingLayer
+              drawings={drawingTool.drawings}
+              draftLine={drawingTool.draftLine}
+              selectedObjectId={drawingTool.selectedObjectId}
+              activeTool={drawingTool.activeTool}
+              isSpacePanning={drawingTool.isSpacePanning}
+              getViewportSnapshot={canvas.getViewportSnapshot}
+              subscribeViewportTransform={canvas.subscribeViewportTransform}
+              onSelectObject={drawingTool.handleSelectObject}
+              onStagePointerDown={drawingTool.handleStagePointerDown}
+              onStagePointerMove={drawingTool.handleStagePointerMove}
+              onStagePointerUp={drawingTool.handleStagePointerUp}
+              onStagePointerCancel={drawingTool.handleStagePointerCancel}
+              onStageContextMenu={drawingTool.handleStageContextMenu}
+            />
             <div
               ref={canvas.contentRef}
-              className={`canvas__content${sceneSurfaceEnabled ? " canvas__content--overlay" : ""}`}
+              className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
             >
-              {(sceneSurfaceEnabled ? overlayTiles : layout.rootTiles).map((card) => (
+              {(useSceneSurface ? overlayTiles : layout.rootTiles).map((card) => (
                 <Card
                   key={card.id}
                   card={card}
@@ -1381,6 +1530,8 @@ export default function CanvasWorkspaceView() {
             totalTileCount={totalTileCount}
             activeDragLayers={interactions.draggingTileIds.length}
             isCanvasMoving={isCanvasMoving}
+            workspaceLodLevel={workspaceLodLevel}
+            lodLevelCounts={lodLevelCounts}
             previewTierCounts={previewTierCounts}
           />
         ) : null}
