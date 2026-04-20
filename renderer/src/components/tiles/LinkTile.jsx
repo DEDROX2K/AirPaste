@@ -35,6 +35,19 @@ function resolveIconPath(relativePath) {
   return `${import.meta.env.BASE_URL}${relativePath}`;
 }
 
+const VIDEO_PREVIEW_DEBUG_ENABLED = (
+  String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
+  || (typeof window !== "undefined" && window.__AIRPASTE_PREVIEW_DEBUG === true)
+);
+
+function logVideoPreviewDebug(event, payload = {}) {
+  if (!VIDEO_PREVIEW_DEBUG_ENABLED) {
+    return;
+  }
+
+  console.debug(`[tile:video] ${event}`, payload);
+}
+
 function stopTileActionEvent(event) {
   event.preventDefault();
   event.stopPropagation();
@@ -86,6 +99,7 @@ function LinkTile({
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
+  const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isVideoCard = card.contentType === "video";
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
@@ -104,7 +118,26 @@ function LinkTile({
     devicePixelRatio: typeof window !== "undefined" ? window.devicePixelRatio : 1,
   });
   const mediaSrc = isImageTile ? (previewSource || card.image) : previewSource;
-  const shouldRenderImage = Boolean(mediaSrc) && !hasImageError && renderHint?.imageEnabled !== false;
+  const videoCandidateUrls = useMemo(() => {
+    if (!isVideoCard) {
+      return [];
+    }
+
+    const diagnosticsCandidates = Array.isArray(card?.previewDiagnostics?.candidateImageUrls)
+      ? card.previewDiagnostics.candidateImageUrls
+      : [];
+
+    return [...new Set(
+      [card.image, ...diagnosticsCandidates]
+        .filter((candidate) => typeof candidate === "string")
+        .map((candidate) => candidate.trim())
+        .filter((candidate) => candidate.length > 0),
+    )];
+  }, [card.image, card.previewDiagnostics?.candidateImageUrls, isVideoCard]);
+  const activeVideoImageSrc = isVideoCard
+    ? (videoCandidateUrls[videoImageIndex] || mediaSrc)
+    : mediaSrc;
+  const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
   const previewFallbackReason = hasImageError
     ? "The preview image failed to load."
@@ -153,7 +186,32 @@ function LinkTile({
     setHasImageError(false);
     setHasLoadedImage(false);
     setLoadedVideoAspectRatio(null);
+    setVideoImageIndex(0);
   }, [card.id, card.image, previewSource]);
+
+  useEffect(() => {
+    if (!isVideoCard) {
+      return;
+    }
+
+    logVideoPreviewDebug("candidates", {
+      cardId: card.id,
+      status: card.status,
+      sourceType: card.sourceType,
+      chosenIndex: videoImageIndex,
+      candidateCount: videoCandidateUrls.length,
+      candidates: videoCandidateUrls,
+      diagnostics: card.previewDiagnostics?.trace?.slice(-4) ?? [],
+    });
+  }, [
+    card.id,
+    card.previewDiagnostics?.trace,
+    card.sourceType,
+    card.status,
+    isVideoCard,
+    videoCandidateUrls,
+    videoImageIndex,
+  ]);
 
   useEffect(() => {
     recordPreviewTierSelection(card.id, previewTier);
@@ -179,11 +237,21 @@ function LinkTile({
       renderedWidth,
       renderedHeight,
       oversizeRatio,
-      src: mediaSrc,
+      src: activeVideoImageSrc,
     });
 
     if (isVideoCard && Number.isFinite(naturalWidth) && Number.isFinite(naturalHeight) && naturalWidth > 0 && naturalHeight > 0) {
       setLoadedVideoAspectRatio(naturalWidth / naturalHeight);
+    }
+
+    if (isVideoCard) {
+      logVideoPreviewDebug("image-load", {
+        cardId: card.id,
+        imageIndex: videoImageIndex,
+        src: activeVideoImageSrc,
+        naturalWidth,
+        naturalHeight,
+      });
     }
 
     onMediaLoad?.(card, naturalWidth, naturalHeight);
@@ -237,12 +305,34 @@ function LinkTile({
                 {shouldRenderImage ? (
                   <TileImageReveal
                     className="card__image card__image--video"
-                    src={mediaSrc}
+                    src={activeVideoImageSrc}
                     alt={linkTitle}
                     enableReveal={enableReveal}
                     onError={() => {
+                      logVideoPreviewDebug("image-error", {
+                        cardId: card.id,
+                        imageIndex: videoImageIndex,
+                        currentSrc: activeVideoImageSrc,
+                        hasLoadedImage,
+                        candidateCount: videoCandidateUrls.length,
+                      });
+                      if (!hasLoadedImage && videoImageIndex < videoCandidateUrls.length - 1) {
+                        setVideoImageIndex((currentIndex) => Math.min(currentIndex + 1, videoCandidateUrls.length - 1));
+                        logVideoPreviewDebug("candidate-fallback", {
+                          cardId: card.id,
+                          fromIndex: videoImageIndex,
+                          toIndex: Math.min(videoImageIndex + 1, videoCandidateUrls.length - 1),
+                        });
+                        return;
+                      }
+
                       if (!hasLoadedImage) {
                         setHasImageError(true);
+                        logVideoPreviewDebug("image-failed-terminal", {
+                          cardId: card.id,
+                          currentSrc: activeVideoImageSrc,
+                          previewError: card.previewError,
+                        });
                       }
                     }}
                     onLoad={handleMediaLoad}

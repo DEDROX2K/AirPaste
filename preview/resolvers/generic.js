@@ -219,7 +219,6 @@ function upgradeArtworkUrl(url) {
     }
   }
 
-  nextUrl = nextUrl.replace(/\/(?:hqdefault|mqdefault|sddefault)\.jpg(?=$|[?#])/i, "/maxresdefault.jpg");
   return nextUrl;
 }
 
@@ -239,7 +238,18 @@ function expandCandidateUrl(url) {
     return uniqueValues([upgradedUrl, normalizedUrl]);
   }
 
-  return [upgradeArtworkUrl(normalizedUrl)];
+  const upgradedUrl = upgradeArtworkUrl(normalizedUrl);
+
+  if (/i\.ytimg\.com\/vi\//i.test(normalizedUrl)) {
+    const maxresUrl = normalizedUrl.replace(/\/(?:hqdefault|mqdefault|sddefault)\.jpg(?=$|[?#])/i, "/maxresdefault.jpg");
+    return uniqueValues([
+      normalizedUrl,
+      maxresUrl,
+      upgradedUrl,
+    ]);
+  }
+
+  return uniqueValues([upgradedUrl, normalizedUrl]);
 }
 
 function isLikelyPreviewImageUrl(url) {

@@ -72,11 +72,28 @@ function resolveRejectionReason({ urlPattern, rejectionPattern, rejectImage, low
   return PREVIEW_REJECTION_REASON.UNKNOWN;
 }
 
-function isRejectedPreviewImageUrl(url) {
+function isTrustedVideoThumbnailUrl(url) {
+  const normalizedUrl = String(url ?? "").toLowerCase();
+
+  if (!normalizedUrl) {
+    return false;
+  }
+
+  return normalizedUrl.includes("i.ytimg.com/")
+    || normalizedUrl.includes("img.youtube.com/")
+    || normalizedUrl.includes("i.vimeocdn.com/")
+    || normalizedUrl.includes("vumbnail.com/");
+}
+
+function isRejectedPreviewImageUrl(url, result = null) {
   const normalizedUrl = String(url ?? "").toLowerCase();
 
   if (!normalizedUrl) {
     return true;
+  }
+
+  if (result?.contentType === "video" && isTrustedVideoThumbnailUrl(normalizedUrl)) {
+    return false;
   }
 
   return PREVIEW_IMAGE_REJECTION_PATTERNS.some((pattern) => normalizedUrl.includes(pattern))
@@ -101,7 +118,7 @@ function validateResolvedPreview(result, documentSignals = {}) {
     || normalizedBodyText.includes(pattern)
   ));
   const urlPattern = PREVIEW_URL_REJECTION_PATTERNS.find((pattern) => normalizedFinalUrl.includes(pattern));
-  const rejectImage = isRejectedPreviewImageUrl(result.image || result.candidateImageUrls?.[0] || "");
+  const rejectImage = isRejectedPreviewImageUrl(result.image || result.candidateImageUrls?.[0] || "", result);
   const genericTitle = looksLikeGenericTitle(result.title || documentSignals.pageTitle, result.canonicalUrl, result.siteName);
   const lowInformationDescription = looksLikeLowInformationDescription(result.description);
   const rejectionReason = resolveRejectionReason({

@@ -2164,6 +2164,43 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   return nextCard;
 }
 
+async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error) {
+  const workspace = await workspaceService.readWorkspaceDocument(folderPath);
+  let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
+
+  if (cardIndex === -1 && cardSnapshot) {
+    const placeholderCard = normalizeCard(cardSnapshot, workspace.cards.length);
+    workspace.cards.push(placeholderCard);
+    cardIndex = workspace.cards.length - 1;
+  }
+
+  if (cardIndex === -1) {
+    return null;
+  }
+
+  const currentCard = workspace.cards[cardIndex];
+  const failureMessage = error?.message || "Preview resolution failed";
+  const nextCard = normalizeCard({
+    ...currentCard,
+    status: "failed",
+    previewStatus: "error",
+    previewError: failureMessage,
+    updatedAt: nowIso(),
+  });
+
+  workspace.cards.splice(cardIndex, 1, nextCard);
+  await workspaceService.saveWorkspace(folderPath, workspace);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("airpaste:previewUpdated", {
+      folderPath,
+      card: nextCard,
+    });
+  }
+
+  return nextCard;
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -2445,7 +2482,26 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
     folderPath,
     () => updateCardPreview(folderPath, cardId, url, cardSnapshot),
   )
-    .catch(() => null)
+    .catch(async (error) => {
+      console.error("[preview] queued-job-error", {
+        folderPath,
+        cardId,
+        url,
+        message: error?.message || "Preview resolution failed",
+      });
+
+      try {
+        await markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error);
+      } catch (secondaryError) {
+        console.error("[preview] queued-job-error:failure-state-write-failed", {
+          folderPath,
+          cardId,
+          message: secondaryError?.message || "Unable to persist preview failure",
+        });
+      }
+
+      return null;
+    })
     .finally(() => {
       previewJobs.delete(jobKey);
     });

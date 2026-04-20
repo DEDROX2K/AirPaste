@@ -24,12 +24,26 @@ const {
 } = require("./resolvers/providers");
 const { firstString, getHostname, normalizeExternalUrl } = require("./utils");
 
+const PREVIEW_DEBUG_ENABLED = String(process.env.AIRPASTE_PREVIEW_DEBUG ?? "").trim() === "1";
+
 function logPreviewDebug(event, payload) {
-  if (process.env.NODE_ENV === "production") {
+  if (!PREVIEW_DEBUG_ENABLED) {
     return;
   }
 
   console.debug(`[preview] ${event}`, payload);
+}
+
+function logTraceStep(step, status, detail = {}) {
+  logPreviewDebug("trace-step", {
+    step,
+    status,
+    ...detail,
+  });
+}
+
+function logPreviewSummary(event, payload) {
+  console.info(`[preview] ${event}`, payload);
 }
 
 async function selectResolver(classification, url) {
@@ -231,8 +245,12 @@ async function applyImageAcquisition(result, validation) {
   });
 
   if (acquisition.image) {
+    const preferRemoteVideoThumbnail = result.contentType === "video"
+      && typeof acquisition.chosenImageUrl === "string"
+      && acquisition.chosenImageUrl.trim().length > 0;
+
     return {
-      image: acquisition.image,
+      image: preferRemoteVideoThumbnail ? acquisition.chosenImageUrl : acquisition.image,
       chosenImageUrl: acquisition.chosenImageUrl,
       attemptedCandidateUrls: acquisition.attemptedCandidateUrls,
       screenshotFallbackUsed: false,
@@ -328,6 +346,7 @@ async function resolveUrlToPreview(url) {
       status,
       ...detail,
     });
+    logTraceStep(step, status, detail);
   };
 
   if (!normalizedUrl) {
@@ -405,6 +424,13 @@ async function resolveUrlToPreview(url) {
       finalStatus,
       hasImage: Boolean(imageAcquisition.image),
     });
+    logPreviewSummary("pipeline-complete", {
+      url: normalizedUrl,
+      status: finalStatus,
+      contentType: result.contentType || classification.contentType || "link",
+      sourceType: result.sourceType || classification.sourceType || "generic-link",
+      chosenImageUrl: diagnostics.chosenFinalImageUrl || "",
+    });
 
     return createResolvedPreviewResult({
       ...result,
@@ -437,6 +463,10 @@ async function resolveUrlToPreview(url) {
   } catch (error) {
     const classification = classifyPreviewTarget(normalizedUrl);
     traceStep("resolve", "error", {
+      message: error?.message || "Preview resolution failed",
+    });
+    logPreviewSummary("pipeline-error", {
+      url: normalizedUrl,
       message: error?.message || "Preview resolution failed",
     });
     const diagnostics = buildPreviewDiagnostics({
