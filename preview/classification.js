@@ -13,6 +13,60 @@ function isYouTubeHost(url) {
   return /(?:^|\.)youtube\.com$/i.test(getUrlHostname(url)) || /(?:^|\.)youtu\.be$/i.test(getUrlHostname(url));
 }
 
+function isVimeoHost(url) {
+  return /(?:^|\.)vimeo\.com$/i.test(getUrlHostname(url));
+}
+
+function isYouTubeWatchUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    return hostname.endsWith("youtube.com") && parsedUrl.pathname === "/watch" && Boolean(parsedUrl.searchParams.get("v"));
+  } catch {
+    return false;
+  }
+}
+
+function isYouTubeShortUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    return hostname.endsWith("youtube.com") && /^\/shorts\/[^/]+/i.test(parsedUrl.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isYouTubeShortHostUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname.toLowerCase() === "youtu.be" && parsedUrl.pathname.length > 1;
+  } catch {
+    return false;
+  }
+}
+
+const VIDEO_GENERIC_HOST_PATTERNS = Object.freeze([
+  /(?:^|\.)dailymotion\.com$/i,
+  /(?:^|\.)tiktok\.com$/i,
+  /(?:^|\.)vm\.tiktok\.com$/i,
+  /(?:^|\.)twitch\.tv$/i,
+  /(?:^|\.)clips\.twitch\.tv$/i,
+  /(?:^|\.)streamable\.com$/i,
+  /(?:^|\.)loom\.com$/i,
+  /(?:^|\.)wistia\.(?:com|net)$/i,
+  /(?:^|\.)vidyard\.com$/i,
+  /(?:^|\.)jwplayer\.com$/i,
+  /(?:^|\.)rumble\.com$/i,
+  /(?:^|\.)brightcove\.com$/i,
+  /(?:^|\.)kick\.com$/i,
+]);
+
+function isGenericVideoHost(url) {
+  const hostname = getUrlHostname(url);
+  return VIDEO_GENERIC_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
+}
+
 function isTwitterHost(url) {
   return /(?:^|\.)x\.com$/i.test(getUrlHostname(url)) || /(?:^|\.)twitter\.com$/i.test(getUrlHostname(url));
 }
@@ -99,11 +153,33 @@ function classifyPreviewTarget(url) {
     };
   }
 
-  if (isYouTubeHost(url)) {
+  if (isYouTubeShortUrl(url)) {
+    return {
+      classification: "youtube-shorts-video",
+      resolverKey: "youtube-shorts",
+      resolvedKind: PREVIEW_KIND.YOUTUBE_VIDEO,
+      contentType: "video",
+      sourceType: "youtube-shorts",
+    };
+  }
+
+  if (isYouTubeWatchUrl(url) || isYouTubeShortHostUrl(url)) {
     return {
       classification: "youtube-video",
       resolverKey: "youtube",
       resolvedKind: PREVIEW_KIND.YOUTUBE_VIDEO,
+      contentType: "video",
+      sourceType: "youtube",
+    };
+  }
+
+  if (isVimeoHost(url)) {
+    return {
+      classification: "vimeo-video",
+      resolverKey: "vimeo",
+      resolvedKind: PREVIEW_KIND.VIMEO_VIDEO,
+      contentType: "video",
+      sourceType: "vimeo",
     };
   }
 
@@ -124,6 +200,16 @@ function classifyPreviewTarget(url) {
     };
   }
 
+  if (isGenericVideoHost(url)) {
+    return {
+      classification: "generic-video",
+      resolverKey: "video-generic",
+      resolvedKind: PREVIEW_KIND.VIDEO_GENERIC,
+      contentType: "video",
+      sourceType: "video-generic",
+    };
+  }
+
   return {
     classification: "generic-webpage",
     resolverKey: "generic",
@@ -138,5 +224,6 @@ module.exports = {
   extractPinterestPinId,
   isPinterestHost,
   isTwitterHost,
+  isVimeoHost,
   isYouTubeHost,
 };

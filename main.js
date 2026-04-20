@@ -389,6 +389,16 @@ function normalizeCard(card, index = 0) {
     image: isLinkLikeCard ? String(card?.image ?? "") : "",
     favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
+    resolvedUrl: isLinkLikeCard ? String(card?.resolvedUrl ?? card?.url ?? "") : "",
+    previewStatus: isLinkLikeCard ? String(card?.previewStatus ?? card?.status ?? "") : "",
+    contentType: isLinkLikeCard ? String(card?.contentType ?? "link") : "",
+    sourceType: isLinkLikeCard ? String(card?.sourceType ?? "generic-link") : "",
+    duration: isLinkLikeCard && Number.isFinite(card?.duration) ? Math.max(0, Math.round(card.duration)) : null,
+    author: isLinkLikeCard ? String(card?.author ?? "") : "",
+    channelName: isLinkLikeCard ? String(card?.channelName ?? "") : "",
+    mediaAspectRatio: isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
+      ? Number(card.mediaAspectRatio)
+      : null,
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
     status: isLinkLikeCard && PREVIEW_STATE_VALUES.includes(card?.status)

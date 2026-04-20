@@ -29,6 +29,8 @@ const PREVIEW_KIND = Object.freeze({
   GITHUB_REPO: "github-repo",
   PINTEREST_PIN: "pinterest-pin",
   YOUTUBE_VIDEO: "youtube-video",
+  VIMEO_VIDEO: "vimeo-video",
+  VIDEO_GENERIC: "video-generic",
   IMAGE: "image",
   X_POST: "x-post",
   FALLBACK_LINK: "fallback-link",

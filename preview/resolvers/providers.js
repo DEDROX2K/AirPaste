@@ -6,35 +6,6 @@ function isSpotifyHost(url) {
   return /(?:^|\.)spotify(?:\.com|\.link)$/i.test(getUrlHostname(url));
 }
 
-function parseYouTubeVideoId(url) {
-  try {
-    const parsedUrl = new URL(url);
-    const hostname = parsedUrl.hostname.toLowerCase();
-
-    if (hostname === "youtu.be") {
-      return parsedUrl.pathname.slice(1);
-    }
-
-    if (!hostname.endsWith("youtube.com")) {
-      return "";
-    }
-
-    if (parsedUrl.pathname === "/watch") {
-      return parsedUrl.searchParams.get("v") ?? "";
-    }
-
-    const segments = parsedUrl.pathname.split("/").filter(Boolean);
-
-    if (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live") {
-      return segments[1] ?? "";
-    }
-
-    return "";
-  } catch {
-    return "";
-  }
-}
-
 function parseTweetIdentity(url) {
   try {
     const parsedUrl = new URL(url);
@@ -127,30 +98,6 @@ async function resolveSpotifyPreview(url, fetchJson) {
   });
 }
 
-async function resolveYouTubePreview(url) {
-  const videoId = parseYouTubeVideoId(url);
-
-  if (!videoId) {
-    return null;
-  }
-
-  return createResolvedPreviewResult({
-    kind: PREVIEW_KIND.YOUTUBE_VIDEO,
-    confidence: PREVIEW_CONFIDENCE.HIGH,
-    status: PREVIEW_STATUS.READY,
-    canonicalUrl: url,
-    siteName: "YouTube",
-    candidateImageUrls: [
-      `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
-      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-    ],
-    allowScreenshotFallback: false,
-    metadata: {
-      videoId,
-    },
-  });
-}
-
 async function resolveXPreview(url, fetchJson) {
   const identity = parseTweetIdentity(url);
 
@@ -195,5 +142,4 @@ module.exports = {
   resolveDirectImagePreview,
   resolveSpotifyPreview,
   resolveXPreview,
-  resolveYouTubePreview,
 };

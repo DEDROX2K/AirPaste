@@ -290,6 +290,16 @@ export function normalizeCard(card, fallbackIndex = 0) {
     image: isLinkLikeCard ? String(card?.image ?? "") : "",
     favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
+    resolvedUrl: isLinkLikeCard ? String(card?.resolvedUrl ?? card?.url ?? "") : "",
+    previewStatus: isLinkLikeCard ? String(card?.previewStatus ?? card?.status ?? "") : "",
+    contentType: isLinkLikeCard ? String(card?.contentType ?? "link") : "",
+    sourceType: isLinkLikeCard ? String(card?.sourceType ?? "generic-link") : "",
+    duration: isLinkLikeCard && Number.isFinite(card?.duration) ? Math.max(0, Math.round(card.duration)) : null,
+    author: isLinkLikeCard ? String(card?.author ?? "") : "",
+    channelName: isLinkLikeCard ? String(card?.channelName ?? "") : "",
+    mediaAspectRatio: isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
+      ? Number(card.mediaAspectRatio)
+      : null,
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
     status: isLinkLikeCard && LINK_PREVIEW_STATUSES.includes(card?.status)
@@ -609,6 +619,16 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     description: typeof options?.description === "string" ? options.description : "",
     image,
     favicon: typeof options?.favicon === "string" ? options.favicon : "",
+    resolvedUrl: typeof options?.resolvedUrl === "string" ? options.resolvedUrl : url,
+    previewStatus: typeof options?.previewStatus === "string" ? options.previewStatus : "",
+    contentType: typeof options?.contentType === "string" ? options.contentType : "link",
+    sourceType: typeof options?.sourceType === "string" ? options.sourceType : "generic-link",
+    duration: Number.isFinite(options?.duration) ? Math.max(0, Math.round(options.duration)) : null,
+    author: typeof options?.author === "string" ? options.author : "",
+    channelName: typeof options?.channelName === "string" ? options.channelName : "",
+    mediaAspectRatio: Number.isFinite(options?.mediaAspectRatio) && options.mediaAspectRatio > 0
+      ? Number(options.mediaAspectRatio)
+      : null,
     previewKind: options?.previewKind === "music" ? "music" : "default",
     previewError: typeof options?.previewError === "string" ? options.previewError : "",
     status: contentKind === LINK_CONTENT_KIND_IMAGE
@@ -872,6 +892,13 @@ export function createLinkPreviewRefreshPatch(card) {
     contentKind: LINK_CONTENT_KIND_BOOKMARK,
     status: "loading",
     previewKind: "default",
+    previewStatus: "",
+    contentType: "link",
+    sourceType: "generic-link",
+    duration: null,
+    author: "",
+    channelName: "",
+    mediaAspectRatio: null,
     previewError: "",
     image: "",
     productAsin: "",

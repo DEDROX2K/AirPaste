@@ -13,10 +13,14 @@ const {
 const { resolveGitHubRepoPreview } = require("./resolvers/github");
 const { resolvePinterestPinPreview } = require("./resolvers/pinterest");
 const {
+  resolveGenericVideoPreview,
+  resolveVimeoVideoPreview,
+  resolveYouTubeVideoPreview,
+} = require("./resolvers/video");
+const {
   resolveDirectImagePreview,
   resolveSpotifyPreview,
   resolveXPreview,
-  resolveYouTubePreview,
 } = require("./resolvers/providers");
 const { firstString, getHostname, normalizeExternalUrl } = require("./utils");
 
@@ -50,15 +54,119 @@ async function selectResolver(classification, url) {
     };
   }
 
-  if (classification.resolverKey === "youtube") {
-    const providerResult = await resolveYouTubePreview(url);
+  if (classification.resolverKey === "youtube" || classification.resolverKey === "youtube-shorts") {
+    const providerResult = await resolveYouTubeVideoPreview(
+      url,
+      fetchJson,
+      classification.sourceType === "youtube-shorts" ? "youtube-shorts" : "youtube",
+    );
 
     if (providerResult) {
+      logPreviewDebug("resolver-success", {
+        resolverKey: classification.resolverKey,
+        sourceType: providerResult.sourceType,
+        path: "provider-youtube",
+      });
       return {
         result: providerResult,
         documentSignals: {},
       };
     }
+
+    logPreviewDebug("resolver-fallback", {
+      resolverKey: classification.resolverKey,
+      reason: "youtube_metadata_unavailable",
+      path: "provider-youtube->generic",
+    });
+    const genericResult = await resolveGenericLinkPreview(url);
+    return {
+      result: {
+        ...genericResult.result,
+        kind: PREVIEW_KIND.YOUTUBE_VIDEO,
+        contentType: "video",
+        sourceType: classification.sourceType === "youtube-shorts" ? "youtube-shorts" : "youtube",
+        metadata: {
+          ...(genericResult.result?.metadata ?? {}),
+          fallbackPath: "provider-youtube->generic",
+          mediaAspectRatio: classification.sourceType === "youtube-shorts" ? (9 / 16) : (16 / 9),
+        },
+      },
+      documentSignals: genericResult.documentSignals,
+    };
+  }
+
+  if (classification.resolverKey === "vimeo") {
+    const providerResult = await resolveVimeoVideoPreview(url, fetchJson);
+
+    if (providerResult) {
+      logPreviewDebug("resolver-success", {
+        resolverKey: classification.resolverKey,
+        sourceType: providerResult.sourceType,
+        path: "provider-vimeo",
+      });
+      return {
+        result: providerResult,
+        documentSignals: {},
+      };
+    }
+
+    logPreviewDebug("resolver-fallback", {
+      resolverKey: classification.resolverKey,
+      reason: "vimeo_metadata_unavailable",
+      path: "provider-vimeo->generic",
+    });
+    const genericResult = await resolveGenericLinkPreview(url);
+    return {
+      result: {
+        ...genericResult.result,
+        kind: PREVIEW_KIND.VIMEO_VIDEO,
+        contentType: "video",
+        sourceType: "vimeo",
+        metadata: {
+          ...(genericResult.result?.metadata ?? {}),
+          fallbackPath: "provider-vimeo->generic",
+          mediaAspectRatio: 16 / 9,
+        },
+      },
+      documentSignals: genericResult.documentSignals,
+    };
+  }
+
+  if (classification.resolverKey === "video-generic") {
+    const providerResult = await resolveGenericVideoPreview(url, fetchJson);
+
+    if (providerResult) {
+      logPreviewDebug("resolver-success", {
+        resolverKey: classification.resolverKey,
+        sourceType: providerResult.sourceType,
+        path: "provider-noembed",
+      });
+      return {
+        result: providerResult,
+        documentSignals: {},
+      };
+    }
+
+    logPreviewDebug("resolver-fallback", {
+      resolverKey: classification.resolverKey,
+      reason: "noembed_unavailable",
+      path: "provider-noembed->generic",
+    });
+    const genericResult = await resolveGenericLinkPreview(url);
+    return {
+      result: {
+        ...genericResult.result,
+        kind: PREVIEW_KIND.VIDEO_GENERIC,
+        contentType: "video",
+        sourceType: "video-generic",
+        metadata: {
+          ...(genericResult.result?.metadata ?? {}),
+          fallbackPath: "provider-noembed->generic",
+          mediaAspectRatio: 16 / 9,
+        },
+      },
+      documentSignals: genericResult.documentSignals,
+    };
   }
 
   if (classification.resolverKey === "x") {
@@ -175,6 +283,12 @@ function buildPreviewDiagnostics({
     title: result.title || "",
     description: result.description || "",
     siteName: result.siteName || "",
+    contentType: result.contentType || "",
+    sourceType: result.sourceType || "",
+    resolvedUrl: result.resolvedUrl || result.canonicalUrl || "",
+    duration: Number.isFinite(result.duration) ? result.duration : null,
+    author: result.author || "",
+    channelName: result.channelName || "",
     candidateImageUrls: imageAcquisition?.attemptedCandidateUrls?.length
       ? imageAcquisition.attemptedCandidateUrls
       : (result.candidateImageUrls ?? []),
@@ -230,6 +344,8 @@ async function resolveUrlToPreview(url) {
     traceStep("classify", "ok", {
       resolverKey: classification.resolverKey,
       classification: classification.classification,
+      contentType: classification.contentType || "link",
+      sourceType: classification.sourceType || "generic-link",
     });
     logPreviewDebug("classification", classification);
     const { result: baseResult, documentSignals } = await selectResolver(classification, normalizedUrl);
@@ -247,6 +363,10 @@ async function resolveUrlToPreview(url) {
       kind: PREVIEW_KIND.FALLBACK_LINK,
       status: PREVIEW_STATUS.FALLBACK,
       canonicalUrl: normalizedUrl,
+    });
+    traceStep("resolve-source", "ok", {
+      contentType: result.contentType || classification.contentType || "link",
+      sourceType: result.sourceType || classification.sourceType || "generic-link",
     });
     const validation = validateResolvedPreview(result, documentSignals);
     traceStep("validate", "ok", {
@@ -295,10 +415,18 @@ async function resolveUrlToPreview(url) {
         : (validation.reason || (!imageAcquisition.image && finalStatus === PREVIEW_STATUS.FALLBACK ? "Preview image unavailable" : "")),
       rejectionReason: validation.rejectionReason || result.rejectionReason || "",
       canonicalUrl: result.canonicalUrl || normalizedUrl,
+      url: result.url || normalizedUrl,
+      resolvedUrl: result.resolvedUrl || result.canonicalUrl || normalizedUrl,
       title: title || siteName,
       description,
       image: imageAcquisition.image || "",
       siteName,
+      contentType: result.contentType || classification.contentType || "link",
+      sourceType: result.sourceType || classification.sourceType || "generic-link",
+      duration: Number.isFinite(result.duration) ? result.duration : null,
+      author: result.author || "",
+      channelName: firstString(result.channelName, result.author),
+      previewStatus: finalStatus,
       favicon: result.favicon || "",
       diagnostics,
       metadata: {
@@ -337,8 +465,13 @@ async function resolveUrlToPreview(url) {
       reason: "Preview resolution failed",
       rejectionReason: PREVIEW_REJECTION_REASON.UNKNOWN,
       canonicalUrl: normalizedUrl,
+      url: normalizedUrl,
+      resolvedUrl: normalizedUrl,
       title: getHostname(normalizedUrl),
       siteName: getHostname(normalizedUrl),
+      contentType: classification.contentType || "link",
+      sourceType: classification.sourceType || "generic-link",
+      previewStatus: PREVIEW_STATUS.ERROR,
       diagnostics,
       metadata: {
         classification: "error",

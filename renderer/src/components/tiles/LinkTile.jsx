@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   canRefreshLinkPreviewCard,
   formatCardSubtitle,
@@ -10,6 +10,11 @@ import { useToast } from "../../hooks/useToast";
 import { recordImageSample, recordPreviewTierSelection } from "../../lib/perf";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
+import {
+  formatVideoDuration,
+  getVideoTileRecipe,
+  resolveVideoAspectRatio,
+} from "./videoTileRecipe";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
 
@@ -80,9 +85,17 @@ function LinkTile({
   const { folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
+  const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
+  const isVideoCard = card.contentType === "video";
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const previewTier = renderHint?.previewTier ?? "original";
+  const videoRecipe = useMemo(() => getVideoTileRecipe(card.sourceType), [card.sourceType]);
+  const videoDurationLabel = useMemo(() => formatVideoDuration(card.duration), [card.duration]);
+  const videoAspectRatio = useMemo(
+    () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
+    [card, loadedVideoAspectRatio],
+  );
   const { src: previewSource } = useTilePreviewSource({
     card,
     folderPath,
@@ -105,6 +118,8 @@ function LinkTile({
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     isMusicCard ? "card__surface-frame--music" : "",
+    isVideoCard ? "card__surface-frame--video" : "",
+    isVideoCard ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
   ]
     .filter(Boolean)
@@ -137,6 +152,7 @@ function LinkTile({
   useEffect(() => {
     setHasImageError(false);
     setHasLoadedImage(false);
+    setLoadedVideoAspectRatio(null);
   }, [card.id, card.image, previewSource]);
 
   useEffect(() => {
@@ -165,6 +181,10 @@ function LinkTile({
       oversizeRatio,
       src: mediaSrc,
     });
+
+    if (isVideoCard && Number.isFinite(naturalWidth) && Number.isFinite(naturalHeight) && naturalWidth > 0 && naturalHeight > 0) {
+      setLoadedVideoAspectRatio(naturalWidth / naturalHeight);
+    }
 
     onMediaLoad?.(card, naturalWidth, naturalHeight);
   };
@@ -206,7 +226,56 @@ function LinkTile({
           </button>
         </div>
       )}
-      {isMusicCard && shouldRenderImage ? (
+      {isVideoCard ? (
+        <div className={`card__video card__video--${videoRecipe.key}`}>
+          <div className="card__video-media-region">
+            <div
+              className={`card__video-frame card__video-frame--${card.status}`}
+              style={{ "--video-media-aspect": String(videoAspectRatio) }}
+            >
+              <div className="card__video-screen">
+                {shouldRenderImage ? (
+                  <TileImageReveal
+                    className="card__image card__image--video"
+                    src={mediaSrc}
+                    alt={linkTitle}
+                    enableReveal={enableReveal}
+                    onError={() => {
+                      if (!hasLoadedImage) {
+                        setHasImageError(true);
+                      }
+                    }}
+                    onLoad={handleMediaLoad}
+                  />
+                ) : isPreviewLoading ? (
+                  <div className="card__video-loading" aria-hidden="true">
+                    <div className="card__video-loading-bar card__video-loading-bar--one" />
+                    <div className="card__video-loading-bar card__video-loading-bar--two" />
+                    <div className="card__video-loading-bar card__video-loading-bar--three" />
+                  </div>
+                ) : (
+                  <div className="card__video-placeholder">
+                    <p className="card__video-placeholder-title">{linkTitle}</p>
+                    <p className="card__video-placeholder-subtitle">
+                      {previewFallbackReason || formatShortUrl(card.url) || videoRecipe.badge}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="card__video-meta">
+            <div className="card__video-badge-row">
+              <span className="card__video-badge">{videoRecipe.badge}</span>
+              {videoDurationLabel ? <span className="card__video-duration">{videoDurationLabel}</span> : null}
+            </div>
+            <p className="card__video-title">{linkTitle}</p>
+            <p className="card__video-subtitle">
+              {card.channelName || card.author || card.siteName || formatShortUrl(card.url)}
+            </p>
+          </div>
+        </div>
+      ) : isMusicCard && shouldRenderImage ? (
         <div className="card__record-shell">
           <div className="card__record-disc" aria-hidden="true" />
           <div className="card__record-sleeve">
@@ -289,7 +358,7 @@ function LinkTile({
             </div>
           ) : (
             <a
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard ? " card__surface--video" : ""}`}
               href={card.url}
               target="_blank"
               rel="noreferrer"

@@ -27,7 +27,8 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
 
   return {
     type: nextType,
-    url: result.canonicalUrl || currentCard.url,
+    url: result.resolvedUrl || result.canonicalUrl || currentCard.url,
+    resolvedUrl: result.resolvedUrl || result.canonicalUrl || currentCard.url,
     width: shouldResize ? nextSize.width : currentCard.width,
     height: shouldResize
       ? nextSize.height
@@ -43,6 +44,15 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
     previewKind: result.previewKind === "music" ? "music" : "default",
     previewError: result.reason || "",
     status: safeStatus,
+    previewStatus: result.previewStatus || safeStatus,
+    contentType: result.contentType || currentCard.contentType || "link",
+    sourceType: result.sourceType || currentCard.sourceType || "generic-link",
+    duration: Number.isFinite(result.duration) ? result.duration : null,
+    author: result.author || "",
+    channelName: result.channelName || result.author || "",
+    mediaAspectRatio: Number.isFinite(result.metadata?.mediaAspectRatio) && result.metadata.mediaAspectRatio > 0
+      ? result.metadata.mediaAspectRatio
+      : (Number.isFinite(currentCard.mediaAspectRatio) && currentCard.mediaAspectRatio > 0 ? currentCard.mediaAspectRatio : null),
     previewDiagnostics,
     productAsin: isAmazonCard ? String(result.metadata?.productAsin ?? "") : "",
     productPrice: isAmazonCard ? String(result.metadata?.productPrice ?? "") : "",
