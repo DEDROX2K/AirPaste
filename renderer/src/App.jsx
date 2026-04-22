@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import CanvasWorkspaceView from "./components/CanvasWorkspaceView";
 import { DevConsole } from "./components/DevConsole";
 import HomeShell from "./components/HomeShell";
-import PageEditorView from "./components/PageEditorView";
 import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
@@ -66,7 +65,6 @@ export default function App() {
       
       <div className="app-shell__view-container">
         {currentEditor.kind === "canvas" ? <CanvasWorkspaceView /> : null}
-        {currentEditor.kind === "page" ? <PageEditorView /> : null}
         {currentEditor.kind === "home" ? <HomeShell /> : null}
       </div>
 

@@ -30,6 +30,12 @@ import {
   AppScrambleText,
 } from "./ui/app";
 
+const ASSET_BASE_URL = import.meta.env.BASE_URL;
+
+function assetUrl(relativePath) {
+  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
+}
+
 function IconStar({ filled = false }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8">
@@ -72,11 +78,7 @@ function IconFolder() {
 }
 
 function IconCanvas() {
-  return <img className="home-browser-entry__icon-image" src="/icons/canvas.png" alt="" aria-hidden="true" />;
-}
-
-function IconPage() {
-  return <img className="home-browser-entry__icon-image" src="/icons/page.png" alt="" aria-hidden="true" />;
+  return <img className="home-browser-entry__icon-image" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />;
 }
 
 function IconFile() {
@@ -198,7 +200,6 @@ function ConfirmDialog({ title, description, disabled, onCancel, onConfirm }) {
 function typeLabel(type) {
   if (type === "folder") return "Folder";
   if (type === "canvas") return "Canvas";
-  if (type === "page") return "Page";
   if (type === "asset") return "Asset";
   return "File";
 }
@@ -206,7 +207,6 @@ function typeLabel(type) {
 function typeIcon(type) {
   if (type === "folder") return <IconFolder />;
   if (type === "canvas") return <IconCanvas />;
-  if (type === "page") return <IconPage />;
   return <IconFile />;
 }
 
@@ -281,7 +281,7 @@ function buildBrowserItems(items, preferences, searchQuery) {
   return [...folders, ...files];
 }
 
-function BrowserEmptyState({ title, description, onNewCanvas, onNewPage, onNewFolder, onImportFiles }) {
+function BrowserEmptyState({ title, description, onNewCanvas, onNewFolder, onImportFiles }) {
   return (
     <section className="home-browser-empty">
       <div className="home-browser-empty__eyebrow">Workspace</div>
@@ -289,7 +289,6 @@ function BrowserEmptyState({ title, description, onNewCanvas, onNewPage, onNewFo
       <p className="home-browser-empty__description">{description}</p>
       <div className="home-browser-empty__actions">
         <AppButton tone="accent" className="home-button" onClick={onNewCanvas}><AppScrambleText>New Canvas</AppScrambleText></AppButton>
-        <AppButton tone="accent" className="home-button" onClick={onNewPage}><AppScrambleText>New Page</AppScrambleText></AppButton>
         <AppButton tone="surface" className="home-button home-button--secondary" onClick={onNewFolder}><AppScrambleText>New Folder</AppScrambleText></AppButton>
         <AppButton tone="surface" className="home-button home-button--secondary" onClick={onImportFiles}><AppScrambleText>Import files</AppScrambleText></AppButton>
       </div>
@@ -338,7 +337,7 @@ function FolderTreeNode({ node, currentFolderPath, expandedFolders, onToggle, on
 
 function BrowserEntry({ item, viewMode, isActive = false, onOpen, onRename, onDelete, onToggleStar }) {
   const canStar = Boolean(item.id);
-  const canRename = item.type === "folder" || item.type === "canvas" || item.type === "page" || item.type === "asset" || item.type === "file";
+  const canRename = item.type === "folder" || item.type === "canvas" || item.type === "asset" || item.type === "file";
   const canDelete = canRename;
   const metaParts = [];
 
@@ -362,9 +361,6 @@ function BrowserEntry({ item, viewMode, isActive = false, onOpen, onRename, onDe
           <span className="home-browser-entry__eyebrow">{typeLabel(item.type)}</span>
           <span className="home-browser-entry__title">{item.name}</span>
           <span className="home-browser-entry__meta">{metaParts.join(" · ")}</span>
-          {item.type === "page" && item.excerpt ? (
-            <span className="home-browser-entry__excerpt">{item.excerpt}</span>
-          ) : null}
           {item.type !== "folder" ? (
             <span className="home-browser-entry__submeta">{item.path} · {formatDateTime(item.updatedAt)}</span>
           ) : (
@@ -406,7 +402,6 @@ export default function HomeShell() {
     createCanvasEntry,
     createFolderEntry,
     createNewDome,
-    createPageEntry,
     deleteItemEntry,
     domes,
     folderLoading,
@@ -515,7 +510,6 @@ export default function HomeShell() {
   const counts = useMemo(() => ({
     folders: homeData.allFiles.filter((item) => item.type === "folder").length,
     canvases: homeData.allFiles.filter((item) => item.type === "canvas").length,
-    pages: homeData.allFiles.filter((item) => item.type === "page").length,
     assets: homeData.allFiles.filter((item) => item.type === "asset" || item.type === "file").length,
   }), [homeData.allFiles]);
 
@@ -576,7 +570,6 @@ export default function HomeShell() {
     const name = textDialog?.value?.trim();
     if (!name) return;
     if (type === "canvas") await createCanvasEntry(name, navigation.currentFolderPath);
-    else if (type === "page") await createPageEntry(name, navigation.currentFolderPath);
     else if (type === "folder") await createFolderEntry(name, navigation.currentFolderPath);
     else if (type === "create-dome") await createNewDome(name);
     setTextDialog(null);
@@ -603,13 +596,13 @@ export default function HomeShell() {
     if (navigation.selectedSection === "recents") {
       return {
         title: "No recent files yet",
-        description: "Open a canvas or page and it will appear here. Folder context and browser preferences will still be restored when you return to Home.",
+        description: "Open a canvas or file and it will appear here. Folder context and browser preferences will still be restored when you return to Home.",
       };
     }
     if (navigation.selectedSection === "starred") {
       return {
         title: "Nothing starred yet",
-        description: "Star important canvases and pages to keep them pinned here.",
+        description: "Star important canvases and files to keep them pinned here.",
       };
     }
     if (searchQuery.trim()) {
@@ -621,8 +614,8 @@ export default function HomeShell() {
     return {
       title: navigation.currentFolderPath ? `This folder is empty` : "This workspace is empty",
       description: navigation.currentFolderPath
-        ? "Create a canvas, page, or folder here, or import files into the current folder."
-        : "Create your first canvas or page, add a folder, or import files into the workspace root.",
+        ? "Create a canvas or folder here, or import files into the current folder."
+        : "Create your first canvas, add a folder, or import files into the workspace root.",
     };
   }
 
@@ -674,7 +667,7 @@ export default function HomeShell() {
           <AppInput
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search folders, canvases, pages, files"
+            placeholder="Search folders, canvases, files"
             className="home-sidebar__search-input"
           />
         </div>
@@ -682,7 +675,6 @@ export default function HomeShell() {
         <div className="home-sidebar__summary">
           <div className="home-sidebar__summary-pill">Folders {counts.folders}</div>
           <div className="home-sidebar__summary-pill">Canvas {counts.canvases}</div>
-          <div className="home-sidebar__summary-pill">Page {counts.pages}</div>
           <div className="home-sidebar__summary-pill">Assets {counts.assets}</div>
         </div>
 
@@ -762,7 +754,7 @@ export default function HomeShell() {
             <p className="home-toolbar__description">
               {hasWorkspace
                 ? `${browserItems.length} visible entr${browserItems.length === 1 ? "y" : "ies"} in ${navigation.selectedSection === "home" ? (navigation.currentFolderPath || "workspace root") : sectionLabel(navigation.selectedSection).toLowerCase()}.`
-                : "Select a dome to load its folders, canvases, pages, and files into the workspace navigator."}
+                : "Select a dome to load its folders, canvases, and files into the workspace navigator."}
             </p>
             {navigation.selectedSection === "home" ? (
               <div className="home-toolbar__breadcrumbs">
@@ -817,7 +809,6 @@ export default function HomeShell() {
                 <option value="all">All</option>
                 <option value="folders">Folders</option>
                 <option value="canvases">Canvases</option>
-                <option value="pages">Pages</option>
                 <option value="assets">Assets</option>
                 <option value="starred">Starred</option>
               </select>
@@ -830,7 +821,6 @@ export default function HomeShell() {
                 <AppScrambleText>New Folder</AppScrambleText>
               </AppButton>
               <AppButton tone="accent" className="home-button" onClick={() => openCreateDialog("canvas", "Canvas")} disabled={!hasWorkspace}><AppScrambleText>New Canvas</AppScrambleText></AppButton>
-              <AppButton tone="accent" className="home-button" onClick={() => openCreateDialog("page", "Page")} disabled={!hasWorkspace}><AppScrambleText>New Page</AppScrambleText></AppButton>
               <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)} disabled={!hasWorkspace}>
                 <IconUpload />
                 <AppScrambleText>Import files</AppScrambleText>
@@ -845,7 +835,7 @@ export default function HomeShell() {
               <p className="home-blank-panel__eyebrow">Workspace Offline</p>
               <h2 className="home-blank-panel__title">{activeDome?.name || "No Dome Loaded"}</h2>
               <p className="home-blank-panel__copy">
-                Open a folder-backed workspace to browse nested folders, canvases, pages, and imported files.
+                Open a folder-backed workspace to browse nested folders, canvases, and imported files.
               </p>
               <div className="home-blank-panel__actions">
                 <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
@@ -859,7 +849,6 @@ export default function HomeShell() {
               title={emptyState.title}
               description={emptyState.description}
               onNewCanvas={() => openCreateDialog("canvas", "Canvas")}
-              onNewPage={() => openCreateDialog("page", "Page")}
               onNewFolder={() => openCreateDialog("folder", "New Folder")}
               onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
             />
@@ -895,9 +884,7 @@ export default function HomeShell() {
             ? "Rename entry"
             : textDialog?.type === "canvas"
               ? "Create canvas"
-              : textDialog?.type === "page"
-                ? "Create page"
-                : textDialog?.type === "folder"
+              : textDialog?.type === "folder"
                   ? "Create folder"
                   : textDialog?.type === "create-dome"
                     ? "Create Dome"

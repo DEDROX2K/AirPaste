@@ -88,17 +88,20 @@
     "files": [
       "dist-renderer/**/*",
       "main.js",
+      "build/**/*",
       "preview/**/*",
       "workspace-service.js",
       "preload.js",
-      "package.json"
+      "package.json",
+      "!node_modules/playwright/**",
+      "!node_modules/playwright-core/**"
     ],
     "win": {
       "signAndEditExecutable": false,
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.png"
     },
     "mac": {
       "target": [

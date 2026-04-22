@@ -22,16 +22,10 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:createCanvas", folderPath, name, targetFolderPath),
   createFolder: (folderPath, name, targetFolderPath) =>
     ipcRenderer.invoke("airpaste:createFolder", folderPath, name, targetFolderPath),
-  createPage: (folderPath, name, targetFolderPath) =>
-    ipcRenderer.invoke("airpaste:createPage", folderPath, name, targetFolderPath),
   loadCanvas: (filePath) =>
     ipcRenderer.invoke("airpaste:loadCanvas", filePath),
   saveCanvas: (filePath, data, options = null) =>
     ipcRenderer.invoke("airpaste:saveCanvas", filePath, data, options),
-  loadPage: (filePath) =>
-    ipcRenderer.invoke("airpaste:loadPage", filePath),
-  savePage: (filePath, markdown) =>
-    ipcRenderer.invoke("airpaste:savePage", filePath, markdown),
   renameFile: (folderPath, filePath, name) =>
     ipcRenderer.invoke("airpaste:renameFile", folderPath, filePath, name),
   renameEntry: (folderPath, filePath, name) =>

@@ -13,7 +13,6 @@ function createPlaceholderTile(displayName) {
   return PlaceholderTile;
 }
 
-const PageLinkTile = createPlaceholderTile("Page Link");
 const NodeGroupTile = createPlaceholderTile("Node Group");
 const GameTile = createPlaceholderTile("Game");
 const Model3DTile = createPlaceholderTile("3D Model");
@@ -67,23 +66,6 @@ const tileRegistry = {
       editable: false,
       container: true,
       navigation: false,
-      physics: false,
-      lazy: false,
-    },
-  },
-  [TILE_TYPES.PAGE_LINK]: {
-    type: TILE_TYPES.PAGE_LINK,
-    displayName: "Page Link Tile",
-    status: "planned",
-    component: PageLinkTile,
-    defaultSize: { width: 280, height: 180 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: true,
-      container: false,
-      navigation: true,
       physics: false,
       lazy: false,
     },

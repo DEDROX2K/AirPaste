@@ -1,6 +1,6 @@
 const VALID_HOME_VIEW_MODES = new Set(["grid", "list"]);
 const VALID_SORT_OPTIONS = new Set(["updatedAt", "name", "type"]);
-const VALID_FILTER_OPTIONS = new Set(["all", "folders", "canvases", "pages", "assets", "starred"]);
+const VALID_FILTER_OPTIONS = new Set(["all", "folders", "canvases", "assets", "starred"]);
 const VALID_HOME_SECTIONS = new Set(["home", "recents", "starred"]);
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
@@ -136,10 +136,6 @@ export function filterItemsByPreference(items, filter) {
 
   if (filter === "folders") {
     return items.filter((item) => item.type === "folder");
-  }
-
-  if (filter === "pages") {
-    return items.filter((item) => item.type === "page");
   }
 
   if (filter === "assets") {

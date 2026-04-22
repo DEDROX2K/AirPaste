@@ -12,11 +12,9 @@ import {
   updateCard,
   updateCards,
 } from "../lib/workspace";
-import { createPageRevision } from "../lib/pageDocument";
 import { desktop } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
 
-const SAVE_DELAY_MS = 250;
 const CANVAS_SAVE_DELAY_MS = 420;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 20;
 
@@ -243,7 +241,7 @@ function createDomesState() {
 }
 
 export function AppProvider({ children }) {
-  const { activeTab, openTab, closeTabsForEntity, renameTabForEntity, rebindTabEntity, showHomeTab } = useTabs();
+  const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab } = useTabs();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
   const [homeData, setHomeData] = useState(createHomeState());
@@ -251,13 +249,10 @@ export function AppProvider({ children }) {
   const [folderLoading, setFolderLoading] = useState(false);
   const [error, setError] = useState("");
   const [workspacesByPath, setWorkspacesByPath] = useState({});
-  const [pagesByPath, setPagesByPath] = useState({});
   const [canvasInteractionVersion, setCanvasInteractionVersion] = useState(0);
 
   const saveTimeoutRef = useRef(null);
-  const pageSaveTimeoutRef = useRef(null);
   const skipCanvasSaveRef = useRef({});
-  const skipPageSaveRef = useRef({});
   const pendingCanvasSaveRef = useRef({});
   const pendingCanvasDirtyFieldsRef = useRef({});
   const canvasInteractionStateRef = useRef({});
@@ -265,22 +260,15 @@ export function AppProvider({ children }) {
   const lastObservedCanvasWorkspaceRef = useRef({});
   const workspaceDraftBaseRef = useRef({});
   const workspacesRef = useRef(workspacesByPath);
-  const pagesRef = useRef(pagesByPath);
   const activeCanvasPathRef = useRef(null);
-  const activePagePathRef = useRef(null);
 
   useEffect(() => {
     workspacesRef.current = workspacesByPath;
     activeCanvasPathRef.current = activeTab?.type === "canvas" ? activeTab.entityId : null;
   }, [activeTab, workspacesByPath]);
 
-  useEffect(() => {
-    pagesRef.current = pagesByPath;
-    activePagePathRef.current = activeTab?.type === "page" ? activeTab.entityId : null;
-  }, [activeTab, pagesByPath]);
-
   const currentEditor = useMemo(() => {
-    if (!activeTab || activeTab.type === "home") return { kind: "home" };
+    if (!activeTab || activeTab.type !== "canvas") return { kind: "home" };
     return {
       kind: activeTab.type,
       filePath: activeTab.entityId,
@@ -297,11 +285,6 @@ export function AppProvider({ children }) {
     if (currentEditor.kind !== "canvas") return createWorkspaceHistory(createEmptyWorkspace());
     return workspacesByPath[currentEditor.filePath] ?? createWorkspaceHistory(createEmptyWorkspace());
   }, [currentEditor, workspacesByPath]);
-
-  const currentPage = useMemo(() => {
-    if (currentEditor.kind !== "page") return null;
-    return pagesByPath[currentEditor.filePath] ?? null;
-  }, [currentEditor, pagesByPath]);
 
   const activeDome = useMemo(() => (
     domesState.recentDomes.find((entry) => entry.id === domesState.activeDomeId) ?? null
@@ -324,9 +307,7 @@ export function AppProvider({ children }) {
     setFolderPath(null);
     setHomeData(createHomeState());
     setWorkspacesByPath({});
-    setPagesByPath({});
     skipCanvasSaveRef.current = {};
-    skipPageSaveRef.current = {};
     pendingCanvasSaveRef.current = {};
     pendingCanvasDirtyFieldsRef.current = {};
     canvasInteractionStateRef.current = {};
@@ -365,9 +346,7 @@ export function AppProvider({ children }) {
       const payload = await desktop.workspace.getHomeData(nextFolderPath);
       setFolderPath(nextFolderPath);
       setWorkspacesByPath({});
-      setPagesByPath({});
       skipCanvasSaveRef.current = {};
-      skipPageSaveRef.current = {};
       pendingCanvasSaveRef.current = {};
       pendingCanvasDirtyFieldsRef.current = {};
       canvasInteractionStateRef.current = {};
@@ -507,27 +486,6 @@ export function AppProvider({ children }) {
     return doc;
   }, [folderPath, openTab, refreshHomeData]);
 
-  const openPageFile = useCallback(async (filePath) => {
-    const doc = await desktop.workspace.loadPage(filePath);
-    const lastSavedRevision = createPageRevision({
-      title: doc.title,
-      content: doc.content,
-    });
-    setPagesByPath((prev) => ({
-      ...prev,
-      [doc.filePath]: {
-        ...doc,
-        dirty: false,
-        saveStatus: "saved",
-        lastSavedRevision,
-      },
-    }));
-    skipPageSaveRef.current[doc.filePath] = true;
-    openTab({ type: "page", entityId: doc.filePath, title: doc.name, filePath: doc.path });
-    await refreshHomeData(folderPath);
-    return doc;
-  }, [folderPath, openTab, refreshHomeData]);
-
   const openHomeItem = useCallback(async (item) => {
     if (!item?.filePath) return null;
     if (item.type === "folder") {
@@ -536,12 +494,11 @@ export function AppProvider({ children }) {
       return item;
     }
     if (item.type === "canvas") return openCanvasFile(item.filePath);
-    if (item.type === "page") return openPageFile(item.filePath);
     await desktop.workspace.openFile(item.filePath);
     await desktop.workspace.recordRecentItem(folderPath, item.filePath).catch(() => {});
     await refreshHomeData(folderPath);
     return item;
-  }, [applyHomeData, folderPath, openCanvasFile, openPageFile, refreshHomeData]);
+  }, [applyHomeData, folderPath, openCanvasFile, refreshHomeData]);
 
   const showHome = useCallback(async () => {
     showHomeTab();
@@ -554,10 +511,6 @@ export function AppProvider({ children }) {
     }
 
     if (activeTab.type === "canvas" && workspacesByPath[activeTab.entityId]) {
-      return undefined;
-    }
-
-    if (activeTab.type === "page" && pagesByPath[activeTab.entityId]) {
       return undefined;
     }
 
@@ -576,27 +529,6 @@ export function AppProvider({ children }) {
           return;
         }
 
-        if (activeTab.type === "page") {
-          const doc = await desktop.workspace.loadPage(activeTab.entityId);
-          if (cancelled) return;
-          const lastSavedRevision = createPageRevision({
-            title: doc.title,
-            content: doc.content,
-          });
-          setPagesByPath((prev) => {
-            if (prev[doc.filePath]) return prev;
-            return {
-              ...prev,
-              [doc.filePath]: {
-                ...doc,
-                dirty: false,
-                saveStatus: "saved",
-                lastSavedRevision,
-              },
-            };
-          });
-          skipPageSaveRef.current[doc.filePath] = true;
-        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError.message || "Unable to open the selected file.");
@@ -609,7 +541,7 @@ export function AppProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, folderPath, pagesByPath, workspacesByPath]);
+  }, [activeTab, folderPath, workspacesByPath]);
 
   const navigateHomeFolder = useCallback(async (nextFolderPath) => {
     if (!folderPath) return null;
@@ -638,13 +570,6 @@ export function AppProvider({ children }) {
     await refreshHomeData(folderPath, targetFolderPath);
     return folder;
   }, [folderPath, homeData.currentFolderPath, refreshHomeData]);
-
-  const createPageEntry = useCallback(async (name, targetFolderPath = homeData.currentFolderPath) => {
-    if (!folderPath) return null;
-    const doc = await desktop.workspace.createPage(folderPath, name, targetFolderPath);
-    await openPageFile(doc.filePath);
-    return doc;
-  }, [folderPath, homeData.currentFolderPath, openPageFile]);
 
   const importFilesIntoFolder = useCallback(async (targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return [];
@@ -676,19 +601,6 @@ export function AppProvider({ children }) {
         }
         return next;
       });
-      setPagesByPath((prev) => {
-        const next = { ...prev };
-        for (const key of Object.keys(prev)) {
-          if (!isSameOrDescendantPath(key, item.filePath)) continue;
-          const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
-          next[replacementKey] = {
-            ...next[key],
-            filePath: replacementKey,
-          };
-          delete next[key];
-        }
-        return next;
-      });
       await refreshHomeData(folderPath, renamed.path);
       return renamed;
     }
@@ -705,22 +617,6 @@ export function AppProvider({ children }) {
       }
       return next;
     });
-    setPagesByPath((prev) => {
-      if (!prev[item.filePath]) return prev;
-      const next = { ...prev };
-      next[renamed.filePath] = {
-        ...next[item.filePath],
-        ...renamed,
-        dirty: false,
-        saveStatus: "saved",
-        lastSavedRevision: createPageRevision({
-          title: renamed.title,
-          content: renamed.content,
-        }),
-      };
-      delete next[item.filePath];
-      return next;
-    });
     await refreshHomeData(folderPath);
     return renamed;
   }, [folderPath, rebindTabEntity, refreshHomeData]);
@@ -730,17 +626,11 @@ export function AppProvider({ children }) {
     if (item.type === "folder") {
       await desktop.workspace.deleteEntry(folderPath, item.filePath);
       const workspaceKeys = Object.keys(workspacesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
-      const pageKeys = Object.keys(pagesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
-      [...workspaceKeys, ...pageKeys].forEach((key) => closeTabsForEntity(key));
+      workspaceKeys.forEach((key) => closeTabsForEntity(key));
       workspaceKeys.forEach((key) => { delete workspaceDraftBaseRef.current[key]; });
       setWorkspacesByPath((prev) => {
         const next = { ...prev };
         workspaceKeys.forEach((key) => { delete next[key]; });
-        return next;
-      });
-      setPagesByPath((prev) => {
-        const next = { ...prev };
-        pageKeys.forEach((key) => { delete next[key]; });
         return next;
       });
       await refreshHomeData(folderPath);
@@ -755,11 +645,6 @@ export function AppProvider({ children }) {
       delete next[item.filePath];
       return next;
     });
-    setPagesByPath((prev) => {
-      const next = { ...prev };
-      delete next[item.filePath];
-      return next;
-    });
     await refreshHomeData(folderPath);
     return true;
   }, [closeTabsForEntity, folderPath, refreshHomeData]);
@@ -770,35 +655,6 @@ export function AppProvider({ children }) {
     await refreshHomeData(folderPath);
     return item;
   }, [folderPath, refreshHomeData]);
-
-  const updateCurrentPageDraft = useCallback(({ content, title }) => {
-    const activePath = activePagePathRef.current;
-    if (!activePath) return;
-    setPagesByPath((current) => {
-      const page = current[activePath];
-      if (!page) return current;
-      const nextTitle = typeof title === "string" && title.trim() ? title.trim() : page.name;
-      const nextContent = content && typeof content === "object" ? content : page.content;
-      const nextRevision = createPageRevision({
-        title: nextTitle,
-        content: nextContent,
-      });
-      return {
-        ...current,
-        [activePath]: {
-          ...page,
-          title: nextTitle,
-          name: nextTitle,
-          content: nextContent,
-          dirty: nextRevision !== page.lastSavedRevision,
-          saveStatus: nextRevision === page.lastSavedRevision ? "saved" : "dirty",
-        },
-      };
-    });
-    if (typeof title === "string" && title.trim()) {
-      renameTabForEntity(activePath, title.trim());
-    }
-  }, [renameTabForEntity]);
 
   const setCanvasInteractionState = useCallback((isInteracting, options = {}) => {
     const targetPath = options?.targetPath ?? activeCanvasPathRef.current;
@@ -1144,91 +1000,6 @@ export function AppProvider({ children }) {
     return () => clearTimeout(saveTimeoutRef.current);
   }, [canvasInteractionVersion, folderPath, workspaceHistory.present]);
 
-  useEffect(() => {
-    const activePagePath = activePagePathRef.current;
-    if (!folderPath || !activePagePath) return undefined;
-    if (skipPageSaveRef.current[activePagePath]) {
-      skipPageSaveRef.current[activePagePath] = false;
-      return undefined;
-    }
-    const currentDraft = pagesRef.current[activePagePath];
-    if (!currentDraft?.dirty) {
-      return undefined;
-    }
-    clearTimeout(pageSaveTimeoutRef.current);
-    pageSaveTimeoutRef.current = setTimeout(() => {
-      const page = pagesRef.current[activePagePath];
-      if (!page?.dirty) return;
-      setPagesByPath((current) => {
-        const activePage = current[activePagePath];
-        if (!activePage) return current;
-        return {
-          ...current,
-          [activePagePath]: {
-            ...activePage,
-            saveStatus: "saving",
-          },
-        };
-      });
-      void desktop.workspace.savePage(activePagePath, {
-        title: page.title,
-        content: page.content,
-      })
-        .then((savedPage) => {
-          setPagesByPath((current) => {
-            const activePage = current[activePagePath];
-            if (!activePage) return current;
-
-            const savedRevision = createPageRevision({
-              title: savedPage.title,
-              content: savedPage.content,
-            });
-            const currentRevision = createPageRevision({
-              title: activePage.title,
-              content: activePage.content,
-            });
-            const isStillDirty = currentRevision !== savedRevision;
-            const nextPage = {
-              ...activePage,
-              ...savedPage,
-              title: isStillDirty ? activePage.title : savedPage.title,
-              name: isStillDirty ? activePage.name : savedPage.name,
-              content: isStillDirty ? activePage.content : savedPage.content,
-              dirty: isStillDirty,
-              saveStatus: isStillDirty ? "dirty" : "saved",
-              lastSavedRevision: savedRevision,
-            };
-
-            const nextState = { ...current };
-            delete nextState[activePagePath];
-            nextState[savedPage.filePath] = nextPage;
-            return nextState;
-          });
-          if (savedPage.filePath !== activePagePath) {
-            rebindTabEntity(activePagePath, savedPage.filePath, savedPage.name);
-          } else {
-            renameTabForEntity(activePagePath, savedPage.name);
-          }
-          void refreshHomeData(folderPath).catch(() => {});
-        })
-        .catch((saveError) => {
-          setPagesByPath((current) => {
-            const activePage = current[activePagePath];
-            if (!activePage) return current;
-            return {
-              ...current,
-              [activePagePath]: {
-                ...activePage,
-                saveStatus: "error",
-              },
-            };
-          });
-          setError(saveError.message || "Unable to save the current page.");
-        });
-    }, SAVE_DELAY_MS);
-    return () => clearTimeout(pageSaveTimeoutRef.current);
-  }, [currentPage, folderPath, rebindTabEntity, refreshHomeData, renameTabForEntity]);
-
   const value = useMemo(() => ({
     activeDome,
     booting,
@@ -1238,9 +1009,7 @@ export function AppProvider({ children }) {
     createNewLinkCard,
     createNewRackCard,
     createNewWorkspace,
-    createPageEntry,
     currentEditor,
-    currentPage,
     canRedo: workspaceHistory.future.length > 0,
     canUndo: workspaceHistory.past.length > 0,
     commitWorkspaceChange,
@@ -1273,7 +1042,6 @@ export function AppProvider({ children }) {
     toggleItemStarred,
     redoWorkspaceChange,
     undoWorkspaceChange,
-    updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,
     workspace,
@@ -1286,9 +1054,7 @@ export function AppProvider({ children }) {
     createNewLinkCard,
     createNewRackCard,
     createNewWorkspace,
-    createPageEntry,
     currentEditor,
-    currentPage,
     workspaceHistory.future.length,
     workspaceHistory.past.length,
     commitWorkspaceChange,
@@ -1321,7 +1087,6 @@ export function AppProvider({ children }) {
     toggleItemStarred,
     redoWorkspaceChange,
     undoWorkspaceChange,
-    updateCurrentPageDraft,
     updateExistingCard,
     updateExistingCards,
     workspace,

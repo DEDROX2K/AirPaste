@@ -1,11 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash, randomUUID } = require("node:crypto");
-const { getSchema } = require("@tiptap/core");
-const StarterKit = require("@tiptap/starter-kit").default;
-const Link = require("@tiptap/extension-link").default;
-const MarkdownIt = require("markdown-it");
-const { MarkdownParser, defaultMarkdownSerializer } = require("prosemirror-markdown");
 
 const INTERNAL_DIR = ".airpaste";
 const TMP_DIR = "tmp";
@@ -14,7 +9,6 @@ const DOME_FILE = "dome.json";
 const UI_STATE_FILE = "ui-state.json";
 const STATE_FILE = "state.json";
 const CANVAS_SUFFIX = ".airpaste.json";
-const PAGE_SUFFIX = ".md";
 const MAX_RECENTS = 25;
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
 
@@ -45,11 +39,6 @@ const DEFAULT_WORKSPACE = Object.freeze({
   drawings: DEFAULT_DRAWINGS,
 });
 
-const DEFAULT_PAGE_DOCUMENT = Object.freeze({
-  type: "doc",
-  content: [{ type: "paragraph" }],
-});
-
 const DEFAULT_UI_STATE = Object.freeze({
   version: 3,
   homeView: "grid",
@@ -75,56 +64,6 @@ const DEFAULT_STATE = Object.freeze({
   starredDocumentIds: [],
 });
 
-const pageExtensions = [
-  StarterKit.configure({
-    link: false,
-    strike: false,
-  }),
-  Link.configure({
-    autolink: true,
-    openOnClick: false,
-  }),
-];
-const pageSchema = getSchema(pageExtensions);
-const markdownTokenizer = new MarkdownIt("commonmark", {
-  html: false,
-  linkify: true,
-});
-const markdownParser = new MarkdownParser(pageSchema, markdownTokenizer, {
-  blockquote: { block: "blockquote" },
-  bullet_list: { block: "bulletList" },
-  code_block: { block: "codeBlock", noCloseToken: true },
-  fence: {
-    block: "codeBlock",
-    getAttrs: (token) => ({ language: token.info || null }),
-    noCloseToken: true,
-  },
-  hardbreak: { node: "hardBreak" },
-  heading: {
-    block: "heading",
-    getAttrs: (token) => ({ level: Number(token.tag.slice(1)) || 1 }),
-  },
-  hr: { node: "horizontalRule" },
-  link: {
-    mark: "link",
-    getAttrs: (token) => ({
-      href: token.attrGet("href"),
-      title: token.attrGet("title") || null,
-    }),
-  },
-  list_item: { block: "listItem" },
-  ordered_list: {
-    block: "orderedList",
-    getAttrs: (token) => ({
-      start: Number(token.attrGet("start")) || 1,
-    }),
-  },
-  paragraph: { block: "paragraph" },
-  code_inline: { mark: "code" },
-  em: { mark: "italic" },
-  strong: { mark: "bold" },
-});
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -135,10 +74,6 @@ function firstString(...values) {
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalizeLineEndings(value) {
-  return String(value ?? "").replace(/\r\n/g, "\n");
 }
 
 function normalizeRel(value, fallback = "") {
@@ -182,13 +117,6 @@ function sanitizeName(name, fallback = "untitled") {
     .replace(/^\.+/, "")
     .trim();
   return normalized || fallback;
-}
-
-function normalizePageContent(content) {
-  if (!content || typeof content !== "object" || content.type !== "doc") {
-    return DEFAULT_PAGE_DOCUMENT;
-  }
-  return content;
 }
 
 function normalizeDrawingsPayload(drawings) {
@@ -290,17 +218,6 @@ async function readJsonIfExists(filePath, fallback) {
   }
 }
 
-async function readText(filePath, fallback = "") {
-  try {
-    return await fs.readFile(filePath, "utf8");
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return fallback;
-    }
-    throw error;
-  }
-}
-
 async function atomicWriteText(root, targetPath, text) {
   const absTarget = path.resolve(targetPath);
   await ensureInternalDirs(root);
@@ -354,7 +271,7 @@ function normalizeUiState(uiState) {
     selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
     homeView: ["grid", "list"].includes(safe.homeView) ? safe.homeView : "grid",
     sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
-    filter: ["all", "canvases", "pages", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
+    filter: ["all", "canvases", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
     currentFolderPath: normalizeFolder(safe.currentFolderPath),
     lastOpenedItemPath: typeof safe.lastOpenedItemPath === "string" ? normalizeRel(safe.lastOpenedItemPath, "") : null,
     lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
@@ -462,132 +379,14 @@ async function writeWorkspaceState(root, partialState) {
   return next;
 }
 
-function extractFrontmatter(markdown) {
-  const normalized = normalizeLineEndings(markdown);
-  if (!normalized.startsWith("---\n")) {
-    return { frontmatter: "", content: normalized };
-  }
-
-  const match = normalized.match(/^---\n[\s\S]*?\n(?:---|\.\.\.)\n*/);
-  if (!match) {
-    return { frontmatter: "", content: normalized };
-  }
-
-  return {
-    frontmatter: match[0],
-    content: normalized.slice(match[0].length),
-  };
-}
-
-function parseFrontmatter(frontmatter) {
-  const fields = {};
-  const order = [];
-  const lines = normalizeLineEndings(frontmatter).split("\n");
-
-  for (const line of lines) {
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*?)\s*$/);
-    if (!match) {
-      continue;
-    }
-
-    const [, key, rawValue] = match;
-    fields[key] = rawValue.replace(/^["']|["']$/g, "");
-    if (!order.includes(key)) {
-      order.push(key);
-    }
-  }
-
-  return { fields, order };
-}
-
-function quoteFrontmatterValue(value) {
-  return JSON.stringify(String(value ?? ""));
-}
-
-function buildPageFrontmatter(data, existingFields = {}, existingOrder = []) {
-  const canonicalFields = {
-    id: data.id,
-    title: data.title,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-  };
-  const mergedFields = {
-    ...(isObject(existingFields) ? existingFields : {}),
-    ...canonicalFields,
-  };
-  const canonicalOrder = ["id", "title", "createdAt", "updatedAt"];
-  const fieldOrder = [...new Set([
-    ...canonicalOrder,
-    ...(Array.isArray(existingOrder) ? existingOrder.filter((key) => !canonicalOrder.includes(key)) : []),
-  ])];
-
-  return [
-    "---",
-    ...fieldOrder
-      .filter((key) => typeof mergedFields[key] === "string" && mergedFields[key].trim().length > 0)
-      .map((key) => `${key}: ${quoteFrontmatterValue(mergedFields[key])}`),
-    "---",
-    "",
-  ].join("\n");
-}
-
-function markdownToPageDocument(markdown) {
-  const normalized = normalizeLineEndings(markdown).trim();
-  if (!normalized) {
-    return DEFAULT_PAGE_DOCUMENT;
-  }
-
-  try {
-    return markdownParser.parse(normalized).toJSON();
-  } catch {
-    return DEFAULT_PAGE_DOCUMENT;
-  }
-}
-
-function pageDocumentToMarkdown(content) {
-  try {
-    const doc = pageSchema.nodeFromJSON(normalizePageContent(content));
-    return defaultMarkdownSerializer.serialize(doc).trim();
-  } catch {
-    return "";
-  }
-}
-
-function flattenText(node, parts) {
-  if (!node || typeof node !== "object") {
-    return;
-  }
-
-  if (typeof node.text === "string" && node.text.trim()) {
-    parts.push(node.text.trim());
-  }
-
-  if (Array.isArray(node.content)) {
-    node.content.forEach((child) => flattenText(child, parts));
-  }
-}
-
-function pageExcerptFromContent(content, maxLength = 220) {
-  const parts = [];
-  flattenText(normalizePageContent(content), parts);
-  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
 function isCanvasPath(filePath) {
   return String(filePath ?? "").toLowerCase().endsWith(CANVAS_SUFFIX);
-}
-
-function isPagePath(filePath) {
-  return String(filePath ?? "").toLowerCase().endsWith(PAGE_SUFFIX);
 }
 
 function detectType(fileName) {
   const lower = String(fileName ?? "").toLowerCase();
   if (lower.endsWith(CANVAS_SUFFIX)) {
     return "canvas";
-  }
-  if (lower.endsWith(PAGE_SUFFIX)) {
-    return "page";
   }
   const ext = fileExt(lower);
   if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) {
@@ -705,23 +504,6 @@ async function scanWorkspace(folderPath) {
           name: firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas"),
           updatedAt: stat.mtime.toISOString(),
           excerpt: "",
-        });
-        continue;
-      }
-
-      if (type === "page") {
-        const markdown = await readText(absPath, "");
-        const { frontmatter, content } = extractFrontmatter(markdown);
-        const meta = parseFrontmatter(frontmatter);
-        const doc = markdownToPageDocument(content);
-
-        items.push({
-          id: firstString(meta.id, legacyDocumentId(relPath)),
-          path: relPath,
-          type,
-          name: firstString(meta.title, stripExt(entry.name), "Page"),
-          updatedAt: stat.mtime.toISOString(),
-          excerpt: pageExcerptFromContent(doc),
         });
         continue;
       }
@@ -848,108 +630,6 @@ async function saveCanvas(filePath, data, options = null) {
   };
 }
 
-async function parsePageFile(filePath) {
-  const markdown = await readText(filePath, "");
-  const { frontmatter, content } = extractFrontmatter(markdown);
-  const meta = parseFrontmatter(frontmatter);
-  const document = markdownToPageDocument(content);
-  return {
-    id: firstString(meta.fields.id, randomUUID()),
-    title: firstString(meta.fields.title, stripExt(path.basename(filePath)), "Page"),
-    createdAt: firstString(meta.fields.createdAt, nowIso()),
-    updatedAt: firstString(meta.fields.updatedAt, nowIso()),
-    content: document,
-    excerpt: pageExcerptFromContent(document),
-    frontmatterFields: meta.fields,
-    frontmatterOrder: meta.order,
-  };
-}
-
-async function loadPage(filePath) {
-  const abs = path.resolve(filePath);
-  if (!isPagePath(abs)) {
-    throw new Error(`Page path must end with "${PAGE_SUFFIX}".`);
-  }
-
-  const root = await workspaceRootFromFile(abs);
-  if (!root) {
-    throw new Error("Could not resolve the workspace for this page.");
-  }
-
-  ensureInside(root, abs);
-  const parsed = await parsePageFile(abs);
-  const stat = await fs.stat(abs);
-  const rel = toWorkspaceRel(root, abs);
-
-  await recordRecentItem(root, abs);
-
-  return {
-    id: firstString(parsed.id, legacyDocumentId(rel)),
-    type: "page",
-    path: rel,
-    filePath: abs,
-    name: parsed.title,
-    title: parsed.title,
-    content: parsed.content,
-    storageFormat: "markdown",
-    createdAt: parsed.createdAt || stat.birthtime.toISOString(),
-    updatedAt: stat.mtime.toISOString(),
-    excerpt: parsed.excerpt,
-  };
-}
-
-async function savePage(filePath, pageData) {
-  const abs = path.resolve(filePath);
-  if (!isPagePath(abs)) {
-    throw new Error(`Page path must end with "${PAGE_SUFFIX}".`);
-  }
-
-  const root = await workspaceRootFromFile(abs);
-  if (!root) {
-    throw new Error("Could not resolve the workspace for this page.");
-  }
-
-  ensureInside(root, abs);
-
-  let existing = null;
-  if (await exists(abs)) {
-    existing = await parsePageFile(abs);
-  }
-
-  let title = existing?.title ?? (stripExt(path.basename(abs)) || "Page");
-  let content = existing?.content ?? DEFAULT_PAGE_DOCUMENT;
-  let frontmatterFields = existing?.frontmatterFields ?? {};
-  let frontmatterOrder = existing?.frontmatterOrder ?? [];
-
-  if (typeof pageData === "string") {
-    const { frontmatter, content: markdownBody } = extractFrontmatter(pageData);
-    const meta = parseFrontmatter(frontmatter);
-    title = firstString(meta.fields.title, title);
-    content = markdownToPageDocument(markdownBody);
-    frontmatterFields = {
-      ...frontmatterFields,
-      ...meta.fields,
-    };
-    frontmatterOrder = [...new Set([...frontmatterOrder, ...meta.order])];
-  } else if (isObject(pageData)) {
-    title = firstString(pageData.title, title);
-    content = normalizePageContent(pageData.content);
-  }
-
-  const payload = {
-    id: firstString(existing?.id, randomUUID()),
-    title,
-    createdAt: firstString(existing?.createdAt, nowIso()),
-    updatedAt: nowIso(),
-    content,
-  };
-
-  const markdown = `${buildPageFrontmatter(payload, frontmatterFields, frontmatterOrder)}${pageDocumentToMarkdown(payload.content)}\n`;
-  await atomicWriteText(root, abs, markdown);
-  await recordRecentItem(root, abs);
-  return loadPage(abs);
-}
-
 async function createCanvas(folderPath, name, targetFolderPath = "") {
   const root = await ensureWorkspaceScaffold(folderPath);
   const targetDir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
@@ -977,29 +657,6 @@ async function createCanvas(folderPath, name, targetFolderPath = "") {
   return loadCanvas(filePath);
 }
 
-async function createPage(folderPath, name, targetFolderPath = "") {
-  const root = await ensureWorkspaceScaffold(folderPath);
-  const targetDir = resolveWorkspacePath(root, normalizeFolder(targetFolderPath));
-  await fs.mkdir(targetDir, { recursive: true });
-
-  const filePath = await uniquePath(
-    targetDir,
-    sanitizeName(firstString(name, "Page"), "Page"),
-    PAGE_SUFFIX,
-  );
-
-  const payload = {
-    id: randomUUID(),
-    title: stripExt(path.basename(filePath)),
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    content: DEFAULT_PAGE_DOCUMENT,
-  };
-
-  await atomicWriteText(root, filePath, `${buildPageFrontmatter(payload)}\n`);
-  return loadPage(filePath);
-}
-
 async function renameFile(root, filePath, nextName) {
   const absRoot = await ensureWorkspaceScaffold(root);
   const rel = toWorkspaceRel(absRoot, filePath);
@@ -1010,35 +667,24 @@ async function renameFile(root, filePath, nextName) {
   }
 
   const type = detectType(path.basename(abs));
-  if (type !== "canvas" && type !== "page") {
-    throw new Error("Only canvas and page files can be renamed from AirPaste.");
+  if (type !== "canvas") {
+    throw new Error("Only canvas files can be renamed from AirPaste.");
   }
 
-  const nextBaseName = sanitizeName(nextName, type === "canvas" ? "Canvas" : "Page");
-  const currentBaseName = type === "canvas" ? stripCanvasSuffix(path.basename(abs)) : stripExt(path.basename(abs));
+  const nextBaseName = sanitizeName(nextName, "Canvas");
+  const currentBaseName = stripCanvasSuffix(path.basename(abs));
 
   if (currentBaseName === nextBaseName) {
-    return type === "canvas" ? loadCanvas(abs) : loadPage(abs);
+    return loadCanvas(abs);
   }
 
-  const renamed = await uniquePath(path.dirname(abs), nextBaseName, type === "canvas" ? CANVAS_SUFFIX : PAGE_SUFFIX);
+  const renamed = await uniquePath(path.dirname(abs), nextBaseName, CANVAS_SUFFIX);
   await fs.rename(abs, renamed);
 
-  if (type === "canvas") {
-    const raw = await readJson(renamed, path.basename(renamed));
-    raw.name = nextBaseName;
-    raw.updatedAt = nowIso();
-    await atomicWriteJson(absRoot, renamed, raw);
-  } else {
-    const page = await parsePageFile(renamed);
-    page.title = nextBaseName;
-    page.updatedAt = nowIso();
-    await atomicWriteText(
-      absRoot,
-      renamed,
-      `${buildPageFrontmatter(page, page.frontmatterFields, page.frontmatterOrder)}${pageDocumentToMarkdown(page.content)}\n`,
-    );
-  }
+  const raw = await readJson(renamed, path.basename(renamed));
+  raw.name = nextBaseName;
+  raw.updatedAt = nowIso();
+  await atomicWriteJson(absRoot, renamed, raw);
 
   const uiState = await readUiState(absRoot);
   if (uiState.lastOpenedItemPath === rel) {
@@ -1049,7 +695,7 @@ async function renameFile(root, filePath, nextName) {
   }
   await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
 
-  return type === "canvas" ? loadCanvas(renamed) : loadPage(renamed);
+  return loadCanvas(renamed);
 }
 
 async function deleteFile(root, filePath) {
@@ -1062,25 +708,16 @@ async function deleteFile(root, filePath) {
   }
 
   const type = detectType(path.basename(abs));
-  if (type !== "canvas" && type !== "page") {
-    throw new Error("Only canvas and page files can be deleted from AirPaste.");
+  if (type !== "canvas") {
+    throw new Error("Only canvas files can be deleted from AirPaste.");
   }
 
   let deletedId = null;
-  if (type === "canvas") {
-    try {
-      const raw = await readJson(abs, path.basename(abs));
-      deletedId = firstString(raw.id);
-    } catch {
-      deletedId = null;
-    }
-  } else {
-    try {
-      const page = await parsePageFile(abs);
-      deletedId = page.id;
-    } catch {
-      deletedId = null;
-    }
+  try {
+    const raw = await readJson(abs, path.basename(abs));
+    deletedId = firstString(raw.id);
+  } catch {
+    deletedId = null;
   }
 
   await fs.rm(abs, { force: true });
@@ -1510,7 +1147,7 @@ async function renameEntry(root, entryPath, nextName) {
   const stats = await fs.stat(abs);
   const type = detectEntryType(stats, path.basename(abs));
 
-  if (type === "canvas" || type === "page") {
+  if (type === "canvas") {
     return renameFile(absRoot, abs, nextName);
   }
 
@@ -1569,7 +1206,7 @@ async function deleteEntry(root, entryPath) {
   const stats = await fs.stat(abs);
   const type = detectEntryType(stats, path.basename(abs));
 
-  if (type === "canvas" || type === "page") {
+  if (type === "canvas") {
     return deleteFile(absRoot, abs);
   }
 
@@ -1639,7 +1276,6 @@ module.exports = {
   createCanvas,
   createDome,
   createFolder,
-  createPage,
   createWorkspace,
   deleteEntry,
   deleteFile,
@@ -1654,7 +1290,6 @@ module.exports = {
   listFiles,
   loadCanvas,
   loadIndex,
-  loadPage,
   loadUiState,
   loadWorkspace,
   markItemStarred,
@@ -1667,7 +1302,6 @@ module.exports = {
   resolveWorkspaceAssetPath,
   saveCanvas,
   saveIndex,
-  savePage,
   saveUiState,
   saveWorkspace,
   scanWorkspace,

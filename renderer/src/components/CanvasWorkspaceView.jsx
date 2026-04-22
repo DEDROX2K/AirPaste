@@ -52,6 +52,12 @@ import {
   WORKSPACE_LOD_LEVEL,
 } from "../systems/canvas/tileLod";
 
+const ASSET_BASE_URL = import.meta.env.BASE_URL;
+
+function assetUrl(relativePath) {
+  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
+}
+
 function WorkspaceViewToggle({ mode, onChange }) {
   return (
     <div className="workspace-view-toggle" role="tablist" aria-label="Workspace view mode">
@@ -63,7 +69,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         role="tab"
         aria-label="Canvas view"
       >
-        <img className="workspace-view-toggle__icon" src="/icons/canvas.png" alt="" aria-hidden="true" />
+        <img className="workspace-view-toggle__icon" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />
       </AppButton>
       <AppButton tone="unstyled"
         type="button"
@@ -73,7 +79,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         role="tab"
         aria-label="Globe view"
       >
-        <img className="workspace-view-toggle__icon" src="/globe.svg" alt="" aria-hidden="true" />
+        <img className="workspace-view-toggle__icon" src={assetUrl("globe.svg")} alt="" aria-hidden="true" />
       </AppButton>
       <AppButton tone="unstyled"
         type="button"
@@ -83,7 +89,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         role="tab"
         aria-label="Grid view"
       >
-        <img className="workspace-view-toggle__icon" src="/icons/grid.png" alt="" aria-hidden="true" />
+        <img className="workspace-view-toggle__icon" src={assetUrl("icons/grid.png")} alt="" aria-hidden="true" />
       </AppButton>
     </div>
   );
@@ -116,7 +122,7 @@ function DrawingToolControls({
           aria-pressed={activeTool === DRAWING_TOOL_MODE_SELECT}
           title="Normal mode"
         >
-          <img className="drawing-tool-controls__icon" src="/icons/gesture_select.png" alt="" aria-hidden="true" />
+          <img className="drawing-tool-controls__icon" src={assetUrl("icons/gesture_select.png")} alt="" aria-hidden="true" />
         </AppButton>
         <AppButton tone="unstyled"
           type="button"
@@ -126,7 +132,7 @@ function DrawingToolControls({
           aria-pressed={isLineToolActive}
           title="Line tool"
         >
-          <img className="drawing-tool-controls__icon" src="/icons/wysiwyg.png" alt="" aria-hidden="true" />
+          <img className="drawing-tool-controls__icon" src={assetUrl("icons/wysiwyg.png")} alt="" aria-hidden="true" />
         </AppButton>
       </div>
       <label className="drawing-tool-controls__style">

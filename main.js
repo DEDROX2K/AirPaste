@@ -6,6 +6,7 @@ const {
   nativeImage,
   shell,
 } = require("electron");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
@@ -14,13 +15,8 @@ const workspaceService = require("./workspace-service");
 const openGraphScraper = require("open-graph-scraper");
 const cheerio = require("cheerio");
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
-const { chromium } = require("playwright");
 const { getCardStateFromResolvedPreview } = require("./preview/card-mapper");
 const { PREVIEW_STATE_VALUES } = require("./preview/constants");
-const {
-  closePreviewBrowser: closeResolvedPreviewBrowser,
-  resolveUrlToPreview,
-} = require("./preview/resolve-preview");
 
 const CONFIG_FILE_NAME = "config.json";
 const DOME_CONFIG_VERSION = 2;
@@ -142,12 +138,64 @@ const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
 let previewBrowserPromise = null;
+let previewResolverModule = null;
+let playwrightChromium = null;
 // During filesystem v2 stabilization, preview resolution must not mutate
 // workspace files through legacy workspace-document assumptions.
 const STORAGE_V2_STABILIZATION = true;
 
+function resolveWindowIconPath() {
+  const iconCandidates = [
+    path.join(__dirname, "build", "icon.png"),
+    path.join(__dirname, "build", "icon.ico"),
+    path.join(__dirname, "build", "favicon.ico"),
+  ];
+
+  for (const candidatePath of iconCandidates) {
+    if (fsSync.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return undefined;
+}
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function getPreviewResolverModule() {
+  if (previewResolverModule !== null) {
+    return previewResolverModule;
+  }
+
+  try {
+    previewResolverModule = require("./preview/resolve-preview");
+  } catch (error) {
+    previewResolverModule = undefined;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[preview] resolve-preview module unavailable", error?.message || error);
+    }
+  }
+
+  return previewResolverModule;
+}
+
+function getPlaywrightChromium() {
+  if (playwrightChromium) {
+    return playwrightChromium;
+  }
+
+  try {
+    ({ chromium: playwrightChromium } = require("playwright"));
+  } catch (error) {
+    playwrightChromium = null;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[preview] playwright unavailable", error?.message || error);
+    }
+  }
+
+  return playwrightChromium;
 }
 
 function isFiniteNumber(value, fallback) {
@@ -1845,6 +1893,11 @@ function bufferToDataUrl(buffer, mimeType) {
 }
 
 async function getPreviewBrowser() {
+  const chromium = getPlaywrightChromium();
+  if (!chromium) {
+    return null;
+  }
+
   if (!previewBrowserPromise) {
     previewBrowserPromise = chromium.launch({
       headless: true,
@@ -1889,6 +1942,9 @@ async function capturePreviewScreenshot(url) {
 
   try {
     const browser = await getPreviewBrowser();
+    if (!browser) {
+      return "";
+    }
     context = await browser.newContext({
       viewport: PREVIEW_VIEWPORT,
       deviceScaleFactor: 1,
@@ -2113,13 +2169,18 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     return null;
   }
 
+  const previewResolver = getPreviewResolverModule();
+  if (!previewResolver?.resolveUrlToPreview) {
+    return null;
+  }
+
   const jobKey = `${folderPath}:${cardId}`;
 
   if (cancelledPreviewJobs.has(jobKey)) {
     return null;
   }
 
-  const resolvedPreview = await resolveUrlToPreview(url);
+  const resolvedPreview = await previewResolver.resolveUrlToPreview(url);
 
   if (cancelledPreviewJobs.has(jobKey)) {
     return null;
@@ -2213,6 +2274,8 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
 }
 
 async function createWindow() {
+  const windowIconPath = resolveWindowIconPath();
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -2223,7 +2286,7 @@ async function createWindow() {
     titleBarStyle: "hidden",
     show: false,
     title: "AirPaste",
-    icon: path.join(__dirname, "build", "icon.ico"),
+    ...(windowIconPath ? { icon: windowIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -2427,8 +2490,6 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.createCanvas(folderPath, name, targetFolderPath),
   "airpaste:createFolder": (folderPath, name, targetFolderPath) =>
     workspaceService.createFolder(folderPath, name, targetFolderPath),
-  "airpaste:createPage": (folderPath, name, targetFolderPath) =>
-    workspaceService.createPage(folderPath, name, targetFolderPath),
   "airpaste:renameFile": (folderPath, filePath, name) =>
     workspaceService.renameFile(folderPath, filePath, name),
   "airpaste:renameEntry": (folderPath, entryPath, name) =>
@@ -2467,16 +2528,6 @@ ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
 ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data, options = null) => {
   const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
   return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data, options));
-});
-
-ipcMain.handle("airpaste:loadPage", async (_event, filePath) => {
-  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-  return withWorkspaceQueue(queueKey, () => workspaceService.loadPage(filePath));
-});
-
-ipcMain.handle("airpaste:savePage", async (_event, filePath, pageData) => {
-  const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-  return withWorkspaceQueue(queueKey, () => workspaceService.savePage(filePath, pageData));
 });
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {
@@ -2590,5 +2641,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  void closeResolvedPreviewBrowser();
+  const previewResolver = getPreviewResolverModule();
+  void previewResolver?.closePreviewBrowser?.();
 });
