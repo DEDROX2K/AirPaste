@@ -34,6 +34,22 @@ function looksLikeLowInformationDescription(description) {
     || PREVIEW_REJECTION_PATTERNS.some((pattern) => normalizedDescription.includes(pattern));
 }
 
+function isBodyLevelHardRejectionPattern(pattern = "") {
+  const normalized = String(pattern ?? "").toLowerCase();
+
+  return normalized.includes("captcha")
+    || normalized.includes("robot check")
+    || normalized.includes("unusual traffic")
+    || normalized.includes("access denied")
+    || normalized.includes("service unavailable")
+    || normalized.includes("temporarily unavailable")
+    || normalized.includes("privacy notice")
+    || normalized.includes("consent")
+    || normalized.includes("enable cookies")
+    || normalized.includes("verify you are human")
+    || normalized.includes("verify that you are human");
+}
+
 function resolveRejectionReason({ urlPattern, rejectionPattern, rejectImage, lowInformation }) {
   if (urlPattern?.includes("/consent") || rejectionPattern?.includes("consent")) {
     return PREVIEW_REJECTION_REASON.CONSENT_PAGE;
@@ -112,11 +128,14 @@ function validateResolvedPreview(result, documentSignals = {}) {
   const normalizedTitle = normalizePreviewText(result.title || documentSignals.pageTitle);
   const normalizedDescription = normalizePreviewText(result.description);
   const normalizedBodyText = normalizePreviewText(documentSignals.bodyText).slice(0, 5000);
-  const rejectionPattern = PREVIEW_REJECTION_PATTERNS.find((pattern) => (
+  const rejectionPatternFromTitleOrDescription = PREVIEW_REJECTION_PATTERNS.find((pattern) => (
     normalizedTitle.includes(pattern)
     || normalizedDescription.includes(pattern)
-    || normalizedBodyText.includes(pattern)
   ));
+  const rejectionPatternFromBody = PREVIEW_REJECTION_PATTERNS.find((pattern) => (
+    normalizedBodyText.includes(pattern)
+  ));
+  const rejectionPattern = rejectionPatternFromTitleOrDescription || rejectionPatternFromBody;
   const urlPattern = PREVIEW_URL_REJECTION_PATTERNS.find((pattern) => normalizedFinalUrl.includes(pattern));
   const rejectImage = isRejectedPreviewImageUrl(result.image || result.candidateImageUrls?.[0] || "", result);
   const genericTitle = looksLikeGenericTitle(result.title || documentSignals.pageTitle, result.canonicalUrl, result.siteName);
@@ -127,8 +146,13 @@ function validateResolvedPreview(result, documentSignals = {}) {
     rejectImage,
     lowInformation: genericTitle && lowInformationDescription,
   });
+  const shouldBlockFromBodyPattern = Boolean(
+    rejectionPatternFromBody
+    && !rejectionPatternFromTitleOrDescription
+    && isBodyLevelHardRejectionPattern(rejectionPatternFromBody),
+  );
 
-  if (urlPattern || rejectionPattern) {
+  if (urlPattern || rejectionPatternFromTitleOrDescription || shouldBlockFromBodyPattern) {
     return {
       decision: "blocked",
       status: PREVIEW_STATUS.BLOCKED,

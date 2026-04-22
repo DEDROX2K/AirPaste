@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:importFiles", folderPath, sourcePaths, targetFolderPath),
   resolveAssetUrl: (folderPath, relativePath, options) =>
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
+  getPreviewCapabilities: () => ipcRenderer.invoke("airpaste:getPreviewCapabilities"),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
     const handler = (_event, payload) => listener(payload);

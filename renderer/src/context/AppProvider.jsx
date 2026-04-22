@@ -5,6 +5,7 @@ import {
   createEmptyWorkspace,
   createLinkCard,
   createRackCard,
+  isBookmarkLinkCard,
   normalizeWorkspace,
   removeCard,
   reorderCards,
@@ -17,6 +18,7 @@ import { recordSaveSample } from "../lib/perf";
 
 const CANVAS_SAVE_DELAY_MS = 420;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 20;
+const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
 
 function getWorkspaceHistoryLimit() {
   // Keep this behind a helper so the limit can later come from Settings.
@@ -220,6 +222,38 @@ function normalizeWorkspaceHistory(entry) {
   return createWorkspaceHistory(entry ?? createEmptyWorkspace());
 }
 
+function sanitizeWorkspaceForPreviewAvailability(workspace, previewEnabled) {
+  const safeWorkspace = normalizeWorkspace(workspace);
+
+  if (previewEnabled !== false) {
+    return safeWorkspace;
+  }
+
+  let changed = false;
+  const nextCards = safeWorkspace.cards.map((card) => {
+    if (!isBookmarkLinkCard(card) || card.status !== "loading") {
+      return card;
+    }
+
+    changed = true;
+    return {
+      ...card,
+      status: "failed",
+      previewStatus: "disabled",
+      previewError: card.previewError?.trim() || PREVIEW_UNAVAILABLE_MESSAGE,
+    };
+  });
+
+  if (!changed) {
+    return safeWorkspace;
+  }
+
+  return {
+    ...safeWorkspace,
+    cards: nextCards,
+  };
+}
+
 function createHomeState() {
   return {
     workspace: null,
@@ -244,6 +278,7 @@ export function AppProvider({ children }) {
   const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab } = useTabs();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
+  const [previewEnabled, setPreviewEnabled] = useState(true);
   const [homeData, setHomeData] = useState(createHomeState());
   const [domesState, setDomesState] = useState(createDomesState());
   const [folderLoading, setFolderLoading] = useState(false);
@@ -449,6 +484,11 @@ export function AppProvider({ children }) {
 
     async function boot() {
       try {
+        const previewCapabilities = await desktop.workspace.getPreviewCapabilities().catch(() => null);
+        if (!cancelled && typeof previewCapabilities?.enabled === "boolean") {
+          setPreviewEnabled(previewCapabilities.enabled);
+        }
+
         const active = await desktop.dome.getActiveDome();
         const domes = await desktop.dome.listDomes();
         if (!cancelled) {
@@ -478,13 +518,14 @@ export function AppProvider({ children }) {
 
   const openCanvasFile = useCallback(async (filePath) => {
     const doc = await desktop.workspace.loadCanvas(filePath);
-    setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(doc.workspace) }));
+    const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+    setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) }));
     delete workspaceDraftBaseRef.current[doc.filePath];
     skipCanvasSaveRef.current[doc.filePath] = true;
     openTab({ type: "canvas", entityId: doc.filePath, title: doc.name, filePath: doc.path });
     await refreshHomeData(folderPath);
     return doc;
-  }, [folderPath, openTab, refreshHomeData]);
+  }, [folderPath, openTab, previewEnabled, refreshHomeData]);
 
   const openHomeItem = useCallback(async (item) => {
     if (!item?.filePath) return null;
@@ -523,7 +564,8 @@ export function AppProvider({ children }) {
           if (cancelled) return;
           setWorkspacesByPath((prev) => {
             if (prev[doc.filePath]) return prev;
-            return { ...prev, [doc.filePath]: createWorkspaceHistory(doc.workspace) };
+            const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+            return { ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) };
           });
           skipCanvasSaveRef.current[doc.filePath] = true;
           return;
@@ -541,7 +583,32 @@ export function AppProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, folderPath, workspacesByPath]);
+  }, [activeTab, folderPath, previewEnabled, workspacesByPath]);
+
+  useEffect(() => {
+    if (previewEnabled !== false) {
+      return;
+    }
+
+    setWorkspacesByPath((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const [filePath, historyEntry] of Object.entries(current)) {
+        const history = normalizeWorkspaceHistory(historyEntry);
+        const sanitizedPresent = sanitizeWorkspaceForPreviewAvailability(history.present, false);
+        if (!areWorkspacesEqual(history.present, sanitizedPresent)) {
+          changed = true;
+          next[filePath] = {
+            ...history,
+            present: sanitizedPresent,
+          };
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [previewEnabled]);
 
   const navigateHomeFolder = useCallback(async (nextFolderPath) => {
     if (!folderPath) return null;

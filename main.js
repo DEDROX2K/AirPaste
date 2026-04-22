@@ -3,7 +3,9 @@ const {
   BrowserWindow,
   dialog,
   ipcMain,
+  net,
   nativeImage,
+  protocol,
   shell,
 } = require("electron");
 const fsSync = require("node:fs");
@@ -137,12 +139,27 @@ let mainWindow = null;
 const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
+const resolvedAssetUrlRegistry = new Map();
 let previewBrowserPromise = null;
 let previewResolverModule = null;
 let playwrightChromium = null;
+const ASSET_PROTOCOL_SCHEME = "airpaste-asset";
+const MAX_RESOLVED_ASSET_URLS = 4000;
 // During filesystem v2 stabilization, preview resolution must not mutate
 // workspace files through legacy workspace-document assumptions.
-const STORAGE_V2_STABILIZATION = true;
+const STORAGE_V2_STABILIZATION = false;
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: ASSET_PROTOCOL_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 function resolveWindowIconPath() {
   const iconCandidates = [
@@ -671,6 +688,28 @@ async function resolveAssetVariantPath(folderPath, assetPath, options) {
   }
 
   return variantPath;
+}
+
+function registerResolvedAssetUrl(assetPath) {
+  const resolvedAssetPath = path.resolve(String(assetPath ?? ""));
+  if (!resolvedAssetPath) {
+    return "";
+  }
+
+  const assetId = createHash("sha1")
+    .update(resolvedAssetPath.toLowerCase())
+    .digest("hex");
+  resolvedAssetUrlRegistry.set(assetId, resolvedAssetPath);
+
+  while (resolvedAssetUrlRegistry.size > MAX_RESOLVED_ASSET_URLS) {
+    const oldestAssetId = resolvedAssetUrlRegistry.keys().next().value;
+    if (!oldestAssetId) {
+      break;
+    }
+    resolvedAssetUrlRegistry.delete(oldestAssetId);
+  }
+
+  return `${ASSET_PROTOCOL_SCHEME}://${assetId}`;
 }
 
 function createDomeId(domePath) {
@@ -2474,7 +2513,13 @@ ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePa
 
   const normalizedOptions = normalizeAssetPreviewOptions(options);
   const resolvedPath = await resolveAssetVariantPath(folderPath, assetPath, normalizedOptions);
-  return pathToFileURL(resolvedPath).toString();
+  return registerResolvedAssetUrl(resolvedPath);
+});
+
+ipcMain.handle("airpaste:getPreviewCapabilities", async () => {
+  return {
+    enabled: !STORAGE_V2_STABILIZATION,
+  };
 });
 
 const workspaceActionHandlers = Object.freeze({
@@ -2625,6 +2670,20 @@ ipcMain.on("window:close", () => mainWindow?.close());
 
 
 app.whenReady().then(async () => {
+  protocol.handle(ASSET_PROTOCOL_SCHEME, async (request) => {
+    try {
+      const requestUrl = new URL(request.url);
+      const assetId = String(requestUrl.host || "").trim();
+      const assetPath = resolvedAssetUrlRegistry.get(assetId);
+      if (!assetPath) {
+        return new Response("Asset not found.", { status: 404 });
+      }
+      return net.fetch(pathToFileURL(assetPath).toString());
+    } catch {
+      return new Response("Invalid asset URL.", { status: 400 });
+    }
+  });
+
   await createWindow();
 
   app.on("activate", async () => {

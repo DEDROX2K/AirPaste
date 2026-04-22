@@ -19,6 +19,7 @@ import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
+const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
@@ -139,7 +140,16 @@ export function useCanvasCommands({
     log("info", "Fetching link preview...", { url: card.url, cardId: card.id });
 
     try {
-      await desktop.workspace.fetchLinkPreview(folderPath, card.id, card.url, card);
+      const result = await desktop.workspace.fetchLinkPreview(folderPath, card.id, card.url, card);
+      if (result?.disabled === true) {
+        updateExistingCard(card.id, {
+          status: "failed",
+          previewStatus: "disabled",
+          previewError: PREVIEW_UNAVAILABLE_MESSAGE,
+        });
+        log("warn", `Preview unavailable for "${card.url}"`, PREVIEW_UNAVAILABLE_MESSAGE);
+        return;
+      }
       log("success", `Preview queued for "${card.url}"`);
     } catch (previewError) {
       const message = previewError.message || "Unable to fetch preview metadata.";

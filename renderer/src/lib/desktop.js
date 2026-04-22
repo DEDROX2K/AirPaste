@@ -74,6 +74,8 @@ export const desktop = {
     importFiles: (...args) => airpasteBridge.importFiles?.(...args) ?? Promise.resolve([]),
     resolveAssetUrl: (folderPath, relativePath, options = null) =>
       airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
+    getPreviewCapabilities: (...args) =>
+      airpasteBridge.getPreviewCapabilities?.(...args) ?? Promise.resolve({ enabled: true }),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),
     getLastFolder: (...args) => airpasteBridge.getLastFolder?.(...args) ?? Promise.resolve(null),
     restoreLastWorkspace: async () => {
