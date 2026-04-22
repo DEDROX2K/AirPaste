@@ -46,6 +46,7 @@ import {
   getDefaultCameraDistance,
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
+import { desktop } from "../lib/desktop";
 import {
   buildTileRenderHint,
   resolveWorkspaceLodLevel,
@@ -297,6 +298,264 @@ function areRenderHintsEqual(left, right) {
     && left.usePreviewColorBlock === right.usePreviewColorBlock;
 }
 
+const WINDOW_PALETTE_KEYS = Object.freeze([
+  "--ap-bg-page",
+  "--ap-bg-base",
+  "--ap-surface-default",
+  "--ap-surface-raised",
+  "--ap-surface-overlay",
+  "--ap-text-accent",
+  "--ap-icon-accent",
+  "--ap-border-focus",
+  "--ap-border-accent",
+  "--ap-interactive-bg-selected",
+  "--ap-interactive-text-selected",
+  "--ap-accent-bg",
+  "--ap-accent-bg-hover",
+  "--ap-accent-bg-active",
+  "--ap-accent-tint",
+  "--ap-accent-tint-hover",
+]);
+const DEFAULT_WINDOW_ACCENT = Object.freeze({ r: 93, g: 134, b: 229 });
+const TILE_TYPE_ACCENT = Object.freeze({
+  rack: { r: 163, g: 118, b: 84 },
+  folder: { r: 121, g: 150, b: 235 },
+  "amazon-product": { r: 226, g: 154, b: 58 },
+  link: { r: 93, g: 134, b: 229 },
+});
+const colorParseCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
+const colorParseContext = colorParseCanvas ? colorParseCanvas.getContext("2d") : null;
+
+function clampChannel(value) {
+  const numeric = Number.isFinite(value) ? value : 0;
+  return Math.max(0, Math.min(255, Math.round(numeric)));
+}
+
+function formatRgb(color) {
+  return `rgb(${clampChannel(color.r)} ${clampChannel(color.g)} ${clampChannel(color.b)})`;
+}
+
+function formatRgba(color, alpha) {
+  return `rgba(${clampChannel(color.r)}, ${clampChannel(color.g)}, ${clampChannel(color.b)}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
+function parseCssColorToRgb(input) {
+  if (typeof input !== "string" || input.trim().length === 0 || !colorParseContext) {
+    return null;
+  }
+
+  try {
+    colorParseContext.fillStyle = "#000";
+    colorParseContext.fillStyle = input.trim();
+    const normalized = String(colorParseContext.fillStyle).trim();
+    const hexMatch = normalized.match(/^#([0-9a-f]{6})$/i);
+    if (hexMatch) {
+      const value = hexMatch[1];
+      return {
+        r: Number.parseInt(value.slice(0, 2), 16),
+        g: Number.parseInt(value.slice(2, 4), 16),
+        b: Number.parseInt(value.slice(4, 6), 16),
+      };
+    }
+
+    const rgbMatch = normalized.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (rgbMatch) {
+      return {
+        r: Number.parseInt(rgbMatch[1], 10),
+        g: Number.parseInt(rgbMatch[2], 10),
+        b: Number.parseInt(rgbMatch[3], 10),
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function mixColor(left, right, rightWeight) {
+  const weight = Math.max(0, Math.min(1, rightWeight));
+  return {
+    r: left.r + ((right.r - left.r) * weight),
+    g: left.g + ((right.g - left.g) * weight),
+    b: left.b + ((right.b - left.b) * weight),
+  };
+}
+
+function getFallbackAccentForTile(tile) {
+  const byType = tile?.type ? TILE_TYPE_ACCENT[tile.type] : null;
+  return byType ?? DEFAULT_WINDOW_ACCENT;
+}
+
+function getPaletteImageCandidate(tile) {
+  if (!tile || typeof tile !== "object") {
+    return "";
+  }
+
+  if (typeof tile.image === "string" && tile.image.trim().length > 0) {
+    return tile.image.trim();
+  }
+
+  const diagnostics = tile.previewDiagnostics && typeof tile.previewDiagnostics === "object"
+    ? tile.previewDiagnostics
+    : null;
+  if (typeof diagnostics?.chosenFinalImageUrl === "string" && diagnostics.chosenFinalImageUrl.trim().length > 0) {
+    return diagnostics.chosenFinalImageUrl.trim();
+  }
+
+  if (Array.isArray(diagnostics?.candidateImageUrls)) {
+    const firstCandidate = diagnostics.candidateImageUrls.find((value) => typeof value === "string" && value.trim().length > 0);
+    if (firstCandidate) {
+      return firstCandidate.trim();
+    }
+  }
+
+  return "";
+}
+
+async function sampleImageColor(source) {
+  if (typeof source !== "string" || source.trim().length === 0 || typeof Image === "undefined") {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.decoding = "async";
+
+    image.onload = () => {
+      if (!image.naturalWidth || !image.naturalHeight) {
+        resolve(null);
+        return;
+      }
+
+      try {
+        const sampleCanvas = document.createElement("canvas");
+        const sampleSize = 12;
+        sampleCanvas.width = sampleSize;
+        sampleCanvas.height = sampleSize;
+        const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
+        if (!sampleContext) {
+          resolve(null);
+          return;
+        }
+
+        sampleContext.drawImage(image, 0, 0, sampleSize, sampleSize);
+        const imageData = sampleContext.getImageData(0, 0, sampleSize, sampleSize).data;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let alphaSum = 0;
+
+        for (let index = 0; index < imageData.length; index += 4) {
+          const alpha = imageData[index + 3] / 255;
+          if (alpha <= 0.04) {
+            continue;
+          }
+
+          red += imageData[index] * alpha;
+          green += imageData[index + 1] * alpha;
+          blue += imageData[index + 2] * alpha;
+          alphaSum += alpha;
+        }
+
+        if (alphaSum <= 0) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          r: red / alphaSum,
+          g: green / alphaSum,
+          b: blue / alphaSum,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+
+    image.onerror = () => resolve(null);
+    image.src = source.trim();
+  });
+}
+
+async function resolveTilePaletteSource(tile, folderPath) {
+  const directCandidate = getPaletteImageCandidate(tile);
+  if (directCandidate) {
+    return directCandidate;
+  }
+
+  if (
+    typeof folderPath === "string"
+    && folderPath.trim().length > 0
+    && typeof tile?.asset?.relativePath === "string"
+    && tile.asset.relativePath.trim().length > 0
+  ) {
+    try {
+      const resolvedAsset = await desktop.workspace.resolveAssetUrl(
+        folderPath,
+        tile.asset.relativePath,
+      );
+      if (typeof resolvedAsset === "string" && resolvedAsset.trim().length > 0) {
+        return resolvedAsset.trim();
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  return "";
+}
+
+function readWindowPaletteVars(rootElement) {
+  const computedStyles = window.getComputedStyle(rootElement);
+  return WINDOW_PALETTE_KEYS.reduce((allVars, key) => {
+    allVars[key] = computedStyles.getPropertyValue(key).trim();
+    return allVars;
+  }, {});
+}
+
+function applyWindowPaletteVars(rootElement, vars) {
+  WINDOW_PALETTE_KEYS.forEach((key) => {
+    const value = vars?.[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      rootElement.style.setProperty(key, value);
+    } else {
+      rootElement.style.removeProperty(key);
+    }
+  });
+}
+
+function buildWindowPaletteVars(accentColor) {
+  const accent = parseCssColorToRgb(formatRgb(accentColor)) ?? DEFAULT_WINDOW_ACCENT;
+  const white = { r: 255, g: 255, b: 255 };
+  const black = { r: 0, g: 0, b: 0 };
+
+  const surfaceBase = mixColor(accent, white, 0.94);
+  const accentHover = mixColor(accent, white, 0.1);
+  const accentActive = mixColor(accent, black, 0.14);
+  const textAccent = mixColor(accent, black, 0.26);
+
+  return {
+    "--ap-bg-page": formatRgb(mixColor(accent, white, 0.95)),
+    "--ap-bg-base": formatRgb(mixColor(accent, white, 0.93)),
+    "--ap-surface-default": formatRgb(surfaceBase),
+    "--ap-surface-raised": formatRgb(mixColor(accent, white, 0.965)),
+    "--ap-surface-overlay": formatRgb(mixColor(accent, white, 0.975)),
+    "--ap-text-accent": formatRgb(textAccent),
+    "--ap-icon-accent": formatRgb(textAccent),
+    "--ap-border-focus": formatRgb(mixColor(accent, white, 0.2)),
+    "--ap-border-accent": formatRgb(mixColor(accent, white, 0.14)),
+    "--ap-interactive-bg-selected": formatRgb(mixColor(accent, white, 0.8)),
+    "--ap-interactive-text-selected": formatRgb(mixColor(accent, black, 0.32)),
+    "--ap-accent-bg": formatRgb(accent),
+    "--ap-accent-bg-hover": formatRgb(accentHover),
+    "--ap-accent-bg-active": formatRgb(accentActive),
+    "--ap-accent-tint": formatRgba(accent, 0.16),
+    "--ap-accent-tint-hover": formatRgba(accent, 0.26),
+  };
+}
+
 function CanvasPerformanceOverlay({
   visibleTileCount,
   renderedTileCount,
@@ -502,6 +761,8 @@ export default function CanvasWorkspaceView() {
   const lodFrozenZoomRef = useRef(1);
   const lodFreezeActiveRef = useRef(false);
   const workspaceLodLevelRef = useRef(WORKSPACE_LOD_LEVEL.NORMAL);
+  const windowPaletteDefaultsRef = useRef(null);
+  const sampledTilePaletteBySourceRef = useRef(new Map());
   const {
     canRedo,
     canUndo,
@@ -617,6 +878,23 @@ export default function CanvasWorkspaceView() {
     return () => document.removeEventListener("paste", handleWorkspacePaste, true);
   }, [handleWorkspacePaste]);
 
+  useEffect(() => {
+    const rootElement = document.documentElement;
+    if (!rootElement) {
+      return undefined;
+    }
+
+    if (!windowPaletteDefaultsRef.current) {
+      windowPaletteDefaultsRef.current = readWindowPaletteVars(rootElement);
+    }
+
+    return () => {
+      if (windowPaletteDefaultsRef.current) {
+        applyWindowPaletteVars(rootElement, windowPaletteDefaultsRef.current);
+      }
+    };
+  }, []);
+
   const filteredTiles = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextFilteredTiles = workspace.cards;
@@ -637,6 +915,14 @@ export default function CanvasWorkspaceView() {
     });
     return nextTileById;
   }, [workspace.cards]);
+  const selectedTileForWindowPalette = useMemo(() => {
+    if (interactions.selectedTileIds.length === 0) {
+      return null;
+    }
+
+    const mostRecentlySelectedTileId = interactions.selectedTileIds[interactions.selectedTileIds.length - 1];
+    return tileById[mostRecentlySelectedTileId] ?? null;
+  }, [interactions.selectedTileIds, tileById]);
   const draggingTileIdSet = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextDraggingTileIdSet = new Set(interactions.draggingTileIds);
@@ -648,6 +934,57 @@ export default function CanvasWorkspaceView() {
   }, [interactions.draggingTileIds]);
   const isCanvasMoving = cameraIsMoving || interactions.draggingTileIds.length > 0;
   const liveViewport = canvas.getViewportSnapshot();
+
+  useEffect(() => {
+    const rootElement = document.documentElement;
+    if (!rootElement) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const applyPalette = async () => {
+      if (!selectedTileForWindowPalette) {
+        if (windowPaletteDefaultsRef.current) {
+          applyWindowPaletteVars(rootElement, windowPaletteDefaultsRef.current);
+        }
+        return;
+      }
+
+      const fallbackAccent = getFallbackAccentForTile(selectedTileForWindowPalette);
+      let sampledAccent = fallbackAccent;
+      const imageSource = await resolveTilePaletteSource(selectedTileForWindowPalette, folderPath);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (imageSource) {
+        if (sampledTilePaletteBySourceRef.current.has(imageSource)) {
+          sampledAccent = sampledTilePaletteBySourceRef.current.get(imageSource) ?? fallbackAccent;
+        } else {
+          const sampledColor = await sampleImageColor(imageSource);
+          if (cancelled) {
+            return;
+          }
+
+          if (sampledColor) {
+            sampledAccent = sampledColor;
+            sampledTilePaletteBySourceRef.current.set(imageSource, sampledColor);
+          }
+        }
+      }
+
+      const nextPalette = buildWindowPaletteVars(sampledAccent ?? fallbackAccent);
+      applyWindowPaletteVars(rootElement, nextPalette);
+    };
+
+    void applyPalette();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderPath, selectedTileForWindowPalette]);
 
   useEffect(() => {
     if (isGridMode || isGlobeMode) {

@@ -53,6 +53,34 @@ function IconSearch() {
   );
 }
 
+function IconSidebarToggle() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="m14 10 3 2-3 2" />
+    </svg>
+  );
+}
+
+function IconHome() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10.5V20h14v-9.5" />
+    </svg>
+  );
+}
+
+function IconRecent() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v5l3 2" />
+    </svg>
+  );
+}
+
 function IconChevronDown() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -129,6 +157,16 @@ function IconUpload() {
       <path d="M12 16V4" />
       <path d="m7 9 5-5 5 5" />
       <path d="M20 16.5v1a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-1" />
+    </svg>
+  );
+}
+
+function IconMore() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="6" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="18" cy="12" r="1.5" />
     </svg>
   );
 }
@@ -261,8 +299,14 @@ function sectionLabel(section) {
   return "Home";
 }
 
+function sectionIcon(section) {
+  if (section === "home") return <IconHome />;
+  if (section === "recents") return <IconRecent />;
+  return <IconStar />;
+}
+
 function buildBrowserItems(items, preferences, searchQuery) {
-  const filtered = filterItemsByPreference(items, preferences.filter);
+  const filtered = filterItemsByPreference(items, "all");
   const query = searchQuery.trim().toLowerCase();
   const searched = !query
     ? filtered
@@ -369,23 +413,42 @@ function BrowserEntry({ item, viewMode, isActive = false, onOpen, onRename, onDe
         </span>
       </button>
       <div className="home-browser-entry__actions">
-        {canStar ? (
-          <AppButton tone={item.starred ? "accent" : "surface"} className="home-button home-button--icon" onClick={() => void onToggleStar(item)}>
-            <IconStar filled={item.starred} />
-          </AppButton>
-        ) : null}
-        {canRename ? (
-          <AppButton tone="surface" className="home-button home-button--secondary home-button--icon-text" onClick={() => onRename(item)}>
-            <IconPencil />
-            <AppScrambleText>Rename</AppScrambleText>
-          </AppButton>
-        ) : null}
-        {canDelete ? (
-          <AppButton tone="danger" className="home-button home-button--icon-text" onClick={() => onDelete(item)}>
-            <IconTrash />
-            <AppScrambleText>Delete</AppScrambleText>
-          </AppButton>
-        ) : null}
+        <AppDropdownMenu>
+          <AppDropdownMenuTrigger asChild>
+            <AppButton
+              tone="surface"
+              className="home-button home-button--icon home-browser-entry__menu-trigger"
+              aria-label={`More actions for ${item.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconMore />
+            </AppButton>
+          </AppDropdownMenuTrigger>
+          <AppDropdownMenuContent className="home-browser-entry__menu" align="end" sideOffset={6}>
+            <AppDropdownMenuLabel className="home-browser-entry__menu-label">{item.name}</AppDropdownMenuLabel>
+            {canStar ? (
+              <AppDropdownMenuItem onSelect={() => void onToggleStar(item)}>
+                <IconStar filled={item.starred} />
+                {item.starred ? "Remove star" : "Add star"}
+              </AppDropdownMenuItem>
+            ) : null}
+            {canRename ? (
+              <AppDropdownMenuItem onSelect={() => onRename(item)}>
+                <IconPencil />
+                Rename
+              </AppDropdownMenuItem>
+            ) : null}
+            {canDelete ? (
+              <>
+                <AppDropdownMenuSeparator />
+                <AppDropdownMenuItem className="home-browser-entry__menu-item--danger" onSelect={() => onDelete(item)}>
+                  <IconTrash />
+                  Delete
+                </AppDropdownMenuItem>
+              </>
+            ) : null}
+          </AppDropdownMenuContent>
+        </AppDropdownMenu>
       </div>
     </article>
   );
@@ -426,6 +489,7 @@ export default function HomeShell() {
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -506,16 +570,6 @@ export default function HomeShell() {
     () => buildBrowserItems(sectionItems, homePreferences, searchQuery),
     [homePreferences, searchQuery, sectionItems],
   );
-
-  const counts = useMemo(() => ({
-    folders: homeData.allFiles.filter((item) => item.type === "folder").length,
-    canvases: homeData.allFiles.filter((item) => item.type === "canvas").length,
-    assets: homeData.allFiles.filter((item) => item.type === "asset" || item.type === "file").length,
-  }), [homeData.allFiles]);
-
-  const currentFolderLabel = navigation.currentFolderPath
-    ? folderNameFromPath(navigation.currentFolderPath)
-    : folderNameFromPath(folderPath);
 
   const handleSectionChange = useCallback(async (selectedSection) => {
     const nextNavigation = {
@@ -608,7 +662,7 @@ export default function HomeShell() {
     if (searchQuery.trim()) {
       return {
         title: "No matching results",
-        description: "Try a different search term or change the current filter.",
+        description: "Try a different search term.",
       };
     }
     return {
@@ -622,44 +676,20 @@ export default function HomeShell() {
   const emptyState = describeEmptyState();
 
   return (
-    <main ref={shellRef} className="home-shell home-shell--workspace-nav">
+    <main ref={shellRef} className={`home-shell home-shell--workspace-nav ${sidebarCollapsed ? "home-shell--sidebar-collapsed" : ""}`}>
       <HomeCubeTrail containerRef={shellRef} />
 
-      <aside className="home-sidebar home-sidebar--workspace-nav">
-        <div className="home-sidebar__switcher">
-          <AppDropdownMenu>
-            <AppDropdownMenuTrigger asChild>
-              <AppButton tone="surface" className="home-dome-switcher" title="Switch dome">
-                <span className="home-dome-switcher__body">
-                  <AppScrambleText className="home-dome-switcher__name">{activeDome?.name || "Choose dome"}</AppScrambleText>
-                  <span className="home-dome-switcher__path">{folderPath || activeDome?.path || "Open a folder-backed dome."}</span>
-                </span>
-                <span className="home-dome-switcher__chevron"><IconChevronDown /></span>
-              </AppButton>
-            </AppDropdownMenuTrigger>
-            <AppDropdownMenuContent align="start" className="w-80">
-              <AppDropdownMenuLabel>Available Domes</AppDropdownMenuLabel>
-              {domes.length === 0 ? (
-                <AppDropdownMenuItem disabled>No domes</AppDropdownMenuItem>
-              ) : (
-                domes.map((dome) => (
-                  <AppDropdownMenuItem key={dome.id} onClick={() => void switchDome(dome.id)}>
-                    <span className="flex flex-col">
-                      <span>{dome.name}{dome.id === activeDome?.id ? " (active)" : ""}</span>
-                      <span className="text-xs text-ap-text-secondary">{dome.exists ? dome.path : "Missing folder"}</span>
-                    </span>
-                  </AppDropdownMenuItem>
-                ))
-              )}
-              <AppDropdownMenuSeparator />
-              <AppDropdownMenuItem onClick={() => void openExistingWorkspace()}>
-                Open Folder as Dome...
-              </AppDropdownMenuItem>
-              <AppDropdownMenuItem onClick={() => openCreateDialog("create-dome", "New Dome")}>
-                Create New Dome...
-              </AppDropdownMenuItem>
-            </AppDropdownMenuContent>
-          </AppDropdownMenu>
+      <aside className={`home-sidebar home-sidebar--workspace-nav ${sidebarCollapsed ? "home-sidebar--collapsed" : ""}`}>
+        <div className="home-sidebar__topbar">
+          <span className="home-sidebar__topbar-title">{homeData.workspace?.name || folderNameFromPath(folderPath) || "Workspace"}</span>
+          <AppButton
+            tone="surface"
+            className="home-button home-button--icon home-sidebar__collapse-btn"
+            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+            onClick={() => setSidebarCollapsed((current) => !current)}
+          >
+            <IconSidebarToggle />
+          </AppButton>
         </div>
 
         <div className="home-sidebar__search">
@@ -672,12 +702,6 @@ export default function HomeShell() {
           />
         </div>
 
-        <div className="home-sidebar__summary">
-          <div className="home-sidebar__summary-pill">Folders {counts.folders}</div>
-          <div className="home-sidebar__summary-pill">Canvas {counts.canvases}</div>
-          <div className="home-sidebar__summary-pill">Assets {counts.assets}</div>
-        </div>
-
         <div className="home-sidebar__sections">
           {["home", "recents", "starred"].map((section) => (
             <button
@@ -685,7 +709,9 @@ export default function HomeShell() {
               type="button"
               className={`home-sidebar-section ${navigation.selectedSection === section ? "home-sidebar-section--active" : ""}`}
               onClick={() => void handleSectionChange(section)}
+              title={sectionLabel(section)}
             >
+              <span className="home-sidebar-section__icon">{sectionIcon(section)}</span>
               <span className="home-sidebar-section__label">{sectionLabel(section)}</span>
               <span className="home-sidebar-section__count">
                 {section === "home" ? homeData.allFiles.length : (section === "recents" ? homeData.recentItems.length : homeData.starredItems.length)}
@@ -697,15 +723,15 @@ export default function HomeShell() {
         <div className="home-sidebar__tree">
           {!hasWorkspace ? (
             <div className="home-sidebar__blank">
-              <div className="home-sidebar__blank-title">{activeDome?.path ? "Connecting to dome" : "Open a dome"}</div>
+              <div className="home-sidebar__blank-title">{activeDome?.path ? "Connecting to workspace" : "Open a workspace"}</div>
               <p className="home-sidebar__blank-copy">
                 {activeDome?.path
-                  ? "AirPaste is syncing the selected dome into the workspace shell."
-                  : "Choose an existing folder or create a new dome to populate the folder tree."}
+                  ? "AirPaste is syncing the selected workspace into the workspace shell."
+                  : "Choose an existing folder or create a new workspace to populate the folder tree."}
               </p>
               <div className="home-sidebar__blank-actions">
                 <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
-                  <AppScrambleText>{activeDome?.id ? "Retry Dome" : "Open Folder"}</AppScrambleText>
+                  <AppScrambleText>{activeDome?.id ? "Retry Workspace" : "Open Folder"}</AppScrambleText>
                 </AppButton>
               </div>
             </div>
@@ -737,42 +763,19 @@ export default function HomeShell() {
 
         <div className="home-sidebar__footer home-sidebar__footer--workspace-nav">
           <div className="home-workspace-info">
-            <span className="home-workspace-name">{homeData.workspace?.name || folderNameFromPath(folderPath) || "No Dome Open"}</span>
+            <span className="home-workspace-name">{homeData.workspace?.name || folderNameFromPath(folderPath) || "No Workspace Open"}</span>
             <span className="home-workspace-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</span>
           </div>
           <div className="home-sidebar__footer-actions">
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}><AppScrambleText>Manage Domes</AppScrambleText></AppButton>
+            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}>
+              {sidebarCollapsed ? <IconMore /> : <AppScrambleText>Manage Workspaces</AppScrambleText>}
+            </AppButton>
           </div>
         </div>
       </aside>
 
       <section className="home-content home-content--workspace-nav">
         <header className="home-toolbar home-toolbar--workspace-nav">
-          <div className="home-toolbar__summary">
-            <p className="home-toolbar__eyebrow">{sectionLabel(navigation.selectedSection)}</p>
-            <h1 className="home-toolbar__title">{currentFolderLabel || activeDome?.name || homeData.workspace?.name || "Workspace"}</h1>
-            <p className="home-toolbar__description">
-              {hasWorkspace
-                ? `${browserItems.length} visible entr${browserItems.length === 1 ? "y" : "ies"} in ${navigation.selectedSection === "home" ? (navigation.currentFolderPath || "workspace root") : sectionLabel(navigation.selectedSection).toLowerCase()}.`
-                : "Select a dome to load its folders, canvases, and files into the workspace navigator."}
-            </p>
-            {navigation.selectedSection === "home" ? (
-              <div className="home-toolbar__breadcrumbs">
-                {folderAncestors(navigation.currentFolderPath).map((crumbPath, index, crumbs) => (
-                  <button
-                    key={crumbPath || "root"}
-                    type="button"
-                    className={`home-breadcrumb ${crumbPath === navigation.currentFolderPath ? "home-breadcrumb--active" : ""}`}
-                    onClick={() => void handleFolderSelect(crumbPath)}
-                  >
-                    {crumbPath ? folderNameFromPath(crumbPath) : (homeData.workspace?.name || folderNameFromPath(folderPath))}
-                    {index < crumbs.length - 1 ? <span className="home-breadcrumb__separator">/</span> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
           <div className="home-toolbar__controls">
             <div className="home-toolbar__control-group">
               <span className="home-toolbar__control-label">View</span>
@@ -794,28 +797,7 @@ export default function HomeShell() {
               </div>
             </div>
 
-            <div className="home-toolbar__control-group">
-              <span className="home-toolbar__control-label">Sort</span>
-              <select className="home-select" value={homePreferences.sortBy} onChange={(event) => handlePreferenceChange({ sortBy: event.target.value })}>
-                <option value="updatedAt">Edited</option>
-                <option value="name">Name</option>
-                <option value="type">Type</option>
-              </select>
-            </div>
-
-            <div className="home-toolbar__control-group">
-              <span className="home-toolbar__control-label">Filter</span>
-              <select className="home-select" value={homePreferences.filter} onChange={(event) => handlePreferenceChange({ filter: event.target.value })}>
-                <option value="all">All</option>
-                <option value="folders">Folders</option>
-                <option value="canvases">Canvases</option>
-                <option value="assets">Assets</option>
-                <option value="starred">Starred</option>
-              </select>
-            </div>
-
             <div className="home-toolbar__action-group">
-              <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)} disabled={!folderPath || folderLoading}><AppScrambleText>Refresh</AppScrambleText></AppButton>
               <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => openCreateDialog("folder", "New Folder")} disabled={!hasWorkspace}>
                 <IconPlus />
                 <AppScrambleText>New Folder</AppScrambleText>
@@ -825,6 +807,19 @@ export default function HomeShell() {
                 <IconUpload />
                 <AppScrambleText>Import files</AppScrambleText>
               </AppButton>
+              <AppDropdownMenu>
+                <AppDropdownMenuTrigger asChild>
+                  <AppButton tone="surface" className="home-button home-button--secondary home-toolbar__more">
+                    <IconMore />
+                    <AppScrambleText>More</AppScrambleText>
+                  </AppButton>
+                </AppDropdownMenuTrigger>
+                <AppDropdownMenuContent align="end" sideOffset={6}>
+                  <AppDropdownMenuItem onSelect={() => void refreshHomeData(folderPath, navigation.currentFolderPath)} disabled={!folderPath || folderLoading}>
+                    Refresh
+                  </AppDropdownMenuItem>
+                </AppDropdownMenuContent>
+              </AppDropdownMenu>
             </div>
           </div>
         </header>
@@ -833,15 +828,15 @@ export default function HomeShell() {
           {!hasWorkspace ? (
             <section className="home-blank-panel">
               <p className="home-blank-panel__eyebrow">Workspace Offline</p>
-              <h2 className="home-blank-panel__title">{activeDome?.name || "No Dome Loaded"}</h2>
+              <h2 className="home-blank-panel__title">{activeDome?.name || "No Workspace Loaded"}</h2>
               <p className="home-blank-panel__copy">
                 Open a folder-backed workspace to browse nested folders, canvases, and imported files.
               </p>
               <div className="home-blank-panel__actions">
                 <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
-                  <AppScrambleText>{activeDome?.id ? "Reconnect Dome" : "Open Folder"}</AppScrambleText>
+                  <AppScrambleText>{activeDome?.id ? "Reconnect Workspace" : "Open Folder"}</AppScrambleText>
                 </AppButton>
-                <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}><AppScrambleText>Manage Domes</AppScrambleText></AppButton>
+                <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}><AppScrambleText>Manage Workspaces</AppScrambleText></AppButton>
               </div>
             </section>
           ) : browserItems.length === 0 ? (
@@ -887,14 +882,14 @@ export default function HomeShell() {
               : textDialog?.type === "folder"
                   ? "Create folder"
                   : textDialog?.type === "create-dome"
-                    ? "Create Dome"
+                    ? "Create Workspace"
                     : ""
         }
         description={
           textDialog?.type === "rename"
             ? "Update the selected folder or file name."
             : textDialog?.type === "create-dome"
-              ? "Choose a Dome name."
+              ? "Choose a workspace name."
               : textDialog?.type === "folder"
                 ? "Create a folder in the current location."
                 : "Choose a name for the new file."
@@ -921,12 +916,12 @@ export default function HomeShell() {
       <AppDialog open={manageDomesOpen} onOpenChange={setManageDomesOpen}>
         <AppDialogContent>
           <AppDialogHeader>
-            <AppDialogTitle>Manage Domes</AppDialogTitle>
-            <AppDialogDescription>Switch, reveal, remove, or create domes.</AppDialogDescription>
+            <AppDialogTitle>Manage Workspaces</AppDialogTitle>
+            <AppDialogDescription>Switch, reveal, remove, or create workspaces.</AppDialogDescription>
           </AppDialogHeader>
           <div className="space-y-3 max-h-[360px] overflow-auto">
             {domes.length === 0 ? (
-              <div className="text-sm text-ap-text-secondary">No domes yet.</div>
+              <div className="text-sm text-ap-text-secondary">No workspaces yet.</div>
             ) : (
               domes.map((dome) => (
                 <div key={dome.id} className="border border-ap-border-subtle rounded-ap-md p-3">
@@ -948,7 +943,7 @@ export default function HomeShell() {
           <AppDialogFooter>
             <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(false)}><AppScrambleText>Close</AppScrambleText></AppButton>
             <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void refreshDomes()}><AppScrambleText>Refresh</AppScrambleText></AppButton>
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => openCreateDialog("create-dome", "New Dome")}><AppScrambleText>Create New</AppScrambleText></AppButton>
+            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => openCreateDialog("create-dome", "New Workspace")}><AppScrambleText>Create New</AppScrambleText></AppButton>
             <AppButton tone="accent" className="home-button" onClick={() => void openExistingWorkspace()}><AppScrambleText>Open Folder</AppScrambleText></AppButton>
           </AppDialogFooter>
         </AppDialogContent>

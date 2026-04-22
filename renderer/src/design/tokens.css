@@ -55,9 +55,9 @@
   --ap-info-dark:     #0369A1;
 
   /* ─── Typography: Families ──────────────────────────────────── */
-  --ap-font-display:  "Mona Sans", "DM Sans", system-ui, sans-serif;
-  --ap-font-body:     "Geist", "Inter", system-ui, sans-serif;
-  --ap-font-mono:     "Geist Mono", "Fira Code", monospace;
+  --ap-font-display:  "Inter", "Segoe UI", system-ui, sans-serif;
+  --ap-font-body:     "Inter", "Segoe UI", system-ui, sans-serif;
+  --ap-font-mono:     "JetBrains Mono", "Consolas", "Fira Code", monospace;
 
   /* ─── Typography: Scale ─────────────────────────────────────── */
   --ap-text-2xs:   0.625rem;   /* 10px */
