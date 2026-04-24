@@ -45,8 +45,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:saveUiState", folderPath, partialState),
   openExternal: (url) => ipcRenderer.invoke("airpaste:openExternal", url),
   openFile: (filePath) => ipcRenderer.invoke("airpaste:openFile", filePath),
-  fetchLinkPreview: (folderPath, cardId, url, cardSnapshot) =>
-    ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot),
+  fetchLinkPreview: (folderPath, cardId, url, cardSnapshot, canvasFilePath = "") =>
+    ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot, canvasFilePath),
   cancelLinkPreview: (folderPath, cardId) =>
     ipcRenderer.invoke("airpaste:cancelLinkPreview", folderPath, cardId),
   importImageAsset: (folderPath, payload) =>

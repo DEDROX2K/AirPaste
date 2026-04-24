@@ -21,6 +21,7 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const keepImage = Boolean(result.image) && safeStatus !== PREVIEW_STATUS.BLOCKED && safeStatus !== PREVIEW_STATUS.ERROR;
   const contentKind = result.kind === PREVIEW_KIND.IMAGE ? LINK_CONTENT_KIND_IMAGE : LINK_CONTENT_KIND_BOOKMARK;
   const isAmazonCard = nextType === AMAZON_PRODUCT_CARD_TYPE;
+  const isXPost = result.kind === PREVIEW_KIND.X_POST;
   const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"
     ? result.diagnostics
     : null;
@@ -45,8 +46,8 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
     previewError: result.reason || "",
     status: safeStatus,
     previewStatus: result.previewStatus || safeStatus,
-    contentType: result.contentType || currentCard.contentType || "link",
-    sourceType: result.sourceType || currentCard.sourceType || "generic-link",
+    contentType: result.contentType || (isXPost ? "video" : (currentCard.contentType || "link")),
+    sourceType: result.sourceType || (isXPost ? "x" : (currentCard.sourceType || "generic-link")),
     duration: Number.isFinite(result.duration) ? result.duration : null,
     author: result.author || "",
     channelName: result.channelName || result.author || "",

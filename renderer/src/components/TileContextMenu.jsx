@@ -2,17 +2,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppButton } from "./ui/app";
 
-const MENU_GAP = 12;
-const MENU_MIN_WIDTH = 220;
-
-function getMenuTitle(menu) {
-  if (menu?.kind === "canvas") {
-    return "Canvas";
-  }
-
-  const selectionCount = menu?.selectionIds?.length ?? 0;
-  return selectionCount > 1 ? `${selectionCount} selected` : "Tile";
-}
+const MENU_GAP = 8;
+const MENU_MIN_WIDTH = 188;
 
 function buildMenuSections(actions) {
   const visibleActions = Array.isArray(actions) ? actions.filter(Boolean) : [];
@@ -44,6 +35,10 @@ function ContextMenuDivider() {
 }
 
 function ContextMenuItem({ action, isPending, onSelect }) {
+  const shortcutText = action.kind === "toggle"
+    ? (action.isActive ? "On" : "Off")
+    : (action.activeLabel || "");
+
   const className = [
     "tile-context-menu__item",
     action.kind === "toggle" ? "tile-context-menu__item--toggle" : "",
@@ -69,12 +64,9 @@ function ContextMenuItem({ action, isPending, onSelect }) {
     >
       <span className="tile-context-menu__item-copy">
         <span className="tile-context-menu__item-label">{action.label}</span>
-        {action.activeLabel ? (
-          <span className="tile-context-menu__item-description">{action.activeLabel}</span>
-        ) : null}
       </span>
       <span className="tile-context-menu__item-shortcut" aria-hidden="true">
-        {action.kind === "toggle" ? (action.isActive ? "On" : "Off") : ""}
+        {shortcutText}
       </span>
     </AppButton>
   );
@@ -167,9 +159,6 @@ export default function TileContextMenu({ menu, actions = [], onClose }) {
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <div className="tile-context-menu__header">
-          <span className="tile-context-menu__title">{getMenuTitle(menu)}</span>
-        </div>
         <ContextMenuList
           actions={actions}
           pendingActionId={pendingActionId}

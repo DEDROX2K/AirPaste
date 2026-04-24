@@ -1,3 +1,13 @@
+const MAX_PERF_COMMIT_ENTRIES = 240;
+
+function isPerfDebugLoggingEnabled() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.__AIRPASTE_PERF_DEBUG__ === true;
+}
+
 function getPerfStore() {
   if (typeof window === "undefined") {
     return null;
@@ -63,7 +73,7 @@ export function recordCardRender(cardId, cardType) {
 
   perfStore.cardRenders.set(cardId, nextCount);
 
-  if (nextCount === 1 || nextCount % 25 === 0) {
+  if (isPerfDebugLoggingEnabled() && (nextCount === 1 || nextCount % 25 === 0)) {
     console.debug(`[perf] Card render ${cardType}:${cardId} count=${nextCount}`);
   }
 }
@@ -89,10 +99,13 @@ export function recordBoardRender(changedKeys = [], options = {}) {
   });
 
   if (
-    perfStore.boardRenders.count === 1
-    || perfStore.boardRenders.count % 20 === 0
-    || changedKeys.includes("dragVisualDelta")
-    || changedKeys.includes("viewport")
+    isPerfDebugLoggingEnabled()
+    && (
+      perfStore.boardRenders.count === 1
+      || perfStore.boardRenders.count % 20 === 0
+      || changedKeys.includes("dragVisualDelta")
+      || changedKeys.includes("viewport")
+    )
   ) {
     console.debug("[perf] canvas-board render", {
       count: perfStore.boardRenders.count,
@@ -210,7 +223,7 @@ export function recordImageSample(sample) {
     perfStore.images.shift();
   }
 
-  if (sample.oversizeRatio >= 2) {
+  if (isPerfDebugLoggingEnabled() && sample.oversizeRatio >= 2) {
     console.debug("[perf] oversized image candidate", sample);
   }
 }
@@ -243,8 +256,13 @@ export function recordInteractionCommit(kind, durationMs, details = {}) {
   };
 
   perfStore.commits.push(entry);
+  if (perfStore.commits.length > MAX_PERF_COMMIT_ENTRIES) {
+    perfStore.commits.splice(0, perfStore.commits.length - MAX_PERF_COMMIT_ENTRIES);
+  }
 
-  console.debug(`[perf] ${kind} commit ${durationMs.toFixed(2)}ms`, details);
+  if (isPerfDebugLoggingEnabled()) {
+    console.debug(`[perf] ${kind} commit ${durationMs.toFixed(2)}ms`, details);
+  }
 }
 
 export function readPointerMoveStats() {

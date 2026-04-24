@@ -2,6 +2,7 @@ const VIDEO_SOURCE_TYPE = Object.freeze({
   YOUTUBE: "youtube",
   YOUTUBE_SHORTS: "youtube-shorts",
   VIMEO: "vimeo",
+  X: "x",
   GENERIC: "video-generic",
 });
 
@@ -9,6 +10,7 @@ const VIDEO_DEFAULT_ASPECT_RATIO = Object.freeze({
   [VIDEO_SOURCE_TYPE.YOUTUBE]: 16 / 9,
   [VIDEO_SOURCE_TYPE.YOUTUBE_SHORTS]: 9 / 16,
   [VIDEO_SOURCE_TYPE.VIMEO]: 16 / 9,
+  [VIDEO_SOURCE_TYPE.X]: 16 / 9,
   [VIDEO_SOURCE_TYPE.GENERIC]: 16 / 9,
 });
 
@@ -23,6 +25,10 @@ export function normalizeVideoSourceType(value) {
 
   if (value === VIDEO_SOURCE_TYPE.VIMEO) {
     return VIDEO_SOURCE_TYPE.VIMEO;
+  }
+
+  if (value === VIDEO_SOURCE_TYPE.X) {
+    return VIDEO_SOURCE_TYPE.X;
   }
 
   return VIDEO_SOURCE_TYPE.GENERIC;
@@ -52,6 +58,14 @@ export function getVideoTileRecipe(sourceType) {
       key: "vimeo",
       badge: "Vimeo",
       defaultAspectRatio: VIDEO_DEFAULT_ASPECT_RATIO[VIDEO_SOURCE_TYPE.VIMEO],
+    };
+  }
+
+  if (normalizedSourceType === VIDEO_SOURCE_TYPE.X) {
+    return {
+      key: "x",
+      badge: "X",
+      defaultAspectRatio: VIDEO_DEFAULT_ASPECT_RATIO[VIDEO_SOURCE_TYPE.X],
     };
   }
 
@@ -90,4 +104,3 @@ export function formatVideoDuration(seconds) {
 
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
-

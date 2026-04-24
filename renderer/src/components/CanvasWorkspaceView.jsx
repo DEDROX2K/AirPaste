@@ -852,7 +852,6 @@ export default function CanvasWorkspaceView() {
     commands,
     resetKey: folderPath,
     snapSettings,
-    viewportZoom: canvas.getViewportSnapshot().zoom,
     suppressHoverUpdates: cameraIsMoving || drawingTool.isLineToolActive,
   });
   const resetTransientState = interactions.resetTransientState;
@@ -1457,6 +1456,12 @@ export default function CanvasWorkspaceView() {
     sceneSurfaceEnabled: useSceneSurface,
     workspaceLodLevel,
   }), [isCanvasMoving, useSceneSurface, workspaceLodLevel]);
+  const miniHintViewportSize = useMemo(() => (
+    Math.round(16 * clamp(1 / Math.max(0.35, viewportZoomForRender), 0.4, 1))
+  ), [viewportZoomForRender]);
+  const miniHintZoomPercent = useMemo(() => (
+    Math.round(viewportZoomForRender * 100)
+  ), [viewportZoomForRender]);
 
   const boardSnapshot = useMemo(() => ({
     surfaceRenderer: useSceneSurface ? "scene" : "dom",
@@ -1790,6 +1795,20 @@ export default function CanvasWorkspaceView() {
           }
         }}
       >
+        {!isGlobeMode ? (
+          <div className="canvas-mini-hint" aria-hidden="true">
+            <div className="canvas-mini-hint__map">
+              <div
+                className="canvas-mini-hint__viewport"
+                style={{
+                  width: `${miniHintViewportSize}px`,
+                  height: `${miniHintViewportSize}px`,
+                }}
+              />
+            </div>
+            <div className="canvas-mini-hint__label">{miniHintZoomPercent}%</div>
+          </div>
+        ) : null}
         {isGlobeMode ? (
             <GlobeWorkspaceView
               allCards={workspace.cards}

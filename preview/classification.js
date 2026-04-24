@@ -197,6 +197,8 @@ function classifyPreviewTarget(url) {
       classification: "tweet",
       resolverKey: "x",
       resolvedKind: PREVIEW_KIND.X_POST,
+      contentType: "video",
+      sourceType: "x",
     };
   }
 

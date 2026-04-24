@@ -17,12 +17,25 @@ import { desktop } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
 
 const CANVAS_SAVE_DELAY_MS = 420;
-const DEFAULT_WORKSPACE_HISTORY_LIMIT = 20;
+const DEFAULT_WORKSPACE_HISTORY_LIMIT = 8;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
+const WORKSPACE_HISTORY_LIMIT_STORAGE_KEY = "airpaste.workspaceHistoryLimit";
+const MIN_WORKSPACE_HISTORY_LIMIT = 1;
+const MAX_WORKSPACE_HISTORY_LIMIT = 20;
 
 function getWorkspaceHistoryLimit() {
-  // Keep this behind a helper so the limit can later come from Settings.
-  return DEFAULT_WORKSPACE_HISTORY_LIMIT;
+  if (typeof window === "undefined" || !window.localStorage) {
+    return DEFAULT_WORKSPACE_HISTORY_LIMIT;
+  }
+
+  const rawValue = window.localStorage.getItem(WORKSPACE_HISTORY_LIMIT_STORAGE_KEY);
+  const parsedValue = Number.parseInt(rawValue ?? "", 10);
+
+  if (!Number.isFinite(parsedValue)) {
+    return DEFAULT_WORKSPACE_HISTORY_LIMIT;
+  }
+
+  return Math.max(MIN_WORKSPACE_HISTORY_LIMIT, Math.min(MAX_WORKSPACE_HISTORY_LIMIT, parsedValue));
 }
 
 function normalizeFsPath(value) {
@@ -33,6 +46,12 @@ function isSameOrDescendantPath(targetPath, basePath) {
   const normalizedTarget = normalizeFsPath(targetPath);
   const normalizedBase = normalizeFsPath(basePath);
   return normalizedTarget === normalizedBase || normalizedTarget.startsWith(`${normalizedBase}/`);
+}
+
+function areSamePath(leftPath, rightPath) {
+  const left = normalizeFsPath(leftPath).toLowerCase();
+  const right = normalizeFsPath(rightPath).toLowerCase();
+  return left === right;
 }
 
 function areObjectsEqual(a, b) {
@@ -238,7 +257,7 @@ function sanitizeWorkspaceForPreviewAvailability(workspace, previewEnabled) {
     changed = true;
     return {
       ...card,
-      status: "failed",
+      status: "error",
       previewStatus: "disabled",
       previewError: card.previewError?.trim() || PREVIEW_UNAVAILABLE_MESSAGE,
     };
@@ -754,7 +773,13 @@ export function AppProvider({ children }) {
       const currentHistory = normalizeWorkspaceHistory(current[activePath]);
       const currentWorkspace = currentHistory.present;
       const candidateWorkspace = typeof updater === "function" ? updater(currentWorkspace) : updater;
-      const nextWorkspace = normalizeWorkspace(candidateWorkspace);
+      const nextWorkspace = options.skipNormalize
+        ? (
+          candidateWorkspace && typeof candidateWorkspace === "object"
+            ? candidateWorkspace
+            : currentWorkspace
+        )
+        : normalizeWorkspace(candidateWorkspace);
       const committedBaseWorkspace = workspaceDraftBaseRef.current[activePath] ?? currentWorkspace;
 
       if (options.commitHistory) {
@@ -880,7 +905,27 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  const setViewport = useCallback((nextViewport) => updateWorkspaceState((current) => ({ ...current, viewport: nextViewport })), [updateWorkspaceState]);
+  const setViewport = useCallback((nextViewport) => updateWorkspaceState((current) => {
+    const currentViewport = current?.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const normalizedViewport = {
+      x: Number.isFinite(nextViewport?.x) ? nextViewport.x : currentViewport.x,
+      y: Number.isFinite(nextViewport?.y) ? nextViewport.y : currentViewport.y,
+      zoom: Number.isFinite(nextViewport?.zoom) ? nextViewport.zoom : currentViewport.zoom,
+    };
+
+    if (
+      normalizedViewport.x === currentViewport.x
+      && normalizedViewport.y === currentViewport.y
+      && normalizedViewport.zoom === currentViewport.zoom
+    ) {
+      return current;
+    }
+
+    return {
+      ...current,
+      viewport: normalizedViewport,
+    };
+  }, { skipNormalize: true }), [updateWorkspaceState]);
   const setWorkspaceView = useCallback((nextView) => updateWorkspaceState((current) => ({
     ...current,
     view: typeof nextView === "function" ? nextView(current.view ?? null) : nextView,
@@ -906,7 +951,18 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = desktop.workspace.onPreviewUpdated((payload) => {
-      if (!payload?.card || (folderPath && payload.folderPath !== folderPath)) return;
+      if (!payload?.card) {
+        return;
+      }
+
+      if (
+        folderPath
+        && typeof payload.folderPath === "string"
+        && payload.folderPath.trim().length > 0
+        && !areSamePath(payload.folderPath, folderPath)
+      ) {
+        return;
+      }
       updateWorkspaceState((current) => ({
         ...current,
         cards: current.cards.map((card) => (card.id === payload.card.id ? { ...card, ...payload.card } : card)),

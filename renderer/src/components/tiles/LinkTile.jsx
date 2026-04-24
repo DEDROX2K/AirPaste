@@ -27,6 +27,26 @@ function formatShortUrl(url) {
   }
 }
 
+function isYouTubeUrl(url) {
+  if (typeof url !== "string" || url.trim().length === 0) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    return (
+      hostname === "youtu.be"
+      || hostname === "youtube.com"
+      || hostname.endsWith(".youtube.com")
+      || hostname === "youtube-nocookie.com"
+      || hostname.endsWith(".youtube-nocookie.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function getCardLabel(card) {
   return card.title.trim() || formatCardSubtitle(card);
 }
@@ -102,12 +122,15 @@ function LinkTile({
   const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isVideoCard = card.contentType === "video";
-  const isMusicCard = card.previewKind === "music" && Boolean(card.image);
+  const isMusicCard = card.previewKind === "music";
   const previewTier = renderHint?.previewTier ?? "original";
   const videoRecipe = useMemo(() => getVideoTileRecipe(card.sourceType), [card.sourceType]);
   const videoDurationLabel = useMemo(() => formatVideoDuration(card.duration), [card.duration]);
-  const isPlainVideoLink = isVideoCard
-    && (videoRecipe.key === "youtube" || videoRecipe.key === "youtube-shorts");
+  const isYouTubeVideoSource = card.sourceType === "youtube" || card.sourceType === "youtube-shorts";
+  const isYouTubeVideoUrl = isYouTubeUrl(card.url);
+  const isYouTubeLink = isYouTubeVideoSource || isYouTubeVideoUrl;
+  const isPlainVideoLink = isVideoCard && isYouTubeLink;
+  const useYouTubeThumbnailCrop = isYouTubeLink;
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
     [card, loadedVideoAspectRatio],
@@ -367,27 +390,36 @@ function LinkTile({
             </p>
           </div>
         </div>
-      ) : isMusicCard && shouldRenderImage ? (
+      ) : isMusicCard ? (
         <div className="card__record-shell">
           <div className="card__record-disc" aria-hidden="true" />
           <div className="card__record-sleeve">
-            <TileImageReveal
-              className="card__image card__image--music"
-              src={mediaSrc}
-              alt={linkTitle}
-              enableReveal={enableReveal}
-              onError={() => {
-                if (!hasLoadedImage) {
-                  setHasImageError(true);
-                }
-              }}
-              onLoad={handleMediaLoad}
-            />
+            {shouldRenderImage ? (
+              <TileImageReveal
+                className="card__image card__image--music"
+                src={mediaSrc}
+                alt={linkTitle}
+                enableReveal={enableReveal}
+                onError={() => {
+                  if (!hasLoadedImage) {
+                    setHasImageError(true);
+                  }
+                }}
+                onLoad={handleMediaLoad}
+              />
+            ) : (
+              <div className="card__placeholder card__placeholder--simplified">
+                <p className="card__placeholder-title">{linkTitle}</p>
+                <p className="card__placeholder-subtitle">
+                  {previewFallbackReason || formatShortUrl(card.url)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       ) : shouldRenderImage ? (
         <TileImageReveal
-          className="card__image"
+          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}`}
           src={mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}

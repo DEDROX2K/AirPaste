@@ -255,12 +255,8 @@ async function applyImageAcquisition(result, validation) {
   });
 
   if (acquisition.image) {
-    const preferRemoteVideoThumbnail = result.contentType === "video"
-      && typeof acquisition.chosenImageUrl === "string"
-      && acquisition.chosenImageUrl.trim().length > 0;
-
     return {
-      image: preferRemoteVideoThumbnail ? acquisition.chosenImageUrl : acquisition.image,
+      image: acquisition.image,
       chosenImageUrl: acquisition.chosenImageUrl,
       attemptedCandidateUrls: acquisition.attemptedCandidateUrls,
       screenshotFallbackUsed: false,

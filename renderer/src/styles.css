@@ -616,6 +616,49 @@ a {
   pointer-events: none;
 }
 
+.canvas-mini-hint {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 19;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ap-border-subtle) 88%, #ffffff);
+  background: color-mix(in srgb, var(--ap-surface-raised) 90%, #ffffff);
+  box-shadow: 0 8px 20px rgba(36, 53, 79, 0.12);
+  pointer-events: none;
+  user-select: none;
+}
+
+.canvas-mini-hint__map {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--ap-border-default) 80%, #ffffff);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ap-surface-default) 92%, #f6f8fb), color-mix(in srgb, var(--ap-surface-raised) 94%, #ffffff));
+  display: grid;
+  place-items: center;
+}
+
+.canvas-mini-hint__viewport {
+  border: 1px solid color-mix(in srgb, var(--ap-text-accent) 64%, #5f78a6);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ap-accent-tint) 20%, transparent);
+}
+
+.canvas-mini-hint__label {
+  min-width: 44px;
+  color: color-mix(in srgb, var(--ap-text-default) 86%, #34435f);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
 .canvas-hud {
   position: absolute;
   z-index: 20;

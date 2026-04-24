@@ -81,22 +81,6 @@ function IconRecent() {
   );
 }
 
-function IconChevronDown() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function IconChevronRight() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
-}
-
 function IconFolder() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -248,55 +232,10 @@ function typeIcon(type) {
   return <IconFile />;
 }
 
-function buildFolderTree(entries) {
-  const nodes = new Map();
-  nodes.set("", {
-    path: "",
-    name: "",
-    children: [],
-  });
-
-  for (const entry of entries) {
-    if (entry.type !== "folder") continue;
-    nodes.set(entry.path, {
-      ...entry,
-      children: [],
-    });
-  }
-
-  for (const [folderPath, node] of nodes.entries()) {
-    if (!folderPath) continue;
-    const parentPath = folderPath.includes("/") ? folderPath.slice(0, folderPath.lastIndexOf("/")) : "";
-    const parentNode = nodes.get(parentPath) ?? nodes.get("");
-    parentNode.children.push(node);
-  }
-
-  function sortNode(node) {
-    node.children.sort((left, right) => left.name.localeCompare(right.name));
-    node.children.forEach(sortNode);
-    return node;
-  }
-
-  return sortNode(nodes.get(""));
-}
-
-function folderAncestors(folderPath) {
-  const normalized = String(folderPath ?? "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) return [""];
-  const segments = normalized.split("/");
-  const ancestors = [""];
-  let cursor = "";
-  for (const segment of segments) {
-    cursor = cursor ? `${cursor}/${segment}` : segment;
-    ancestors.push(cursor);
-  }
-  return ancestors;
-}
-
 function sectionLabel(section) {
   if (section === "recents") return "Recent";
   if (section === "starred") return "Starred";
-  return "Home";
+  return "All files";
 }
 
 function sectionIcon(section) {
@@ -337,45 +276,6 @@ function BrowserEmptyState({ title, description, onNewCanvas, onNewFolder, onImp
         <AppButton tone="surface" className="home-button home-button--secondary" onClick={onImportFiles}><AppScrambleText>Import files</AppScrambleText></AppButton>
       </div>
     </section>
-  );
-}
-
-function FolderTreeNode({ node, currentFolderPath, expandedFolders, onToggle, onSelect }) {
-  const hasChildren = node.children.length > 0;
-  const isExpanded = expandedFolders.has(node.path);
-  const isActive = currentFolderPath === node.path;
-
-  return (
-    <div className="home-folder-tree__node">
-      <div className={`home-folder-tree__row ${isActive ? "home-folder-tree__row--active" : ""}`}>
-        <button
-          type="button"
-          className={`home-folder-tree__toggle ${hasChildren ? "" : "home-folder-tree__toggle--hidden"}`}
-          onClick={() => hasChildren && onToggle(node.path)}
-          aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
-        >
-          {hasChildren ? (isExpanded ? <IconChevronDown /> : <IconChevronRight />) : <span />}
-        </button>
-        <button type="button" className="home-folder-tree__button" onClick={() => onSelect(node.path)}>
-          <span className="home-folder-tree__icon"><IconFolder /></span>
-          <span className="home-folder-tree__label">{node.name}</span>
-        </button>
-      </div>
-      {hasChildren && isExpanded ? (
-        <div className="home-folder-tree__children">
-          {node.children.map((child) => (
-            <FolderTreeNode
-              key={child.path}
-              node={child}
-              currentFolderPath={currentFolderPath}
-              expandedFolders={expandedFolders}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -485,7 +385,6 @@ export default function HomeShell() {
 
   const [navigation, setNavigation] = useState(() => normalizeHomeNavigation(homeData.uiState));
   const [homePreferences, setHomePreferences] = useState(() => normalizeHomePreferences(homeData.uiState));
-  const [expandedFolders, setExpandedFolders] = useState(() => new Set(folderAncestors(homeData.uiState?.currentFolderPath)));
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
@@ -496,14 +395,6 @@ export default function HomeShell() {
     setNavigation(normalizeHomeNavigation(homeData.uiState));
     setHomePreferences(normalizeHomePreferences(homeData.uiState));
   }, [homeData.uiState]);
-
-  useEffect(() => {
-    setExpandedFolders((current) => {
-      const next = new Set(current);
-      folderAncestors(navigation.currentFolderPath).forEach((path) => next.add(path));
-      return next;
-    });
-  }, [navigation.currentFolderPath]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
 
@@ -541,8 +432,6 @@ export default function HomeShell() {
 
   const hasWorkspace = Boolean(folderPath);
   const activeItemPath = homeData.uiState?.lastOpenedItemPath ?? null;
-  const folderTree = useMemo(() => buildFolderTree(homeData.allFiles), [homeData.allFiles]);
-
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
     void saveHomeUiState({
@@ -560,11 +449,43 @@ export default function HomeShell() {
     scrollSaveTimeoutRef.current = window.setTimeout(() => persistHomeContext(navigation, homePreferences), 160);
   }, [homePreferences, navigation, persistHomeContext]);
 
+  const allCanvasItems = useMemo(
+    () => homeData.allFiles.filter((item) => item.type === "canvas"),
+    [homeData.allFiles],
+  );
+
+  const recentCanvasItems = useMemo(() => {
+    const ordered = [];
+    const seen = new Set();
+
+    homeData.recentItems
+      .filter((item) => item.type === "canvas")
+      .forEach((item) => {
+        const key = item.id || item.filePath || item.path;
+        if (!key || seen.has(key)) {
+          return;
+        }
+        seen.add(key);
+        ordered.push(item);
+      });
+
+    allCanvasItems.forEach((item) => {
+      const key = item.id || item.filePath || item.path;
+      if (!key || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      ordered.push(item);
+    });
+
+    return ordered;
+  }, [allCanvasItems, homeData.recentItems]);
+
   const sectionItems = useMemo(() => {
-    if (navigation.selectedSection === "recents") return homeData.recentItems;
+    if (navigation.selectedSection === "recents") return recentCanvasItems;
     if (navigation.selectedSection === "starred") return homeData.starredItems;
-    return [...homeData.folders, ...homeData.files];
-  }, [homeData.files, homeData.folders, homeData.recentItems, homeData.starredItems, navigation.selectedSection]);
+    return allCanvasItems;
+  }, [allCanvasItems, homeData.starredItems, navigation.selectedSection, recentCanvasItems]);
 
   const browserItems = useMemo(
     () => buildBrowserItems(sectionItems, homePreferences, searchQuery),
@@ -583,33 +504,6 @@ export default function HomeShell() {
       await refreshHomeData(folderPath, nextNavigation.currentFolderPath);
     }
   }, [folderPath, homePreferences, navigation, persistHomeContext, refreshHomeData]);
-
-  const handleFolderSelect = useCallback(async (nextFolderPath) => {
-    const nextNavigation = {
-      selectedSection: "home",
-      currentFolderPath: nextFolderPath,
-      scrollTop: 0,
-    };
-    setNavigation(nextNavigation);
-    setExpandedFolders((current) => {
-      const next = new Set(current);
-      folderAncestors(nextFolderPath).forEach((path) => next.add(path));
-      return next;
-    });
-    persistHomeContext(nextNavigation, homePreferences, 0);
-    if (folderPath) {
-      await refreshHomeData(folderPath, nextFolderPath);
-    }
-  }, [folderPath, homePreferences, persistHomeContext, refreshHomeData]);
-
-  const handleFolderToggle = useCallback((folderNodePath) => {
-    setExpandedFolders((current) => {
-      const next = new Set(current);
-      if (next.has(folderNodePath)) next.delete(folderNodePath);
-      else next.add(folderNodePath);
-      return next;
-    });
-  }, []);
 
   const handlePreferenceChange = useCallback((partialPreferences) => {
     const nextPreferences = {
@@ -649,14 +543,14 @@ export default function HomeShell() {
   function describeEmptyState() {
     if (navigation.selectedSection === "recents") {
       return {
-        title: "No recent files yet",
-        description: "Open a canvas or file and it will appear here. Folder context and browser preferences will still be restored when you return to Home.",
+        title: "No recent canvases yet",
+        description: "Open a canvas and it will move to the top of this list.",
       };
     }
     if (navigation.selectedSection === "starred") {
       return {
         title: "Nothing starred yet",
-        description: "Star important canvases and files to keep them pinned here.",
+        description: "Star important canvases to keep them pinned here.",
       };
     }
     if (searchQuery.trim()) {
@@ -666,10 +560,8 @@ export default function HomeShell() {
       };
     }
     return {
-      title: navigation.currentFolderPath ? `This folder is empty` : "This workspace is empty",
-      description: navigation.currentFolderPath
-        ? "Create a canvas or folder here, or import files into the current folder."
-        : "Create your first canvas, add a folder, or import files into the workspace root.",
+        title: "No canvases yet",
+        description: "Create your first canvas to populate All files.",
     };
   }
 
@@ -712,54 +604,29 @@ export default function HomeShell() {
               title={sectionLabel(section)}
             >
               <span className="home-sidebar-section__icon">{sectionIcon(section)}</span>
-              <span className="home-sidebar-section__label">{sectionLabel(section)}</span>
-              <span className="home-sidebar-section__count">
-                {section === "home" ? homeData.allFiles.length : (section === "recents" ? homeData.recentItems.length : homeData.starredItems.length)}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="home-sidebar__tree">
-          {!hasWorkspace ? (
-            <div className="home-sidebar__blank">
-              <div className="home-sidebar__blank-title">{activeDome?.path ? "Connecting to workspace" : "Open a workspace"}</div>
-              <p className="home-sidebar__blank-copy">
-                {activeDome?.path
-                  ? "AirPaste is syncing the selected workspace into the workspace shell."
-                  : "Choose an existing folder or create a new workspace to populate the folder tree."}
-              </p>
-              <div className="home-sidebar__blank-actions">
-                <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
-                  <AppScrambleText>{activeDome?.id ? "Retry Workspace" : "Open Folder"}</AppScrambleText>
-                </AppButton>
-              </div>
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                className={`home-folder-tree__root ${navigation.selectedSection === "home" && navigation.currentFolderPath === "" ? "home-folder-tree__root--active" : ""}`}
-                onClick={() => void handleFolderSelect("")}
-              >
-                <span className="home-folder-tree__icon"><IconFolder /></span>
-                <span className="home-folder-tree__label">{homeData.workspace?.name || folderNameFromPath(folderPath)}</span>
+                <span className="home-sidebar-section__label">{sectionLabel(section)}</span>
+                <span className="home-sidebar-section__count">
+                  {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
+                </span>
               </button>
-              <div className="home-folder-tree">
-                {folderTree.children.map((child) => (
-                  <FolderTreeNode
-                    key={child.path}
-                    node={child}
-                    currentFolderPath={navigation.currentFolderPath}
-                    expandedFolders={expandedFolders}
-                    onToggle={handleFolderToggle}
-                    onSelect={(path) => void handleFolderSelect(path)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+            ))}
+          </div>
+
+        {!hasWorkspace ? (
+          <div className="home-sidebar__blank">
+            <div className="home-sidebar__blank-title">{activeDome?.path ? "Connecting to workspace" : "Open a workspace"}</div>
+            <p className="home-sidebar__blank-copy">
+              {activeDome?.path
+                ? "AirPaste is syncing the selected workspace into the workspace shell."
+                : "Choose an existing folder or create a new workspace."}
+            </p>
+            <div className="home-sidebar__blank-actions">
+              <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
+                <AppScrambleText>{activeDome?.id ? "Retry Workspace" : "Open Folder"}</AppScrambleText>
+              </AppButton>
+            </div>
+          </div>
+        ) : <div className="home-sidebar__spacer" aria-hidden="true" />}
 
         <div className="home-sidebar__footer home-sidebar__footer--workspace-nav">
           <div className="home-workspace-info">

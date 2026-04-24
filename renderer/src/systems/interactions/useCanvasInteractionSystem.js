@@ -36,7 +36,6 @@ export function useCanvasInteractionSystem({
   commands,
   resetKey,
   snapSettings,
-  viewportZoom,
   suppressHoverUpdates = false,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
@@ -398,8 +397,7 @@ export function useCanvasInteractionSystem({
       tileIds: dragTileIds,
       tileIdSet: dragTileIdSet,
       startedFromRack: anchorEntry.containerType === "rack",
-      pointerX: event.clientX,
-      pointerY: event.clientY,
+      pointerWorldStart: canvas.clientToWorldPoint(event.clientX, event.clientY),
       lastDelta: { x: 0, y: 0 },
       origins: dragOrigins,
       hasMoved: false,
@@ -411,6 +409,7 @@ export function useCanvasInteractionSystem({
     setDraggingTileIds(dragTileIds);
     setDragVisualDelta({ x: 0, y: 0 });
   }, [
+    canvas,
     clearRackDropPreview,
     closeContextMenu,
     commands,
@@ -593,9 +592,10 @@ export function useCanvasInteractionSystem({
       }
 
       const moveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
       const rawWorldDelta = {
-        x: (event.clientX - dragState.pointerX) / viewportZoom,
-        y: (event.clientY - dragState.pointerY) / viewportZoom,
+        x: currentWorldPoint.x - dragState.pointerWorldStart.x,
+        y: currentWorldPoint.y - dragState.pointerWorldStart.y,
       };
       const snapResolution = resolveSnappedDragDelta({
         dragOrigins: dragState.origins,
@@ -695,7 +695,7 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canvas, clearRackDropPreview, commands, viewportZoom]);
+  }, [canvas, clearRackDropPreview, commands]);
 
   const handleCanvasPointerDown = useCallback((event) => {
     const isCanvasBackground = isCanvasBackgroundTarget(event);

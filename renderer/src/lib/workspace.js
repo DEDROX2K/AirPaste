@@ -876,10 +876,24 @@ export function shouldRecoverLinkPreviewCard(card) {
     return false;
   }
 
-  return card.status === "failed"
-    || card.status !== "ready"
-    || Boolean(card.previewError?.trim())
-    || !hasUsableLinkPreview(card);
+  const status = String(card.status ?? "").toLowerCase();
+  const hasUsablePreview = hasUsableLinkPreview(card);
+  const hasImage = Boolean(card.image?.trim());
+  const hasPreviewError = Boolean(card.previewError?.trim());
+
+  if (status === "failed" || status === "error" || status === "blocked") {
+    return true;
+  }
+
+  if (!hasUsablePreview) {
+    return true;
+  }
+
+  if (status === "fallback" || status === "ready") {
+    return hasPreviewError && !hasImage;
+  }
+
+  return hasPreviewError && !hasImage;
 }
 
 export function createLinkPreviewRefreshPatch(card) {

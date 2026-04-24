@@ -2203,14 +2203,50 @@ async function fetchPreviewData(url) {
   };
 }
 
-async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
+async function loadPreviewWorkspaceTarget(folderPath, canvasFilePath = "") {
+  const requestedCanvasPath = typeof canvasFilePath === "string" ? canvasFilePath.trim() : "";
+
+  if (requestedCanvasPath) {
+    try {
+      const loadedCanvas = await workspaceService.loadCanvas(requestedCanvasPath);
+      return {
+        workspace: loadedCanvas.workspace,
+        canvasFilePath: loadedCanvas.filePath,
+      };
+    } catch (error) {
+      console.warn("[preview] canvas-load-fallback", {
+        folderPath,
+        canvasFilePath: requestedCanvasPath,
+        message: error?.message || "Unable to load requested canvas for preview update",
+      });
+    }
+  }
+
+  return {
+    workspace: await workspaceService.readWorkspaceDocument(folderPath),
+    canvasFilePath: "",
+  };
+}
+
+async function savePreviewWorkspaceTarget(folderPath, workspace, canvasFilePath = "") {
+  const targetCanvasPath = typeof canvasFilePath === "string" ? canvasFilePath.trim() : "";
+
+  if (targetCanvasPath) {
+    await workspaceService.saveCanvas(targetCanvasPath, workspace);
+    return;
+  }
+
+  await workspaceService.saveWorkspace(folderPath, workspace);
+}
+
+async function updateCardPreview(folderPath, cardId, url, cardSnapshot, canvasFilePath = "") {
   if (STORAGE_V2_STABILIZATION) {
     return null;
   }
 
   const previewResolver = getPreviewResolverModule();
   if (!previewResolver?.resolveUrlToPreview) {
-    return null;
+    throw new Error("Preview resolver is unavailable in this build.");
   }
 
   const jobKey = `${folderPath}:${cardId}`;
@@ -2225,7 +2261,8 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
     return null;
   }
 
-  const workspace = await workspaceService.readWorkspaceDocument(folderPath);
+  const previewTarget = await loadPreviewWorkspaceTarget(folderPath, canvasFilePath);
+  const workspace = previewTarget.workspace;
   let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
 
   if (cardIndex === -1 && cardSnapshot && !cancelledPreviewJobs.has(jobKey)) {
@@ -2259,11 +2296,12 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   }
 
   workspace.cards.splice(cardIndex, 1, nextCard);
-  await workspaceService.saveWorkspace(folderPath, workspace);
+  await savePreviewWorkspaceTarget(folderPath, workspace, previewTarget.canvasFilePath);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
       folderPath,
+      canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
       card: nextCard,
     });
   }
@@ -2271,12 +2309,13 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot) {
   return nextCard;
 }
 
-async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error) {
+async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error, canvasFilePath = "") {
   if (STORAGE_V2_STABILIZATION) {
     return null;
   }
 
-  const workspace = await workspaceService.readWorkspaceDocument(folderPath);
+  const previewTarget = await loadPreviewWorkspaceTarget(folderPath, canvasFilePath);
+  const workspace = previewTarget.workspace;
   let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
 
   if (cardIndex === -1 && cardSnapshot) {
@@ -2300,11 +2339,12 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
   });
 
   workspace.cards.splice(cardIndex, 1, nextCard);
-  await workspaceService.saveWorkspace(folderPath, workspace);
+  await savePreviewWorkspaceTarget(folderPath, workspace, previewTarget.canvasFilePath);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
       folderPath,
+      canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
       card: nextCard,
     });
   }
@@ -2595,7 +2635,7 @@ ipcMain.handle("airpaste:openFile", async (_event, filePath) => {
   return { opened: errorMessage === "" };
 });
 
-ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, url, cardSnapshot) => {
+ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, url, cardSnapshot, canvasFilePath = "") => {
   if (STORAGE_V2_STABILIZATION) {
     return {
       queued: false,
@@ -2616,7 +2656,7 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
 
   const job = withWorkspaceQueue(
     folderPath,
-    () => updateCardPreview(folderPath, cardId, url, cardSnapshot),
+    () => updateCardPreview(folderPath, cardId, url, cardSnapshot, canvasFilePath),
   )
     .catch(async (error) => {
       console.error("[preview] queued-job-error", {
@@ -2627,7 +2667,7 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
       });
 
       try {
-        await markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error);
+        await markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error, canvasFilePath);
       } catch (secondaryError) {
         console.error("[preview] queued-job-error:failure-state-write-failed", {
           folderPath,

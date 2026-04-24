@@ -1,6 +1,5 @@
 const cheerio = require("cheerio");
 const openGraphScraper = require("open-graph-scraper");
-const { chromium } = require("playwright");
 const {
   PREVIEW_CAPTURE_TIMEOUT_MS,
   PREVIEW_CONFIDENCE,
@@ -26,6 +25,24 @@ const {
 } = require("../utils");
 
 let previewBrowserPromise = null;
+let playwrightChromium = null;
+let attemptedPlaywrightLoad = false;
+
+function getPlaywrightChromium() {
+  if (attemptedPlaywrightLoad) {
+    return playwrightChromium;
+  }
+
+  attemptedPlaywrightLoad = true;
+
+  try {
+    ({ chromium: playwrightChromium } = require("playwright"));
+  } catch {
+    playwrightChromium = null;
+  }
+
+  return playwrightChromium;
+}
 
 async function fetchJson(url) {
   try {
@@ -302,10 +319,6 @@ async function acquirePreviewImage(candidateUrls) {
       && isLikelyPreviewImageUrl(candidateUrl)
     ));
 
-  const remoteFallbackUrl = attemptedCandidateUrls.find((candidateUrl) => (
-    !isPinterestImageUrl(candidateUrl) || !candidateUrl.toLowerCase().includes("/originals/")
-  )) ?? attemptedCandidateUrls[0] ?? "";
-
   for (const candidateUrl of attemptedCandidateUrls) {
     const dataUrl = await fetchImageDataUrl(candidateUrl);
 
@@ -326,22 +339,22 @@ async function acquirePreviewImage(candidateUrls) {
         image: dataUrl,
         chosenImageUrl: candidateUrl,
         attemptedCandidateUrls,
-        remoteFallbackUrl,
       };
     }
   }
 
-  if (isPinterestImageUrl(remoteFallbackUrl)) {
+  const firstAttemptedUrl = attemptedCandidateUrls[0] ?? "";
+
+  if (isPinterestImageUrl(firstAttemptedUrl)) {
     logPinterestImageDebug("image:chosen", {
-      finalChosenImageUrl: remoteFallbackUrl,
+      finalChosenImageUrl: firstAttemptedUrl,
     });
   }
 
   return {
-    image: remoteFallbackUrl,
-    chosenImageUrl: remoteFallbackUrl,
+    image: "",
+    chosenImageUrl: firstAttemptedUrl,
     attemptedCandidateUrls,
-    remoteFallbackUrl,
   };
 }
 
@@ -354,6 +367,12 @@ function bufferToDataUrl(buffer, mimeType) {
 }
 
 async function getPreviewBrowser() {
+  const chromium = getPlaywrightChromium();
+
+  if (!chromium) {
+    return null;
+  }
+
   if (!previewBrowserPromise) {
     previewBrowserPromise = chromium.launch({
       headless: true,
@@ -396,6 +415,9 @@ async function capturePreviewScreenshot(url) {
 
   try {
     const browser = await getPreviewBrowser();
+    if (!browser) {
+      return "";
+    }
     context = await browser.newContext({
       viewport: PREVIEW_VIEWPORT,
       deviceScaleFactor: 1,

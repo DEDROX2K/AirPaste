@@ -127,6 +127,8 @@ async function resolveXPreview(url, fetchJson) {
     confidence: mediaUrls.length > 0 ? PREVIEW_CONFIDENCE.MEDIUM : PREVIEW_CONFIDENCE.LOW,
     status: PREVIEW_STATUS.READY,
     canonicalUrl: url,
+    contentType: "video",
+    sourceType: "x",
     description: firstString(payload.text),
     siteName: "X (formerly Twitter)",
     candidateImageUrls: mediaUrls,

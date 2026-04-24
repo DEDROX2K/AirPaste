@@ -15,6 +15,8 @@ const DEFAULT_WORKSPACE_NAME = "Main Canvas";
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
 const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
 const DOC_EXTS = new Set(["pdf"]);
+const SKIP_FILE_EXTS = new Set(["tmp", "bak", "part", "crdownload"]);
+const SKIP_FILE_SUFFIXES = [".tmp.driveupload"];
 const SKIP_DIRS = new Set([
   INTERNAL_DIR,
   ".git",
@@ -100,6 +102,20 @@ function fileExt(fileName) {
 function stripExt(fileName) {
   const name = String(fileName ?? "");
   return name.slice(0, name.length - path.extname(name).length);
+}
+
+function shouldSkipFileName(fileName) {
+  const name = String(fileName ?? "").toLowerCase();
+  if (!name) {
+    return true;
+  }
+
+  if (SKIP_FILE_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
+    return true;
+  }
+
+  const ext = fileExt(name);
+  return SKIP_FILE_EXTS.has(ext);
 }
 
 function stripCanvasSuffix(fileName) {
@@ -483,6 +499,10 @@ async function scanWorkspace(folderPath) {
       }
 
       if (!entry.isFile()) {
+        continue;
+      }
+
+      if (shouldSkipFileName(entry.name)) {
         continue;
       }
 

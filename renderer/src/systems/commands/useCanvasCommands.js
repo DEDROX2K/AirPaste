@@ -140,10 +140,10 @@ export function useCanvasCommands({
     log("info", "Fetching link preview...", { url: card.url, cardId: card.id });
 
     try {
-      const result = await desktop.workspace.fetchLinkPreview(folderPath, card.id, card.url, card);
+      const result = await desktop.workspace.fetchLinkPreview(folderPath, card.id, card.url, card, canvasFilePath);
       if (result?.disabled === true) {
         updateExistingCard(card.id, {
-          status: "failed",
+          status: "error",
           previewStatus: "disabled",
           previewError: PREVIEW_UNAVAILABLE_MESSAGE,
         });
@@ -153,11 +153,11 @@ export function useCanvasCommands({
       log("success", `Preview queued for "${card.url}"`);
     } catch (previewError) {
       const message = previewError.message || "Unable to fetch preview metadata.";
-      updateExistingCard(card.id, { status: "failed", previewError: message });
+      updateExistingCard(card.id, { status: "error", previewError: message });
       log("error", `Preview failed for "${card.url}"`, message);
       toast("error", `Preview failed: ${message}`);
     }
-  }, [folderPath, log, toast, updateExistingCard]);
+  }, [canvasFilePath, folderPath, log, toast, updateExistingCard]);
 
   const refreshTilePreview = useCallback(async (tile, options = {}) => {
     if (!canRefreshLinkPreviewCard(tile)) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppButton } from "./ui/app";
 
-const ZOOM_PRESETS = [50, 100, 200];
+const ZOOM_PRESETS = [25, 50, 100, 200, 400];
 
 function formatZoomLabel(zoom) {
   return `${Math.round(zoom * 100)}%`;
