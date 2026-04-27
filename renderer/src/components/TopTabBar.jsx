@@ -1,6 +1,13 @@
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
 import { desktop } from "../lib/desktop";
-import { AppButton } from "./ui/app";
+import {
+  AppButton,
+  AppContextMenu,
+  AppContextMenuContent,
+  AppContextMenuItem,
+  AppContextMenuTrigger,
+} from "./ui/app";
 import "./TopTabBar.css";
 
 function IconClose() {
@@ -46,8 +53,8 @@ function IconWindowClose() {
 function TitleBarControls() {
   return (
     <div className="titlebar-controls">
-
-      <AppButton tone="unstyled"
+      <AppButton
+        tone="unstyled"
         className="titlebar-btn titlebar-btn--minimize"
         type="button"
         title="Minimize"
@@ -57,7 +64,8 @@ function TitleBarControls() {
         <IconWindowMinimize />
       </AppButton>
 
-      <AppButton tone="unstyled"
+      <AppButton
+        tone="unstyled"
         className="titlebar-btn titlebar-btn--maximize"
         type="button"
         title="Toggle maximize"
@@ -67,7 +75,8 @@ function TitleBarControls() {
         <IconWindowToggle />
       </AppButton>
 
-      <AppButton tone="unstyled"
+      <AppButton
+        tone="unstyled"
         className="titlebar-btn titlebar-btn--close"
         type="button"
         title="Close"
@@ -80,11 +89,191 @@ function TitleBarControls() {
   );
 }
 
+function TabItem({
+  tab,
+  isActive,
+  canReopenClosedTab,
+  onActivate,
+  onClose,
+  onCloseOtherTabs,
+  onCloseTabsToRight,
+  onReopenClosedTab,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+}) {
+  const isHome = tab.id === "home";
+  const tabClassName = `titlebar-tab ${isHome ? "titlebar-tab--home" : "titlebar-tab--file"} ${isActive ? "titlebar-tab--active" : ""}`;
+
+  return (
+    <AppContextMenu>
+      <AppContextMenuTrigger asChild>
+        <div
+          data-tab-id={tab.id}
+          className={tabClassName}
+          draggable={tab.closable}
+          onClick={onActivate}
+          onMouseDown={(event) => {
+            if (event.button === 1 && tab.closable) {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+          onDragStart={(event) => onDragStart(event, tab.id)}
+          onDragOver={(event) => onDragOver(event, tab.id)}
+          onDragEnd={onDragEnd}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onActivate();
+            }
+          }}
+          title={tab.title}
+          aria-label={tab.title}
+        >
+          {isHome ? (
+            <span className="titlebar-home-icon" aria-hidden="true">
+              <IconHomeFilled />
+            </span>
+          ) : (
+            <>
+              <span className="titlebar-tab-label">{tab.title}</span>
+              {tab.closable ? (
+                <AppButton
+                  tone="unstyled"
+                  className="titlebar-tab-close"
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClose();
+                  }}
+                  title="Close tab"
+                  aria-label="Close tab"
+                >
+                  <IconClose />
+                </AppButton>
+              ) : null}
+            </>
+          )}
+        </div>
+      </AppContextMenuTrigger>
+
+      <AppContextMenuContent className="titlebar-tab-menu">
+        <AppContextMenuItem disabled={!tab.closable} onSelect={onClose}>
+          Close Tab
+        </AppContextMenuItem>
+        <AppContextMenuItem onSelect={onCloseOtherTabs}>
+          Close Other Tabs
+        </AppContextMenuItem>
+        <AppContextMenuItem onSelect={onCloseTabsToRight}>
+          Close Tabs to the Right
+        </AppContextMenuItem>
+        <AppContextMenuItem disabled={!canReopenClosedTab} onSelect={onReopenClosedTab}>
+          Reopen Closed Tab
+        </AppContextMenuItem>
+      </AppContextMenuContent>
+    </AppContextMenu>
+  );
+}
+
 export function TopTabBar({ usesCustomTitlebar }) {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useTabs();
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    moveTab,
+    closeTab,
+    reopenClosedTab,
+    closeOtherTabs,
+    closeTabsToRight,
+    canReopenClosedTab,
+  } = useTabs();
+  const tabRefs = useRef(new Map());
+  const previousRectsRef = useRef(new Map());
+  const [draggedTabId, setDraggedTabId] = useState(null);
+
+  const orderedTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
+
+  useLayoutEffect(() => {
+    const nextRects = new Map();
+
+    orderedTabIds.forEach((tabId) => {
+      const node = tabRefs.current.get(tabId);
+      if (!node) {
+        return;
+      }
+
+      const nextRect = node.getBoundingClientRect();
+      nextRects.set(tabId, nextRect);
+
+      const previousRect = previousRectsRef.current.get(tabId);
+      if (!previousRect) {
+        return;
+      }
+
+      const deltaX = previousRect.left - nextRect.left;
+      if (Math.abs(deltaX) < 1) {
+        return;
+      }
+
+      node.style.transition = "none";
+      node.style.transform = `translateX(${deltaX}px)`;
+
+      requestAnimationFrame(() => {
+        node.style.transition = "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+        node.style.transform = "";
+      });
+    });
+
+    previousRectsRef.current = nextRects;
+  }, [orderedTabIds]);
 
   if (!usesCustomTitlebar) {
     return null;
+  }
+
+  function registerTabRef(tabId, node) {
+    if (!node) {
+      tabRefs.current.delete(tabId);
+      return;
+    }
+
+    tabRefs.current.set(tabId, node);
+  }
+
+  function handleDragStart(event, tabId) {
+    if (tabId === "home") {
+      event.preventDefault();
+      return;
+    }
+
+    setDraggedTabId(tabId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", tabId);
+  }
+
+  function handleDragOver(event, targetTabId) {
+    if (!draggedTabId || draggedTabId === targetTabId) {
+      return;
+    }
+
+    event.preventDefault();
+    const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId);
+    if (targetIndex === -1) {
+      return;
+    }
+
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    const insertAfter = event.clientX > targetRect.left + (targetRect.width / 2);
+    moveTab(draggedTabId, targetIndex + (insertAfter ? 1 : 0));
+  }
+
+  function handleDragEnd() {
+    setDraggedTabId(null);
   }
 
   return (
@@ -96,54 +285,27 @@ export function TopTabBar({ usesCustomTitlebar }) {
     >
       <div className="titlebar-left">
         <div className="titlebar-tabs">
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTabId;
-            const isHome = tab.id === "home";
-            const tabClassName = `titlebar-tab ${isHome ? "titlebar-tab--home" : "titlebar-tab--file"} ${isActive ? "titlebar-tab--active" : ""}`;
-            const onActivate = () => setActiveTab(tab.id);
-
-            return (
-              <div
-                key={tab.id}
-                className={tabClassName}
-                onClick={onActivate}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onActivate();
-                  }
-                }}
-                title={tab.title}
-                aria-label={tab.title}
-              >
-                {isHome ? (
-                  <span className="titlebar-home-icon" aria-hidden="true">
-                    <IconHomeFilled />
-                  </span>
-                ) : (
-                  <>
-                    <span className="titlebar-tab-label">{tab.title}</span>
-                    {tab.closable ? (
-                      <AppButton tone="unstyled"
-                        className="titlebar-tab-close"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab.id);
-                        }}
-                        title="Close tab"
-                        aria-label="Close tab"
-                      >
-                        <IconClose />
-                      </AppButton>
-                    ) : null}
-                  </>
-                )}
-
-              </div>
-            );
-          })}
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              ref={(node) => registerTabRef(tab.id, node)}
+              className={`titlebar-tab-shell ${draggedTabId === tab.id ? "titlebar-tab-shell--dragging" : ""}`}
+            >
+              <TabItem
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                canReopenClosedTab={canReopenClosedTab}
+                onActivate={() => setActiveTab(tab.id)}
+                onClose={() => closeTab(tab.id)}
+                onCloseOtherTabs={() => closeOtherTabs(tab.id)}
+                onCloseTabsToRight={() => closeTabsToRight(tab.id)}
+                onReopenClosedTab={reopenClosedTab}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -156,4 +318,3 @@ export function TopTabBar({ usesCustomTitlebar }) {
     </div>
   );
 }
-

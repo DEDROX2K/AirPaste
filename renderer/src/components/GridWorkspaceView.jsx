@@ -11,6 +11,11 @@ const GRID_PADDING_Y = 20;
 const GRID_CARD_HEIGHT_FALLBACK = 320;
 const EMPTY_SET = new Set();
 const EMPTY_ARRAY = [];
+const MINIMAP_WIDTH = 180;
+const MINIMAP_HEIGHT = 120;
+const MINIMAP_PADDING = 16;
+const MINIMAP_WORLD_PADDING = 24;
+const MINIMAP_MIN_VIEWPORT = 10;
 
 function getColumnMetrics(containerWidth) {
   const usableWidth = Math.max(0, containerWidth - (GRID_PADDING_X * 2));
@@ -95,6 +100,243 @@ function buildGridTileMeta(tile, {
   };
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildMiniMapBounds(positions, totalHeight, viewportWidth) {
+  const entries = Object.values(positions ?? {});
+
+  if (!entries.length) {
+    return null;
+  }
+
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+
+  entries.forEach((entry) => {
+    left = Math.min(left, entry.x);
+    top = Math.min(top, entry.y);
+    right = Math.max(right, entry.x + entry.width);
+    bottom = Math.max(bottom, entry.y + entry.height);
+  });
+
+  right = Math.max(right, viewportWidth);
+  bottom = Math.max(bottom, totalHeight);
+
+  return {
+    left: Math.max(0, left - MINIMAP_WORLD_PADDING),
+    top: Math.max(0, top - MINIMAP_WORLD_PADDING),
+    width: Math.max(1, right - Math.max(0, left - MINIMAP_WORLD_PADDING) + MINIMAP_WORLD_PADDING),
+    height: Math.max(1, bottom - Math.max(0, top - MINIMAP_WORLD_PADDING) + MINIMAP_WORLD_PADDING),
+  };
+}
+
+function GridMiniMap({ positions, scrollContainerRef, totalHeight, visible }) {
+  const panelRef = useRef(null);
+  const draggingRef = useRef(false);
+  const [scrollState, setScrollState] = useState({
+    scrollLeft: 0,
+    scrollTop: 0,
+    clientWidth: 0,
+    clientHeight: 0,
+    scrollWidth: 0,
+    scrollHeight: 0,
+  });
+
+  useEffect(() => {
+    const element = scrollContainerRef.current;
+
+    if (!element) {
+      return undefined;
+    }
+
+    const updateState = () => {
+      setScrollState({
+        scrollLeft: element.scrollLeft,
+        scrollTop: element.scrollTop,
+        clientWidth: element.clientWidth,
+        clientHeight: element.clientHeight,
+        scrollWidth: element.scrollWidth,
+        scrollHeight: element.scrollHeight,
+      });
+    };
+
+    updateState();
+    element.addEventListener("scroll", updateState, { passive: true });
+    window.addEventListener("resize", updateState);
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateState);
+      resizeObserver.observe(element);
+    }
+
+    return () => {
+      element.removeEventListener("scroll", updateState);
+      window.removeEventListener("resize", updateState);
+      resizeObserver?.disconnect?.();
+    };
+  }, [scrollContainerRef, positions, totalHeight]);
+
+  const bounds = useMemo(
+    () => buildMiniMapBounds(positions, totalHeight, scrollState.clientWidth),
+    [positions, totalHeight, scrollState.clientWidth],
+  );
+
+  const mapState = useMemo(() => {
+    if (!bounds) {
+      return null;
+    }
+
+    const innerWidth = MINIMAP_WIDTH - MINIMAP_PADDING * 2;
+    const innerHeight = MINIMAP_HEIGHT - MINIMAP_PADDING * 2;
+    const scale = Math.min(
+      innerWidth / Math.max(1, bounds.width),
+      innerHeight / Math.max(1, bounds.height),
+    );
+    const contentWidth = bounds.width * scale;
+    const contentHeight = bounds.height * scale;
+    const offsetX = (MINIMAP_WIDTH - contentWidth) / 2;
+    const offsetY = (MINIMAP_HEIGHT - contentHeight) / 2;
+    const projectX = (worldX) => offsetX + (worldX - bounds.left) * scale;
+    const projectY = (worldY) => offsetY + (worldY - bounds.top) * scale;
+
+    return {
+      tiles: Object.entries(positions).map(([tileId, entry]) => ({
+        id: tileId,
+        x: projectX(entry.x),
+        y: projectY(entry.y),
+        width: Math.max(2, entry.width * scale),
+        height: Math.max(2, entry.height * scale),
+      })),
+      viewportRect: {
+        x: projectX(scrollState.scrollLeft),
+        y: projectY(scrollState.scrollTop),
+        width: Math.max(MINIMAP_MIN_VIEWPORT, scrollState.clientWidth * scale),
+        height: Math.max(MINIMAP_MIN_VIEWPORT, scrollState.clientHeight * scale),
+      },
+      toScrollPosition(clientX, clientY, panelRect) {
+        const mapX = clamp(clientX - panelRect.left, 0, MINIMAP_WIDTH);
+        const mapY = clamp(clientY - panelRect.top, 0, MINIMAP_HEIGHT);
+        return {
+          left: bounds.left + ((mapX - offsetX) / scale) - (scrollState.clientWidth / 2),
+          top: bounds.top + ((mapY - offsetY) / scale) - (scrollState.clientHeight / 2),
+        };
+      },
+    };
+  }, [bounds, positions, scrollState]);
+
+  const panToPoint = useCallback((clientX, clientY) => {
+    const element = scrollContainerRef.current;
+
+    if (!element || !panelRef.current || !mapState) {
+      return;
+    }
+
+    const panelRect = panelRef.current.getBoundingClientRect();
+    const nextScroll = mapState.toScrollPosition(clientX, clientY, panelRect);
+    const maxLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+    const maxTop = Math.max(0, element.scrollHeight - element.clientHeight);
+
+    element.scrollTo({
+      left: clamp(nextScroll.left, 0, maxLeft),
+      top: clamp(nextScroll.top, 0, maxTop),
+      behavior: "auto",
+    });
+  }, [mapState, scrollContainerRef]);
+
+  const stopDragging = useCallback(() => {
+    draggingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("pointerup", stopDragging, true);
+    window.addEventListener("pointercancel", stopDragging, true);
+    window.addEventListener("blur", stopDragging);
+
+    return () => {
+      window.removeEventListener("pointerup", stopDragging, true);
+      window.removeEventListener("pointercancel", stopDragging, true);
+      window.removeEventListener("blur", stopDragging);
+    };
+  }, [stopDragging]);
+
+  const handlePointerDown = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    draggingRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    panToPoint(event.clientX, event.clientY);
+  }, [panToPoint]);
+
+  const handlePointerMove = useCallback((event) => {
+    if (!draggingRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    panToPoint(event.clientX, event.clientY);
+  }, [panToPoint]);
+
+  const handlePointerUp = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, []);
+
+  if (!visible || !mapState || mapState.tiles.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="canvas-minimap" aria-hidden="true">
+      <div
+        ref={panelRef}
+        className="canvas-minimap__panel"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <svg
+          className="canvas-minimap__svg"
+          width={MINIMAP_WIDTH}
+          height={MINIMAP_HEIGHT}
+          viewBox={`0 0 ${MINIMAP_WIDTH} ${MINIMAP_HEIGHT}`}
+          role="presentation"
+        >
+          {mapState.tiles.map((tile) => (
+            <rect
+              key={tile.id}
+              className="canvas-minimap__tile"
+              x={tile.x}
+              y={tile.y}
+              width={tile.width}
+              height={tile.height}
+              rx="2.5"
+              ry="2.5"
+            />
+          ))}
+          <rect
+            className="canvas-minimap__viewport"
+            x={mapState.viewportRect.x}
+            y={mapState.viewportRect.y}
+            width={mapState.viewportRect.width}
+            height={mapState.viewportRect.height}
+            rx="4"
+            ry="4"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function MasonryGrid({
   tiles,
   selectedIds,
@@ -109,6 +351,7 @@ function MasonryGrid({
   onMediaLoad,
   onPressStart,
   onRetry,
+  onLayoutChange,
 }) {
   const containerRef = useRef(null);
   const itemRefs = useRef({});
@@ -190,6 +433,15 @@ function MasonryGrid({
     [tileMeasurements, columnWidth, columnCount],
   );
 
+  useEffect(() => {
+    onLayoutChange?.({
+      positions,
+      totalHeight,
+      columnWidth,
+      columnCount,
+    });
+  }, [columnCount, columnWidth, onLayoutChange, positions, totalHeight]);
+
   return (
     <div
       ref={containerRef}
@@ -259,14 +511,23 @@ function MasonryGrid({
 }
 
 export default function GridWorkspaceView({
+  dropImport = null,
+  isDropTarget = false,
   openTileLink,
   updateTileFromMediaLoad,
   retryTilePreview,
 }) {
   const { workspace, folderPath, folderLoading } = useAppContext();
+  const scrollRef = useRef(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [hoveredTileId, setHoveredTileId] = useState(null);
   const [focusedTileId, setFocusedTileId] = useState(null);
+  const [layoutState, setLayoutState] = useState({
+    positions: {},
+    totalHeight: 0,
+    columnWidth: 0,
+    columnCount: 1,
+  });
 
   useEffect(() => {
     setSelectedIds([]);
@@ -345,7 +606,13 @@ export default function GridWorkspaceView({
 
   if (!folderPath && !folderLoading) {
     return (
-      <div className="grid-workspace">
+      <div
+        className={`grid-workspace${isDropTarget ? " canvas--drop-target" : ""}`}
+        onDragEnter={dropImport?.handleDragEnter}
+        onDragOver={dropImport?.handleDragOver}
+        onDragLeave={dropImport?.handleDragLeave}
+        onDrop={(event) => { void dropImport?.handleDrop?.(event); }}
+      >
         <AppEmptyState
           title="No workspace open"
           description="Open local folder to start saving links and media."
@@ -360,9 +627,20 @@ export default function GridWorkspaceView({
   }
 
   return (
-    <div className="grid-workspace">
-
-      <div className="grid-workspace__scroll">
+    <div
+      className={`grid-workspace${isDropTarget ? " canvas--drop-target" : ""}`}
+      onDragEnter={dropImport?.handleDragEnter}
+      onDragOver={dropImport?.handleDragOver}
+      onDragLeave={dropImport?.handleDragLeave}
+      onDrop={(event) => { void dropImport?.handleDrop?.(event); }}
+    >
+      <GridMiniMap
+        positions={layoutState.positions}
+        scrollContainerRef={scrollRef}
+        totalHeight={layoutState.totalHeight}
+        visible={totalCount > 0}
+      />
+      <div ref={scrollRef} className="grid-workspace__scroll">
         {totalCount === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
@@ -388,6 +666,7 @@ export default function GridWorkspaceView({
             onMediaLoad={updateTileFromMediaLoad}
             onPressStart={handleTilePressStart}
             onRetry={retryTilePreview}
+            onLayoutChange={setLayoutState}
           />
         )}
       </div>

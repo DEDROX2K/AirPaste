@@ -1,7 +1,7 @@
 const cheerio = require("cheerio");
+const { BrowserWindow } = require("electron");
 const openGraphScraper = require("open-graph-scraper");
 const {
-  PREVIEW_CAPTURE_TIMEOUT_MS,
   PREVIEW_CONFIDENCE,
   PREVIEW_DOCUMENT_TIMEOUT_MS,
   PREVIEW_JPEG_QUALITY,
@@ -25,24 +25,6 @@ const {
 } = require("../utils");
 
 let previewBrowserPromise = null;
-let playwrightChromium = null;
-let attemptedPlaywrightLoad = false;
-
-function getPlaywrightChromium() {
-  if (attemptedPlaywrightLoad) {
-    return playwrightChromium;
-  }
-
-  attemptedPlaywrightLoad = true;
-
-  try {
-    ({ chromium: playwrightChromium } = require("playwright"));
-  } catch {
-    playwrightChromium = null;
-  }
-
-  return playwrightChromium;
-}
 
 async function fetchJson(url) {
   try {
@@ -145,6 +127,11 @@ async function fetchPreviewDocument(url) {
     });
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     const html = contentType.includes("text/html") ? await response.text() : "";
+    const headers = {
+      xFrameOptions: response.headers.get("x-frame-options")?.trim() ?? "",
+      contentSecurityPolicy: response.headers.get("content-security-policy")?.trim() ?? "",
+      setCookie: response.headers.get("set-cookie")?.trim() ?? "",
+    };
 
     return {
       ok: response.ok,
@@ -152,6 +139,10 @@ async function fetchPreviewDocument(url) {
       finalUrl: response.url || url,
       contentType,
       html,
+      headers,
+      fetchStatus: response.ok
+        ? (contentType.includes("text/html") ? "success" : "non-html")
+        : "http-error",
     };
   } catch {
     return {
@@ -160,6 +151,12 @@ async function fetchPreviewDocument(url) {
       finalUrl: url,
       contentType: "",
       html: "",
+      headers: {
+        xFrameOptions: "",
+        contentSecurityPolicy: "",
+        setCookie: "",
+      },
+      fetchStatus: "network-error",
     };
   } finally {
     clearTimeout(timeoutId);
@@ -367,28 +364,18 @@ function bufferToDataUrl(buffer, mimeType) {
 }
 
 async function getPreviewBrowser() {
-  const chromium = getPlaywrightChromium();
-
-  if (!chromium) {
-    return null;
-  }
-
   if (!previewBrowserPromise) {
-    previewBrowserPromise = chromium.launch({
-      headless: true,
-      args: ["--disable-dev-shm-usage"],
-    })
-      .then((browser) => {
-        browser.on("disconnected", () => {
-          previewBrowserPromise = null;
-        });
-
-        return browser;
-      })
-      .catch((error) => {
-        previewBrowserPromise = null;
-        throw error;
-      });
+    previewBrowserPromise = Promise.resolve(new BrowserWindow({
+      show: false,
+      width: PREVIEW_VIEWPORT.width,
+      height: PREVIEW_VIEWPORT.height,
+      useContentSize: true,
+      backgroundColor: "#ffffff",
+      webPreferences: {
+        offscreen: true,
+        sandbox: false,
+      },
+    }));
   }
 
   return previewBrowserPromise;
@@ -403,55 +390,92 @@ async function closePreviewBrowser() {
   }
 
   try {
-    const browser = await browserPromise;
-    await browser.close();
+    const previewWindow = await browserPromise;
+    if (!previewWindow.isDestroyed()) {
+      previewWindow.destroy();
+    }
   } catch {
     // Ignore shutdown issues during app exit.
   }
 }
 
+function waitForEventOnce(target, eventName, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      target.removeListener(eventName, handleEvent);
+    };
+
+    const handleEvent = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(true);
+    };
+
+    target.once(eventName, handleEvent);
+  });
+}
+
 async function capturePreviewScreenshot(url) {
-  let context = null;
+  let previewWindow = null;
 
   try {
-    const browser = await getPreviewBrowser();
-    if (!browser) {
+    previewWindow = await getPreviewBrowser();
+
+    if (!previewWindow || previewWindow.isDestroyed()) {
       return "";
     }
-    context = await browser.newContext({
-      viewport: PREVIEW_VIEWPORT,
-      deviceScaleFactor: 1,
-      ignoreHTTPSErrors: true,
+
+    const { webContents } = previewWindow;
+
+    await webContents.loadURL(url, {
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     });
-    const page = await context.newPage();
 
-    page.setDefaultNavigationTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
-    page.setDefaultTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
+    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+    await new Promise((resolve) => setTimeout(resolve, 600));
 
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: PREVIEW_NETWORK_IDLE_TIMEOUT_MS }).catch(() => { });
-    await page.addStyleTag({
-      content: [
-        "*, *::before, *::after {",
-        "  animation-duration: 0s !important;",
-        "  animation-delay: 0s !important;",
-        "  transition-duration: 0s !important;",
-        "  caret-color: transparent !important;",
-        "}",
+    await webContents.executeJavaScript(
+      [
+        "(() => {",
+        "  const style = document.createElement('style');",
+        "  style.textContent = `",
+        "    *, *::before, *::after {",
+        "      animation-duration: 0s !important;",
+        "      animation-delay: 0s !important;",
+        "      transition-duration: 0s !important;",
+        "      caret-color: transparent !important;",
+        "    }",
+        "  `;",
+        "  document.head.appendChild(style);",
+        "})();",
       ].join("\n"),
-    }).catch(() => { });
+      true,
+    ).catch(() => { });
 
-    const screenshot = await page.screenshot({
-      type: "jpeg",
-      quality: PREVIEW_JPEG_QUALITY,
-      fullPage: false,
-    });
+    const image = await webContents.capturePage();
+    const screenshot = image.toJPEG(PREVIEW_JPEG_QUALITY);
 
     return bufferToDataUrl(screenshot, "image/jpeg");
   } catch {
     return "";
   } finally {
-    await context?.close().catch(() => { });
+    await closePreviewBrowser();
   }
 }
 
@@ -470,6 +494,8 @@ async function fetchOpenGraphMetadata(url) {
         favicon: "",
         imageUrl: "",
         previewKind: "default",
+        openGraphStatus: "error",
+        openGraphError: error ? "Open Graph fetch failed" : "Open Graph data unavailable",
       };
     }
 
@@ -497,6 +523,19 @@ async function fetchOpenGraphMetadata(url) {
       favicon: resolveUrl(result.favicon, url),
       imageUrl: chooseBestArtworkUrl(result, url),
       previewKind,
+      openGraphStatus: (
+        firstString(
+          result.ogTitle,
+          result.twitterTitle,
+          result.dcTitle,
+          result.title,
+          result.ogDescription,
+          result.twitterDescription,
+          result.description,
+        )
+        || chooseBestArtworkUrl(result, url)
+      ) ? "success" : "missing",
+      openGraphError: "",
     };
   } catch {
     return {
@@ -506,6 +545,8 @@ async function fetchOpenGraphMetadata(url) {
       favicon: "",
       imageUrl: "",
       previewKind: "default",
+      openGraphStatus: "error",
+      openGraphError: "Open Graph fetch failed",
     };
   }
 }
@@ -539,9 +580,13 @@ async function resolveGenericLinkPreview(url) {
       allowScreenshotFallback: true,
       metadata: {
         source: "generic",
+        metadataFetchStatus: documentSnapshot.fetchStatus || "network-error",
+        openGraphStatus: metadata.openGraphStatus || "missing",
+        openGraphError: metadata.openGraphError || "",
       },
     }),
     documentSignals,
+    documentSnapshot,
   };
 }
 

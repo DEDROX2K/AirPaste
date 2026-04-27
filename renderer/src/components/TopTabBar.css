@@ -55,6 +55,16 @@
   min-width: 0;
 }
 
+.titlebar-tab-shell {
+  display: flex;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.titlebar-tab-shell--dragging {
+  opacity: 0.7;
+}
+
 .titlebar-tab {
   display: flex;
   align-items: center;
@@ -63,6 +73,7 @@
   border-radius: var(--ap-radius-md);
   cursor: pointer;
   transition:
+    opacity var(--ap-transition-fast),
     transform var(--ap-transition-spring),
     border-color var(--ap-transition-fast),
     background-color var(--ap-transition-fast),
@@ -415,5 +426,9 @@
     width: var(--ap-space-6);
     height: var(--ap-space-6);
   }
+}
+
+.titlebar-tab-menu {
+  min-width: 190px;
 }
 

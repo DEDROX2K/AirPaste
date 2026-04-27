@@ -72,6 +72,7 @@ export const desktop = {
     cancelLinkPreview: (...args) => airpasteBridge.cancelLinkPreview?.(...args) ?? Promise.resolve({ cancelled: false }),
     importImageAsset: (...args) => airpasteBridge.importImageAsset?.(...args) ?? Promise.resolve(null),
     importFiles: (...args) => airpasteBridge.importFiles?.(...args) ?? Promise.resolve([]),
+    getDroppedFilePath: (file) => airpasteBridge.getDroppedFilePath?.(file) ?? "",
     resolveAssetUrl: (folderPath, relativePath, options = null) =>
       airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
     getPreviewCapabilities: (...args) =>

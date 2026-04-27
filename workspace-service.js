@@ -35,10 +35,18 @@ const DEFAULT_DRAWINGS = Object.freeze({
 });
 
 const DEFAULT_WORKSPACE = Object.freeze({
-  version: 5,
-  viewport: { x: 180, y: 120, zoom: 1 },
-  cards: [],
-  drawings: DEFAULT_DRAWINGS,
+  version: 9,
+  activePageId: "page-1",
+  pages: [{
+    id: "page-1",
+    name: "Page 1",
+    viewport: { x: 180, y: 120, zoom: 1 },
+    tiles: [],
+    drawings: DEFAULT_DRAWINGS,
+    edges: [],
+    groups: [],
+    view: null,
+  }],
 });
 
 const DEFAULT_UI_STATE = Object.freeze({
@@ -141,6 +149,64 @@ function normalizeDrawingsPayload(drawings) {
     version: Number.isFinite(safeDrawings.version) ? Math.max(1, Math.round(safeDrawings.version)) : DEFAULT_DRAWINGS.version,
     objects: Array.isArray(safeDrawings.objects) ? safeDrawings.objects : [],
   };
+}
+
+function normalizeViewportPayload(viewport) {
+  const safeViewport = isObject(viewport) ? viewport : {};
+  return {
+    x: Number.isFinite(safeViewport.x) ? safeViewport.x : DEFAULT_WORKSPACE.pages[0].viewport.x,
+    y: Number.isFinite(safeViewport.y) ? safeViewport.y : DEFAULT_WORKSPACE.pages[0].viewport.y,
+    zoom: Number.isFinite(safeViewport.zoom) ? safeViewport.zoom : DEFAULT_WORKSPACE.pages[0].viewport.zoom,
+  };
+}
+
+function cloneStructuredArray(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.map((item) => (
+    item && typeof item === "object"
+      ? JSON.parse(JSON.stringify(item))
+      : item
+  ));
+}
+
+function normalizePagePayload(page, fallbackIndex = 0) {
+  const safePage = isObject(page) ? page : {};
+  return {
+    id: firstString(safePage.id, `page-${fallbackIndex + 1}`),
+    name: firstString(safePage.name, `Page ${fallbackIndex + 1}`),
+    viewport: normalizeViewportPayload(safePage.viewport),
+    tiles: Array.isArray(safePage.tiles)
+      ? safePage.tiles
+      : Array.isArray(safePage.cards)
+        ? safePage.cards
+        : [],
+    drawings: normalizeDrawingsPayload(safePage.drawings),
+    edges: cloneStructuredArray(safePage.edges),
+    groups: cloneStructuredArray(safePage.groups),
+    view: safePage.view === null || isObject(safePage.view) ? (safePage.view ?? null) : null,
+  };
+}
+
+function normalizeCanvasPages(raw) {
+  if (Array.isArray(raw?.pages) && raw.pages.length > 0) {
+    return raw.pages.map((page, index) => normalizePagePayload(page, index));
+  }
+
+  return [
+    normalizePagePayload({
+      id: typeof raw?.activePageId === "string" ? raw.activePageId : "page-1",
+      name: "Page 1",
+      viewport: raw?.viewport,
+      tiles: raw?.cards,
+      drawings: raw?.drawings,
+      edges: raw?.edges,
+      groups: raw?.groups,
+      view: raw?.view,
+    }, 0),
+  ];
 }
 
 function internalPath(root) {
@@ -573,11 +639,9 @@ async function loadCanvas(filePath) {
 
   const workspace = {
     version: Number.isFinite(raw.version) ? raw.version : DEFAULT_WORKSPACE.version,
-    viewport: isObject(raw.viewport) ? raw.viewport : DEFAULT_WORKSPACE.viewport,
-    cards: Array.isArray(raw.cards) ? raw.cards : [],
-    drawings: normalizeDrawingsPayload(raw.drawings),
-    view: raw.view === null || isObject(raw.view) ? raw.view : null,
     name: firstString(raw.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
+    activePageId: firstString(raw.activePageId, DEFAULT_WORKSPACE.activePageId),
+    pages: normalizeCanvasPages(raw),
   };
 
   await recordRecentItem(root, abs);
@@ -611,26 +675,29 @@ async function saveCanvas(filePath, data, options = null) {
   const saveOptions = isObject(options) ? options : {};
   const nextName = firstString(input.name, current.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
   const payload = {
-    version: 2,
+    version: 9,
     type: "canvas",
     id: firstString(current.id, input.id, randomUUID()),
     name: nextName,
     createdAt: typeof current.createdAt === "string" ? current.createdAt : nowIso(),
     updatedAt: nowIso(),
-    viewport: isObject(input.viewport)
-      ? input.viewport
-      : isObject(current.viewport)
-        ? current.viewport
-        : DEFAULT_WORKSPACE.viewport,
-    cards: Array.isArray(input.cards)
-      ? input.cards
-      : Array.isArray(current.cards)
-        ? current.cards
-        : [],
-    drawings: normalizeDrawingsPayload(input.drawings ?? current.drawings),
-    view: input.view === null || isObject(input.view)
-      ? input.view
-      : (current.view ?? null),
+    activePageId: firstString(
+      input.activePageId,
+      current.activePageId,
+      normalizeCanvasPages(input)[0]?.id,
+      normalizeCanvasPages(current)[0]?.id,
+      DEFAULT_WORKSPACE.activePageId,
+    ),
+    pages: normalizeCanvasPages({
+      pages: Array.isArray(input.pages) ? input.pages : Array.isArray(current.pages) ? current.pages : null,
+      activePageId: input.activePageId ?? current.activePageId,
+      viewport: input.viewport ?? current.viewport,
+      cards: input.cards ?? current.cards,
+      drawings: input.drawings ?? current.drawings,
+      edges: input.edges ?? current.edges,
+      groups: input.groups ?? current.groups,
+      view: input.view ?? current.view,
+    }),
   };
 
   await atomicWriteJson(root, abs, payload);
@@ -662,16 +729,14 @@ async function createCanvas(folderPath, name, targetFolderPath = "") {
   );
 
   await atomicWriteJson(root, filePath, {
-    version: 2,
+    version: 9,
     type: "canvas",
     id: randomUUID(),
     name: stripCanvasSuffix(path.basename(filePath)),
     createdAt: nowIso(),
     updatedAt: nowIso(),
-    viewport: DEFAULT_WORKSPACE.viewport,
-    cards: [],
-    drawings: DEFAULT_DRAWINGS,
-    view: null,
+    activePageId: DEFAULT_WORKSPACE.activePageId,
+    pages: DEFAULT_WORKSPACE.pages,
   });
 
   return loadCanvas(filePath);

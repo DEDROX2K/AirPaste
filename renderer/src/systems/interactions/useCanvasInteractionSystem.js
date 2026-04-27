@@ -207,6 +207,16 @@ export function useCanvasInteractionSystem({
     });
   }, []);
 
+  const replaceSelection = useCallback((tileIds) => {
+    const normalizedTileIds = Array.isArray(tileIds)
+      ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
+      : [];
+
+    setSelectedTileIds(normalizedTileIds);
+    setHoveredTileId(null);
+    setFocusedTileId(normalizedTileIds.length === 1 ? normalizedTileIds[0] : null);
+  }, []);
+
   const handleTilePressStart = useCallback((tile, event) => {
     closeContextMenu();
 
@@ -776,6 +786,7 @@ export function useCanvasInteractionSystem({
     handleTileFocusOut,
     handleTileHoverChange,
     handleTilePressStart,
+    replaceSelection,
     resetTransientState,
     selectTile,
   }), [
@@ -796,6 +807,7 @@ export function useCanvasInteractionSystem({
     hoveredTileId,
     marqueeBox,
     marqueeStyleVars,
+    replaceSelection,
     resetTransientState,
     selectTile,
     selectedTileIdSet,

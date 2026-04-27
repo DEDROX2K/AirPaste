@@ -22,7 +22,7 @@ const {
   resolveSpotifyPreview,
   resolveXPreview,
 } = require("./resolvers/providers");
-const { firstString, getHostname, normalizeExternalUrl } = require("./utils");
+const { firstString, getHostname, normalizeExternalUrl, normalizePreviewText } = require("./utils");
 
 const PREVIEW_DEBUG_ENABLED = String(process.env.AIRPASTE_PREVIEW_DEBUG ?? "").trim() === "1";
 
@@ -51,6 +51,7 @@ async function selectResolver(classification, url) {
     return {
       result: createBlockedResult(url, classification.reason),
       documentSignals: {},
+      documentSnapshot: null,
     };
   }
 
@@ -58,6 +59,7 @@ async function selectResolver(classification, url) {
     return {
       result: await resolveDirectImagePreview(url),
       documentSignals: {},
+      documentSnapshot: null,
     };
   }
 
@@ -65,6 +67,7 @@ async function selectResolver(classification, url) {
     return {
       result: await resolveAmazonProductPreview(url),
       documentSignals: {},
+      documentSnapshot: null,
     };
   }
 
@@ -84,6 +87,7 @@ async function selectResolver(classification, url) {
       return {
         result: providerResult,
         documentSignals: {},
+        documentSnapshot: null,
       };
     }
 
@@ -106,6 +110,7 @@ async function selectResolver(classification, url) {
         },
       },
       documentSignals: genericResult.documentSignals,
+      documentSnapshot: genericResult.documentSnapshot ?? null,
     };
   }
 
@@ -121,6 +126,7 @@ async function selectResolver(classification, url) {
       return {
         result: providerResult,
         documentSignals: {},
+        documentSnapshot: null,
       };
     }
 
@@ -143,6 +149,7 @@ async function selectResolver(classification, url) {
         },
       },
       documentSignals: genericResult.documentSignals,
+      documentSnapshot: genericResult.documentSnapshot ?? null,
     };
   }
 
@@ -158,6 +165,7 @@ async function selectResolver(classification, url) {
       return {
         result: providerResult,
         documentSignals: {},
+        documentSnapshot: null,
       };
     }
 
@@ -180,6 +188,7 @@ async function selectResolver(classification, url) {
         },
       },
       documentSignals: genericResult.documentSignals,
+      documentSnapshot: genericResult.documentSnapshot ?? null,
     };
   }
 
@@ -190,6 +199,7 @@ async function selectResolver(classification, url) {
       return {
         result: providerResult,
         documentSignals: {},
+        documentSnapshot: null,
       };
     }
   }
@@ -211,6 +221,7 @@ async function selectResolver(classification, url) {
     return {
       result: spotifyResult,
       documentSignals: {},
+      documentSnapshot: null,
     };
   }
 
@@ -281,6 +292,252 @@ async function applyImageAcquisition(result, validation) {
   };
 }
 
+function buildResolverNativeValidation(result) {
+  if (result.kind === PREVIEW_KIND.PINTEREST_PIN) {
+    const hasCandidateImage = Array.isArray(result.candidateImageUrls)
+      && result.candidateImageUrls.length > 0;
+    const isReady = result.status === PREVIEW_STATUS.READY && hasCandidateImage;
+
+    return {
+      decision: isReady ? "accept" : "fallback",
+      status: isReady ? PREVIEW_STATUS.READY : PREVIEW_STATUS.FALLBACK,
+      confidence: result.confidence || (isReady ? PREVIEW_CONFIDENCE.HIGH : PREVIEW_CONFIDENCE.LOW),
+      rejectionReason: "",
+      reason: "",
+      acceptImage: hasCandidateImage,
+    };
+  }
+
+  return validateResolvedPreview(result, {});
+}
+
+function hasFrameAncestorsDirective(contentSecurityPolicy = "") {
+  return String(contentSecurityPolicy ?? "")
+    .toLowerCase()
+    .split(";")
+    .some((directive) => directive.trim().startsWith("frame-ancestors "));
+}
+
+function detectEmbedBlocking(documentSnapshot) {
+  const xFrameOptions = documentSnapshot?.headers?.xFrameOptions || "";
+  const contentSecurityPolicy = documentSnapshot?.headers?.contentSecurityPolicy || "";
+
+  if (xFrameOptions) {
+    return {
+      embedAttempted: true,
+      embedBlocked: true,
+      embedBlockReason: "x-frame-options",
+    };
+  }
+
+  if (hasFrameAncestorsDirective(contentSecurityPolicy)) {
+    return {
+      embedAttempted: true,
+      embedBlocked: true,
+      embedBlockReason: "content-security-policy-frame-ancestors",
+    };
+  }
+
+  return {
+    embedAttempted: Boolean(documentSnapshot?.headers),
+    embedBlocked: false,
+    embedBlockReason: "",
+  };
+}
+
+function detectAccessBarriers(result, documentSignals, documentSnapshot) {
+  const title = normalizePreviewText(documentSignals?.pageTitle || result?.title || "");
+  const description = normalizePreviewText(documentSignals?.ogDescription || result?.description || "");
+  const bodyText = normalizePreviewText(documentSignals?.bodyText || "").slice(0, 5000);
+  const finalUrl = normalizePreviewText(documentSnapshot?.finalUrl || result?.canonicalUrl || "");
+  const joinedText = [title, description, bodyText].filter(Boolean).join(" ");
+  const status = Number.isFinite(documentSnapshot?.status) ? documentSnapshot.status : 0;
+
+  const cookieWallDetected = (
+    finalUrl.includes("/consent")
+    || finalUrl.includes("/privacy")
+    || joinedText.includes("cookie preferences")
+    || joinedText.includes("enable cookies")
+    || joinedText.includes("before you continue")
+    || joinedText.includes("privacy notice")
+    || (
+      joinedText.includes("consent")
+      && (joinedText.includes("cookie") || joinedText.includes("privacy"))
+    )
+  );
+
+  const loginWallDetected = (
+    finalUrl.includes("/login")
+    || finalUrl.includes("/signin")
+    || status === 401
+    || joinedText.includes("sign in")
+    || joinedText.includes("log in")
+    || joinedText.includes("login")
+  );
+
+  const captchaDetected = (
+    finalUrl.includes("/captcha")
+    || status === 403
+    || joinedText.includes("captcha")
+    || joinedText.includes("robot check")
+    || joinedText.includes("verify you are human")
+    || joinedText.includes("verify that you are human")
+    || joinedText.includes("unusual traffic")
+  );
+
+  return {
+    cookieWallDetected,
+    loginWallDetected,
+    captchaDetected,
+  };
+}
+
+function resolveThumbnailStatus({ result, validation, imageAcquisition }) {
+  if (result.kind === PREVIEW_KIND.IMAGE && imageAcquisition.image) {
+    return "success";
+  }
+
+  if (imageAcquisition.screenshotFallbackUsed) {
+    return imageAcquisition.image ? "screenshot-fallback" : "missing";
+  }
+
+  if (imageAcquisition.image) {
+    return "success";
+  }
+
+  if (!validation.acceptImage) {
+    return validation.status === PREVIEW_STATUS.BLOCKED ? "blocked" : "rejected";
+  }
+
+  return "missing";
+}
+
+function buildPipelineWarnings({
+  documentSnapshot,
+  metadataFetchStatus,
+  openGraphStatus,
+  imageAcquisition,
+  validation,
+  fallbackReason,
+  embedBlocked,
+  cookieWallDetected,
+  loginWallDetected,
+  captchaDetected,
+}) {
+  const warnings = [];
+
+  if (metadataFetchStatus === "http-error") {
+    warnings.push(`Metadata fetch returned HTTP ${documentSnapshot?.status || "error"}.`);
+  } else if (metadataFetchStatus === "network-error") {
+    warnings.push("Metadata fetch failed due to a network error.");
+  } else if (metadataFetchStatus === "non-html") {
+    warnings.push("Metadata fetch returned non-HTML content.");
+  }
+
+  if (openGraphStatus === "missing") {
+    warnings.push("Open Graph metadata was missing.");
+  } else if (openGraphStatus === "error") {
+    warnings.push("Open Graph metadata fetch failed.");
+  }
+
+  if (embedBlocked && fallbackReason) {
+    warnings.push(`Embedded preview blocked: ${fallbackReason}.`);
+  }
+
+  if (cookieWallDetected) {
+    warnings.push("Cookie or consent wall detected.");
+  }
+
+  if (loginWallDetected) {
+    warnings.push("Login wall detected.");
+  }
+
+  if (captchaDetected) {
+    warnings.push("CAPTCHA or human verification detected.");
+  }
+
+  if (!imageAcquisition.image && validation.acceptImage) {
+    warnings.push("No usable preview thumbnail was acquired.");
+  }
+
+  return warnings;
+}
+
+function buildPipelineErrors({
+  documentSnapshot,
+  result,
+  openGraphStatus,
+  openGraphError,
+  error = null,
+}) {
+  const errors = [];
+
+  if (documentSnapshot?.fetchStatus === "http-error") {
+    errors.push(`metadata-fetch:http-${documentSnapshot.status || "error"}`);
+  } else if (documentSnapshot?.fetchStatus === "network-error") {
+    errors.push("metadata-fetch:network-error");
+  }
+
+  if (openGraphStatus === "error" && openGraphError) {
+    errors.push(`open-graph:${openGraphError}`);
+  }
+
+  if (result?.status === PREVIEW_STATUS.ERROR && result.reason) {
+    errors.push(`preview:${result.reason}`);
+  }
+
+  if (error?.message) {
+    errors.push(error.message);
+  }
+
+  return errors;
+}
+
+function resolveFallbackReason({
+  validation,
+  imageAcquisition,
+  embedBlocked,
+  embedBlockReason,
+  cookieWallDetected,
+  loginWallDetected,
+  captchaDetected,
+  result,
+}) {
+  if (embedBlocked && embedBlockReason) {
+    return embedBlockReason;
+  }
+
+  if (cookieWallDetected) {
+    return "cookie-wall";
+  }
+
+  if (loginWallDetected) {
+    return "login-wall";
+  }
+
+  if (captchaDetected) {
+    return "captcha";
+  }
+
+  if (imageAcquisition.screenshotFallbackUsed) {
+    return "screenshot-fallback";
+  }
+
+  if (!imageAcquisition.image && !validation.acceptImage) {
+    return validation.rejectionReason || "thumbnail-rejected";
+  }
+
+  if (!imageAcquisition.image && validation.acceptImage) {
+    return "thumbnail-missing";
+  }
+
+  if (validation.status === PREVIEW_STATUS.BLOCKED) {
+    return validation.rejectionReason || result.reason || "blocked";
+  }
+
+  return "";
+}
+
 function buildPreviewDiagnostics({
   inputUrl,
   classification,
@@ -288,12 +545,58 @@ function buildPreviewDiagnostics({
   validation,
   imageAcquisition,
   documentSignals,
+  documentSnapshot,
+  metadataFetchStatus,
+  openGraphStatus,
+  openGraphError,
+  finalStatus,
   trace = [],
   error = null,
 }) {
   const bodyText = typeof documentSignals?.bodyText === "string"
     ? documentSignals.bodyText.slice(0, 320)
     : "";
+  const { embedAttempted, embedBlocked, embedBlockReason } = detectEmbedBlocking(documentSnapshot);
+  const { cookieWallDetected, loginWallDetected, captchaDetected } = detectAccessBarriers(
+    result,
+    documentSignals,
+    documentSnapshot,
+  );
+  const thumbnailStatus = resolveThumbnailStatus({
+    result,
+    validation,
+    imageAcquisition,
+  });
+  const fallbackReason = resolveFallbackReason({
+    validation,
+    imageAcquisition,
+    embedBlocked,
+    embedBlockReason,
+    cookieWallDetected,
+    loginWallDetected,
+    captchaDetected,
+    result,
+  });
+  const fallbackUsed = finalStatus === PREVIEW_STATUS.FALLBACK || finalStatus === PREVIEW_STATUS.BLOCKED;
+  const warnings = buildPipelineWarnings({
+    documentSnapshot,
+    metadataFetchStatus,
+    openGraphStatus,
+    imageAcquisition,
+    validation,
+    fallbackReason,
+    embedBlocked,
+    cookieWallDetected,
+    loginWallDetected,
+    captchaDetected,
+  });
+  const errors = buildPipelineErrors({
+    documentSnapshot,
+    result,
+    openGraphStatus,
+    openGraphError,
+    error,
+  });
 
   return {
     schemaVersion: 1,
@@ -310,6 +613,21 @@ function buildPreviewDiagnostics({
     contentType: result.contentType || "",
     sourceType: result.sourceType || "",
     resolvedUrl: result.resolvedUrl || result.canonicalUrl || "",
+    urlNormalized: true,
+    metadataFetchStatus,
+    openGraphStatus,
+    thumbnailStatus,
+    embedAttempted,
+    embedBlocked,
+    embedBlockReason,
+    cookieWallDetected,
+    loginWallDetected,
+    captchaDetected,
+    fallbackUsed,
+    fallbackReason,
+    finalPreviewStatus: finalStatus,
+    errors,
+    warnings,
     duration: Number.isFinite(result.duration) ? result.duration : null,
     author: result.author || "",
     channelName: result.channelName || "",
@@ -326,6 +644,16 @@ function buildPreviewDiagnostics({
       ogImageUrl: documentSignals?.ogImageUrl || "",
       faviconUrl: documentSignals?.faviconUrl || "",
       bodyTextExcerpt: bodyText,
+    },
+    responseMeta: {
+      status: Number.isFinite(documentSnapshot?.status) ? documentSnapshot.status : 0,
+      ok: documentSnapshot?.ok === true,
+      contentType: documentSnapshot?.contentType || "",
+      finalUrl: documentSnapshot?.finalUrl || result.canonicalUrl || "",
+      headers: {
+        xFrameOptions: documentSnapshot?.headers?.xFrameOptions || "",
+        contentSecurityPolicy: documentSnapshot?.headers?.contentSecurityPolicy || "",
+      },
     },
     resolverMetadata: result.metadata ?? {},
     trace: Array.isArray(trace) ? trace : [],
@@ -373,7 +701,7 @@ async function resolveUrlToPreview(url) {
       sourceType: classification.sourceType || "generic-link",
     });
     logPreviewDebug("classification", classification);
-    const { result: baseResult, documentSignals } = await selectResolver(classification, normalizedUrl);
+    const { result: baseResult, documentSignals, documentSnapshot } = await selectResolver(classification, normalizedUrl);
     traceStep("resolve", "ok", {
       resolverKey: classification.resolverKey,
       resolvedKind: classification.resolvedKind || "",
@@ -393,7 +721,9 @@ async function resolveUrlToPreview(url) {
       contentType: result.contentType || classification.contentType || "link",
       sourceType: result.sourceType || classification.sourceType || "generic-link",
     });
-    const validation = validateResolvedPreview(result, documentSignals);
+    const validation = result.kind === PREVIEW_KIND.PINTEREST_PIN
+      ? buildResolverNativeValidation(result)
+      : validateResolvedPreview(result, documentSignals);
     traceStep("validate", "ok", {
       status: validation.status,
       reason: validation.reason || "",
@@ -417,6 +747,11 @@ async function resolveUrlToPreview(url) {
     const finalStatus = validation.status === PREVIEW_STATUS.READY && !imageAcquisition.image && result.kind !== PREVIEW_KIND.IMAGE
       ? PREVIEW_STATUS.FALLBACK
       : validation.status;
+    const metadataFetchStatus = result.metadata?.metadataFetchStatus
+      || documentSnapshot?.fetchStatus
+      || "skipped";
+    const openGraphStatus = result.metadata?.openGraphStatus || "skipped";
+    const openGraphError = result.metadata?.openGraphError || "";
     const diagnostics = buildPreviewDiagnostics({
       inputUrl: normalizedUrl,
       classification,
@@ -424,6 +759,11 @@ async function resolveUrlToPreview(url) {
       validation,
       imageAcquisition,
       documentSignals,
+      documentSnapshot,
+      metadataFetchStatus,
+      openGraphStatus,
+      openGraphError,
+      finalStatus,
       trace,
     });
     traceStep("finalize", "ok", {
@@ -491,6 +831,11 @@ async function resolveUrlToPreview(url) {
         screenshotFallbackUsed: false,
       },
       documentSignals: {},
+      documentSnapshot: null,
+      metadataFetchStatus: "network-error",
+      openGraphStatus: "error",
+      openGraphError: "Preview resolution failed before metadata was available",
+      finalStatus: PREVIEW_STATUS.ERROR,
       trace,
       error,
     });

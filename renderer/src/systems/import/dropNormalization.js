@@ -1,6 +1,7 @@
 import { getFileExtension, isValidDroppedUrl } from "./dropImportConfig";
 
-function normalizeDroppedFile(file, index) {
+function normalizeDroppedFile(fileEntry, index) {
+  const file = fileEntry?.file ?? fileEntry;
   return {
     id: `drop-file-${index}`,
     payloadKind: "file",
@@ -9,7 +10,9 @@ function normalizeDroppedFile(file, index) {
     mimeType: typeof file?.type === "string" ? file.type.toLowerCase() : "",
     extension: getFileExtension(file?.name),
     sizeBytes: Number.isFinite(file?.size) ? Math.max(0, file.size) : 0,
-    sourcePath: typeof file?.path === "string" ? file.path : "",
+    sourcePath: typeof fileEntry?.sourcePath === "string" && fileEntry.sourcePath.trim().length > 0
+      ? fileEntry.sourcePath.trim()
+      : (typeof file?.path === "string" ? file.path : ""),
     file,
   };
 }

@@ -9,6 +9,7 @@ const CANVAS_ACTION_ORDER = [
 const TILE_ACTION_ORDER = [
   "refresh-preview",
   "copy-preview-diagnostics",
+  "copy-codex-report",
   "folder",
   "rack",
   "link",
@@ -23,6 +24,7 @@ export function buildRadialMenuActions({
   singlePreviewRefreshDisabled = false,
   showSinglePreviewRefresh = false,
   showCopyPreviewDiagnostics = false,
+  showCopyCodexReport = false,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
@@ -67,6 +69,19 @@ export function buildRadialMenuActions({
         label: "Copy preview diagnostics",
         kind: "action",
         onTrigger: handlers.onCopyPreviewDiagnostics,
+      };
+    }
+
+    if (id === "copy-codex-report") {
+      if (!showCopyCodexReport) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Copy Codex report",
+        kind: "action",
+        onTrigger: handlers.onCopyCodexReport,
       };
     }
 

@@ -8,6 +8,10 @@ import {
 import { useAppContext } from "../../context/useAppContext";
 import { useToast } from "../../hooks/useToast";
 import { recordImageSample, recordPreviewTierSelection } from "../../lib/perf";
+import {
+  isPreviewDebugModeEnabled,
+  isTestingTilesCanvasEditor,
+} from "../../lib/testingTiles";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
 import {
@@ -49,6 +53,165 @@ function isYouTubeUrl(url) {
 
 function getCardLabel(card) {
   return card.title.trim() || formatCardSubtitle(card);
+}
+
+function findPreviewDiagnosticReason(card) {
+  const diagnostics = card?.previewDiagnostics;
+  const resolverMetadata = diagnostics?.resolverMetadata;
+
+  return [
+    diagnostics?.fallbackReason,
+    diagnostics?.embedBlockReason,
+    diagnostics?.embedBlocked ? "embed-blocked" : "",
+    diagnostics?.cookieWallDetected ? "cookie-wall" : "",
+    diagnostics?.loginWallDetected ? "login-wall" : "",
+    diagnostics?.captchaDetected ? "captcha" : "",
+    resolverMetadata?.fallbackReason,
+    resolverMetadata?.embedFailureReason,
+    resolverMetadata?.iframeFailureReason,
+    resolverMetadata?.blockedReason,
+    diagnostics?.reason,
+    diagnostics?.rejectionReason,
+    card?.previewError,
+  ]
+    .find((value) => typeof value === "string" && value.trim().length > 0)
+    ?.trim() ?? "";
+}
+
+function formatPreviewFallbackReason(card, hasImageError) {
+  if (hasImageError) {
+    return "The preview image failed to load.";
+  }
+
+  const diagnostics = card?.previewDiagnostics;
+  const diagnosticReason = findPreviewDiagnosticReason(card);
+
+  if (!diagnosticReason) {
+    return "";
+  }
+
+  const normalizedReason = diagnosticReason.toLowerCase();
+
+  if (
+    diagnostics?.embedBlocked === true
+    && (
+      diagnostics?.embedBlockReason === "x-frame-options"
+      || diagnostics?.embedBlockReason === "content-security-policy-frame-ancestors"
+    )
+  ) {
+    return "This site blocks embedded previews.";
+  }
+
+  if (diagnostics?.cookieWallDetected === true) {
+    return "This page is behind a cookie or consent screen.";
+  }
+
+  if (diagnostics?.loginWallDetected === true) {
+    return "This preview is blocked behind sign-in.";
+  }
+
+  if (diagnostics?.captchaDetected === true) {
+    return "This preview is blocked by site verification.";
+  }
+
+  if (
+    normalizedReason.includes("x-frame")
+    || normalizedReason.includes("frame-options")
+    || normalizedReason.includes("iframe")
+    || normalizedReason.includes("embedblocked")
+    || normalizedReason.includes("embed blocked")
+  ) {
+    return "This site blocks embedded previews.";
+  }
+
+  if (
+    normalizedReason.includes("cookie")
+    || normalizedReason.includes("consent")
+    || normalizedReason.includes("privacy notice")
+  ) {
+    return "This page is behind a cookie or consent screen.";
+  }
+
+  if (
+    normalizedReason.includes("sign in")
+    || normalizedReason.includes("login")
+    || normalizedReason.includes("log in")
+  ) {
+    return "This preview is blocked behind sign-in.";
+  }
+
+  if (
+    normalizedReason.includes("captcha")
+    || normalizedReason.includes("verify you are human")
+    || normalizedReason.includes("robot check")
+  ) {
+    return "This preview is blocked by site verification.";
+  }
+
+  if (normalizedReason === "blocked" || normalizedReason === "preview blocked") {
+    return "This site blocks rich previews.";
+  }
+
+  return diagnosticReason;
+}
+
+function getPreviewDiagnosticBadges(card) {
+  const diagnostics = card?.previewDiagnostics ?? {};
+  const badges = [];
+
+  if (diagnostics.finalPreviewStatus === "ready" && diagnostics.fallbackUsed !== true) {
+    badges.push({ key: "success", label: "success", tone: "success" });
+  }
+
+  if (diagnostics.finalPreviewStatus === "fallback" || diagnostics.fallbackUsed === true || card?.status === "fallback") {
+    badges.push({ key: "fallback", label: "fallback", tone: "fallback" });
+  }
+
+  if (diagnostics.embedBlocked === true) {
+    badges.push({ key: "embed-blocked", label: "embed blocked", tone: "blocked" });
+  }
+
+  if (diagnostics.cookieWallDetected === true) {
+    badges.push({ key: "cookie-wall", label: "cookie wall", tone: "warning" });
+  }
+
+  if (diagnostics.loginWallDetected === true) {
+    badges.push({ key: "login-wall", label: "login wall", tone: "warning" });
+  }
+
+  if (diagnostics.captchaDetected === true) {
+    badges.push({ key: "captcha", label: "captcha", tone: "danger" });
+  }
+
+  if (
+    diagnostics.metadataFetchStatus === "network-error"
+    || diagnostics.metadataFetchStatus === "http-error"
+    || diagnostics.openGraphStatus === "error"
+  ) {
+    badges.push({ key: "metadata-failed", label: "metadata failed", tone: "danger" });
+  }
+
+  if (
+    diagnostics.thumbnailStatus === "missing"
+    || diagnostics.thumbnailStatus === "rejected"
+    || diagnostics.thumbnailStatus === "blocked"
+  ) {
+    badges.push({ key: "thumbnail-missing", label: "thumbnail missing", tone: "neutral" });
+  }
+
+  return badges;
+}
+
+function hasTerminalPreviewState(card) {
+  const diagnosticsStatus = typeof card?.previewDiagnostics?.finalPreviewStatus === "string"
+    ? card.previewDiagnostics.finalPreviewStatus.trim().toLowerCase()
+    : "";
+  const status = typeof card?.status === "string" ? card.status.trim().toLowerCase() : "";
+  const previewStatus = typeof card?.previewStatus === "string" ? card.previewStatus.trim().toLowerCase() : "";
+
+  return ["ready", "fallback", "blocked", "error"].includes(status)
+    || ["ready", "fallback", "blocked", "error"].includes(previewStatus)
+    || ["ready", "fallback", "blocked", "error"].includes(diagnosticsStatus);
 }
 
 function resolveIconPath(relativePath) {
@@ -115,15 +278,24 @@ function LinkTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { folderPath } = useAppContext();
+  const { currentEditor, folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
   const isVideoCard = card.contentType === "video";
-  const isMusicCard = card.previewKind === "music";
+  const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const previewTier = renderHint?.previewTier ?? "original";
+  const showDeveloperQaBadges = (
+    isPreviewDebugModeEnabled()
+    && isTestingTilesCanvasEditor(currentEditor)
+    && !isImageTile
+  );
+  const previewDiagnosticBadges = useMemo(
+    () => (showDeveloperQaBadges ? getPreviewDiagnosticBadges(card) : []),
+    [card, showDeveloperQaBadges],
+  );
   const videoRecipe = useMemo(() => getVideoTileRecipe(card.sourceType), [card.sourceType]);
   const videoDurationLabel = useMemo(() => formatVideoDuration(card.duration), [card.duration]);
   const isYouTubeVideoSource = card.sourceType === "youtube" || card.sourceType === "youtube-shorts";
@@ -163,10 +335,8 @@ function LinkTile({
     ? (videoCandidateUrls[videoImageIndex] || mediaSrc)
     : mediaSrc;
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
-  const isPreviewLoading = !isImageTile && card.status === "loading" && !shouldRenderImage;
-  const previewFallbackReason = hasImageError
-    ? "The preview image failed to load."
-    : card.previewError || "";
+  const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
+  const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = renderHint?.disableImageReveal !== true;
   const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const label = getCardLabel(card);
@@ -420,7 +590,7 @@ function LinkTile({
       ) : shouldRenderImage ? (
         <TileImageReveal
           className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}`}
-          src={mediaSrc}
+          src={isPlainVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
           onError={() => {
@@ -463,6 +633,18 @@ function LinkTile({
       toolbar={renderHint?.showToolbar === false ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
           <p className="card__label">{label}</p>
+          {previewDiagnosticBadges.length > 0 ? (
+            <div className="card__debug-badges" aria-label="Preview diagnostics badges">
+              {previewDiagnosticBadges.map((badge) => (
+                <span
+                  key={`${card.id}-${badge.key}`}
+                  className={`card__debug-badge card__debug-badge--${badge.tone}`}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
       onContextMenu={onContextMenu}

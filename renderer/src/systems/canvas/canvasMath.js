@@ -1,11 +1,63 @@
-export const MIN_VIEWPORT_ZOOM = 0.2;
-export const MAX_VIEWPORT_ZOOM = 4;
+export const MIN_VIEWPORT_ZOOM = 0.1;
+export const MAX_VIEWPORT_ZOOM = 6;
 export const CANVAS_GRID_SIZE = 32;
 export const WHEEL_LINE_PIXELS = 16;
 export const DEFAULT_FIT_PADDING = 72;
+export const ZOOM_STOPS = Object.freeze([
+  0.1,
+  0.2,
+  0.3,
+  0.4,
+  0.5,
+  0.6,
+  0.8,
+  1,
+  1.25,
+  1.5,
+  2,
+  3,
+  4,
+  5,
+  6,
+]);
 
 export function clampViewportZoom(zoom) {
   return Math.min(MAX_VIEWPORT_ZOOM, Math.max(MIN_VIEWPORT_ZOOM, zoom));
+}
+
+export function zoomScaleToPercent(zoom) {
+  return Math.round(clampViewportZoom(zoom) * 100);
+}
+
+export function zoomPercentToScale(percent) {
+  const numericPercent = Number(percent);
+
+  if (!Number.isFinite(numericPercent) || numericPercent <= 0) {
+    return null;
+  }
+
+  return clampViewportZoom(numericPercent / 100);
+}
+
+export function formatZoomPercentLabel(zoom) {
+  return `${zoomScaleToPercent(zoom)}%`;
+}
+
+export function getNextZoomStop(currentZoom) {
+  const safeZoom = clampViewportZoom(currentZoom);
+  return ZOOM_STOPS.find((stop) => stop > safeZoom) ?? ZOOM_STOPS[ZOOM_STOPS.length - 1];
+}
+
+export function getPreviousZoomStop(currentZoom) {
+  const safeZoom = clampViewportZoom(currentZoom);
+
+  for (let index = ZOOM_STOPS.length - 1; index >= 0; index -= 1) {
+    if (ZOOM_STOPS[index] < safeZoom) {
+      return ZOOM_STOPS[index];
+    }
+  }
+
+  return ZOOM_STOPS[0];
 }
 
 export function normalizeWheelZoomDelta(delta, deltaMode, pageSize = 800) {
@@ -82,6 +134,31 @@ export function getViewportForWorldPoint(canvasPoint, worldPoint, zoom) {
     y: canvasPoint.y - worldPoint.y * nextZoom,
     zoom: nextZoom,
   };
+}
+
+export function interpolateViewport(currentViewport, targetViewport, alpha) {
+  const weight = Math.max(0, Math.min(1, alpha));
+
+  return {
+    x: currentViewport.x + ((targetViewport.x - currentViewport.x) * weight),
+    y: currentViewport.y + ((targetViewport.y - currentViewport.y) * weight),
+    zoom: currentViewport.zoom + ((targetViewport.zoom - currentViewport.zoom) * weight),
+  };
+}
+
+export function areViewportTransformsClose(
+  leftViewport,
+  rightViewport,
+  positionTolerance = 0.25,
+  zoomTolerance = 0.001,
+) {
+  if (!leftViewport || !rightViewport) {
+    return false;
+  }
+
+  return Math.abs(leftViewport.x - rightViewport.x) <= positionTolerance
+    && Math.abs(leftViewport.y - rightViewport.y) <= positionTolerance
+    && Math.abs(leftViewport.zoom - rightViewport.zoom) <= zoomTolerance;
 }
 
 export function getViewportForWorldBounds(elementRect, worldRect, padding = DEFAULT_FIT_PADDING) {

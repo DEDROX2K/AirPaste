@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppButton } from "./ui/app";
-
-const ZOOM_PRESETS = [25, 50, 100, 200, 400];
-
-function formatZoomLabel(zoom) {
-  return `${Math.round(zoom * 100)}%`;
-}
+import {
+  formatZoomPercentLabel,
+  zoomPercentToScale,
+  ZOOM_STOPS,
+} from "../systems/canvas/canvasMath";
 
 function normalizeZoomPercent(value) {
   const numericValue = Number.parseFloat(String(value).replace(/[^\d.]/g, ""));
-
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return null;
-  }
-
-  return numericValue / 100;
+  return zoomPercentToScale(numericValue);
 }
 
 export default function CanvasZoomMenu({
@@ -28,13 +22,13 @@ export default function CanvasZoomMenu({
   onSetZoom,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(formatZoomLabel(zoom));
+  const [inputValue, setInputValue] = useState(formatZoomPercentLabel(zoom));
   const rootRef = useRef(null);
   const inputRef = useRef(null);
-  const zoomLabel = useMemo(() => formatZoomLabel(zoom), [zoom]);
+  const zoomLabel = useMemo(() => formatZoomPercentLabel(zoom), [zoom]);
 
   useEffect(() => {
-    setInputValue(formatZoomLabel(zoom));
+    setInputValue(formatZoomPercentLabel(zoom));
   }, [zoom]);
 
   useEffect(() => {
@@ -85,7 +79,7 @@ export default function CanvasZoomMenu({
       onSetZoom(nextZoom);
     }
 
-    setInputValue(formatZoomLabel(nextZoom ?? zoom));
+    setInputValue(formatZoomPercentLabel(nextZoom ?? zoom));
   }
 
   function runMenuAction(action) {
@@ -146,17 +140,21 @@ export default function CanvasZoomMenu({
           </div>
 
           <div className="zoom-menu__section">
-            {ZOOM_PRESETS.map((preset) => (
+            {ZOOM_STOPS.map((stop) => {
+              const percent = Math.round(stop * 100);
+
+              return (
               <AppButton tone="unstyled"
-                key={preset}
+                key={stop}
                 className="zoom-menu__action"
                 type="button"
-                onClick={() => runMenuAction(() => onSetZoom(preset / 100))}
+                onClick={() => runMenuAction(() => onSetZoom(stop))}
               >
-                <span>{`Zoom to ${preset}%`}</span>
-                {preset === 100 ? <kbd>Ctrl+0</kbd> : <span />}
+                <span>{`Zoom to ${percent}%`}</span>
+                {percent === 100 ? <kbd>Ctrl+0</kbd> : <span />}
               </AppButton>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}

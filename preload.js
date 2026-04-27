@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("airpaste", {
   openFolder: () => ipcRenderer.invoke("airpaste:openFolder"),
@@ -53,6 +53,13 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:importImageAsset", folderPath, payload),
   importFiles: (folderPath, sourcePaths, targetFolderPath) =>
     ipcRenderer.invoke("airpaste:importFiles", folderPath, sourcePaths, targetFolderPath),
+  getDroppedFilePath: (file) => {
+    try {
+      return webUtils.getPathForFile(file) || "";
+    } catch {
+      return "";
+    }
+  },
   resolveAssetUrl: (folderPath, relativePath, options) =>
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
   getPreviewCapabilities: () => ipcRenderer.invoke("airpaste:getPreviewCapabilities"),

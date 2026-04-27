@@ -2,6 +2,7 @@ const {
   PREVIEW_CONFIDENCE,
   PREVIEW_GENERIC_TITLES,
   PREVIEW_IMAGE_REJECTION_PATTERNS,
+  PREVIEW_KIND,
   PREVIEW_REJECTION_PATTERNS,
   PREVIEW_REJECTION_REASON,
   PREVIEW_STATUS,
@@ -123,6 +124,18 @@ function isRejectedPreviewImageUrl(url, result = null) {
     || normalizedUrl.includes("gp/aw");
 }
 
+function hasTrustedPinterestImageCandidate(result) {
+  if (result?.kind !== PREVIEW_KIND.PINTEREST_PIN) {
+    return false;
+  }
+
+  const candidates = Array.isArray(result?.candidateImageUrls)
+    ? result.candidateImageUrls
+    : [];
+
+  return candidates.some((candidate) => !isRejectedPreviewImageUrl(candidate, result));
+}
+
 function validateResolvedPreview(result, documentSignals = {}) {
   const normalizedFinalUrl = String(result.canonicalUrl || "").toLowerCase();
   const normalizedTitle = normalizePreviewText(result.title || documentSignals.pageTitle);
@@ -146,13 +159,14 @@ function validateResolvedPreview(result, documentSignals = {}) {
     rejectImage,
     lowInformation: genericTitle && lowInformationDescription,
   });
+  const trustResolverImage = hasTrustedPinterestImageCandidate(result);
   const shouldBlockFromBodyPattern = Boolean(
     rejectionPatternFromBody
     && !rejectionPatternFromTitleOrDescription
     && isBodyLevelHardRejectionPattern(rejectionPatternFromBody),
   );
 
-  if (urlPattern || rejectionPatternFromTitleOrDescription || shouldBlockFromBodyPattern) {
+  if (!trustResolverImage && (urlPattern || rejectionPatternFromTitleOrDescription || shouldBlockFromBodyPattern)) {
     return {
       decision: "blocked",
       status: PREVIEW_STATUS.BLOCKED,

@@ -15,6 +15,7 @@ export function useCanvasDropImport({
   commands,
   folderPath,
   log,
+  resolveDropPoint,
   toast,
 }) {
   const dragDepthRef = useRef(0);
@@ -95,11 +96,12 @@ export function useCanvasDropImport({
       return;
     }
 
-    await commands.importResolvedDrop(
-      resolvedDrop,
-      canvas.clientToWorldPoint(capturedPayload.clientPoint.x, capturedPayload.clientPoint.y),
-    );
-  }, [canvas, commands, folderPath, log, resetDragState, toast]);
+    const resolvedPoint = typeof resolveDropPoint === "function"
+      ? resolveDropPoint(capturedPayload)
+      : canvas.clientToWorldPoint(capturedPayload.clientPoint.x, capturedPayload.clientPoint.y);
+
+    await commands.importResolvedDrop(resolvedDrop, resolvedPoint);
+  }, [canvas, commands, folderPath, log, resetDragState, resolveDropPoint, toast]);
 
   return {
     isDropTarget,

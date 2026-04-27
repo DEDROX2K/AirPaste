@@ -13,16 +13,19 @@ export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 8;
+export const WORKSPACE_SCHEMA_VERSION = 9;
+export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
 export const RACK_LEFT_CAP_WIDTH = 94;
 export const RACK_RIGHT_CAP_WIDTH = 94;
 export const RACK_HEIGHT = 126;
 export const RACK_TILE_BASELINE = 44;
+const DEFAULT_PAGE_NAME = "Page 1";
 const LEGACY_FOLDER_CARD_TYPE = "folder";
 const LEGACY_FOLDER_ZONE_GAP = 24;
 const LEGACY_FOLDER_ZONE_MIN_WIDTH = 860;
+const STRUCTURED_TILE_REFERENCE_KEY_PATTERN = /(tile|card|node|member|source|target|from|to|start|end|child).*(id|ids)$/i;
 
 const DEFAULT_VIEWPORT = Object.freeze({
   x: 180,
@@ -51,6 +54,22 @@ const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallba
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function generateWorkspacePageId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `page-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateWorkspaceEntityId(prefix = "item") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function firstString(...values) {
@@ -184,7 +203,7 @@ function normalizeWorkspaceView(view, tileCount = 0) {
     : defaults.globeRadius;
 
   return {
-    mode: view?.mode === "globe" ? "globe" : view?.mode === "grid" ? "grid" : "flat",
+    mode: view?.mode === "grid" ? "grid" : "flat",
     globeRadius,
     yaw: Number.isFinite(view?.yaw) ? view.yaw : defaults.yaw,
     pitch: Number.isFinite(view?.pitch) ? view.pitch : defaults.pitch,
@@ -193,6 +212,334 @@ function normalizeWorkspaceView(view, tileCount = 0) {
       : getDefaultCameraDistance(globeRadius),
     focusedTileId: typeof view?.focusedTileId === "string" ? view.focusedTileId : null,
   };
+}
+
+function normalizeWorkspaceViewport(viewport) {
+  return {
+    x: Number.isFinite(viewport?.x) ? viewport.x : DEFAULT_VIEWPORT.x,
+    y: Number.isFinite(viewport?.y) ? viewport.y : DEFAULT_VIEWPORT.y,
+    zoom: Number.isFinite(viewport?.zoom) ? viewport.zoom : DEFAULT_VIEWPORT.zoom,
+  };
+}
+
+function cloneStructuredArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((entry) => (
+    entry && typeof entry === "object"
+      ? JSON.parse(JSON.stringify(entry))
+      : entry
+  ));
+}
+
+function deepCloneStructuredValue(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeSelectedClipboardTileIds(tileIds) {
+  return Array.isArray(tileIds)
+    ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
+    : [];
+}
+
+function isStructuredTileReferenceKey(key) {
+  return typeof key === "string" && STRUCTURED_TILE_REFERENCE_KEY_PATTERN.test(key);
+}
+
+function collectStructuredTileReferences(value, references = new Set()) {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => {
+      collectStructuredTileReferences(entry, references);
+    });
+    return references;
+  }
+
+  if (!value || typeof value !== "object") {
+    return references;
+  }
+
+  Object.entries(value).forEach(([key, entryValue]) => {
+    if (typeof entryValue === "string" && isStructuredTileReferenceKey(key)) {
+      references.add(entryValue);
+      return;
+    }
+
+    if (Array.isArray(entryValue) && isStructuredTileReferenceKey(key)) {
+      entryValue.forEach((entry) => {
+        if (typeof entry === "string" && entry.trim().length > 0) {
+          references.add(entry);
+        }
+      });
+      return;
+    }
+
+    collectStructuredTileReferences(entryValue, references);
+  });
+
+  return references;
+}
+
+function filterClipboardStructuredEntries(entries, selectedTileIdSet) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  return safeEntries
+    .map((entry) => {
+      const referencedTileIds = [...collectStructuredTileReferences(entry)];
+
+      if (
+        referencedTileIds.length === 0
+        || !referencedTileIds.every((tileId) => selectedTileIdSet.has(tileId))
+      ) {
+        return null;
+      }
+
+      return deepCloneStructuredValue(entry);
+    })
+    .filter(Boolean);
+}
+
+function filterStructuredEntriesForRemovedTileIds(entries, removedTileIdSet) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  return safeEntries
+    .map((entry) => {
+      const referencedTileIds = [...collectStructuredTileReferences(entry)];
+
+      if (referencedTileIds.some((tileId) => removedTileIdSet.has(tileId))) {
+        return null;
+      }
+
+      return deepCloneStructuredValue(entry);
+    })
+    .filter(Boolean);
+}
+
+function remapStructuredTileReferences(value, tileIdMap) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => remapStructuredTileReferences(entry, tileIdMap));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entryValue]) => {
+      if (typeof entryValue === "string" && isStructuredTileReferenceKey(key)) {
+        return [key, tileIdMap.get(entryValue) ?? entryValue];
+      }
+
+      if (Array.isArray(entryValue) && isStructuredTileReferenceKey(key)) {
+        return [
+          key,
+          entryValue.map((entry) => (
+            typeof entry === "string"
+              ? (tileIdMap.get(entry) ?? entry)
+              : remapStructuredTileReferences(entry, tileIdMap)
+          )),
+        ];
+      }
+
+      return [key, remapStructuredTileReferences(entryValue, tileIdMap)];
+    }),
+  );
+}
+
+function remapClipboardStructuredEntries(entries, kind, tileIdMap) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  return safeEntries.map((entry, index) => {
+    const nextEntry = remapStructuredTileReferences(deepCloneStructuredValue(entry), tileIdMap);
+
+    if (typeof nextEntry?.id === "string" && nextEntry.id.trim().length > 0) {
+      return {
+        ...nextEntry,
+        id: generateWorkspaceEntityId(`${kind}-${index}`),
+      };
+    }
+
+    return nextEntry;
+  });
+}
+
+function normalizeWorkspacePage(page, fallbackIndex = 0) {
+  const sourceCards = Array.isArray(page?.cards)
+    ? page.cards
+    : Array.isArray(page?.tiles)
+      ? page.tiles
+      : [];
+  const cards = sourceCards
+    .map((card, index) => normalizeCard(card, index))
+    .filter(Boolean);
+
+  return {
+    id: typeof page?.id === "string" && page.id.trim().length > 0 ? page.id : generateWorkspacePageId(),
+    name: firstString(page?.name, `Page ${fallbackIndex + 1}`, DEFAULT_PAGE_NAME),
+    viewport: normalizeWorkspaceViewport(page?.viewport),
+    view: normalizeWorkspaceView(page?.view, cards.length),
+    cards,
+    drawings: normalizeDrawings(page?.drawings),
+    edges: cloneStructuredArray(page?.edges),
+    groups: cloneStructuredArray(page?.groups),
+  };
+}
+
+function normalizeWorkspacePages(workspace) {
+  if (Array.isArray(workspace?.pages) && workspace.pages.length > 0) {
+    return workspace.pages
+      .map((page, index) => normalizeWorkspacePage(page, index))
+      .filter(Boolean);
+  }
+
+  return [
+    normalizeWorkspacePage({
+      id: typeof workspace?.activePageId === "string" ? workspace.activePageId : undefined,
+      name: DEFAULT_PAGE_NAME,
+      viewport: workspace?.viewport,
+      view: workspace?.view,
+      cards: workspace?.cards,
+      drawings: workspace?.drawings,
+      edges: workspace?.edges,
+      groups: workspace?.groups,
+    }, 0),
+  ];
+}
+
+export function getWorkspaceActivePage(workspace) {
+  const pages = Array.isArray(workspace?.pages) ? workspace.pages : [];
+  if (!pages.length) {
+    return normalizeWorkspacePage(null, 0);
+  }
+
+  const requestedActivePageId = typeof workspace?.activePageId === "string" ? workspace.activePageId : "";
+  return pages.find((page) => page.id === requestedActivePageId) ?? pages[0];
+}
+
+export function createWorkspacePage(name = "", index = 0) {
+  return normalizeWorkspacePage({
+    id: generateWorkspacePageId(),
+    name: firstString(name, `Page ${index + 1}`, DEFAULT_PAGE_NAME),
+    cards: [],
+    drawings: createEmptyDrawings(),
+    edges: [],
+    groups: [],
+  }, index);
+}
+
+export function updateWorkspaceActivePage(workspace, updater) {
+  const normalizedWorkspace = normalizeWorkspace(workspace);
+  const activePageId = normalizedWorkspace.activePageId;
+
+  return normalizeWorkspace({
+    ...normalizedWorkspace,
+    pages: normalizedWorkspace.pages.map((page) => (
+      page.id === activePageId
+        ? updater(page)
+        : page
+    )),
+  });
+}
+
+export function hasCanvasSelectionClipboardPayload(payload) {
+  return Boolean(
+    payload
+    && payload.type === CANVAS_SELECTION_CLIPBOARD_TYPE
+    && payload.version === 1
+    && Array.isArray(payload.tiles)
+  );
+}
+
+export function createCanvasSelectionClipboardPayload(page, selectedTileIds) {
+  const normalizedTileIds = normalizeSelectedClipboardTileIds(selectedTileIds);
+
+  if (normalizedTileIds.length === 0) {
+    return null;
+  }
+
+  const selectedTileIdSet = new Set(normalizedTileIds);
+  const pageTiles = Array.isArray(page?.cards) ? page.cards : [];
+  const tiles = pageTiles
+    .filter((tile) => selectedTileIdSet.has(tile.id))
+    .map((tile) => deepCloneStructuredValue(tile));
+
+  if (tiles.length === 0) {
+    return null;
+  }
+
+  return {
+    type: CANVAS_SELECTION_CLIPBOARD_TYPE,
+    version: 1,
+    tiles,
+    edges: filterClipboardStructuredEntries(page?.edges, selectedTileIdSet),
+    groups: filterClipboardStructuredEntries(page?.groups, selectedTileIdSet),
+  };
+}
+
+export function pasteCanvasSelectionClipboardPayload(payload, options = {}) {
+  if (!hasCanvasSelectionClipboardPayload(payload)) {
+    return null;
+  }
+
+  const offsetX = Number.isFinite(options.offsetX) ? options.offsetX : 24;
+  const offsetY = Number.isFinite(options.offsetY) ? options.offsetY : 24;
+  const sourceTiles = payload.tiles
+    .map((tile, index) => normalizeCard(tile, index))
+    .filter(Boolean);
+
+  if (sourceTiles.length === 0) {
+    return null;
+  }
+
+  const sourceTileIdSet = new Set(sourceTiles.map((tile) => tile.id));
+  const tileIdMap = new Map(
+    sourceTiles.map((tile, index) => [tile.id, generateWorkspaceEntityId(`card-${index}`)]),
+  );
+
+  const tiles = sourceTiles.map((tile, index) => {
+    const nextRackId = sourceTileIdSet.has(tile.parentRackId)
+      ? (tileIdMap.get(tile.parentRackId) ?? null)
+      : null;
+    const nextTileIds = tile.type === RACK_CARD_TYPE
+      ? tile.tileIds
+        .filter((tileId) => sourceTileIdSet.has(tileId))
+        .map((tileId) => tileIdMap.get(tileId))
+        .filter(Boolean)
+      : tile.tileIds;
+
+    return normalizeCard({
+      ...deepCloneStructuredValue(tile),
+      id: tileIdMap.get(tile.id),
+      x: tile.x + offsetX,
+      y: tile.y + offsetY,
+      tileIds: nextTileIds,
+      parentRackId: tile.type === RACK_CARD_TYPE ? null : nextRackId,
+      rackIndex: tile.type === RACK_CARD_TYPE ? null : (nextRackId ? tile.rackIndex : null),
+      updatedAt: nowIso(),
+    }, index);
+  });
+
+  return {
+    tiles,
+    edges: remapClipboardStructuredEntries(payload.edges, "edge", tileIdMap),
+    groups: remapClipboardStructuredEntries(payload.groups, "group", tileIdMap),
+    newTileIds: tiles.map((tile) => tile.id),
+  };
+}
+
+export function removeStructuredEntriesForTileIds(entries, tileIds) {
+  const removedTileIdSet = new Set(normalizeSelectedClipboardTileIds(tileIds));
+
+  if (removedTileIdSet.size === 0) {
+    return cloneStructuredArray(entries);
+  }
+
+  return filterStructuredEntriesForRemovedTileIds(entries, removedTileIdSet);
 }
 
 export function getDomainLabel(url) {
@@ -204,10 +551,16 @@ export function getDomainLabel(url) {
 }
 
 export function createEmptyWorkspace() {
+  const firstPage = createWorkspacePage(DEFAULT_PAGE_NAME, 0);
+
   return {
     version: WORKSPACE_SCHEMA_VERSION,
-    viewport: { ...DEFAULT_VIEWPORT },
-    view: getDefaultWorkspaceView(0),
+    name: "Canvas",
+    activePageId: firstPage.id,
+    pages: [firstPage],
+    activePage: firstPage,
+    viewport: { ...firstPage.viewport },
+    view: { ...firstPage.view },
     cards: [],
     drawings: createEmptyDrawings(),
   };
@@ -336,22 +689,22 @@ export function normalizeWorkspace(workspace) {
   const safeWorkspace = migrateWorkspace(workspace && typeof workspace === "object"
     ? workspace
     : createEmptyWorkspace());
-  const cards = Array.isArray(safeWorkspace.cards)
-    ? safeWorkspace.cards
-      .map((card, index) => normalizeCard(card, index))
-      .filter(Boolean)
-    : [];
+  const pages = normalizeWorkspacePages(safeWorkspace);
+  const activePage = getWorkspaceActivePage({
+    ...safeWorkspace,
+    pages,
+  });
 
   return {
     version: WORKSPACE_SCHEMA_VERSION,
-    viewport: {
-      x: Number.isFinite(safeWorkspace.viewport?.x) ? safeWorkspace.viewport.x : DEFAULT_VIEWPORT.x,
-      y: Number.isFinite(safeWorkspace.viewport?.y) ? safeWorkspace.viewport.y : DEFAULT_VIEWPORT.y,
-      zoom: Number.isFinite(safeWorkspace.viewport?.zoom) ? safeWorkspace.viewport.zoom : DEFAULT_VIEWPORT.zoom,
-    },
-    view: normalizeWorkspaceView(safeWorkspace.view, cards.length),
-    cards,
-    drawings: normalizeDrawings(safeWorkspace.drawings),
+    name: firstString(safeWorkspace.name, "Canvas"),
+    activePageId: activePage.id,
+    pages,
+    activePage,
+    viewport: activePage.viewport,
+    view: activePage.view,
+    cards: activePage.cards,
+    drawings: activePage.drawings,
   };
 }
 
@@ -415,6 +768,26 @@ function migrateWorkspace(rawWorkspace) {
       ...nextWorkspace,
       drawings: createEmptyDrawings(),
       version: 8,
+    };
+  }
+
+  if (version < 9) {
+    const migratedPage = normalizeWorkspacePage({
+      id: typeof nextWorkspace.activePageId === "string" ? nextWorkspace.activePageId : undefined,
+      name: DEFAULT_PAGE_NAME,
+      viewport: nextWorkspace.viewport,
+      view: nextWorkspace.view,
+      cards: flattenLegacyFolderCards(Array.isArray(nextWorkspace.cards) ? nextWorkspace.cards : []),
+      drawings: nextWorkspace.drawings,
+      edges: nextWorkspace.edges,
+      groups: nextWorkspace.groups,
+    }, 0);
+
+    nextWorkspace = {
+      ...nextWorkspace,
+      activePageId: migratedPage.id,
+      pages: [migratedPage],
+      version: 9,
     };
   }
 

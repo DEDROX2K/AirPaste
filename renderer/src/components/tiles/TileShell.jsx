@@ -24,6 +24,7 @@ function TileShell({
     tileMeta?.isHovered ? "card--hovered" : "",
     tileMeta?.isFocused ? "card--focused" : "",
     tileMeta?.isDragging ? "card--dragging" : "",
+    tileMeta?.isClipboardCutSource ? "card--clipboard-cut-source" : "",
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
     tileMeta?.isRackAttached ? "card--rack-attached" : "",
     tileMeta?.isRackDropTarget ? "card--rack-drop-target" : "",
@@ -38,6 +39,7 @@ function TileShell({
     ...(tileMeta?.styleVars ?? {}),
     "--tile-drag-x": dragVisualDelta ? `${dragVisualDelta.x}px` : "0px",
     "--tile-drag-y": dragVisualDelta ? `${dragVisualDelta.y}px` : "0px",
+    "--tile-clipboard-opacity": tileMeta?.styleVars?.["--tile-clipboard-opacity"] ?? "1",
   }), [dragVisualDelta, tileMeta]);
 
   return (

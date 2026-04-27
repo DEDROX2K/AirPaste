@@ -16,7 +16,6 @@ const { pathToFileURL } = require("node:url");
 const workspaceService = require("./workspace-service");
 const openGraphScraper = require("open-graph-scraper");
 const cheerio = require("cheerio");
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 const { getCardStateFromResolvedPreview } = require("./preview/card-mapper");
 const { PREVIEW_STATE_VALUES } = require("./preview/constants");
 
@@ -24,7 +23,6 @@ const CONFIG_FILE_NAME = "config.json";
 const DOME_CONFIG_VERSION = 2;
 const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
-const PREVIEW_CAPTURE_TIMEOUT_MS = 15000;
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
 const PREVIEW_DOCUMENT_TIMEOUT_MS = 12000;
 const PREVIEW_JPEG_QUALITY = 58;
@@ -139,12 +137,14 @@ let mainWindow = null;
 const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
+const previewExecutionQueue = [];
+let activePreviewExecutionCount = 0;
 const resolvedAssetUrlRegistry = new Map();
 let previewBrowserPromise = null;
 let previewResolverModule = null;
-let playwrightChromium = null;
 const ASSET_PROTOCOL_SCHEME = "airpaste-asset";
 const MAX_RESOLVED_ASSET_URLS = 4000;
+const PREVIEW_JOB_CONCURRENCY = 4;
 // During filesystem v2 stabilization, preview resolution must not mutate
 // workspace files through legacy workspace-document assumptions.
 const STORAGE_V2_STABILIZATION = false;
@@ -181,12 +181,41 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isPreviewJobDebugEnabled() {
+  return process.env.NODE_ENV !== "production"
+    || String(process.env.AIRPASTE_PREVIEW_DEBUG ?? "").trim() === "1";
+}
+
+function logPreviewJob(event, payload = {}) {
+  if (!isPreviewJobDebugEnabled()) {
+    return;
+  }
+
+  console.debug(`[preview:job] ${event}`, payload);
+}
+
+function clearPreviewResolverModuleCache() {
+  const previewModuleRoot = `${path.join(__dirname, "preview")}${path.sep}`;
+
+  Object.keys(require.cache).forEach((cacheKey) => {
+    if (cacheKey.startsWith(previewModuleRoot)) {
+      delete require.cache[cacheKey];
+    }
+  });
+}
+
 function getPreviewResolverModule() {
-  if (previewResolverModule !== null) {
+  const shouldHotReloadPreviewModules = !app.isPackaged;
+
+  if (previewResolverModule !== null && !shouldHotReloadPreviewModules) {
     return previewResolverModule;
   }
 
   try {
+    if (shouldHotReloadPreviewModules) {
+      clearPreviewResolverModuleCache();
+    }
+
     previewResolverModule = require("./preview/resolve-preview");
   } catch (error) {
     previewResolverModule = undefined;
@@ -196,23 +225,6 @@ function getPreviewResolverModule() {
   }
 
   return previewResolverModule;
-}
-
-function getPlaywrightChromium() {
-  if (playwrightChromium) {
-    return playwrightChromium;
-  }
-
-  try {
-    ({ chromium: playwrightChromium } = require("playwright"));
-  } catch (error) {
-    playwrightChromium = null;
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[preview] playwright unavailable", error?.message || error);
-    }
-  }
-
-  return playwrightChromium;
 }
 
 function isFiniteNumber(value, fallback) {
@@ -1932,34 +1944,55 @@ function bufferToDataUrl(buffer, mimeType) {
 }
 
 async function getPreviewBrowser() {
-  const chromium = getPlaywrightChromium();
-  if (!chromium) {
-    return null;
-  }
-
   if (!previewBrowserPromise) {
-    previewBrowserPromise = chromium.launch({
-      headless: true,
-      args: ["--disable-dev-shm-usage"],
-    })
-      .then((browser) => {
-        browser.on("disconnected", () => {
-          previewBrowserPromise = null;
-        });
-
-        return browser;
-      })
-      .catch((error) => {
-        previewBrowserPromise = null;
-        throw error;
-      });
+    previewBrowserPromise = Promise.resolve(new BrowserWindow({
+      show: false,
+      width: PREVIEW_VIEWPORT.width,
+      height: PREVIEW_VIEWPORT.height,
+      useContentSize: true,
+      backgroundColor: "#ffffff",
+      webPreferences: {
+        offscreen: true,
+        sandbox: false,
+      },
+    }));
   }
 
   return previewBrowserPromise;
 }
 
-// Legacy preview helpers remain temporarily while the new typed resolver path settles.
-// eslint-disable-next-line no-unused-vars
+function waitForPreviewEventOnce(target, eventName, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      target.removeListener(eventName, handleEvent);
+    };
+
+    const handleEvent = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(true);
+    };
+
+    target.once(eventName, handleEvent);
+  });
+}
+
 async function closePreviewBrowser() {
   const browserPromise = previewBrowserPromise;
   previewBrowserPromise = null;
@@ -1969,55 +2002,55 @@ async function closePreviewBrowser() {
   }
 
   try {
-    const browser = await browserPromise;
-    await browser.close();
+    const previewWindow = await browserPromise;
+    if (!previewWindow.isDestroyed()) {
+      previewWindow.destroy();
+    }
   } catch {
     // Ignore shutdown issues during app exit.
   }
 }
 
 async function capturePreviewScreenshot(url) {
-  let context = null;
+  let previewWindow = null;
 
   try {
-    const browser = await getPreviewBrowser();
-    if (!browser) {
+    previewWindow = await getPreviewBrowser();
+    if (!previewWindow || previewWindow.isDestroyed()) {
       return "";
     }
-    context = await browser.newContext({
-      viewport: PREVIEW_VIEWPORT,
-      deviceScaleFactor: 1,
-      ignoreHTTPSErrors: true,
+    const { webContents } = previewWindow;
+
+    await webContents.loadURL(url, {
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     });
-    const page = await context.newPage();
+    await waitForPreviewEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+    await new Promise((resolve) => setTimeout(resolve, 600));
 
-    page.setDefaultNavigationTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
-    page.setDefaultTimeout(PREVIEW_CAPTURE_TIMEOUT_MS);
-
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: PREVIEW_NETWORK_IDLE_TIMEOUT_MS }).catch(() => { });
-    await page.addStyleTag({
-      content: [
-        "*, *::before, *::after {",
-        "  animation-duration: 0s !important;",
-        "  animation-delay: 0s !important;",
-        "  transition-duration: 0s !important;",
-        "  caret-color: transparent !important;",
-        "}",
+    await webContents.executeJavaScript(
+      [
+        "(() => {",
+        "  const style = document.createElement('style');",
+        "  style.textContent = `",
+        "    *, *::before, *::after {",
+        "      animation-duration: 0s !important;",
+        "      animation-delay: 0s !important;",
+        "      transition-duration: 0s !important;",
+        "      caret-color: transparent !important;",
+        "    }",
+        "  `;",
+        "  document.head.appendChild(style);",
+        "})();",
       ].join("\n"),
-    }).catch(() => { });
+      true,
+    ).catch(() => { });
 
-    const screenshot = await page.screenshot({
-      type: "jpeg",
-      quality: PREVIEW_JPEG_QUALITY,
-      fullPage: false,
-    });
-
-    return bufferToDataUrl(screenshot, "image/jpeg");
+    const image = await webContents.capturePage();
+    return bufferToDataUrl(image.toJPEG(PREVIEW_JPEG_QUALITY), "image/jpeg");
   } catch {
     return "";
   } finally {
-    await context?.close().catch(() => { });
+    await closePreviewBrowser();
   }
 }
 
@@ -2239,14 +2272,118 @@ async function savePreviewWorkspaceTarget(folderPath, workspace, canvasFilePath 
   await workspaceService.saveWorkspace(folderPath, workspace);
 }
 
-async function updateCardPreview(folderPath, cardId, url, cardSnapshot, canvasFilePath = "") {
-  if (STORAGE_V2_STABILIZATION) {
+function pumpPreviewExecutionQueue() {
+  while (activePreviewExecutionCount < PREVIEW_JOB_CONCURRENCY && previewExecutionQueue.length > 0) {
+    const next = previewExecutionQueue.shift();
+
+    if (!next) {
+      break;
+    }
+
+    activePreviewExecutionCount += 1;
+    Promise.resolve()
+      .then(next.task)
+      .then(next.resolve, next.reject)
+      .finally(() => {
+        activePreviewExecutionCount = Math.max(0, activePreviewExecutionCount - 1);
+        pumpPreviewExecutionQueue();
+      });
+  }
+}
+
+function withPreviewExecutionSlot(task) {
+  return new Promise((resolve, reject) => {
+    previewExecutionQueue.push({ task, resolve, reject });
+    pumpPreviewExecutionQueue();
+  });
+}
+
+function createPreviewFailureDiagnostics(error, currentCard = null) {
+  const existingDiagnostics = currentCard?.previewDiagnostics && typeof currentCard.previewDiagnostics === "object"
+    ? currentCard.previewDiagnostics
+    : {};
+  const failureMessage = error?.message || "Preview resolution failed";
+  const existingErrors = Array.isArray(existingDiagnostics.errors)
+    ? existingDiagnostics.errors.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+
+  return {
+    ...existingDiagnostics,
+    fallbackUsed: true,
+    fallbackReason: existingDiagnostics.fallbackReason || "preview-resolution-failed",
+    finalPreviewStatus: "error",
+    errors: [...existingErrors, failureMessage],
+    warnings: Array.isArray(existingDiagnostics.warnings) ? existingDiagnostics.warnings : [],
+  };
+}
+
+function getWorkspacePages(workspace) {
+  if (Array.isArray(workspace?.pages) && workspace.pages.length > 0) {
+    return workspace.pages;
+  }
+
+  return [{
+    id: typeof workspace?.activePageId === "string" ? workspace.activePageId : "page-1",
+    name: "Page 1",
+    tiles: Array.isArray(workspace?.cards) ? workspace.cards : [],
+    viewport: workspace?.viewport ?? { x: 180, y: 120, zoom: 1 },
+    drawings: workspace?.drawings ?? { version: 1, objects: [] },
+    edges: Array.isArray(workspace?.edges) ? workspace.edges : [],
+    groups: Array.isArray(workspace?.groups) ? workspace.groups : [],
+    view: workspace?.view ?? null,
+  }];
+}
+
+function updateWorkspaceCardAcrossPages(workspace, cardId, updater, cardSnapshot = null) {
+  const pages = getWorkspacePages(workspace);
+  let matchedPageId = null;
+  let nextCard = null;
+
+  const nextPages = pages.map((page, pageIndex) => {
+    const tileKey = Array.isArray(page.tiles) ? "tiles" : "cards";
+    const cards = Array.isArray(page[tileKey]) ? page[tileKey] : [];
+    let cardIndex = cards.findIndex((card) => card.id === cardId);
+    let nextCards = cards;
+
+    if (cardIndex === -1 && cardSnapshot && matchedPageId === null) {
+      const placeholderCard = normalizeCard(cardSnapshot, cards.length);
+      nextCards = [...cards, placeholderCard];
+      cardIndex = nextCards.length - 1;
+    }
+
+    if (cardIndex === -1) {
+      return page;
+    }
+
+    const currentCard = nextCards[cardIndex];
+    nextCard = updater(currentCard, page, pageIndex);
+    const cardsWithUpdate = [...nextCards];
+    cardsWithUpdate.splice(cardIndex, 1, nextCard);
+    matchedPageId = page.id;
+    return {
+      ...page,
+      [tileKey]: cardsWithUpdate,
+    };
+  });
+
+  if (!matchedPageId || !nextCard) {
     return null;
   }
 
-  const previewResolver = getPreviewResolverModule();
-  if (!previewResolver?.resolveUrlToPreview) {
-    throw new Error("Preview resolver is unavailable in this build.");
+  return {
+    workspace: {
+      ...workspace,
+      activePageId: typeof workspace?.activePageId === "string" ? workspace.activePageId : matchedPageId,
+      pages: nextPages,
+    },
+    pageId: matchedPageId,
+    card: nextCard,
+  };
+}
+
+async function updateCardPreview(folderPath, cardId, url, cardSnapshot, resolvedPreview, canvasFilePath = "") {
+  if (STORAGE_V2_STABILIZATION) {
+    return null;
   }
 
   const jobKey = `${folderPath}:${cardId}`;
@@ -2255,58 +2392,57 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot, canvasFi
     return null;
   }
 
-  const resolvedPreview = await previewResolver.resolveUrlToPreview(url);
-
-  if (cancelledPreviewJobs.has(jobKey)) {
-    return null;
-  }
-
   const previewTarget = await loadPreviewWorkspaceTarget(folderPath, canvasFilePath);
-  const workspace = previewTarget.workspace;
-  let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
+  const nextState = updateWorkspaceCardAcrossPages(
+    previewTarget.workspace,
+    cardId,
+    (currentCard) => {
+      const previewCardState = getCardStateFromResolvedPreview(
+        currentCard,
+        resolvedPreview,
+        defaultCardSize,
+      );
 
-  if (cardIndex === -1 && cardSnapshot && !cancelledPreviewJobs.has(jobKey)) {
-    const placeholderCard = normalizeCard(cardSnapshot, workspace.cards.length);
-    workspace.cards.push(placeholderCard);
-    cardIndex = workspace.cards.length - 1;
-  }
+      return normalizeCard({
+        ...currentCard,
+        ...previewCardState,
+        updatedAt: nowIso(),
+      });
+    },
+    cancelledPreviewJobs.has(jobKey) ? null : cardSnapshot,
+  );
 
-  if (cardIndex === -1) {
+  if (!nextState) {
     return null;
   }
-
-  const currentCard = workspace.cards[cardIndex];
-  const previewCardState = getCardStateFromResolvedPreview(
-    currentCard,
-    resolvedPreview,
-    defaultCardSize,
-  );
-  const nextCard = normalizeCard({
-    ...currentCard,
-    ...previewCardState,
-    updatedAt: nowIso(),
-  });
 
   if (process.env.NODE_ENV !== "production") {
     console.debug("[preview] final-mapped-card", {
       cardId,
       url,
-      card: nextCard,
+      card: nextState.card,
     });
   }
 
-  workspace.cards.splice(cardIndex, 1, nextCard);
-  await savePreviewWorkspaceTarget(folderPath, workspace, previewTarget.canvasFilePath);
+  await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
+  logPreviewJob("tile-state-updated", {
+    folderPath,
+    canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
+    cardId,
+    status: nextState.card.status,
+    previewStatus: nextState.card.previewStatus,
+  });
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
       folderPath,
       canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
-      card: nextCard,
+      pageId: nextState.pageId,
+      card: nextState.card,
     });
   }
 
-  return nextCard;
+  return nextState.card;
 }
 
 async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error, canvasFilePath = "") {
@@ -2315,41 +2451,48 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
   }
 
   const previewTarget = await loadPreviewWorkspaceTarget(folderPath, canvasFilePath);
-  const workspace = previewTarget.workspace;
-  let cardIndex = workspace.cards.findIndex((card) => card.id === cardId);
+  const nextState = updateWorkspaceCardAcrossPages(
+    previewTarget.workspace,
+    cardId,
+    (currentCard) => {
+      const failureMessage = error?.message || "Preview resolution failed";
 
-  if (cardIndex === -1 && cardSnapshot) {
-    const placeholderCard = normalizeCard(cardSnapshot, workspace.cards.length);
-    workspace.cards.push(placeholderCard);
-    cardIndex = workspace.cards.length - 1;
-  }
+      return normalizeCard({
+        ...currentCard,
+        status: "error",
+        previewStatus: "error",
+        previewError: failureMessage,
+        previewDiagnostics: createPreviewFailureDiagnostics(error, currentCard),
+        updatedAt: nowIso(),
+      });
+    },
+    cardSnapshot,
+  );
 
-  if (cardIndex === -1) {
+  if (!nextState) {
     return null;
   }
 
-  const currentCard = workspace.cards[cardIndex];
-  const failureMessage = error?.message || "Preview resolution failed";
-  const nextCard = normalizeCard({
-    ...currentCard,
-    status: "failed",
-    previewStatus: "error",
-    previewError: failureMessage,
-    updatedAt: nowIso(),
+  await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
+  logPreviewJob("tile-state-updated", {
+    folderPath,
+    canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
+    cardId,
+    status: nextState.card.status,
+    previewStatus: nextState.card.previewStatus,
+    failed: true,
   });
-
-  workspace.cards.splice(cardIndex, 1, nextCard);
-  await savePreviewWorkspaceTarget(folderPath, workspace, previewTarget.canvasFilePath);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
       folderPath,
       canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
-      card: nextCard,
+      pageId: nextState.pageId,
+      card: nextState.card,
     });
   }
 
-  return nextCard;
+  return nextState.card;
 }
 
 async function createWindow() {
@@ -2654,10 +2797,58 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
     return { queued: false };
   }
 
-  const job = withWorkspaceQueue(
+  logPreviewJob("queued", {
     folderPath,
-    () => updateCardPreview(folderPath, cardId, url, cardSnapshot, canvasFilePath),
-  )
+    canvasFilePath,
+    cardId,
+    url,
+    activeJobs: activePreviewExecutionCount,
+    queuedJobs: previewExecutionQueue.length,
+  });
+
+  const job = withPreviewExecutionSlot(async () => {
+    logPreviewJob("started", {
+      folderPath,
+      canvasFilePath,
+      cardId,
+      url,
+      activeJobs: activePreviewExecutionCount,
+      queuedJobs: previewExecutionQueue.length,
+    });
+
+    const previewResolver = getPreviewResolverModule();
+    if (!previewResolver?.resolveUrlToPreview) {
+      throw new Error("Preview resolver is unavailable in this build.");
+    }
+
+    const resolvedPreview = await previewResolver.resolveUrlToPreview(url);
+
+    if (cancelledPreviewJobs.has(jobKey)) {
+      logPreviewJob("cancelled", {
+        folderPath,
+        canvasFilePath,
+        cardId,
+        url,
+      });
+      return null;
+    }
+
+    const nextCard = await withWorkspaceQueue(
+      folderPath,
+      () => updateCardPreview(folderPath, cardId, url, cardSnapshot, resolvedPreview, canvasFilePath),
+    );
+
+    logPreviewJob("completed", {
+      folderPath,
+      canvasFilePath,
+      cardId,
+      url,
+      status: nextCard?.status || "",
+      previewStatus: nextCard?.previewStatus || "",
+    });
+
+    return nextCard;
+  })
     .catch(async (error) => {
       console.error("[preview] queued-job-error", {
         folderPath,
@@ -2665,9 +2856,19 @@ ipcMain.handle("airpaste:fetchLinkPreview", async (_event, folderPath, cardId, u
         url,
         message: error?.message || "Preview resolution failed",
       });
+      logPreviewJob("failed", {
+        folderPath,
+        canvasFilePath,
+        cardId,
+        url,
+        message: error?.message || "Preview resolution failed",
+      });
 
       try {
-        await markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error, canvasFilePath);
+        await withWorkspaceQueue(
+          folderPath,
+          () => markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, error, canvasFilePath),
+        );
       } catch (secondaryError) {
         console.error("[preview] queued-job-error:failure-state-write-failed", {
           folderPath,

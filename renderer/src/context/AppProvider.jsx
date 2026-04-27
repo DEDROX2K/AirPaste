@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContext } from "./AppContext";
 import { useTabs } from "./useTabs";
 import {
+  createWorkspacePage,
   createEmptyWorkspace,
   createLinkCard,
   createRackCard,
+  getWorkspaceActivePage,
   isBookmarkLinkCard,
   normalizeWorkspace,
   removeCard,
@@ -15,6 +17,12 @@ import {
 } from "../lib/workspace";
 import { desktop } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
+import {
+  createTestingTilesWorkspace,
+  isPreviewDebugModeEnabled,
+  TESTING_TILES_CANVAS_FILE_NAME,
+  TESTING_TILES_CANVAS_NAME,
+} from "../lib/testingTiles";
 
 const CANVAS_SAVE_DELAY_MS = 420;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 8;
@@ -52,6 +60,26 @@ function areSamePath(leftPath, rightPath) {
   const left = normalizeFsPath(leftPath).toLowerCase();
   const right = normalizeFsPath(rightPath).toLowerCase();
   return left === right;
+}
+
+function logPreviewDebug(event, payload = {}) {
+  if (!isPreviewDebugModeEnabled()) {
+    return;
+  }
+
+  console.debug(`[preview:renderer] ${event}`, payload);
+}
+
+function isTerminalPreviewState(card) {
+  const status = typeof card?.status === "string" ? card.status.trim().toLowerCase() : "";
+  const previewStatus = typeof card?.previewStatus === "string" ? card.previewStatus.trim().toLowerCase() : "";
+  const diagnosticsStatus = typeof card?.previewDiagnostics?.finalPreviewStatus === "string"
+    ? card.previewDiagnostics.finalPreviewStatus.trim().toLowerCase()
+    : "";
+
+  return ["ready", "fallback", "blocked", "error"].includes(status)
+    || ["ready", "fallback", "blocked", "error"].includes(previewStatus)
+    || ["ready", "fallback", "blocked", "error"].includes(diagnosticsStatus);
 }
 
 function areObjectsEqual(a, b) {
@@ -123,35 +151,69 @@ function areDrawingsEqual(a, b) {
   return true;
 }
 
-function areWorkspacesEqual(a, b) {
+function areStructuredArraysEqual(a, b) {
   if (a === b) return true;
-  if (!a || !b) return false;
+  return JSON.stringify(Array.isArray(a) ? a : []) === JSON.stringify(Array.isArray(b) ? b : []);
+}
 
-  if (
-    a.version !== b.version
-    || !areObjectsEqual(a.viewport, b.viewport)
-    || !areObjectsEqual(a.view, b.view)
-    || a.cards.length !== b.cards.length
-    || !areDrawingsEqual(a.drawings, b.drawings)
-  ) {
+function areWorkspacePagesEqual(a = [], b = []) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
     return false;
   }
 
-  for (let index = 0; index < a.cards.length; index += 1) {
-    if (!areCardsEqual(a.cards[index], b.cards[index])) {
+  for (let index = 0; index < a.length; index += 1) {
+    const leftPage = a[index];
+    const rightPage = b[index];
+
+    if (
+      leftPage?.id !== rightPage?.id
+      || leftPage?.name !== rightPage?.name
+      || !areObjectsEqual(leftPage?.viewport, rightPage?.viewport)
+      || !areObjectsEqual(leftPage?.view, rightPage?.view)
+      || !areDrawingsEqual(leftPage?.drawings, rightPage?.drawings)
+      || !areStructuredArraysEqual(leftPage?.edges, rightPage?.edges)
+      || !areStructuredArraysEqual(leftPage?.groups, rightPage?.groups)
+    ) {
       return false;
+    }
+
+    const leftCards = Array.isArray(leftPage?.cards) ? leftPage.cards : [];
+    const rightCards = Array.isArray(rightPage?.cards) ? rightPage.cards : [];
+
+    if (leftCards.length !== rightCards.length) {
+      return false;
+    }
+
+    for (let cardIndex = 0; cardIndex < leftCards.length; cardIndex += 1) {
+      if (!areCardsEqual(leftCards[cardIndex], rightCards[cardIndex])) {
+        return false;
+      }
     }
   }
 
   return true;
 }
 
+function areWorkspacesEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  if (
+    a.version !== b.version
+    || a.name !== b.name
+    || a.activePageId !== b.activePageId
+    || !areWorkspacePagesEqual(a.pages, b.pages)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function mergeCanvasDirtyFields(currentFields = null, nextFields = null) {
   return {
-    viewport: Boolean(currentFields?.viewport || nextFields?.viewport),
-    cards: Boolean(currentFields?.cards || nextFields?.cards),
-    drawings: Boolean(currentFields?.drawings || nextFields?.drawings),
-    view: Boolean(currentFields?.view || nextFields?.view),
+    pages: Boolean(currentFields?.pages || nextFields?.pages),
+    activePageId: Boolean(currentFields?.activePageId || nextFields?.activePageId),
     name: Boolean(currentFields?.name || nextFields?.name),
   };
 }
@@ -159,29 +221,23 @@ function mergeCanvasDirtyFields(currentFields = null, nextFields = null) {
 function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
   if (!nextWorkspace) {
     return {
-      viewport: false,
-      cards: false,
-      drawings: false,
-      view: false,
+      pages: false,
+      activePageId: false,
       name: false,
     };
   }
 
   if (!previousWorkspace) {
     return {
-      viewport: true,
-      cards: true,
-      drawings: true,
-      view: true,
+      pages: true,
+      activePageId: true,
       name: true,
     };
   }
 
   return {
-    viewport: previousWorkspace.viewport !== nextWorkspace.viewport,
-    cards: previousWorkspace.cards !== nextWorkspace.cards,
-    drawings: previousWorkspace.drawings !== nextWorkspace.drawings,
-    view: previousWorkspace.view !== nextWorkspace.view,
+    pages: previousWorkspace.pages !== nextWorkspace.pages,
+    activePageId: previousWorkspace.activePageId !== nextWorkspace.activePageId,
     name: previousWorkspace.name !== nextWorkspace.name,
   };
 }
@@ -189,20 +245,12 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
 function buildCanvasSavePayload(workspace, dirtyFields = null) {
   const payload = {};
 
-  if (dirtyFields?.viewport) {
-    payload.viewport = workspace?.viewport ?? null;
+  if (dirtyFields?.pages) {
+    payload.pages = Array.isArray(workspace?.pages) ? workspace.pages : [];
   }
 
-  if (dirtyFields?.cards) {
-    payload.cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
-  }
-
-  if (dirtyFields?.drawings) {
-    payload.drawings = workspace?.drawings ?? null;
-  }
-
-  if (dirtyFields?.view) {
-    payload.view = workspace?.view ?? null;
+  if (dirtyFields?.activePageId) {
+    payload.activePageId = workspace?.activePageId ?? null;
   }
 
   if (dirtyFields?.name && typeof workspace?.name === "string") {
@@ -249,18 +297,22 @@ function sanitizeWorkspaceForPreviewAvailability(workspace, previewEnabled) {
   }
 
   let changed = false;
-  const nextCards = safeWorkspace.cards.map((card) => {
-    if (!isBookmarkLinkCard(card) || card.status !== "loading") {
-      return card;
-    }
+  const nextPages = safeWorkspace.pages.map((page) => {
+    const nextCards = page.cards.map((card) => {
+      if (!isBookmarkLinkCard(card) || card.status !== "loading") {
+        return card;
+      }
 
-    changed = true;
-    return {
-      ...card,
-      status: "error",
-      previewStatus: "disabled",
-      previewError: card.previewError?.trim() || PREVIEW_UNAVAILABLE_MESSAGE,
-    };
+      changed = true;
+      return {
+        ...card,
+        status: "error",
+        previewStatus: "disabled",
+        previewError: card.previewError?.trim() || PREVIEW_UNAVAILABLE_MESSAGE,
+      };
+    });
+
+    return nextCards === page.cards ? page : { ...page, cards: nextCards };
   });
 
   if (!changed) {
@@ -269,7 +321,22 @@ function sanitizeWorkspaceForPreviewAvailability(workspace, previewEnabled) {
 
   return {
     ...safeWorkspace,
-    cards: nextCards,
+    pages: nextPages,
+  };
+}
+
+function updateActivePageDocument(currentWorkspace, updater) {
+  const currentActivePage = getWorkspaceActivePage(currentWorkspace);
+  const nextPages = currentWorkspace.pages.map((page) => (
+    page.id === currentActivePage.id
+      ? updater(page)
+      : page
+  ));
+
+  return {
+    ...currentWorkspace,
+    activePageId: currentActivePage.id,
+    pages: nextPages,
   };
 }
 
@@ -301,8 +368,11 @@ export function AppProvider({ children }) {
   const [homeData, setHomeData] = useState(createHomeState());
   const [domesState, setDomesState] = useState(createDomesState());
   const [folderLoading, setFolderLoading] = useState(false);
+  const [trackedLoadingCount, setTrackedLoadingCount] = useState(0);
+  const [loadingLabel, setLoadingLabel] = useState("Loading");
   const [error, setError] = useState("");
   const [workspacesByPath, setWorkspacesByPath] = useState({});
+  const [canvasClipboard, setCanvasClipboardState] = useState(null);
   const [canvasInteractionVersion, setCanvasInteractionVersion] = useState(0);
 
   const saveTimeoutRef = useRef(null);
@@ -315,6 +385,7 @@ export function AppProvider({ children }) {
   const workspaceDraftBaseRef = useRef({});
   const workspacesRef = useRef(workspacesByPath);
   const activeCanvasPathRef = useRef(null);
+  const canvasClipboardRef = useRef(null);
 
   useEffect(() => {
     workspacesRef.current = workspacesByPath;
@@ -332,7 +403,7 @@ export function AppProvider({ children }) {
 
   const workspace = useMemo(() => {
     if (currentEditor.kind !== "canvas") return createEmptyWorkspace();
-    return workspacesByPath[currentEditor.filePath]?.present ?? createEmptyWorkspace();
+    return normalizeWorkspace(workspacesByPath[currentEditor.filePath]?.present ?? createEmptyWorkspace());
   }, [currentEditor, workspacesByPath]);
 
   const workspaceHistory = useMemo(() => {
@@ -343,6 +414,19 @@ export function AppProvider({ children }) {
   const activeDome = useMemo(() => (
     domesState.recentDomes.find((entry) => entry.id === domesState.activeDomeId) ?? null
   ), [domesState.activeDomeId, domesState.recentDomes]);
+
+  const trackLoading = useCallback(async (task, label = "Loading") => {
+    setTrackedLoadingCount((count) => count + 1);
+    setLoadingLabel(label);
+
+    try {
+      return await task();
+    } finally {
+      setTrackedLoadingCount((count) => Math.max(0, count - 1));
+    }
+  }, []);
+
+  const isLoading = folderLoading || trackedLoadingCount > 0;
 
   const applyHomeData = useCallback((payload) => {
     setHomeData({
@@ -386,10 +470,12 @@ export function AppProvider({ children }) {
 
   const refreshHomeData = useCallback(async (targetFolderPath = folderPath, currentFolderPath = undefined) => {
     if (!targetFolderPath) return null;
-    const payload = await desktop.workspace.getHomeData(targetFolderPath, currentFolderPath);
-    applyHomeData(payload);
-    return payload;
-  }, [applyHomeData, folderPath]);
+    return trackLoading(async () => {
+      const payload = await desktop.workspace.getHomeData(targetFolderPath, currentFolderPath);
+      applyHomeData(payload);
+      return payload;
+    }, "Loading workspace");
+  }, [applyHomeData, folderPath, trackLoading]);
 
   const loadFolder = useCallback(async (nextFolderPath) => {
     if (!nextFolderPath) return null;
@@ -536,15 +622,63 @@ export function AppProvider({ children }) {
   }, [applyDomesState, loadFolder]);
 
   const openCanvasFile = useCallback(async (filePath) => {
-    const doc = await desktop.workspace.loadCanvas(filePath);
-    const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
-    setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) }));
-    delete workspaceDraftBaseRef.current[doc.filePath];
-    skipCanvasSaveRef.current[doc.filePath] = true;
-    openTab({ type: "canvas", entityId: doc.filePath, title: doc.name, filePath: doc.path });
-    await refreshHomeData(folderPath);
-    return doc;
-  }, [folderPath, openTab, previewEnabled, refreshHomeData]);
+    return trackLoading(async () => {
+      const doc = await desktop.workspace.loadCanvas(filePath);
+      const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+      setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) }));
+      delete workspaceDraftBaseRef.current[doc.filePath];
+      skipCanvasSaveRef.current[doc.filePath] = true;
+      openTab({ type: "canvas", entityId: doc.filePath, title: doc.name, filePath: doc.path });
+      await refreshHomeData(folderPath);
+      return doc;
+    }, "Opening canvas");
+  }, [folderPath, openTab, previewEnabled, refreshHomeData, trackLoading]);
+
+  const queueTestingTilesPreviewJobs = useCallback(async (cards, canvasFilePath) => {
+    if (!folderPath || !Array.isArray(cards) || cards.length === 0) {
+      return [];
+    }
+
+    const pendingCards = cards.filter((card) => isBookmarkLinkCard(card) && !isTerminalPreviewState(card));
+
+    await Promise.all(
+      pendingCards.map(async (card) => {
+        logPreviewDebug("job-queued", {
+          canvasFilePath,
+          cardId: card.id,
+          url: card.url,
+          status: card.status || "",
+          previewStatus: card.previewStatus || "",
+        });
+
+        try {
+          const response = await desktop.workspace.fetchLinkPreview(
+            folderPath,
+            card.id,
+            card.url,
+            card,
+            canvasFilePath,
+          );
+
+          logPreviewDebug("job-queue-result", {
+            canvasFilePath,
+            cardId: card.id,
+            url: card.url,
+            queued: response?.queued === true,
+          });
+        } catch (error) {
+          logPreviewDebug("job-queue-failed", {
+            canvasFilePath,
+            cardId: card.id,
+            url: card.url,
+            message: error?.message || "Unable to queue preview job",
+          });
+        }
+      }),
+    );
+
+    return pendingCards;
+  }, [folderPath]);
 
   const openHomeItem = useCallback(async (item) => {
     if (!item?.filePath) return null;
@@ -631,10 +765,12 @@ export function AppProvider({ children }) {
 
   const navigateHomeFolder = useCallback(async (nextFolderPath) => {
     if (!folderPath) return null;
-    const payload = await desktop.workspace.getHomeData(folderPath, nextFolderPath);
-    applyHomeData(payload);
-    return payload;
-  }, [applyHomeData, folderPath]);
+    return trackLoading(async () => {
+      const payload = await desktop.workspace.getHomeData(folderPath, nextFolderPath);
+      applyHomeData(payload);
+      return payload;
+    }, "Loading folder");
+  }, [applyHomeData, folderPath, trackLoading]);
 
   const saveHomeUiState = useCallback(async (partialState) => {
     if (!folderPath) return null;
@@ -645,95 +781,139 @@ export function AppProvider({ children }) {
 
   const createCanvasEntry = useCallback(async (name, targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return null;
-    const doc = await desktop.workspace.createCanvas(folderPath, name, targetFolderPath);
-    await openCanvasFile(doc.filePath);
-    return doc;
-  }, [folderPath, homeData.currentFolderPath, openCanvasFile]);
+    return trackLoading(async () => {
+      const doc = await desktop.workspace.createCanvas(folderPath, name, targetFolderPath);
+      await openCanvasFile(doc.filePath);
+      return doc;
+    }, "Creating canvas");
+  }, [folderPath, homeData.currentFolderPath, openCanvasFile, trackLoading]);
+
+  const openTestingTilesCanvas = useCallback(async () => {
+    if (!folderPath || !isPreviewDebugModeEnabled()) {
+      return null;
+    }
+
+    return trackLoading(async () => {
+      const normalizedTestingPath = TESTING_TILES_CANVAS_FILE_NAME.toLowerCase();
+      const existingItem = homeData.allFiles.find((item) => (
+        item.type === "canvas"
+        && (
+          String(item.path ?? "").replaceAll("\\", "/").toLowerCase() === normalizedTestingPath
+          || item.name === TESTING_TILES_CANVAS_NAME
+        )
+      ));
+
+      if (existingItem?.filePath) {
+        const doc = await openCanvasFile(existingItem.filePath);
+        const existingCards = doc?.workspace?.pages?.flatMap((page) => page.cards ?? []) ?? [];
+        await queueTestingTilesPreviewJobs(existingCards, doc?.filePath || existingItem.filePath);
+        return doc;
+      }
+
+      const created = await desktop.workspace.createCanvas(folderPath, TESTING_TILES_CANVAS_NAME, "");
+      const seededWorkspace = createTestingTilesWorkspace();
+      await desktop.workspace.saveCanvas(created.filePath, seededWorkspace);
+      const doc = await openCanvasFile(created.filePath);
+
+      const seededCards = seededWorkspace.pages.flatMap((page) => page.cards ?? []);
+      await queueTestingTilesPreviewJobs(seededCards, created.filePath);
+
+      return doc;
+    }, "Opening Testing Tiles");
+  }, [folderPath, homeData.allFiles, openCanvasFile, queueTestingTilesPreviewJobs, trackLoading]);
 
   const createFolderEntry = useCallback(async (name, targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return null;
-    const folder = await desktop.workspace.createFolder(folderPath, name, targetFolderPath);
-    await refreshHomeData(folderPath, targetFolderPath);
-    return folder;
-  }, [folderPath, homeData.currentFolderPath, refreshHomeData]);
+    return trackLoading(async () => {
+      const folder = await desktop.workspace.createFolder(folderPath, name, targetFolderPath);
+      await refreshHomeData(folderPath, targetFolderPath);
+      return folder;
+    }, "Creating folder");
+  }, [folderPath, homeData.currentFolderPath, refreshHomeData, trackLoading]);
 
   const importFilesIntoFolder = useCallback(async (targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return [];
     const sourcePaths = await desktop.workspace.openFiles();
     if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) return [];
-    const imported = await desktop.workspace.importFiles(folderPath, sourcePaths, targetFolderPath);
-    await refreshHomeData(folderPath, targetFolderPath);
-    return imported;
-  }, [folderPath, homeData.currentFolderPath, refreshHomeData]);
+    return trackLoading(async () => {
+      const imported = await desktop.workspace.importFiles(folderPath, sourcePaths, targetFolderPath);
+      await refreshHomeData(folderPath, targetFolderPath);
+      return imported;
+    }, "Importing files");
+  }, [folderPath, homeData.currentFolderPath, refreshHomeData, trackLoading]);
 
   const renameItemEntry = useCallback(async (item, name) => {
     if (!folderPath || !item?.filePath) return null;
-    const renamed = item.type === "folder"
-      ? await desktop.workspace.renameEntry(folderPath, item.filePath, name)
-      : await desktop.workspace.renameFile(folderPath, item.filePath, name);
+    return trackLoading(async () => {
+      const renamed = item.type === "folder"
+        ? await desktop.workspace.renameEntry(folderPath, item.filePath, name)
+        : await desktop.workspace.renameFile(folderPath, item.filePath, name);
 
-    if (item.type === "folder") {
-      setWorkspacesByPath((prev) => {
-        const next = { ...prev };
-        for (const key of Object.keys(prev)) {
-          if (!isSameOrDescendantPath(key, item.filePath)) continue;
-          const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
-          next[replacementKey] = next[key];
-          delete next[key];
-          if (workspaceDraftBaseRef.current[key]) {
-            workspaceDraftBaseRef.current[replacementKey] = workspaceDraftBaseRef.current[key];
-            delete workspaceDraftBaseRef.current[key];
+      if (item.type === "folder") {
+        setWorkspacesByPath((prev) => {
+          const next = { ...prev };
+          for (const key of Object.keys(prev)) {
+            if (!isSameOrDescendantPath(key, item.filePath)) continue;
+            const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
+            next[replacementKey] = next[key];
+            delete next[key];
+            if (workspaceDraftBaseRef.current[key]) {
+              workspaceDraftBaseRef.current[replacementKey] = workspaceDraftBaseRef.current[key];
+              delete workspaceDraftBaseRef.current[key];
+            }
           }
+          return next;
+        });
+        await refreshHomeData(folderPath, renamed.path);
+        return renamed;
+      }
+
+      rebindTabEntity(item.filePath, renamed.filePath, renamed.name);
+      setWorkspacesByPath((prev) => {
+        if (!prev[item.filePath]) return prev;
+        const next = { ...prev };
+        next[renamed.filePath] = next[item.filePath];
+        delete next[item.filePath];
+        if (workspaceDraftBaseRef.current[item.filePath]) {
+          workspaceDraftBaseRef.current[renamed.filePath] = workspaceDraftBaseRef.current[item.filePath];
+          delete workspaceDraftBaseRef.current[item.filePath];
         }
         return next;
       });
-      await refreshHomeData(folderPath, renamed.path);
+      await refreshHomeData(folderPath);
       return renamed;
-    }
-
-    rebindTabEntity(item.filePath, renamed.filePath, renamed.name);
-    setWorkspacesByPath((prev) => {
-      if (!prev[item.filePath]) return prev;
-      const next = { ...prev };
-      next[renamed.filePath] = next[item.filePath];
-      delete next[item.filePath];
-      if (workspaceDraftBaseRef.current[item.filePath]) {
-        workspaceDraftBaseRef.current[renamed.filePath] = workspaceDraftBaseRef.current[item.filePath];
-        delete workspaceDraftBaseRef.current[item.filePath];
-      }
-      return next;
-    });
-    await refreshHomeData(folderPath);
-    return renamed;
-  }, [folderPath, rebindTabEntity, refreshHomeData]);
+    }, "Renaming item");
+  }, [folderPath, rebindTabEntity, refreshHomeData, trackLoading]);
 
   const deleteItemEntry = useCallback(async (item) => {
     if (!folderPath || !item?.filePath) return false;
-    if (item.type === "folder") {
-      await desktop.workspace.deleteEntry(folderPath, item.filePath);
-      const workspaceKeys = Object.keys(workspacesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
-      workspaceKeys.forEach((key) => closeTabsForEntity(key));
-      workspaceKeys.forEach((key) => { delete workspaceDraftBaseRef.current[key]; });
+    return trackLoading(async () => {
+      if (item.type === "folder") {
+        await desktop.workspace.deleteEntry(folderPath, item.filePath);
+        const workspaceKeys = Object.keys(workspacesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
+        workspaceKeys.forEach((key) => closeTabsForEntity(key));
+        workspaceKeys.forEach((key) => { delete workspaceDraftBaseRef.current[key]; });
+        setWorkspacesByPath((prev) => {
+          const next = { ...prev };
+          workspaceKeys.forEach((key) => { delete next[key]; });
+          return next;
+        });
+        await refreshHomeData(folderPath);
+        return true;
+      }
+
+      await desktop.workspace.deleteFile(folderPath, item.filePath);
+      closeTabsForEntity(item.filePath);
+      delete workspaceDraftBaseRef.current[item.filePath];
       setWorkspacesByPath((prev) => {
         const next = { ...prev };
-        workspaceKeys.forEach((key) => { delete next[key]; });
+        delete next[item.filePath];
         return next;
       });
       await refreshHomeData(folderPath);
       return true;
-    }
-
-    await desktop.workspace.deleteFile(folderPath, item.filePath);
-    closeTabsForEntity(item.filePath);
-    delete workspaceDraftBaseRef.current[item.filePath];
-    setWorkspacesByPath((prev) => {
-      const next = { ...prev };
-      delete next[item.filePath];
-      return next;
-    });
-    await refreshHomeData(folderPath);
-    return true;
-  }, [closeTabsForEntity, folderPath, refreshHomeData]);
+    }, "Deleting item");
+  }, [closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
 
   const toggleItemStarred = useCallback(async (filePath, starred) => {
     if (!folderPath || !filePath) return null;
@@ -764,6 +944,15 @@ export function AppProvider({ children }) {
 
     setCanvasInteractionVersion((currentVersion) => currentVersion + 1);
   }, []);
+
+  const setCanvasClipboard = useCallback((payload) => {
+    const nextClipboard = payload && typeof payload === "object" ? payload : null;
+    canvasClipboardRef.current = nextClipboard;
+    setCanvasClipboardState(nextClipboard);
+    return canvasClipboardRef.current;
+  }, []);
+
+  const getCanvasClipboard = useCallback(() => canvasClipboardRef.current, []);
 
   const updateWorkspaceState = useCallback((updater, options = {}) => {
     const activePath = options.targetPath ?? activeCanvasPathRef.current;
@@ -830,6 +1019,13 @@ export function AppProvider({ children }) {
 
   const commitWorkspaceChange = useCallback((nextWorkspace) => {
     updateWorkspaceState(nextWorkspace, { commitHistory: true });
+  }, [updateWorkspaceState]);
+  const commitWorkspaceChangeForPath = useCallback((targetPath, nextWorkspace) => {
+    if (!targetPath) {
+      return;
+    }
+
+    updateWorkspaceState(nextWorkspace, { commitHistory: true, targetPath });
   }, [updateWorkspaceState]);
 
   const undoWorkspaceChange = useCallback(() => {
@@ -906,7 +1102,8 @@ export function AppProvider({ children }) {
   }, []);
 
   const setViewport = useCallback((nextViewport) => updateWorkspaceState((current) => {
-    const currentViewport = current?.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const activePage = getWorkspaceActivePage(current);
+    const currentViewport = activePage?.viewport ?? { x: 0, y: 0, zoom: 1 };
     const normalizedViewport = {
       x: Number.isFinite(nextViewport?.x) ? nextViewport.x : currentViewport.x,
       y: Number.isFinite(nextViewport?.y) ? nextViewport.y : currentViewport.y,
@@ -922,32 +1119,131 @@ export function AppProvider({ children }) {
     }
 
     return {
-      ...current,
-      viewport: normalizedViewport,
+      ...updateActivePageDocument(current, (page) => ({
+        ...page,
+        viewport: normalizedViewport,
+      })),
     };
   }, { skipNormalize: true }), [updateWorkspaceState]);
-  const setWorkspaceView = useCallback((nextView) => updateWorkspaceState((current) => ({
-    ...current,
-    view: typeof nextView === "function" ? nextView(current.view ?? null) : nextView,
-  })), [updateWorkspaceState]);
+  const setWorkspaceView = useCallback((nextView) => updateWorkspaceState((current) => {
+    const activePage = getWorkspaceActivePage(current);
+    return updateActivePageDocument(current, (page) => ({
+      ...page,
+      view: typeof nextView === "function" ? nextView(activePage.view ?? null) : nextView,
+    }));
+  }), [updateWorkspaceState]);
   const createNewLinkCard = useCallback((url, center = null, options = {}) => {
     const card = createLinkCard(workspace.cards, workspace.viewport, url, center, options);
-    commitWorkspaceChange((current) => ({ ...current, cards: [...current.cards, card] }));
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const createNewRackCard = useCallback((center = null, options = {}) => {
     const card = createRackCard(workspace.cards, workspace.viewport, center, options);
-    commitWorkspaceChange((current) => ({ ...current, cards: [...current.cards, card] }));
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
-  const updateExistingCard = useCallback((cardId, updates) => updateWorkspaceState((current) => ({ ...current, cards: updateCard(current.cards, cardId, updates) })), [updateWorkspaceState]);
-  const updateExistingCards = useCallback((updatesById) => updateWorkspaceState((current) => ({ ...current, cards: updateCards(current.cards, updatesById) })), [updateWorkspaceState]);
-  const replaceWorkspaceCards = useCallback((nextCards) => updateWorkspaceState((current) => ({ ...current, cards: replaceCards(current.cards, nextCards) }), { preserveCommitBase: true }), [updateWorkspaceState]);
-  const reorderExistingCards = useCallback((orderedIds) => updateWorkspaceState((current) => ({ ...current, cards: reorderCards(current.cards, orderedIds) }), { preserveCommitBase: true }), [updateWorkspaceState]);
+  const updateExistingCard = useCallback((cardId, updates) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
+    ...page,
+    cards: updateCard(page.cards, cardId, updates),
+  }))), [updateWorkspaceState]);
+  const updateExistingCards = useCallback((updatesById) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
+    ...page,
+    cards: updateCards(page.cards, updatesById),
+  }))), [updateWorkspaceState]);
+  const replaceWorkspaceCards = useCallback((nextCards) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
+    ...page,
+    cards: replaceCards(page.cards, nextCards),
+  })), { preserveCommitBase: true }), [updateWorkspaceState]);
+  const reorderExistingCards = useCallback((orderedIds) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
+    ...page,
+    cards: reorderCards(page.cards, orderedIds),
+  })), { preserveCommitBase: true }), [updateWorkspaceState]);
   const deleteExistingCard = useCallback((cardId) => {
-    commitWorkspaceChange((current) => ({ ...current, cards: removeCard(current.cards, cardId) }));
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: removeCard(page.cards, cardId),
+    })));
     if (folderPath) void desktop.workspace.cancelLinkPreview(folderPath, cardId).catch(() => {});
   }, [commitWorkspaceChange, folderPath]);
+
+  const setActiveCanvasPage = useCallback((pageId) => updateWorkspaceState((current) => {
+    if (!pageId || !current.pages.some((page) => page.id === pageId) || current.activePageId === pageId) {
+      return current;
+    }
+
+    return {
+      ...current,
+      activePageId: pageId,
+    };
+  }), [updateWorkspaceState]);
+
+  const createCanvasPage = useCallback((name = "") => {
+    let nextPage = null;
+
+    commitWorkspaceChange((current) => {
+      nextPage = createWorkspacePage(name, current.pages.length);
+      return {
+        ...current,
+        activePageId: nextPage.id,
+        pages: [...current.pages, nextPage],
+      };
+    });
+
+    return nextPage;
+  }, [commitWorkspaceChange]);
+
+  const renameCanvasPage = useCallback((pageId, name) => {
+    if (!pageId) {
+      return;
+    }
+
+    const nextName = typeof name === "string" ? name.trim() : "";
+    if (!nextName) {
+      return;
+    }
+
+    updateWorkspaceState((current) => ({
+      ...current,
+      pages: current.pages.map((page) => (
+        page.id === pageId
+          ? { ...page, name: nextName }
+          : page
+      )),
+    }));
+  }, [updateWorkspaceState]);
+
+  const reorderCanvasPages = useCallback((pageId, targetIndex) => {
+    if (!pageId || !Number.isFinite(targetIndex)) {
+      return;
+    }
+
+    updateWorkspaceState((current) => {
+      const currentIndex = current.pages.findIndex((page) => page.id === pageId);
+      if (currentIndex === -1) {
+        return current;
+      }
+
+      const normalizedTargetIndex = Math.max(0, Math.min(current.pages.length - 1, Math.round(targetIndex)));
+      if (normalizedTargetIndex === currentIndex) {
+        return current;
+      }
+
+      const nextPages = [...current.pages];
+      const [movedPage] = nextPages.splice(currentIndex, 1);
+      nextPages.splice(normalizedTargetIndex, 0, movedPage);
+
+      return {
+        ...current,
+        pages: nextPages,
+      };
+    });
+  }, [updateWorkspaceState]);
 
   useEffect(() => {
     const unsubscribe = desktop.workspace.onPreviewUpdated((payload) => {
@@ -963,10 +1259,34 @@ export function AppProvider({ children }) {
       ) {
         return;
       }
+
+      const targetPath = typeof payload.canvasFilePath === "string" && payload.canvasFilePath.trim().length > 0
+        ? payload.canvasFilePath
+        : activeCanvasPathRef.current;
+
+      if (!targetPath || !workspacesRef.current[targetPath]) {
+        return;
+      }
+
+      logPreviewDebug("tile-state-updated", {
+        canvasFilePath: targetPath,
+        pageId: payload.pageId || "",
+        cardId: payload.card.id,
+        status: payload.card.status || "",
+        previewStatus: payload.card.previewStatus || "",
+      });
+
       updateWorkspaceState((current) => ({
         ...current,
-        cards: current.cards.map((card) => (card.id === payload.card.id ? { ...card, ...payload.card } : card)),
-      }));
+        pages: current.pages.map((page) => (
+          ((payload.pageId && page.id === payload.pageId) || page.cards.some((card) => card.id === payload.card.id))
+            ? {
+              ...page,
+              cards: page.cards.map((card) => (card.id === payload.card.id ? { ...card, ...payload.card } : card)),
+            }
+            : page
+        )),
+      }), { targetPath });
     });
     return unsubscribe;
   }, [folderPath, updateWorkspaceState]);
@@ -992,10 +1312,8 @@ export function AppProvider({ children }) {
       skipCanvasSaveRef.current[activeCanvasPath] = false;
       pendingCanvasSaveRef.current[activeCanvasPath] = false;
       pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
-        viewport: false,
-        cards: false,
-        drawings: false,
-        view: false,
+        pages: false,
+        activePageId: false,
         name: false,
       };
       lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
@@ -1085,10 +1403,8 @@ export function AppProvider({ children }) {
           } else {
             pendingCanvasSaveRef.current[activeCanvasPath] = false;
             pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
-              viewport: false,
-              cards: false,
-              drawings: false,
-              view: false,
+              pages: false,
+              activePageId: false,
               name: false,
             };
             lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToSave;
@@ -1126,16 +1442,21 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     activeDome,
     booting,
+    canvasClipboard,
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
     createNewLinkCard,
     createNewRackCard,
+    createCanvasPage,
+    reorderCanvasPages,
+    renameCanvasPage,
     createNewWorkspace,
     currentEditor,
     canRedo: workspaceHistory.future.length > 0,
     canUndo: workspaceHistory.past.length > 0,
     commitWorkspaceChange,
+    commitWorkspaceChangeForPath,
     discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
@@ -1144,10 +1465,13 @@ export function AppProvider({ children }) {
     folderLoading,
     folderPath,
     homeData,
+    isLoading,
     importFilesIntoFolder,
+    loadingLabel,
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
+    openTestingTilesCanvas,
     refreshDomes,
     refreshHomeData,
     removeDome,
@@ -1157,12 +1481,15 @@ export function AppProvider({ children }) {
     saveHomeUiState,
     revealDome,
     setError,
+    setActiveCanvasPage,
+    setCanvasClipboard,
     setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
     showHome,
     switchDome,
     toggleItemStarred,
+    getCanvasClipboard,
     redoWorkspaceChange,
     undoWorkspaceChange,
     updateExistingCard,
@@ -1171,16 +1498,21 @@ export function AppProvider({ children }) {
   }), [
     activeDome,
     booting,
+    canvasClipboard,
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
     createNewLinkCard,
     createNewRackCard,
+    createCanvasPage,
+    reorderCanvasPages,
+    renameCanvasPage,
     createNewWorkspace,
     currentEditor,
     workspaceHistory.future.length,
     workspaceHistory.past.length,
     commitWorkspaceChange,
+    commitWorkspaceChangeForPath,
     discardWorkspaceDraft,
     deleteExistingCard,
     deleteItemEntry,
@@ -1189,10 +1521,13 @@ export function AppProvider({ children }) {
     folderLoading,
     folderPath,
     homeData,
+    isLoading,
     importFilesIntoFolder,
+    loadingLabel,
     navigateHomeFolder,
     openExistingWorkspace,
     openHomeItem,
+    openTestingTilesCanvas,
     refreshDomes,
     refreshHomeData,
     removeDome,
@@ -1202,12 +1537,15 @@ export function AppProvider({ children }) {
     saveHomeUiState,
     revealDome,
     setError,
+    setActiveCanvasPage,
+    setCanvasClipboard,
     setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
     showHome,
     switchDome,
     toggleItemStarred,
+    getCanvasClipboard,
     redoWorkspaceChange,
     undoWorkspaceChange,
     updateExistingCard,

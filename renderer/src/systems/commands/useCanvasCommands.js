@@ -4,6 +4,7 @@ import {
   canRefreshLinkPreviewCard,
   createLinkPreviewRefreshPatch,
   createLinkCard,
+  getWorkspaceActivePage,
   getRackByTileId,
   isUrl,
   LINK_CONTENT_KIND_BOOKMARK,
@@ -28,6 +29,20 @@ function folderNameFromPath(folderPath) {
 
   const segments = folderPath.split(/[\\/]/);
   return segments[segments.length - 1] || folderPath;
+}
+
+function updateCurrentActivePage(currentWorkspace, updater) {
+  const activePage = getWorkspaceActivePage(currentWorkspace);
+
+  return {
+    ...currentWorkspace,
+    activePageId: activePage.id,
+    pages: currentWorkspace.pages.map((page) => (
+      page.id === activePage.id
+        ? updater(page)
+        : page
+    )),
+  };
 }
 
 function readFileAsDataUrl(file) {
@@ -274,7 +289,10 @@ export function useCanvasCommands({
       };
     });
 
-    commitWorkspaceChange((current) => ({ ...current, cards: updateCards(current.cards, updatesById) }));
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => ({
+      ...page,
+      cards: updateCards(page.cards, updatesById),
+    })));
   }, [commitWorkspaceChange]);
 
   const bringTilesToFront = useCallback((tileIds) => {
@@ -291,14 +309,18 @@ export function useCanvasCommands({
     let nextRackCard = null;
 
     commitWorkspaceChange((current) => {
-      const result = addTileToRack(current.cards, tileId, rackId, slotIndex);
+      const activePage = getWorkspaceActivePage(current);
+      const result = addTileToRack(activePage.cards, tileId, rackId, slotIndex);
 
       if (!result?.rackCard) {
         return current;
       }
 
       nextRackCard = result.rackCard;
-      return { ...current, cards: result.cards };
+      return updateCurrentActivePage(current, (page) => ({
+        ...page,
+        cards: result.cards,
+      }));
     });
 
     if (!nextRackCard) {
@@ -322,7 +344,8 @@ export function useCanvasCommands({
     let nextRackCard = null;
 
     commitWorkspaceChange((current) => {
-      let nextCards = current.cards;
+      const activePage = getWorkspaceActivePage(current);
+      let nextCards = activePage.cards;
 
       normalizedTileIds.forEach((tileId) => {
         const result = addTileToRack(nextCards, tileId, rackId);
@@ -333,7 +356,12 @@ export function useCanvasCommands({
         }
       });
 
-      return nextRackCard ? { ...current, cards: nextCards } : current;
+      return nextRackCard
+        ? updateCurrentActivePage(current, (page) => ({
+          ...page,
+          cards: nextCards,
+        }))
+        : current;
     });
 
     if (!nextRackCard) {
@@ -383,10 +411,10 @@ export function useCanvasCommands({
     }
 
     try {
-      commitWorkspaceChange((current) => ({
-        ...current,
-        cards: normalizedIds.reduce((nextCards, tileId) => removeCard(nextCards, tileId), current.cards),
-      }));
+      commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => ({
+        ...page,
+        cards: normalizedIds.reduce((nextCards, tileId) => removeCard(nextCards, tileId), page.cards),
+      })));
       if (folderPath) {
         normalizedIds.forEach((tileId) => {
           void desktop.workspace.cancelLinkPreview(folderPath, tileId).catch(() => {});
@@ -631,10 +659,10 @@ export function useCanvasCommands({
     }
 
     if (createdCards.length > 0) {
-      commitWorkspaceChange((current) => ({
-        ...current,
-        cards: [...current.cards, ...createdCards],
-      }));
+      commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => ({
+        ...page,
+        cards: [...page.cards, ...createdCards],
+      })));
       previewQueue.forEach((tile) => {
         void queueLinkPreview(tile);
       });

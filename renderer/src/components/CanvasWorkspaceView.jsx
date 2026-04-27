@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
+import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
-import GlobeWorkspaceView from "./GlobeWorkspaceView";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
@@ -13,8 +13,13 @@ import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
 import {
   canRefreshLinkPreviewCard,
+  createCanvasSelectionClipboardPayload,
+  getWorkspaceActivePage,
   isBookmarkLinkCard,
   isEditableElement,
+  pasteCanvasSelectionClipboardPayload,
+  removeCard,
+  removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
@@ -33,7 +38,16 @@ import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
   normalizeCanvasSnapSettings,
 } from "../systems/snapping/canvasSnapSettings";
-import { AppButton, AppEmptyState } from "./ui/app";
+import {
+  AppButton,
+  AppDropdownMenu,
+  AppDropdownMenuContent,
+  AppDropdownMenuItem,
+  AppDropdownMenuLabel,
+  AppDropdownMenuSeparator,
+  AppDropdownMenuTrigger,
+  AppEmptyState,
+} from "./ui/app";
 import { folderNameFromPath } from "../lib/home";
 import {
   readPointerMoveStats,
@@ -42,21 +56,74 @@ import {
   setPerfSummary,
 } from "../lib/perf";
 import {
-  clamp,
-  getDefaultCameraDistance,
-  getSoftGlobeRadius,
-} from "../systems/globe/globeLayout";
-import { desktop } from "../lib/desktop";
-import {
   buildTileRenderHint,
   resolveWorkspaceLodLevel,
   WORKSPACE_LOD_LEVEL,
 } from "../systems/canvas/tileLod";
 
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
+const CANVAS_BACKGROUND_SKINS = [
+  {
+    id: "dots",
+    label: "Dots",
+    kind: "dots",
+  },
+  {
+    id: "fabric",
+    label: "Fabric",
+    kind: "image",
+    assetPath: "bgimg/Fabric004_4K_Colorcopie.jpeg",
+    backgroundScale: 26,
+    backgroundSize: "560px auto",
+  },
+  {
+    id: "geo-light",
+    label: "Geo Light",
+    kind: "image",
+    assetPath: "bgimg/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg",
+    backgroundScale: 15,
+    backgroundSize: "320px auto",
+  },
+  {
+    id: "pattern-36",
+    label: "Pattern 36",
+    kind: "image",
+    assetPath: "bgimg/36.png",
+    backgroundScale: 13,
+    backgroundSize: "280px auto",
+  },
+  {
+    id: "pattern-41",
+    label: "Pattern 41",
+    kind: "image",
+    assetPath: "bgimg/41.png",
+    backgroundScale: 13,
+    backgroundSize: "280px auto",
+  },
+  {
+    id: "pattern-msedge",
+    label: "Pattern Edge",
+    kind: "image",
+    assetPath: "bgimg/msedge_OPfrmO0gAr.png",
+    backgroundScale: 13,
+    backgroundSize: "280px auto",
+  },
+];
+const DEFAULT_CANVAS_BACKGROUND_SKIN_ID = CANVAS_BACKGROUND_SKINS[0].id;
+const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
+  Boolean(import.meta.env.DEV)
+  || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
+  || (typeof window !== "undefined" && window.__AIRPASTE_PREVIEW_DEBUG === true)
+);
 
 function assetUrl(relativePath) {
   return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
+}
+
+function normalizeCanvasBackgroundSkinId(value) {
+  return CANVAS_BACKGROUND_SKINS.some((skin) => skin.id === value)
+    ? value
+    : DEFAULT_CANVAS_BACKGROUND_SKIN_ID;
 }
 
 function WorkspaceViewToggle({ mode, onChange }) {
@@ -74,21 +141,11 @@ function WorkspaceViewToggle({ mode, onChange }) {
       </AppButton>
       <AppButton tone="unstyled"
         type="button"
-        className={`workspace-view-toggle__button${mode === "globe" ? " workspace-view-toggle__button--active" : ""}`}
-        onClick={() => onChange("globe")}
-        aria-selected={mode === "globe"}
-        role="tab"
-        aria-label="Globe view"
-      >
-        <img className="workspace-view-toggle__icon" src={assetUrl("globe.svg")} alt="" aria-hidden="true" />
-      </AppButton>
-      <AppButton tone="unstyled"
-        type="button"
         className={`workspace-view-toggle__button${mode === "grid" ? " workspace-view-toggle__button--active" : ""}`}
         onClick={() => onChange("grid")}
         aria-selected={mode === "grid"}
         role="tab"
-        aria-label="Grid view"
+        aria-label="Tile view"
       >
         <img className="workspace-view-toggle__icon" src={assetUrl("icons/grid.png")} alt="" aria-hidden="true" />
       </AppButton>
@@ -146,6 +203,57 @@ function DrawingToolControls({
         />
       </label>
     </div>
+  );
+}
+
+function CanvasBackgroundSkinControl({ activeSkinId, onChange }) {
+  const activeSkin = CANVAS_BACKGROUND_SKINS.find((skin) => skin.id === activeSkinId)
+    ?? CANVAS_BACKGROUND_SKINS[0];
+
+  return (
+    <AppDropdownMenu>
+      <AppDropdownMenuTrigger asChild>
+        <AppButton
+          variant="default"
+          size="sm"
+          className="canvas-background-skin__trigger gap-2 px-3 font-medium"
+          title="Choose canvas background skin"
+        >
+          <span>Background</span>
+          <span className="canvas-background-skin__value">{activeSkin.label}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </AppButton>
+      </AppDropdownMenuTrigger>
+      <AppDropdownMenuContent className="w-56" align="center" side="top" sideOffset={8}>
+        <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
+          Canvas backgrounds
+        </AppDropdownMenuLabel>
+        <AppDropdownMenuSeparator />
+        {CANVAS_BACKGROUND_SKINS.map((skin) => (
+          <AppDropdownMenuItem
+            key={skin.id}
+            className="canvas-background-skin__item"
+            onSelect={() => onChange(skin.id)}
+          >
+            <span
+              className="canvas-background-skin__swatch"
+              style={{
+                backgroundImage: skin.kind === "image"
+                  ? `url("${assetUrl(skin.assetPath)}")`
+                  : "radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)",
+                backgroundSize: skin.kind === "image"
+                  ? skin.backgroundSize
+                  : "14px 14px",
+              }}
+            />
+            <span>{skin.label}</span>
+            {activeSkinId === skin.id ? <span className="ml-auto text-xs text-ap-text-secondary">Active</span> : null}
+          </AppDropdownMenuItem>
+        ))}
+      </AppDropdownMenuContent>
+    </AppDropdownMenu>
   );
 }
 
@@ -218,8 +326,23 @@ function buildPreviewDiagnosticsExport(card) {
     classification: diagnostics.classification || "",
     resolverKey: diagnostics.resolverKey || "",
     previewStatus: diagnostics.previewStatus || card?.status || "",
+    finalPreviewStatus: diagnostics.finalPreviewStatus || diagnostics.previewStatus || card?.status || "",
     reason: diagnostics.reason || card?.previewError || "",
     rejectionReason: diagnostics.rejectionReason || "",
+    urlNormalized: diagnostics.urlNormalized === true,
+    metadataFetchStatus: diagnostics.metadataFetchStatus || "",
+    openGraphStatus: diagnostics.openGraphStatus || "",
+    thumbnailStatus: diagnostics.thumbnailStatus || "",
+    embedAttempted: diagnostics.embedAttempted === true,
+    embedBlocked: diagnostics.embedBlocked === true,
+    embedBlockReason: diagnostics.embedBlockReason || "",
+    cookieWallDetected: diagnostics.cookieWallDetected === true,
+    loginWallDetected: diagnostics.loginWallDetected === true,
+    captchaDetected: diagnostics.captchaDetected === true,
+    fallbackUsed: diagnostics.fallbackUsed === true,
+    fallbackReason: diagnostics.fallbackReason || "",
+    errors: Array.isArray(diagnostics.errors) ? diagnostics.errors : [],
+    warnings: Array.isArray(diagnostics.warnings) ? diagnostics.warnings : [],
     title: diagnostics.title || card?.title || "",
     description: diagnostics.description || card?.description || "",
     siteName: diagnostics.siteName || card?.siteName || "",
@@ -234,10 +357,41 @@ function buildPreviewDiagnosticsExport(card) {
     allowScreenshotFallback: diagnostics.allowScreenshotFallback === true,
     screenshotFallbackUsed: diagnostics.screenshotFallbackUsed === true,
     documentSignals: diagnostics.documentSignals ?? {},
+    responseMeta: diagnostics.responseMeta ?? {},
     resolverMetadata: diagnostics.resolverMetadata ?? {},
     trace: Array.isArray(diagnostics.trace) ? diagnostics.trace : [],
     finalPersistedCardPayload,
   };
+}
+
+function buildPreviewCodexReport(card) {
+  const diagnostics = buildPreviewDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Link Tile Debug Report",
+    "",
+    "### URL",
+    diagnostics.canonicalUrl || diagnostics.originalUrl || card?.url || "",
+    "",
+    "### Tile",
+    `- Tile ID: ${card?.id || ""}`,
+    `- Detected type: ${diagnostics.contentType || card?.contentType || "link"}`,
+    `- Preview status: ${diagnostics.finalPreviewStatus || diagnostics.previewStatus || card?.status || ""}`,
+    diagnostics.fallbackReason ? `- Fallback reason: ${diagnostics.fallbackReason}` : "- Fallback reason: ",
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
+    "```",
+    "",
+    "### Console-Safe Errors/Warnings",
+    "```json",
+    JSON.stringify({
+      errors: diagnostics.errors,
+      warnings: diagnostics.warnings,
+    }, null, 2),
+    "```",
+  ].join("\n");
 }
 
 function areStyleVarSetsEqual(left, right) {
@@ -296,264 +450,6 @@ function areRenderHintsEqual(left, right) {
     && left.showActions === right.showActions
     && left.disableImageReveal === right.disableImageReveal
     && left.usePreviewColorBlock === right.usePreviewColorBlock;
-}
-
-const WINDOW_PALETTE_KEYS = Object.freeze([
-  "--ap-bg-page",
-  "--ap-bg-base",
-  "--ap-surface-default",
-  "--ap-surface-raised",
-  "--ap-surface-overlay",
-  "--ap-text-accent",
-  "--ap-icon-accent",
-  "--ap-border-focus",
-  "--ap-border-accent",
-  "--ap-interactive-bg-selected",
-  "--ap-interactive-text-selected",
-  "--ap-accent-bg",
-  "--ap-accent-bg-hover",
-  "--ap-accent-bg-active",
-  "--ap-accent-tint",
-  "--ap-accent-tint-hover",
-]);
-const DEFAULT_WINDOW_ACCENT = Object.freeze({ r: 93, g: 134, b: 229 });
-const TILE_TYPE_ACCENT = Object.freeze({
-  rack: { r: 163, g: 118, b: 84 },
-  folder: { r: 121, g: 150, b: 235 },
-  "amazon-product": { r: 226, g: 154, b: 58 },
-  link: { r: 93, g: 134, b: 229 },
-});
-const colorParseCanvas = typeof document !== "undefined" ? document.createElement("canvas") : null;
-const colorParseContext = colorParseCanvas ? colorParseCanvas.getContext("2d") : null;
-
-function clampChannel(value) {
-  const numeric = Number.isFinite(value) ? value : 0;
-  return Math.max(0, Math.min(255, Math.round(numeric)));
-}
-
-function formatRgb(color) {
-  return `rgb(${clampChannel(color.r)} ${clampChannel(color.g)} ${clampChannel(color.b)})`;
-}
-
-function formatRgba(color, alpha) {
-  return `rgba(${clampChannel(color.r)}, ${clampChannel(color.g)}, ${clampChannel(color.b)}, ${Math.max(0, Math.min(1, alpha))})`;
-}
-
-function parseCssColorToRgb(input) {
-  if (typeof input !== "string" || input.trim().length === 0 || !colorParseContext) {
-    return null;
-  }
-
-  try {
-    colorParseContext.fillStyle = "#000";
-    colorParseContext.fillStyle = input.trim();
-    const normalized = String(colorParseContext.fillStyle).trim();
-    const hexMatch = normalized.match(/^#([0-9a-f]{6})$/i);
-    if (hexMatch) {
-      const value = hexMatch[1];
-      return {
-        r: Number.parseInt(value.slice(0, 2), 16),
-        g: Number.parseInt(value.slice(2, 4), 16),
-        b: Number.parseInt(value.slice(4, 6), 16),
-      };
-    }
-
-    const rgbMatch = normalized.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-    if (rgbMatch) {
-      return {
-        r: Number.parseInt(rgbMatch[1], 10),
-        g: Number.parseInt(rgbMatch[2], 10),
-        b: Number.parseInt(rgbMatch[3], 10),
-      };
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function mixColor(left, right, rightWeight) {
-  const weight = Math.max(0, Math.min(1, rightWeight));
-  return {
-    r: left.r + ((right.r - left.r) * weight),
-    g: left.g + ((right.g - left.g) * weight),
-    b: left.b + ((right.b - left.b) * weight),
-  };
-}
-
-function getFallbackAccentForTile(tile) {
-  const byType = tile?.type ? TILE_TYPE_ACCENT[tile.type] : null;
-  return byType ?? DEFAULT_WINDOW_ACCENT;
-}
-
-function getPaletteImageCandidate(tile) {
-  if (!tile || typeof tile !== "object") {
-    return "";
-  }
-
-  if (typeof tile.image === "string" && tile.image.trim().length > 0) {
-    return tile.image.trim();
-  }
-
-  const diagnostics = tile.previewDiagnostics && typeof tile.previewDiagnostics === "object"
-    ? tile.previewDiagnostics
-    : null;
-  if (typeof diagnostics?.chosenFinalImageUrl === "string" && diagnostics.chosenFinalImageUrl.trim().length > 0) {
-    return diagnostics.chosenFinalImageUrl.trim();
-  }
-
-  if (Array.isArray(diagnostics?.candidateImageUrls)) {
-    const firstCandidate = diagnostics.candidateImageUrls.find((value) => typeof value === "string" && value.trim().length > 0);
-    if (firstCandidate) {
-      return firstCandidate.trim();
-    }
-  }
-
-  return "";
-}
-
-async function sampleImageColor(source) {
-  if (typeof source !== "string" || source.trim().length === 0 || typeof Image === "undefined") {
-    return null;
-  }
-
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.decoding = "async";
-
-    image.onload = () => {
-      if (!image.naturalWidth || !image.naturalHeight) {
-        resolve(null);
-        return;
-      }
-
-      try {
-        const sampleCanvas = document.createElement("canvas");
-        const sampleSize = 12;
-        sampleCanvas.width = sampleSize;
-        sampleCanvas.height = sampleSize;
-        const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
-        if (!sampleContext) {
-          resolve(null);
-          return;
-        }
-
-        sampleContext.drawImage(image, 0, 0, sampleSize, sampleSize);
-        const imageData = sampleContext.getImageData(0, 0, sampleSize, sampleSize).data;
-        let red = 0;
-        let green = 0;
-        let blue = 0;
-        let alphaSum = 0;
-
-        for (let index = 0; index < imageData.length; index += 4) {
-          const alpha = imageData[index + 3] / 255;
-          if (alpha <= 0.04) {
-            continue;
-          }
-
-          red += imageData[index] * alpha;
-          green += imageData[index + 1] * alpha;
-          blue += imageData[index + 2] * alpha;
-          alphaSum += alpha;
-        }
-
-        if (alphaSum <= 0) {
-          resolve(null);
-          return;
-        }
-
-        resolve({
-          r: red / alphaSum,
-          g: green / alphaSum,
-          b: blue / alphaSum,
-        });
-      } catch {
-        resolve(null);
-      }
-    };
-
-    image.onerror = () => resolve(null);
-    image.src = source.trim();
-  });
-}
-
-async function resolveTilePaletteSource(tile, folderPath) {
-  const directCandidate = getPaletteImageCandidate(tile);
-  if (directCandidate) {
-    return directCandidate;
-  }
-
-  if (
-    typeof folderPath === "string"
-    && folderPath.trim().length > 0
-    && typeof tile?.asset?.relativePath === "string"
-    && tile.asset.relativePath.trim().length > 0
-  ) {
-    try {
-      const resolvedAsset = await desktop.workspace.resolveAssetUrl(
-        folderPath,
-        tile.asset.relativePath,
-      );
-      if (typeof resolvedAsset === "string" && resolvedAsset.trim().length > 0) {
-        return resolvedAsset.trim();
-      }
-    } catch {
-      return "";
-    }
-  }
-
-  return "";
-}
-
-function readWindowPaletteVars(rootElement) {
-  const computedStyles = window.getComputedStyle(rootElement);
-  return WINDOW_PALETTE_KEYS.reduce((allVars, key) => {
-    allVars[key] = computedStyles.getPropertyValue(key).trim();
-    return allVars;
-  }, {});
-}
-
-function applyWindowPaletteVars(rootElement, vars) {
-  WINDOW_PALETTE_KEYS.forEach((key) => {
-    const value = vars?.[key];
-    if (typeof value === "string" && value.trim().length > 0) {
-      rootElement.style.setProperty(key, value);
-    } else {
-      rootElement.style.removeProperty(key);
-    }
-  });
-}
-
-function buildWindowPaletteVars(accentColor) {
-  const accent = parseCssColorToRgb(formatRgb(accentColor)) ?? DEFAULT_WINDOW_ACCENT;
-  const white = { r: 255, g: 255, b: 255 };
-  const black = { r: 0, g: 0, b: 0 };
-
-  const surfaceBase = mixColor(accent, white, 0.94);
-  const accentHover = mixColor(accent, white, 0.1);
-  const accentActive = mixColor(accent, black, 0.14);
-  const textAccent = mixColor(accent, black, 0.26);
-
-  return {
-    "--ap-bg-page": formatRgb(mixColor(accent, white, 0.95)),
-    "--ap-bg-base": formatRgb(mixColor(accent, white, 0.93)),
-    "--ap-surface-default": formatRgb(surfaceBase),
-    "--ap-surface-raised": formatRgb(mixColor(accent, white, 0.965)),
-    "--ap-surface-overlay": formatRgb(mixColor(accent, white, 0.975)),
-    "--ap-text-accent": formatRgb(textAccent),
-    "--ap-icon-accent": formatRgb(textAccent),
-    "--ap-border-focus": formatRgb(mixColor(accent, white, 0.2)),
-    "--ap-border-accent": formatRgb(mixColor(accent, white, 0.14)),
-    "--ap-interactive-bg-selected": formatRgb(mixColor(accent, white, 0.8)),
-    "--ap-interactive-text-selected": formatRgb(mixColor(accent, black, 0.32)),
-    "--ap-accent-bg": formatRgb(accent),
-    "--ap-accent-bg-hover": formatRgb(accentHover),
-    "--ap-accent-bg-active": formatRgb(accentActive),
-    "--ap-accent-tint": formatRgba(accent, 0.16),
-    "--ap-accent-tint-hover": formatRgba(accent, 0.26),
-  };
 }
 
 function CanvasPerformanceOverlay({
@@ -755,14 +651,13 @@ function CanvasPerformanceOverlay({
 
 export default function CanvasWorkspaceView() {
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
+  const [canvasBackgroundSkinId, setCanvasBackgroundSkinId] = useState(DEFAULT_CANVAS_BACKGROUND_SKIN_ID);
   const previousBoardSnapshotRef = useRef(null);
   const tileMetaCacheRef = useRef(new Map());
   const tileRenderHintCacheRef = useRef(new Map());
   const lodFrozenZoomRef = useRef(1);
   const lodFreezeActiveRef = useRef(false);
   const workspaceLodLevelRef = useRef(WORKSPACE_LOD_LEVEL.NORMAL);
-  const windowPaletteDefaultsRef = useRef(null);
-  const sampledTilePaletteBySourceRef = useRef(new Map());
   const {
     canRedo,
     canUndo,
@@ -778,23 +673,24 @@ export default function CanvasWorkspaceView() {
     setViewport,
     setWorkspaceView,
     showHome,
+    canvasClipboard,
     redoWorkspaceChange,
     undoWorkspaceChange,
     workspace,
+    commitWorkspaceChangeForPath,
     createNewLinkCard,
     createNewRackCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
+    setCanvasClipboard,
     updateExistingCard,
     updateExistingCards,
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
-  const [globeVisibleTileCount, setGlobeVisibleTileCount] = useState(0);
   const [cullingTick, setCullingTick] = useState(0);
   const workspaceView = workspace.view ?? { mode: "flat" };
-  const isGlobeMode = workspaceView.mode === "globe";
   const isGridMode = workspaceView.mode === "grid";
   const sceneSurfaceEnabled = useMemo(() => {
     if (typeof window === "undefined") {
@@ -814,7 +710,7 @@ export default function CanvasWorkspaceView() {
     drawings: workspace.drawings,
     canvas,
     commitWorkspaceChange,
-    enabled: !isGridMode && !isGlobeMode,
+    enabled: !isGridMode,
   });
   const clearDraftLine = drawingTool.clearDraftLine;
   const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
@@ -843,6 +739,13 @@ export default function CanvasWorkspaceView() {
     commands,
     folderPath,
     log,
+    resolveDropPoint: (capturedPayload) => {
+      if (isGridMode) {
+        return canvas.getViewportCenter();
+      }
+
+      return canvas.clientToWorldPoint(capturedPayload.clientPoint.x, capturedPayload.clientPoint.y);
+    },
     toast,
   });
 
@@ -864,35 +767,208 @@ export default function CanvasWorkspaceView() {
     setSnapSettings(normalizeCanvasSnapSettings(homeData?.uiState));
   }, [homeData?.uiState]);
 
+  useEffect(() => {
+    setCanvasBackgroundSkinId(normalizeCanvasBackgroundSkinId(homeData?.uiState?.canvasBackgroundSkin));
+  }, [homeData?.uiState]);
+
+  const selectedCanvasBackgroundSkin = useMemo(() => (
+    CANVAS_BACKGROUND_SKINS.find((skin) => skin.id === canvasBackgroundSkinId) ?? CANVAS_BACKGROUND_SKINS[0]
+  ), [canvasBackgroundSkinId]);
+
+  const buildCanvasClipboardPayload = useCallback((mode) => {
+    if (interactions.selectedTileIds.length === 0) {
+      return null;
+    }
+
+    const payload = createCanvasSelectionClipboardPayload(
+      getWorkspaceActivePage(workspace),
+      interactions.selectedTileIds,
+    );
+
+    if (!payload) {
+      return null;
+    }
+
+    return {
+      ...payload,
+      mode,
+      pasteCount: 0,
+      sourceFilePath: currentEditor.filePath,
+      sourcePageId: workspace.activePageId,
+      sourceTileIds: [...interactions.selectedTileIds],
+    };
+  }, [currentEditor.filePath, interactions.selectedTileIds, workspace]);
+
+  const copySelectedCanvasSelection = useCallback(() => {
+    const payload = buildCanvasClipboardPayload("copy");
+
+    if (!payload) {
+      return false;
+    }
+
+    setCanvasClipboard(payload);
+
+    log("info", "Copied selected canvas items", {
+      tileCount: payload.tiles.length,
+      edgeCount: payload.edges.length,
+      groupCount: payload.groups.length,
+    });
+    toast("success", payload.tiles.length === 1 ? "1 item copied." : `${payload.tiles.length} items copied.`);
+    return true;
+  }, [buildCanvasClipboardPayload, log, setCanvasClipboard, toast]);
+
+  const cutSelectedCanvasSelection = useCallback(() => {
+    const payload = buildCanvasClipboardPayload("cut");
+
+    if (!payload) {
+      return false;
+    }
+
+    setCanvasClipboard(payload);
+
+    log("info", "Cut selected canvas items", {
+      tileCount: payload.tiles.length,
+      edgeCount: payload.edges.length,
+      groupCount: payload.groups.length,
+    });
+    toast("info", payload.tiles.length === 1 ? "1 item marked for cut." : `${payload.tiles.length} items marked for cut.`);
+    return true;
+  }, [buildCanvasClipboardPayload, log, setCanvasClipboard, toast]);
+
+  const pasteCanvasSelection = useCallback((event = null) => {
+    if (!canvasClipboard?.tiles?.length) {
+      return false;
+    }
+
+    const nextPasteCount = Math.max(0, Number(canvasClipboard.pasteCount) || 0) + 1;
+    const offset = 24 * nextPasteCount;
+    const pastedSelection = pasteCanvasSelectionClipboardPayload(canvasClipboard, {
+      offsetX: offset,
+      offsetY: offset,
+    });
+
+    if (!pastedSelection?.tiles?.length) {
+      return false;
+    }
+
+    if (event?.preventDefault) {
+      event.preventDefault();
+    }
+
+    const isCutPaste = canvasClipboard.mode === "cut";
+    const sourceFileMatches = canvasClipboard.sourceFilePath === currentEditor.filePath;
+    const sourceTileIds = Array.isArray(canvasClipboard.sourceTileIds) ? canvasClipboard.sourceTileIds : [];
+
+    if (isCutPaste && !sourceFileMatches) {
+      commitWorkspaceChangeForPath(canvasClipboard.sourceFilePath, (current) => ({
+        ...current,
+        pages: current.pages.map((page) => (
+          page.id === canvasClipboard.sourcePageId
+            ? {
+              ...page,
+              cards: sourceTileIds.reduce((nextCards, tileId) => removeCard(nextCards, tileId), page.cards),
+              edges: removeStructuredEntriesForTileIds(page.edges, sourceTileIds),
+              groups: removeStructuredEntriesForTileIds(page.groups, sourceTileIds),
+            }
+            : page
+        )),
+      }));
+    }
+
+    commitWorkspaceChange((current) => {
+      const activePage = getWorkspaceActivePage(current);
+
+      return {
+        ...current,
+        activePageId: activePage.id,
+        pages: current.pages.map((page) => {
+          const isSourcePage = isCutPaste
+            && sourceFileMatches
+            && page.id === canvasClipboard.sourcePageId;
+          const basePage = isSourcePage
+            ? {
+              ...page,
+              cards: sourceTileIds.reduce((nextCards, tileId) => removeCard(nextCards, tileId), page.cards),
+              edges: removeStructuredEntriesForTileIds(page.edges, sourceTileIds),
+              groups: removeStructuredEntriesForTileIds(page.groups, sourceTileIds),
+            }
+            : page;
+
+          if (page.id !== activePage.id) {
+            return basePage;
+          }
+
+          return {
+            ...basePage,
+            cards: [...basePage.cards, ...pastedSelection.tiles],
+            edges: [...(Array.isArray(basePage.edges) ? basePage.edges : []), ...pastedSelection.edges],
+            groups: [...(Array.isArray(basePage.groups) ? basePage.groups : []), ...pastedSelection.groups],
+          };
+        }),
+      };
+    });
+
+    setCanvasClipboard(
+      canvasClipboard.mode === "cut"
+        ? null
+        : {
+          ...canvasClipboard,
+          pasteCount: nextPasteCount,
+        },
+    );
+    interactions.replaceSelection(pastedSelection.newTileIds);
+    interactions.closeContextMenu();
+
+    log("info", "Pasted canvas items into active page", {
+      tileCount: pastedSelection.tiles.length,
+      edgeCount: pastedSelection.edges.length,
+      groupCount: pastedSelection.groups.length,
+      pageId: workspace.activePageId,
+      pasteCount: nextPasteCount,
+      mode: canvasClipboard.mode ?? "copy",
+    });
+    toast("success", pastedSelection.tiles.length === 1 ? "1 item pasted." : `${pastedSelection.tiles.length} items pasted.`);
+    return true;
+  }, [
+    canvasClipboard,
+    commitWorkspaceChange,
+    commitWorkspaceChangeForPath,
+    currentEditor.filePath,
+    interactions,
+    log,
+    setCanvasClipboard,
+    toast,
+    workspace.activePageId,
+  ]);
+
   const handleWorkspacePaste = useCallback(async (event) => {
     if (isEditableElement(document.activeElement)) {
       return;
     }
 
+    if (pasteCanvasSelection(event)) {
+      return;
+    }
+
     await commands.pasteFromClipboard(event);
-  }, [commands]);
+  }, [commands, pasteCanvasSelection]);
 
   useEffect(() => {
     document.addEventListener("paste", handleWorkspacePaste, true);
     return () => document.removeEventListener("paste", handleWorkspacePaste, true);
   }, [handleWorkspacePaste]);
 
-  useEffect(() => {
-    const rootElement = document.documentElement;
-    if (!rootElement) {
-      return undefined;
+  const cutSourceTileIdSet = useMemo(() => {
+    if (
+      canvasClipboard?.mode !== "cut"
+      || canvasClipboard.sourceFilePath !== currentEditor.filePath
+      || canvasClipboard.sourcePageId !== workspace.activePageId
+    ) {
+      return new Set();
     }
 
-    if (!windowPaletteDefaultsRef.current) {
-      windowPaletteDefaultsRef.current = readWindowPaletteVars(rootElement);
-    }
-
-    return () => {
-      if (windowPaletteDefaultsRef.current) {
-        applyWindowPaletteVars(rootElement, windowPaletteDefaultsRef.current);
-      }
-    };
-  }, []);
+    return new Set(Array.isArray(canvasClipboard.sourceTileIds) ? canvasClipboard.sourceTileIds : []);
+  }, [canvasClipboard, currentEditor.filePath, workspace.activePageId]);
 
   const filteredTiles = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -914,14 +990,6 @@ export default function CanvasWorkspaceView() {
     });
     return nextTileById;
   }, [workspace.cards]);
-  const selectedTileForWindowPalette = useMemo(() => {
-    if (interactions.selectedTileIds.length === 0) {
-      return null;
-    }
-
-    const mostRecentlySelectedTileId = interactions.selectedTileIds[interactions.selectedTileIds.length - 1];
-    return tileById[mostRecentlySelectedTileId] ?? null;
-  }, [interactions.selectedTileIds, tileById]);
   const draggingTileIdSet = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextDraggingTileIdSet = new Set(interactions.draggingTileIds);
@@ -935,58 +1003,7 @@ export default function CanvasWorkspaceView() {
   const liveViewport = canvas.getViewportSnapshot();
 
   useEffect(() => {
-    const rootElement = document.documentElement;
-    if (!rootElement) {
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    const applyPalette = async () => {
-      if (!selectedTileForWindowPalette) {
-        if (windowPaletteDefaultsRef.current) {
-          applyWindowPaletteVars(rootElement, windowPaletteDefaultsRef.current);
-        }
-        return;
-      }
-
-      const fallbackAccent = getFallbackAccentForTile(selectedTileForWindowPalette);
-      let sampledAccent = fallbackAccent;
-      const imageSource = await resolveTilePaletteSource(selectedTileForWindowPalette, folderPath);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (imageSource) {
-        if (sampledTilePaletteBySourceRef.current.has(imageSource)) {
-          sampledAccent = sampledTilePaletteBySourceRef.current.get(imageSource) ?? fallbackAccent;
-        } else {
-          const sampledColor = await sampleImageColor(imageSource);
-          if (cancelled) {
-            return;
-          }
-
-          if (sampledColor) {
-            sampledAccent = sampledColor;
-            sampledTilePaletteBySourceRef.current.set(imageSource, sampledColor);
-          }
-        }
-      }
-
-      const nextPalette = buildWindowPaletteVars(sampledAccent ?? fallbackAccent);
-      applyWindowPaletteVars(rootElement, nextPalette);
-    };
-
-    void applyPalette();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [folderPath, selectedTileForWindowPalette]);
-
-  useEffect(() => {
-    if (isGridMode || isGlobeMode) {
+    if (isGridMode) {
       return undefined;
     }
 
@@ -1013,7 +1030,7 @@ export default function CanvasWorkspaceView() {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [isCanvasMoving, isGlobeMode, isGridMode]);
+  }, [isCanvasMoving, isGridMode]);
 
   useEffect(() => {
     setCanvasInteractionState?.(isCanvasMoving);
@@ -1023,7 +1040,7 @@ export default function CanvasWorkspaceView() {
   }, [isCanvasMoving, setCanvasInteractionState]);
 
   const visibleWorldRect = useMemo(() => {
-    if (isGridMode || isGlobeMode) {
+    if (isGridMode) {
       return null;
     }
 
@@ -1034,7 +1051,7 @@ export default function CanvasWorkspaceView() {
     const cullingSampleOffset = cullingTick < 0 ? 1 : 0;
 
     return canvas.getVisibleWorldRect(overscan + cullingSampleOffset);
-  }, [canvas, cullingTick, isCanvasMoving, isGlobeMode, isGridMode, liveViewport.zoom]);
+  }, [canvas, cullingTick, isCanvasMoving, isGridMode, liveViewport.zoom]);
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
@@ -1069,7 +1086,7 @@ export default function CanvasWorkspaceView() {
     interactions.selectedTileIds,
   ]);
   const workspaceLodLevel = useMemo(() => {
-    if (isGridMode || isGlobeMode) {
+    if (isGridMode) {
       return WORKSPACE_LOD_LEVEL.NORMAL;
     }
 
@@ -1080,7 +1097,6 @@ export default function CanvasWorkspaceView() {
       previousLevel: workspaceLodLevelRef.current,
     });
   }, [
-    isGlobeMode,
     isGridMode,
     layout.rootTiles.length,
     layout.visibleTileCount,
@@ -1100,9 +1116,19 @@ export default function CanvasWorkspaceView() {
     layout.rootTiles.forEach((tile) => {
       const nextMeta = layout.tileMetaById[tile.id];
       const previousMeta = previousCache.get(tile.id);
-      const stableMeta = previousMeta && areTileMetaEquivalent(previousMeta, nextMeta)
-        ? previousMeta
+      const nextMetaWithClipboardState = nextMeta
+        ? {
+          ...nextMeta,
+          isClipboardCutSource: cutSourceTileIdSet.has(tile.id),
+          styleVars: {
+            ...(nextMeta.styleVars ?? {}),
+            "--tile-clipboard-opacity": cutSourceTileIdSet.has(tile.id) ? "0.5" : "1",
+          },
+        }
         : nextMeta;
+      const stableMeta = previousMeta && areTileMetaEquivalent(previousMeta, nextMetaWithClipboardState)
+        ? previousMeta
+        : nextMetaWithClipboardState;
 
       nextCache.set(tile.id, stableMeta);
       nextTileMetaById[tile.id] = stableMeta;
@@ -1110,7 +1136,7 @@ export default function CanvasWorkspaceView() {
 
     tileMetaCacheRef.current = nextCache;
     return nextTileMetaById;
-  }, [layout.rootTiles, layout.tileMetaById]);
+  }, [cutSourceTileIdSet, layout.rootTiles, layout.tileMetaById]);
   const tileRenderHintsById = useMemo(() => {
     const previousCache = tileRenderHintCacheRef.current;
     const nextCache = new Map();
@@ -1200,6 +1226,28 @@ export default function CanvasWorkspaceView() {
     interactions.handleCanvasPointerDown(event);
   }, [interactions]);
 
+  useEffect(() => {
+    if (
+      interactions.draggingTileIds.length === 0
+      || canvasClipboard?.mode !== "cut"
+      || canvasClipboard.sourceFilePath !== currentEditor.filePath
+      || canvasClipboard.sourcePageId !== workspace.activePageId
+    ) {
+      return;
+    }
+
+    if (interactions.draggingTileIds.some((tileId) => cutSourceTileIdSet.has(tileId))) {
+      setCanvasClipboard(null);
+    }
+  }, [
+    canvasClipboard,
+    currentEditor.filePath,
+    cutSourceTileIdSet,
+    interactions.draggingTileIds,
+    setCanvasClipboard,
+    workspace.activePageId,
+  ]);
+
   const handleSceneBackgroundContextMenu = useCallback((event) => {
     interactions.handleCanvasContextMenu(event);
   }, [interactions]);
@@ -1218,101 +1266,12 @@ export default function CanvasWorkspaceView() {
         return { ...(currentView ?? {}), mode: "grid" };
       }
 
-      const nextMode = mode === "globe" ? "globe" : "flat";
-
-      if (nextMode === "globe") {
-        const globeRadius = getSoftGlobeRadius(filteredTiles.length);
-        const minimumCameraDistance = getDefaultCameraDistance(globeRadius);
-
-        return {
-          ...(currentView ?? {}),
-          mode: "globe",
-          globeRadius,
-          yaw: Number.isFinite(currentView?.yaw) ? currentView.yaw : 0,
-          pitch: Number.isFinite(currentView?.pitch) ? currentView.pitch : 0,
-          cameraDistance: clamp(
-            Number.isFinite(currentView?.cameraDistance) ? currentView.cameraDistance : minimumCameraDistance,
-            minimumCameraDistance,
-            Math.max(minimumCameraDistance + 1200, globeRadius * 4.2),
-          ),
-          focusedTileId: typeof currentView?.focusedTileId === "string" ? currentView.focusedTileId : null,
-        };
-      }
-
       return {
         ...(currentView ?? {}),
         mode: "flat",
       };
     });
-  }, [filteredTiles.length, setWorkspaceView]);
-
-  const globeRadius = workspaceView.globeRadius ?? getSoftGlobeRadius(filteredTiles.length);
-  const globeMinimumCameraDistance = getDefaultCameraDistance(globeRadius);
-  const globeMaximumCameraDistance = Math.max(globeMinimumCameraDistance + 1200, globeRadius * 4.2);
-  const globeZoomValue = clamp(globeMinimumCameraDistance / Math.max(globeMinimumCameraDistance, workspaceView.cameraDistance ?? globeMinimumCameraDistance), 0.35, 1.8);
-
-  const handleGlobeZoomIn = useCallback(() => {
-    setWorkspaceView((currentView) => ({
-      ...(currentView ?? {}),
-      cameraDistance: clamp(
-        (currentView?.cameraDistance ?? globeMinimumCameraDistance) / 1.18,
-        globeMinimumCameraDistance,
-        globeMaximumCameraDistance,
-      ),
-    }));
-  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
-
-  const handleGlobeZoomOut = useCallback(() => {
-    setWorkspaceView((currentView) => ({
-      ...(currentView ?? {}),
-      cameraDistance: clamp(
-        (currentView?.cameraDistance ?? globeMinimumCameraDistance) * 1.18,
-        globeMinimumCameraDistance,
-        globeMaximumCameraDistance,
-      ),
-    }));
-  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
-
-  const handleGlobeSetZoom = useCallback((nextZoom) => {
-    setWorkspaceView((currentView) => ({
-      ...(currentView ?? {}),
-      cameraDistance: clamp(
-        globeMinimumCameraDistance / Math.max(0.2, nextZoom),
-        globeMinimumCameraDistance,
-        globeMaximumCameraDistance,
-      ),
-    }));
-  }, [globeMaximumCameraDistance, globeMinimumCameraDistance, setWorkspaceView]);
-
-  const handleGlobeZoomToFitAll = useCallback(() => {
-    setWorkspaceView((currentView) => ({
-      ...(currentView ?? {}),
-      focusedTileId: null,
-      cameraDistance: globeMinimumCameraDistance,
-    }));
-  }, [globeMinimumCameraDistance, setWorkspaceView]);
-
-  const copySelectedBookmarkLink = useCallback(async () => {
-    if (interactions.selectedTileIds.length !== 1) {
-      return false;
-    }
-
-    const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
-
-    if (!isBookmarkLinkCard(selectedTile) || !selectedTile.url) {
-      return false;
-    }
-
-    try {
-      await copyTextToClipboard(selectedTile.url);
-      toast("success", "Link copied");
-      return true;
-    } catch (error) {
-      log("error", "Copy link failed", error?.message || "Could not copy link.");
-      toast("error", "Could not copy link");
-      return false;
-    }
-  }, [interactions.selectedTileIds, log, tileById, toast]);
+  }, [setWorkspaceView]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -1334,14 +1293,24 @@ export default function CanvasWorkspaceView() {
 
       if (activeElementIsEditable) return;
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && !activeElementIsEditable) {
-        const selectedTile = interactions.selectedTileIds.length === 1
-          ? tileById[interactions.selectedTileIds[0]] ?? null
-          : null;
-
-        if (isBookmarkLinkCard(selectedTile) && selectedTile.url) {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c") {
+        if (interactions.selectedTileIds.length > 0) {
           event.preventDefault();
-          void copySelectedBookmarkLink();
+          copySelectedCanvasSelection();
+          return;
+        }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "x") {
+        if (interactions.selectedTileIds.length > 0) {
+          event.preventDefault();
+          cutSelectedCanvasSelection();
+          return;
+        }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v") {
+        if (pasteCanvasSelection(event)) {
           return;
         }
       }
@@ -1385,41 +1354,25 @@ export default function CanvasWorkspaceView() {
 
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
-        if (isGlobeMode) {
-          handleGlobeZoomIn();
-        } else {
-          canvas.zoomIn();
-        }
+        canvas.zoomIn();
         return;
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key === "-") {
         event.preventDefault();
-        if (isGlobeMode) {
-          handleGlobeZoomOut();
-        } else {
-          canvas.zoomOut();
-        }
+        canvas.zoomOut();
         return;
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key === "0") {
         event.preventDefault();
-        if (isGlobeMode) {
-          handleGlobeZoomToFitAll();
-        } else {
-          canvas.setZoom(1);
-        }
+        canvas.setZoom(1);
         return;
       }
 
       if (event.shiftKey && event.key === "1") {
         event.preventDefault();
-        if (isGlobeMode) {
-          handleGlobeZoomToFitAll();
-        } else {
-          zoomToFitAll();
-        }
+        zoomToFitAll();
       }
     }
 
@@ -1430,24 +1383,20 @@ export default function CanvasWorkspaceView() {
     canRedo,
     canUndo,
     commands,
-    handleGlobeZoomIn,
-    handleGlobeZoomOut,
-    handleGlobeZoomToFitAll,
     interactions,
-    isGlobeMode,
     clearDraftLine,
+    copySelectedCanvasSelection,
+    cutSelectedCanvasSelection,
     deleteSelectedDrawingObject,
+    pasteCanvasSelection,
     redoWorkspaceChange,
-    copySelectedBookmarkLink,
     tileById,
     undoWorkspaceChange,
     zoomToFitAll,
   ]);
 
   const totalTileCount = workspace.cards.length;
-  const visibleTileCount = isGlobeMode
-    ? globeVisibleTileCount
-    : (layout.visibleTileCount ?? layout.rootTiles.length);
+  const visibleTileCount = layout.visibleTileCount ?? layout.rootTiles.length;
   const renderedTileCount = layout.rootTiles.length;
   const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
   const canvasName = currentEditor.name || "Canvas";
@@ -1456,13 +1405,6 @@ export default function CanvasWorkspaceView() {
     sceneSurfaceEnabled: useSceneSurface,
     workspaceLodLevel,
   }), [isCanvasMoving, useSceneSurface, workspaceLodLevel]);
-  const miniHintViewportSize = useMemo(() => (
-    Math.round(16 * clamp(1 / Math.max(0.35, viewportZoomForRender), 0.4, 1))
-  ), [viewportZoomForRender]);
-  const miniHintZoomPercent = useMemo(() => (
-    Math.round(viewportZoomForRender * 100)
-  ), [viewportZoomForRender]);
-
   const boardSnapshot = useMemo(() => ({
     surfaceRenderer: useSceneSurface ? "scene" : "dom",
     workspaceLodLevel,
@@ -1472,7 +1414,6 @@ export default function CanvasWorkspaceView() {
     filteredTileCount: filteredTiles.length,
     visibleTileCount,
     renderedTileCount,
-    globeVisibleTileCount: isGlobeMode ? globeVisibleTileCount : null,
     selectedCount: interactions.selectedTileIds.length,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
@@ -1485,12 +1426,10 @@ export default function CanvasWorkspaceView() {
     isPanning: canvas.isPanning,
     isDropTarget: dropImport.isDropTarget,
     snapEnabled: snapSettings.enabled,
-    globeCameraDistance: isGlobeMode ? Math.round(workspaceView.cameraDistance ?? 0) : null,
   }), [
     canvas.isPanning,
     dropImport.isDropTarget,
     filteredTiles.length,
-    globeVisibleTileCount,
     interactions.draggingTileIds.length,
     interactions.dragVisualDelta,
     interactions.focusedTileId,
@@ -1498,14 +1437,12 @@ export default function CanvasWorkspaceView() {
     interactions.marqueeBox,
     interactions.rackDropPreview?.rackId,
     interactions.selectedTileIds.length,
-    isGlobeMode,
     liveViewport.x,
     liveViewport.y,
     liveViewport.zoom,
     renderedTileCount,
     snapSettings.enabled,
     visibleTileCount,
-    workspaceView.cameraDistance,
     workspaceView.mode,
     useSceneSurface,
     workspaceLodLevel,
@@ -1565,6 +1502,16 @@ export default function CanvasWorkspaceView() {
     });
   }, [log, saveHomeUiState, toast]);
 
+  const updateCanvasBackgroundSkin = useCallback((nextSkinId) => {
+    const normalizedSkinId = normalizeCanvasBackgroundSkinId(nextSkinId);
+    setCanvasBackgroundSkinId(normalizedSkinId);
+    void saveHomeUiState({ canvasBackgroundSkin: normalizedSkinId }).catch((error) => {
+      const message = error?.message || "Unable to save the canvas background skin.";
+      log("error", "Canvas background skin save failed", message);
+      toast("error", message);
+    });
+  }, [log, saveHomeUiState, toast]);
+
   const radialMenu = interactions.contextMenu;
   const recoverablePreviewTiles = useMemo(
     () => workspace.cards.filter((card) => shouldRecoverLinkPreviewCard(card)),
@@ -1575,7 +1522,8 @@ export default function CanvasWorkspaceView() {
     : null;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
-  const canCopyPreviewDiagnostics = isBookmarkLinkCard(activeContextTile);
+  const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && isBookmarkLinkCard(activeContextTile);
+  const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && isBookmarkLinkCard(activeContextTile);
 
   const handleRadialFolder = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -1652,6 +1600,23 @@ export default function CanvasWorkspaceView() {
     }
   }, [activeContextTile, canCopyPreviewDiagnostics, log, toast]);
 
+  const handleCopyPreviewCodexReport = useCallback(async () => {
+    if (!canCopyPreviewCodexReport || !activeContextTile) {
+      return false;
+    }
+
+    try {
+      const report = buildPreviewCodexReport(activeContextTile);
+      await copyTextToClipboard(report);
+      toast("success", "Codex report copied");
+      return true;
+    } catch (error) {
+      log("error", "Copy Codex report failed", error?.message || "Could not copy Codex report.");
+      toast("error", "Could not copy Codex report");
+      return false;
+    }
+  }, [activeContextTile, canCopyPreviewCodexReport, log, toast]);
+
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
     snapEnabled: snapSettings.enabled,
@@ -1659,8 +1624,10 @@ export default function CanvasWorkspaceView() {
     failedPreviewRefreshCount: radialMenu?.kind === "canvas" ? recoverablePreviewTiles.length : 0,
     showSinglePreviewRefresh: radialMenu?.kind === "tile" && canShowRefreshPreviewAction,
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
+    showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     handlers: {
+      onCopyCodexReport: handleCopyPreviewCodexReport,
       onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
       onRefreshFailedPreviews: handleRefreshFailedPreviews,
       onRefreshPreview: handleRefreshTilePreview,
@@ -1678,9 +1645,11 @@ export default function CanvasWorkspaceView() {
     handleRadialFolder,
     handleRadialLink,
     handleRadialRack,
+    handleCopyPreviewCodexReport,
     handleCopyPreviewDiagnostics,
     handleRefreshFailedPreviews,
     handleRefreshTilePreview,
+    canCopyPreviewCodexReport,
     canCopyPreviewDiagnostics,
     canShowRefreshPreviewAction,
     activeContextTile,
@@ -1708,6 +1677,8 @@ export default function CanvasWorkspaceView() {
           onOpenWorkspaceFolder={commands.openWorkspaceFolder}
         />
         <GridWorkspaceView
+          dropImport={dropImport}
+          isDropTarget={dropImport.isDropTarget}
           openTileLink={commands.openTileLink}
           updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
           retryTilePreview={commands.retryTilePreview}
@@ -1723,14 +1694,14 @@ export default function CanvasWorkspaceView() {
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
           <CanvasZoomMenu
-            zoom={isGlobeMode ? globeZoomValue : viewportZoomForRender}
-            canFitAll={isGlobeMode ? filteredTiles.length > 0 : Boolean(layout.allTilesBounds)}
-            canFitSelection={!isGlobeMode && Boolean(layout.selectedTilesBounds)}
-            onZoomIn={isGlobeMode ? handleGlobeZoomIn : canvas.zoomIn}
-            onZoomOut={isGlobeMode ? handleGlobeZoomOut : canvas.zoomOut}
-            onZoomToFitAll={isGlobeMode ? handleGlobeZoomToFitAll : zoomToFitAll}
-            onZoomToFitSelection={isGlobeMode ? undefined : zoomToFitSelection}
-            onSetZoom={isGlobeMode ? handleGlobeSetZoom : canvas.setZoom}
+            zoom={viewportZoomForRender}
+            canFitAll={Boolean(layout.allTilesBounds)}
+            canFitSelection={Boolean(layout.selectedTilesBounds)}
+            onZoomIn={canvas.zoomIn}
+            onZoomOut={canvas.zoomOut}
+            onZoomToFitAll={zoomToFitAll}
+            onZoomToFitSelection={zoomToFitSelection}
+            onSetZoom={canvas.setZoom}
           />
         </div>,
         document.getElementById("titlebar-right-slot") || document.body
@@ -1745,14 +1716,16 @@ export default function CanvasWorkspaceView() {
       </div>
       <div className="canvas-stage__bottom-controls">
         <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-        {!isGlobeMode ? (
-          <DrawingToolControls
-            activeTool={drawingTool.activeTool}
-            strokeColor={drawingTool.strokeColor}
-            onToolChange={drawingTool.handleToolModeChange}
-            onStrokeColorChange={drawingTool.setStrokeColor}
-          />
-        ) : null}
+        <DrawingToolControls
+          activeTool={drawingTool.activeTool}
+          strokeColor={drawingTool.strokeColor}
+          onToolChange={drawingTool.handleToolModeChange}
+          onStrokeColorChange={drawingTool.setStrokeColor}
+        />
+        <CanvasBackgroundSkinControl
+          activeSkinId={selectedCanvasBackgroundSkin.id}
+          onChange={updateCanvasBackgroundSkin}
+        />
       </div>
 
       {/* ── Top bar ── */}
@@ -1768,61 +1741,36 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
-        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}${isGlobeMode ? " canvas--globe" : ""}`}
+        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
+        style={{
+          "--canvas-grid-background-image": selectedCanvasBackgroundSkin.kind === "image"
+            ? `url("${assetUrl(selectedCanvasBackgroundSkin.assetPath)}")`
+            : "radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)",
+          "--canvas-grid-background-size": selectedCanvasBackgroundSkin.kind === "image"
+            ? "calc(var(--canvas-grid-size, 28px) * var(--canvas-grid-background-scale, 10)) calc(var(--canvas-grid-size, 28px) * var(--canvas-grid-background-scale, 10))"
+            : "var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)",
+          "--canvas-grid-background-scale": String(selectedCanvasBackgroundSkin.backgroundScale ?? 1),
+        }}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
       onPointerDown={(event) => {
-          if (isGlobeMode || useSceneSurface) {
+          if (useSceneSurface) {
             return;
           }
 
           interactions.handleCanvasPointerDown(event);
         }}
-        onContextMenu={isGlobeMode || useSceneSurface ? undefined : interactions.handleCanvasContextMenu}
+        onContextMenu={useSceneSurface ? undefined : interactions.handleCanvasContextMenu}
         onClick={(event) => {
-          if (isGlobeMode) {
-            if (!isEditableElement(event.target)) {
-              event.currentTarget.focus({ preventScroll: true });
-            }
-            return;
-          }
-
           if (!isEditableElement(event.target)) {
             event.currentTarget.focus({ preventScroll: true });
           }
         }}
-      >
-        {!isGlobeMode ? (
-          <div className="canvas-mini-hint" aria-hidden="true">
-            <div className="canvas-mini-hint__map">
-              <div
-                className="canvas-mini-hint__viewport"
-                style={{
-                  width: `${miniHintViewportSize}px`,
-                  height: `${miniHintViewportSize}px`,
-                }}
-              />
-            </div>
-            <div className="canvas-mini-hint__label">{miniHintZoomPercent}%</div>
-          </div>
-        ) : null}
-        {isGlobeMode ? (
-            <GlobeWorkspaceView
-              allCards={workspace.cards}
-              cards={filteredTiles}
-              view={workspaceView}
-              setWorkspaceView={setWorkspaceView}
-              updateExistingCards={updateExistingCards}
-              openTileLink={commands.openTileLink}
-              updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
-              retryTilePreview={commands.retryTilePreview}
-              onRemoveTile={(tileId) => commands.deleteTiles([tileId])}
-              onVisibleCountChange={setGlobeVisibleTileCount}
-            />
-        ) : (
+        >
+          <CanvasMiniMap canvas={canvas} tiles={filteredTiles} hidden={isGridMode} />
           <>
             <div ref={canvas.gridRef} className="canvas__grid" />
             {useSceneSurface ? (
@@ -1886,23 +1834,21 @@ export default function CanvasWorkspaceView() {
               ))}
             </div>
           </>
-        )}
+        
 
-        {!isGlobeMode && interactions.marqueeBox ? (
+        {interactions.marqueeBox ? (
           <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
         ) : null}
-        {!isGlobeMode ? (
-          <CanvasPerformanceOverlay
-            visibleTileCount={visibleTileCount}
-            renderedTileCount={renderedTileCount}
-            totalTileCount={totalTileCount}
-            activeDragLayers={interactions.draggingTileIds.length}
-            isCanvasMoving={isCanvasMoving}
-            workspaceLodLevel={workspaceLodLevel}
-            lodLevelCounts={lodLevelCounts}
-            previewTierCounts={previewTierCounts}
-          />
-        ) : null}
+        <CanvasPerformanceOverlay
+          visibleTileCount={visibleTileCount}
+          renderedTileCount={renderedTileCount}
+          totalTileCount={totalTileCount}
+          activeDragLayers={interactions.draggingTileIds.length}
+          isCanvasMoving={isCanvasMoving}
+          workspaceLodLevel={workspaceLodLevel}
+          lodLevelCounts={lodLevelCounts}
+          previewTierCounts={previewTierCounts}
+        />
 
         {/* Empty states */}
         {!folderPath ? (

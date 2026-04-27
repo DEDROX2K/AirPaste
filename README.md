@@ -119,7 +119,7 @@ If Electron keeps showing its default icon in dev, restart `npm run dev` after c
 
 - Rack improvements include style and overlapping edge fix in CSS (`card__rack-slice--left/right`).
 - Splash is now in `App.jsx` with `booting || showSplash` and click handler in `SplashScreen`.
-- Open Graph scraping uses `open-graph-scraper` with `playwright` installed by script.
+- Open Graph scraping uses `open-graph-scraper`, and screenshot fallback uses Electron's own hidden browser window capture.
 
 ## Troubleshooting
 

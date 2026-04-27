@@ -12,6 +12,7 @@ import {
   normalizeHomePreferences,
   sortEntriesByPreference,
 } from "../lib/home";
+import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
 import {
   AppButton,
   AppDialog,
@@ -373,6 +374,7 @@ export default function HomeShell() {
     importFilesIntoFolder,
     openExistingWorkspace,
     openHomeItem,
+    openTestingTilesCanvas,
     refreshDomes,
     refreshHomeData,
     removeDome,
@@ -390,6 +392,7 @@ export default function HomeShell() {
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const showDeveloperQaActions = isPreviewDebugModeEnabled();
 
   useEffect(() => {
     setNavigation(normalizeHomeNavigation(homeData.uiState));
@@ -670,6 +673,11 @@ export default function HomeShell() {
                 <AppScrambleText>New Folder</AppScrambleText>
               </AppButton>
               <AppButton tone="accent" className="home-button" onClick={() => openCreateDialog("canvas", "Canvas")} disabled={!hasWorkspace}><AppScrambleText>New Canvas</AppScrambleText></AppButton>
+              {showDeveloperQaActions ? (
+                <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void openTestingTilesCanvas()} disabled={folderLoading}>
+                  <AppScrambleText>Testing Tiles</AppScrambleText>
+                </AppButton>
+              ) : null}
               <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)} disabled={!hasWorkspace}>
                 <IconUpload />
                 <AppScrambleText>Import files</AppScrambleText>
