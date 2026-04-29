@@ -1,6 +1,10 @@
 import AmazonProductTile from "../components/tiles/AmazonProductTile";
+import ChecklistTile from "../components/tiles/ChecklistTile";
+import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
 import LinkTile from "../components/tiles/LinkTile";
+import NoteTile from "../components/tiles/NoteTile";
 import RackTile from "../components/tiles/RackTile";
+import TableTile from "../components/tiles/TableTile";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
 
@@ -49,6 +53,74 @@ const tileRegistry = {
       editable: false,
       container: false,
       navigation: true,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.CHECKLIST]: {
+    type: TILE_TYPES.CHECKLIST,
+    displayName: "Checklist Tile",
+    status: "stable",
+    component: ChecklistTile,
+    defaultSize: { width: 380, height: 360 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.CODE]: {
+    type: TILE_TYPES.CODE,
+    displayName: "Code Snippet Tile",
+    status: "stable",
+    component: CodeSnippetTile,
+    defaultSize: { width: 520, height: 360 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.NOTE]: {
+    type: TILE_TYPES.NOTE,
+    displayName: "Note Tile",
+    status: "stable",
+    component: NoteTile,
+    defaultSize: { width: 460, height: 420 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.TABLE]: {
+    type: TILE_TYPES.TABLE,
+    displayName: "Table Tile",
+    status: "stable",
+    component: TableTile,
+    defaultSize: { width: 560, height: 360 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
       physics: false,
       lazy: false,
     },

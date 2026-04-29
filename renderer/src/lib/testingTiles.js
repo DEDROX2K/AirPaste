@@ -1,17 +1,20 @@
 import {
   createEmptyWorkspace,
+  createCodeCard,
+  createNoteCard,
   createLinkCard,
+  createTableCard,
   LINK_CONTENT_KIND_IMAGE,
 } from "./workspace";
 
 export const TESTING_TILES_CANVAS_NAME = "Testing Tiles";
 export const TESTING_TILES_CANVAS_FILE_NAME = `${TESTING_TILES_CANVAS_NAME}.airpaste.json`;
-export const TESTING_TILES_CANVAS_PURPOSE = "link-preview-qa";
+export const TESTING_TILES_CANVAS_PURPOSE = "tile-qa";
 
 const CARD_WIDTH = 340;
 const CARD_HEIGHT = 280;
 const ROW_GAP = 92;
-const COLUMN_GAP = 44;
+const COLUMN_STRIDE = 520;
 const HEADING_WIDTH = 260;
 const HEADING_HEIGHT = 64;
 const HEADER_X = 96;
@@ -22,91 +25,252 @@ const TESTING_TILE_ROWS = Object.freeze([
   {
     key: "youtube-video",
     label: "YouTube / video",
-    urls: [
-      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "https://youtu.be/9bZkp7q19f0",
-      "https://vimeo.com/76979871",
-      "https://www.youtube.com/shorts/aqz-KE-bpKQ",
+    items: [
+      { kind: "link", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+      { kind: "link", url: "https://youtu.be/9bZkp7q19f0" },
+      { kind: "link", url: "https://vimeo.com/76979871" },
+      { kind: "link", url: "https://www.youtube.com/shorts/aqz-KE-bpKQ" },
     ],
   },
   {
     key: "social-links",
     label: "social links",
-    urls: [
-      "https://github.com/openai/openai-cookbook",
-      "https://x.com/OpenAI",
-      "https://www.linkedin.com/company/openai/",
-      "https://www.reddit.com/r/programming/",
+    items: [
+      { kind: "link", url: "https://github.com/openai/openai-cookbook" },
+      { kind: "link", url: "https://x.com/OpenAI" },
+      { kind: "link", url: "https://www.linkedin.com/company/openai/" },
+      { kind: "link", url: "https://www.reddit.com/r/programming/" },
     ],
   },
   {
     key: "docs-productivity",
     label: "docs/productivity",
-    urls: [
-      "https://docs.github.com/",
-      "https://notion.so/",
-      "https://www.figma.com/",
-      "https://slack.com/",
+    items: [
+      { kind: "link", url: "https://docs.github.com/" },
+      { kind: "link", url: "https://notion.so/" },
+      { kind: "link", url: "https://www.figma.com/" },
+      { kind: "link", url: "https://slack.com/" },
     ],
   },
   {
     key: "articles-blogs",
     label: "articles/blogs",
-    urls: [
-      "https://example.com/",
-      "https://developer.mozilla.org/en-US/docs/Web/HTML",
-      "https://blog.openai.com/",
-      "https://vercel.com/blog",
+    items: [
+      { kind: "link", url: "https://example.com/" },
+      { kind: "link", url: "https://developer.mozilla.org/en-US/docs/Web/HTML" },
+      { kind: "link", url: "https://blog.openai.com/" },
+      { kind: "link", url: "https://vercel.com/blog" },
     ],
   },
   {
     key: "ecommerce",
     label: "ecommerce",
-    urls: [
-      "https://www.amazon.com/dp/B0C2S2K5QJ",
-      "https://www.ebay.com/",
-      "https://www.etsy.com/",
-      "https://www.shopify.com/",
+    items: [
+      { kind: "link", url: "https://www.amazon.com/dp/B0C2S2K5QJ" },
+      { kind: "link", url: "https://www.ebay.com/" },
+      { kind: "link", url: "https://www.etsy.com/" },
+      { kind: "link", url: "https://www.shopify.com/" },
     ],
   },
   {
     key: "cookie-banner-sites",
     label: "cookie-banner sites",
-    urls: [
-      "https://www.reuters.com/",
-      "https://www.theguardian.com/international",
-      "https://www.nytimes.com/",
-      "https://www.bbc.com/",
+    items: [
+      { kind: "link", url: "https://www.reuters.com/" },
+      { kind: "link", url: "https://www.theguardian.com/international" },
+      { kind: "link", url: "https://www.nytimes.com/" },
+      { kind: "link", url: "https://www.bbc.com/" },
     ],
   },
   {
     key: "login-wall-sites",
     label: "login-wall sites",
-    urls: [
-      "https://www.linkedin.com/feed/",
-      "https://www.instagram.com/openai/",
-      "https://www.facebook.com/",
-      "https://x.com/i/flow/login",
+    items: [
+      { kind: "link", url: "https://www.linkedin.com/feed/" },
+      { kind: "link", url: "https://www.instagram.com/openai/" },
+      { kind: "link", url: "https://www.facebook.com/" },
+      { kind: "link", url: "https://x.com/i/flow/login" },
     ],
   },
   {
     key: "iframe-blocked-sites",
     label: "iframe-blocked sites",
-    urls: [
-      "https://github.com/",
-      "https://www.google.com/",
-      "https://www.notion.so/",
-      "https://www.figma.com/",
+    items: [
+      { kind: "link", url: "https://github.com/" },
+      { kind: "link", url: "https://www.google.com/" },
+      { kind: "link", url: "https://www.notion.so/" },
+      { kind: "link", url: "https://www.figma.com/" },
     ],
   },
   {
     key: "broken-redirect-edge",
     label: "broken/redirect/edge cases",
-    urls: [
-      "https://httpbin.org/status/404",
-      "https://httpbin.org/redirect/2",
-      "https://httpbin.org/status/403",
-      "https://expired.badssl.com/",
+    items: [
+      { kind: "link", url: "https://httpbin.org/status/404" },
+      { kind: "link", url: "https://httpbin.org/redirect/2" },
+      { kind: "link", url: "https://httpbin.org/status/403" },
+      { kind: "link", url: "https://expired.badssl.com/" },
+    ],
+  },
+  {
+    key: "notes-markdown",
+    label: "Notes / Markdown",
+    items: [
+      {
+        kind: "note",
+        options: {
+          title: "Future-me instructions",
+          body: "## Before you ship\n\n- Re-run lint\n- Check edge cases\n- Leave a short migration note\n\n> If this breaks previews, revert the experiment first.",
+          mode: "preview",
+        },
+      },
+      {
+        kind: "note",
+        options: {
+          title: "Technical documentation",
+          body: "# Tile QA\n\n1. Open Testing Tiles\n2. Verify note rendering\n3. Verify table editing\n\n- Headings\n- Bullets\n- Links like [OpenAI](https://openai.com/)",
+          mode: "preview",
+        },
+      },
+      {
+        kind: "note",
+        options: {
+          title: "Code snippet",
+          body: "### Quick patch\n\n```js\nexport function clamp(value, min, max) {\n  return Math.min(max, Math.max(min, value));\n}\n```",
+          mode: "preview",
+          languageHints: ["js"],
+        },
+      },
+      {
+        kind: "note",
+        options: {
+          title: "Long note scroll test",
+          body: "## Scroll test\n\nThis note exists to confirm long content wraps and scrolls cleanly.\n\n- Paragraph one with extra detail.\n- Paragraph two with extra detail.\n- Paragraph three with extra detail.\n\n> Keep typing inside the tile without triggering canvas shortcuts.\n\n### Reminder\n\nUse this space for larger technical scratchpads and postmortems.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+          mode: "edit",
+        },
+      },
+    ],
+  },
+  {
+    key: "tables-databases",
+    label: "Tables / Databases",
+    items: [
+      {
+        kind: "table",
+        options: {
+          title: "Expenses",
+          columns: [
+            { id: "item", name: "Item", kind: "text" },
+            { id: "cost", name: "Cost", kind: "number" },
+            { id: "date", name: "Date", kind: "date" },
+          ],
+          rows: [
+            { id: "r1", cells: { item: "Domain renewal", cost: "18", date: "2026-04-01" } },
+            { id: "r2", cells: { item: "Cloud credits", cost: "120", date: "2026-04-14" } },
+          ],
+        },
+      },
+      {
+        kind: "table",
+        options: {
+          title: "Asset list",
+          columns: [
+            { id: "asset", name: "Asset", kind: "text" },
+            { id: "owner", name: "Owner", kind: "text" },
+            { id: "notes", name: "Notes", kind: "text" },
+          ],
+          rows: [
+            { id: "r1", cells: { asset: "Renderer bundle", owner: "Frontend", notes: "Watch chunk size" } },
+            { id: "r2", cells: { asset: "Tile QA board", owner: "Product", notes: "Seed every tile type" } },
+          ],
+        },
+      },
+      {
+        kind: "table",
+        options: {
+          title: "Leads / CRM",
+          columns: [
+            { id: "name", name: "Name", kind: "text" },
+            { id: "stage", name: "Stage", kind: "text" },
+            { id: "next", name: "Next step", kind: "date" },
+          ],
+          rows: [
+            { id: "r1", cells: { name: "Northwind", stage: "Intro", next: "2026-05-01" } },
+            { id: "r2", cells: { name: "Acme", stage: "Proposal", next: "2026-05-05" } },
+          ],
+        },
+      },
+      {
+        kind: "table",
+        options: {
+          title: "Checkbox tracker",
+          columns: [
+            { id: "task", name: "Task", kind: "text" },
+            { id: "done", name: "Done", kind: "checkbox" },
+            { id: "eta", name: "ETA", kind: "date" },
+          ],
+          rows: [
+            { id: "r1", cells: { task: "Seed note tiles", done: true, eta: "2026-04-29" } },
+            { id: "r2", cells: { task: "Seed table tiles", done: false, eta: "2026-04-30" } },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    key: "development-technical",
+    label: "Development / Technical",
+    items: [
+      {
+        kind: "code",
+        options: {
+          title: "Start dev server",
+          language: "bash",
+          code: "npm run dev",
+          wrap: true,
+          showLineNumbers: true,
+        },
+      },
+      {
+        kind: "code",
+        options: {
+          title: "Extract URLs",
+          language: "regex",
+          code: "https?:\\/\\/[^\\s\\\"'<>]+",
+          wrap: true,
+          showLineNumbers: true,
+        },
+      },
+      {
+        kind: "code",
+        options: {
+          title: "Tile config JSON",
+          language: "json",
+          code: "{\n  \"type\": \"code\",\n  \"language\": \"bash\",\n  \"wrap\": true,\n  \"showLineNumbers\": true\n}",
+          wrap: true,
+          showLineNumbers: true,
+        },
+      },
+      {
+        kind: "code",
+        options: {
+          title: "Debounce helper",
+          language: "javascript",
+          code: "function debounce(fn, delay = 250) {\n  let timer;\n  return (...args) => {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn(...args), delay);\n  };\n}",
+          wrap: true,
+          showLineNumbers: true,
+        },
+      },
+      {
+        kind: "code",
+        options: {
+          title: "Recent records query",
+          language: "sql",
+          code: "SELECT id, title, created_at\nFROM tiles\nORDER BY created_at DESC\nLIMIT 20;",
+          wrap: true,
+          showLineNumbers: true,
+        },
+      },
     ],
   },
 ]);
@@ -143,7 +307,7 @@ function createHeadingSvgDataUrl(label) {
 }
 
 function createHeadingCard(cards, viewport, rowLabel, rowIndex) {
-  const card = createLinkCard(cards, viewport, "", {
+  const card = createLinkCard(cards, viewport, "", null, {
     contentKind: LINK_CONTENT_KIND_IMAGE,
     title: rowLabel,
     siteName: TESTING_TILES_CANVAS_NAME,
@@ -163,19 +327,61 @@ function createHeadingCard(cards, viewport, rowLabel, rowIndex) {
   };
 }
 
-function createSeedLinkCard(cards, viewport, url, rowIndex, columnIndex) {
-  const card = createLinkCard(cards, viewport, url, null, {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-  });
-
+function positionSeedCard(card, rowIndex, columnIndex) {
   return {
     ...card,
-    x: START_X + (columnIndex * (CARD_WIDTH + COLUMN_GAP)),
+    x: START_X + (columnIndex * COLUMN_STRIDE),
     y: START_Y + (rowIndex * (CARD_HEIGHT + ROW_GAP)),
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    width: Number.isFinite(card.width) ? card.width : CARD_WIDTH,
+    height: Number.isFinite(card.height) ? card.height : CARD_HEIGHT,
   };
+}
+
+function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
+  if (item.kind === "note") {
+    return positionSeedCard(
+      createNoteCard(cards, viewport, null, {
+        width: CARD_WIDTH + 40,
+        height: CARD_HEIGHT + 52,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "table") {
+    return positionSeedCard(
+      createTableCard(cards, viewport, null, {
+        width: CARD_WIDTH + 140,
+        height: CARD_HEIGHT + 36,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "code") {
+    return positionSeedCard(
+      createCodeCard(cards, viewport, null, {
+        width: CARD_WIDTH + 120,
+        height: CARD_HEIGHT + 48,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  return positionSeedCard(
+    createLinkCard(cards, viewport, item.url, null, {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+    }),
+    rowIndex,
+    columnIndex,
+  );
 }
 
 export function createTestingTilesWorkspace() {
@@ -186,14 +392,14 @@ export function createTestingTilesWorkspace() {
   TESTING_TILE_ROWS.forEach((row, rowIndex) => {
     nextCards.push(createHeadingCard(nextCards, activePage.viewport, row.label, rowIndex));
 
-    row.urls.forEach((url, columnIndex) => {
-      nextCards.push(createSeedLinkCard(nextCards, activePage.viewport, url, rowIndex, columnIndex));
+    row.items.forEach((item, columnIndex) => {
+      nextCards.push(createSeedTileCard(nextCards, activePage.viewport, item, rowIndex, columnIndex));
     });
   });
 
   const nextPage = {
     ...activePage,
-    name: "Link Preview QA Matrix",
+    name: "Tile QA Matrix",
     viewport: {
       x: 64,
       y: 36,

@@ -708,6 +708,16 @@ export function useCanvasInteractionSystem({
   }, [canvas, clearRackDropPreview, commands]);
 
   const handleCanvasPointerDown = useCallback((event) => {
+    if (event.button === 1) {
+      closeContextMenu();
+      setHoveredTileId(null);
+      setFocusedTileId(null);
+      suppressCanvasContextMenuRef.current = false;
+      event.preventDefault();
+      canvas.beginCanvasPan(event);
+      return;
+    }
+
     const isCanvasBackground = isCanvasBackgroundTarget(event);
 
     if (!isCanvasBackground) {

@@ -7128,6 +7128,744 @@ intentional so the top edge reads much shorter than the bottom edge. */
   border-color: rgba(55, 45, 35, 0.18);
 }
 
+.card__surface--checklist {
+  min-height: var(--tile-height);
+  flex-direction: column;
+  padding: 20px 18px 18px;
+  border-radius: 26px;
+  border: 1px solid rgba(137, 120, 85, 0.18);
+  background:
+    linear-gradient(180deg, rgba(252, 247, 229, 0.98), rgba(246, 237, 207, 0.98));
+  box-shadow:
+    0 18px 36px rgba(87, 69, 32, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.card__surface-frame--selected .card__surface--checklist {
+  outline: 2px solid rgba(172, 149, 88, 0.44);
+}
+
+.card__checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.card__checklist-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(79, 65, 38, 0.96);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  outline: none;
+}
+
+.card__checklist-title::placeholder {
+  color: rgba(125, 112, 88, 0.68);
+}
+
+.card__checklist-progress {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(164, 145, 97, 0.12);
+  color: rgba(104, 88, 52, 0.9);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.card__checklist-items {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card__checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 6px;
+  border-radius: 16px;
+  transition: background 140ms ease;
+}
+
+.card__checklist-item:hover {
+  background: rgba(255, 252, 241, 0.6);
+}
+
+.card__checklist-item--checked .card__checklist-input {
+  color: rgba(126, 115, 88, 0.78);
+  text-decoration: line-through;
+}
+
+.card__checklist-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 50px;
+  min-width: 50px;
+  height: 30px;
+  margin-top: 2px;
+  padding: 3px;
+  border: 1px solid rgba(154, 160, 190, 0.7);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(227, 230, 241, 0.96), rgba(214, 218, 231, 0.96));
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.card__checklist-toggle::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 7px rgba(67, 59, 46, 0.18);
+}
+
+.card__checklist-toggle--checked {
+  justify-content: flex-end;
+  border-color: rgba(33, 131, 53, 0.78);
+  background: linear-gradient(180deg, rgba(45, 166, 68, 0.98), rgba(33, 131, 53, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.card__checklist-toggle svg {
+  position: absolute;
+  left: 8px;
+}
+
+.card__checklist-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  overflow: hidden;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(66, 54, 31, 0.96);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  outline: none;
+}
+
+.card__checklist-input::placeholder {
+  color: rgba(126, 115, 88, 0.7);
+}
+
+.card__checklist-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(116, 99, 63, 0.94);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card__checklist-add:hover {
+  color: rgba(82, 69, 40, 0.98);
+}
+
+.card__checklist-add-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(164, 145, 97, 0.12);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.card__surface--note {
+  min-height: var(--tile-height);
+  flex-direction: column;
+  padding: 18px;
+  border-radius: 26px;
+  border: 1px solid rgba(110, 118, 145, 0.18);
+  background:
+    linear-gradient(180deg, rgba(254, 254, 252, 0.98), rgba(244, 245, 239, 0.98));
+  box-shadow:
+    0 18px 40px rgba(37, 45, 63, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.card__surface-frame--selected .card__surface--note {
+  outline: 2px solid rgba(145, 162, 212, 0.38);
+}
+
+.card__note-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card__note-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(31, 41, 55, 0.96);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  outline: none;
+}
+
+.card__note-title::placeholder {
+  color: rgba(100, 116, 139, 0.72);
+}
+
+.card__note-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.7);
+}
+
+.card__note-mode-button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(71, 85, 105, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.card__note-mode-button--active {
+  background: rgba(255, 255, 255, 0.98);
+  color: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 2px 10px rgba(71, 85, 105, 0.14);
+}
+
+.card__note-body-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(203, 213, 225, 0.56);
+}
+
+.card__note-editor,
+.card__note-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 290px;
+  padding: 18px;
+  border: 0;
+  background: transparent;
+}
+
+.card__note-editor {
+  resize: none;
+  color: rgba(30, 41, 59, 0.96);
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.card__note-preview {
+  display: block;
+  overflow: auto;
+  color: rgba(30, 41, 59, 0.96);
+  text-align: left;
+  cursor: text;
+}
+
+.card__note-empty {
+  color: rgba(100, 116, 139, 0.8);
+  font-size: 14px;
+}
+
+.card__markdown-heading {
+  margin: 0 0 12px;
+  color: rgba(15, 23, 42, 0.98);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.card__markdown-heading--h1 {
+  font-size: 28px;
+}
+
+.card__markdown-heading--h2 {
+  font-size: 24px;
+}
+
+.card__markdown-heading--h3 {
+  font-size: 20px;
+}
+
+.card__markdown-heading--h4,
+.card__markdown-heading--h5,
+.card__markdown-heading--h6 {
+  font-size: 16px;
+}
+
+.card__markdown-paragraph,
+.card__markdown-blockquote,
+.card__markdown-list,
+.card__markdown-code-block {
+  margin: 0 0 14px;
+}
+
+.card__markdown-list {
+  padding-left: 22px;
+}
+
+.card__markdown-list--ordered {
+  list-style: decimal;
+}
+
+.card__markdown-blockquote {
+  padding: 12px 14px;
+  border-left: 3px solid rgba(148, 163, 184, 0.8);
+  background: rgba(241, 245, 249, 0.88);
+  color: rgba(51, 65, 85, 0.96);
+  border-radius: 14px;
+}
+
+.card__markdown-inline-code {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(226, 232, 240, 0.9);
+  color: rgba(15, 23, 42, 0.98);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.card__markdown-code-block {
+  overflow: auto;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.96);
+  color: rgba(248, 250, 252, 0.98);
+}
+
+.card__markdown-code-block code {
+  display: block;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.card__markdown-code-language {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(148, 163, 184, 0.96);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card__markdown-link {
+  color: rgba(37, 99, 235, 0.98);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.card__surface--table {
+  min-height: var(--tile-height);
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(169, 186, 208, 0.26);
+  background:
+    linear-gradient(180deg, rgba(249, 251, 254, 0.98), rgba(235, 241, 248, 0.98));
+  box-shadow:
+    0 18px 36px rgba(56, 76, 109, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.card__surface-frame--selected .card__surface--table {
+  outline: 2px solid rgba(96, 165, 250, 0.34);
+}
+
+.card__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card__table-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.98);
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  outline: none;
+}
+
+.card__table-title::placeholder {
+  color: rgba(100, 116, 139, 0.74);
+}
+
+.card__table-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card__table-action {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: rgba(51, 65, 85, 0.96);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.card__table-grid-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(191, 219, 254, 0.48);
+}
+
+.card__table-grid {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.card__table-head-cell,
+.card__table-cell {
+  border-right: 1px solid rgba(203, 213, 225, 0.74);
+  border-bottom: 1px solid rgba(203, 213, 225, 0.74);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.card__table-head-cell {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-width: 160px;
+  padding: 10px;
+  background: rgba(241, 245, 249, 0.98);
+  vertical-align: top;
+}
+
+.card__table-head-cell--actions,
+.card__table-cell--actions {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.card__table-column-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card__table-column-name,
+.card__table-column-kind,
+.card__table-cell-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: rgba(30, 41, 59, 0.98);
+  outline: none;
+}
+
+.card__table-column-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.card__table-column-kind {
+  margin-top: 6px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.card__table-cell {
+  min-width: 160px;
+  height: 44px;
+  padding: 0 10px;
+}
+
+.card__table-cell-input {
+  min-height: 42px;
+  font-size: 13px;
+}
+
+.card__table-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  width: 100%;
+}
+
+.card__table-checkbox input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card__table-checkbox span {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(100, 116, 139, 0.6);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.card__table-checkbox input:checked + span {
+  border-color: rgba(34, 197, 94, 0.92);
+  background:
+    linear-gradient(180deg, rgba(74, 222, 128, 0.98), rgba(34, 197, 94, 0.98));
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.94);
+}
+
+.card__table-delete-button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.84);
+  color: rgba(71, 85, 105, 0.98);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card__surface--code {
+  min-height: var(--tile-height);
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(110, 118, 145, 0.22);
+  background:
+    linear-gradient(180deg, rgba(19, 23, 32, 0.98), rgba(12, 16, 24, 0.98));
+  box-shadow:
+    0 22px 40px rgba(10, 13, 20, 0.28),
+    inset 0 1px 0 rgba(148, 163, 184, 0.16);
+}
+
+.card__surface-frame--selected .card__surface--code {
+  outline: 2px solid rgba(96, 165, 250, 0.42);
+}
+
+.card__code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card__code-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(241, 245, 249, 0.98);
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: -0.04em;
+  outline: none;
+}
+
+.card__code-title::placeholder {
+  color: rgba(148, 163, 184, 0.74);
+}
+
+.card__code-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.card__code-language-select,
+.card__code-toggle,
+.card__code-copy {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(100, 116, 139, 0.34);
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.72);
+  color: rgba(226, 232, 240, 0.98);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.card__code-language-select {
+  min-width: 108px;
+  outline: none;
+}
+
+.card__code-toggle,
+.card__code-copy {
+  cursor: pointer;
+}
+
+.card__code-toggle--active {
+  background: rgba(37, 99, 235, 0.28);
+  border-color: rgba(96, 165, 250, 0.52);
+}
+
+.card__code-copy {
+  background: rgba(15, 118, 110, 0.28);
+  border-color: rgba(45, 212, 191, 0.34);
+}
+
+.card__code-body-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(51, 65, 85, 0.88);
+  background: rgba(8, 11, 18, 0.98);
+}
+
+.card__code-body-shell--wrap {
+  overflow-x: hidden;
+}
+
+.card__code-editor,
+.card__code-preview {
+  width: 100%;
+  min-height: 280px;
+  padding: 16px 0;
+  border: 0;
+  background: transparent;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.card__code-editor {
+  resize: none;
+  color: rgba(241, 245, 249, 0.98);
+  padding-inline: 18px;
+  outline: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.card__code-editor--wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card__code-preview {
+  display: block;
+  color: rgba(226, 232, 240, 0.98);
+  text-align: left;
+  cursor: text;
+}
+
+.card__code-preview--wrap .card__code-line-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card__code-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.card__code-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 0 18px;
+}
+
+.card__code-line--no-numbers {
+  grid-template-columns: 1fr;
+}
+
+.card__code-line-number {
+  color: rgba(100, 116, 139, 0.86);
+  text-align: right;
+  user-select: none;
+}
+
+.card__code-line-content {
+  white-space: pre;
+  color: rgba(226, 232, 240, 0.98);
+}
+
+.card__code-token--keyword {
+  color: #93c5fd;
+}
+
+.card__code-token--string {
+  color: #86efac;
+}
+
+.card__code-token--number {
+  color: #fca5a5;
+}
+
+.card__code-token--comment {
+  color: #64748b;
+}
+
+.card__code-token--punctuation {
+  color: #cbd5e1;
+}
+
+.card__code-token--regex {
+  color: #f9a8d4;
+}
+
 @media (max-width: 800px) {
   .page-editor__header {
     padding: 16px 18px 12px;

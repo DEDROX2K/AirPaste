@@ -1,76 +1,65 @@
 # Tile Capability Matrix
 
-| Tile Name | Type ID | Exists in code? | Registered in foundation registry? | Draggable | Selectable | Editable | Resizable | Can contain children | Can live in folder | Can live in rack | Can join node group | Physics-enabled | Has custom render loop | Heavy / lazy-load candidate | Persistence complexity | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Note Tile (Base) | `text` | yes | yes | yes | yes | yes | no | no | yes | yes | no | no | no | no | low | stable |
-| Link Tile | `link` | yes | yes | yes | yes | no | no | no | yes | yes | no | no | no | no | medium | stable |
-| Folder Tile | `folder` | yes | yes | yes | yes | no | no | yes | no | no | no | no | no | no | medium | stable |
-| Note Folder Tile | `note-folder` | yes | yes | yes | yes | no | no | no | yes | yes | no | no | no | no | medium | deprecated |
-| Rack Tile | `rack` | yes | yes | yes | yes | no | no | yes | no | no | no | no | no | no | medium | stable |
-| Page Link Tile | `page-link` | no | yes | yes | yes | yes | yes | no | yes | yes | yes | no | no | no | low | planned |
-| Node Group Tile | `node-group` | no | yes | yes | yes | yes | yes | yes | no | no | yes | no | no | no | medium | planned |
-| Game Tile | `game` | no | yes | yes | yes | no | yes | no | yes | yes | yes | no | yes | yes | high | planned |
-| 3D Model Tile | `3d-model` | no | yes | yes | yes | no | yes | no | yes | yes | yes | no | yes | yes | high | planned |
-| Physics Item Tile | `physics-item` | no | yes | yes | yes | no | yes | no | yes | yes | yes | yes | yes | yes | high | planned |
+Quick inventory of every tile type currently defined in the live AirPaste runtime.
 
-## Shared capabilities
-- Dragging and selection already behave like universal tile affordances. Those should stay consistent across almost every tile type.
-- Shared hover, focus, pressed, selected, dragging, and context-menu chrome should continue to flow through `TileShell` and the current interaction/layout systems.
-- Stable `type` IDs and normalized persisted card data should remain universal even when a tile gets specialized rendering.
+Use this file as the simple source of truth when adding new tiles. For each new tile, update:
 
-## Specialized capabilities
-- Text editing should stay limited to note-like tiles unless another tile genuinely owns inline content.
-- Generic child containment belongs to container families such as folders, racks, and future node groups, not every tile that happens to open or expand.
-- Physics, custom render loops, and heavy lazy-loaded rendering should stay confined to advanced tiles like game, 3D, and physics families.
+1. `renderer/src/tiles/tileTypes.js`
+2. `renderer/src/tiles/tileRegistry.js`
+3. `renderer/src/components/tiles/tileRegistry.js`
+4. `renderer/src/lib/workspace.js`
+5. `renderer/src/components/CanvasAddMenu.jsx` if the tile should be manually creatable
+6. `renderer/src/systems/commands/useCanvasCommands.js` if the tile should be manually creatable
+7. `renderer/src/lib/testingTiles.js` if the tile should appear in the tile QA playground
+8. This file
 
-## Risk areas
-- The current runtime still encodes several behaviors with direct `tile.type` checks in persistence, layout, and commands. That will get harder to manage as more tile families arrive.
-- The new foundation registry and the live runtime registry are still separate sources of truth. If they drift, design planning and implementation will diverge quickly.
-- Container rules already differ between `folder`, `rack`, and `note-folder`. Adding more container-like tiles without clearer boundaries will create overlapping behaviors.
-- There is no resize system yet, so planned size-aware tiles could pile up faster than the interaction model can support them.
-- Heavy tiles will need lifecycle boundaries early. Without them, custom render loops, simulation state, and lazy loading will leak into the general canvas path.
+## Current Matrix
 
-## Tile families
+| Tile Name | Type ID | Exists in code? | Status | User-creatable? | In Add Menu? | In Testing Tiles? | Draggable | Selectable | Editable | Resizable | Container | Navigation | Physics | Lazy candidate | Primary component |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Link Tile | `link` | yes | stable | indirect via paste/import | no | yes | yes | yes | no | no | no | no | no | no | `LinkTile.jsx` |
+| Amazon Product Tile | `amazon-product` | yes | stable | no direct create flow | no | no | yes | yes | no | no | no | yes | no | no | `AmazonProductTile.jsx` |
+| Checklist Tile | `checklist` | yes | stable | yes | yes | no seeded examples yet | yes | yes | yes | no | no | no | no | no | `ChecklistTile.jsx` |
+| Code Snippet Tile | `code` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `CodeSnippetTile.jsx` |
+| Note Tile | `note` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `NoteTile.jsx` |
+| Table Tile | `table` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `TableTile.jsx` |
+| Rack Tile | `rack` | yes | stable | yes | yes | no | yes | yes | no | no | yes | no | no | no | `RackTile.jsx` |
+| Node Group Tile | `node-group` | placeholder only | planned | no | no | no | yes | yes | yes | yes | yes | no | no | no | placeholder |
+| Game Tile | `game` | placeholder only | planned | no | no | no | yes | yes | no | yes | no | no | no | yes | placeholder |
+| 3D Model Tile | `3d-model` | placeholder only | planned | no | no | no | yes | yes | no | yes | no | no | no | yes | placeholder |
+| Physics Item Tile | `physics-item` | placeholder only | planned | no | no | no | yes | yes | no | yes | no | no | yes | yes | placeholder |
 
-### Core content tiles
-- Includes: Note Tile (Base), Link Tile
-- Shared rules: must support standard drag/select flows, fit the common shell, and persist simple card data cleanly.
-- Optional: rich editing, preview modes, import-specific metadata, content-specific toolbars.
+## Notes
 
-### Note family (Unified)
-- Includes: Base Note Tile (`text`) with variants:
-  - Canonical: Quick Note (`notes-quick`)
-  - Supported Legacy Styles: Sticky Note (`notes-1`), Todo Note (`notes-2`), Paper Note (`notes-3`)
-- Shared rules: All note variants must use the base `text` tile type. Interaction mode (drag vs edit) is determined contextually by viewport zoom level.
-- Deprecated: `note-folder` (Standard folders should be used to group base Note tiles instead).
+- Source of truth for tile ids: `renderer/src/tiles/tileTypes.js`
+- Source of truth for metadata, capability flags, and status: `renderer/src/tiles/tileRegistry.js`
+- Testing Tiles is now the universal tile QA playground, but not every stable tile has a seeded example yet.
+- Current manually creatable structure tiles are `checklist`, `code`, `note`, `table`, and `rack`.
+- Link-based tiles still mostly enter the system through paste/import and preview resolution instead of the Add menu.
 
-### Container tiles
-- Includes: Folder Tile, Rack Tile, future Node Group Tile
-- Shared rules: containment rules must be explicit, reusable, and separate from tile-specific visuals.
-- Optional: open/closed states, slot layouts, grouping previews, nested rendering.
+## Testing Tiles Coverage
 
-### Navigation tiles
-- Includes: Page Link Tile
-- Shared rules: should prioritize destination clarity, safe navigation behavior, and lightweight persistence.
-- Optional: breadcrumbs, workspace/page metadata previews, recents-aware badges.
+Current seeded QA rows in `renderer/src/lib/testingTiles.js`:
 
-### Interactive tiles
-- Includes: Game Tile, some future live widgets
-- Shared rules: should respect selection/drag conventions before custom interaction layers take over.
-- Optional: embedded controls, pause/resume states, local-only runtime state.
+- `YouTube / video`
+- `social links`
+- `docs/productivity`
+- `articles/blogs`
+- `ecommerce`
+- `cookie-banner sites`
+- `login-wall sites`
+- `iframe-blocked sites`
+- `broken/redirect/edge cases`
+- `Notes / Markdown`
+- `Tables / Databases`
+- `Development / Technical`
 
-### Simulation / physics tiles
-- Includes: Physics Item Tile, future simulation helpers
-- Shared rules: persisted state and runtime simulation state should stay clearly separated.
-- Optional: colliders, constraints, scene membership, node-group participation.
+## Rule For New Tiles
 
-### Heavy media / 3D tiles
-- Includes: 3D Model Tile, heavier Game Tile variants
-- Shared rules: should be lazy-loaded, isolated, and able to suspend work when offscreen.
-- Optional: custom render loops, asset loaders, GPU-backed previews.
+Before a new stable tile is considered complete:
 
-### Experimental tiles
-- Includes: future one-off prototypes before they graduate into a real family
-- Shared rules: still need stable type IDs, registry entries, and capability declarations.
-- Optional: any specialized behavior, but only behind a clearly named tile type and a contained module.
-
+1. Add the tile type and both registry entries.
+2. Add workspace normalization and default creation support.
+3. Add a manual creation flow if the tile should be user-creatable.
+4. Add at least one Testing Tiles example.
+5. Update this matrix.

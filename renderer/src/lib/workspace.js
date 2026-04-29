@@ -11,9 +11,13 @@ import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawi
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
+export const CHECKLIST_CARD_TYPE = TILE_TYPES.CHECKLIST;
+export const CODE_CARD_TYPE = TILE_TYPES.CODE;
+export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
+export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 9;
+export const WORKSPACE_SCHEMA_VERSION = 12;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -43,6 +47,26 @@ const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   height: 388,
 });
 
+const CHECKLIST_CARD_SIZE = Object.freeze({
+  width: 380,
+  height: 360,
+});
+
+const CODE_CARD_SIZE = Object.freeze({
+  width: 520,
+  height: 360,
+});
+
+const NOTE_CARD_SIZE = Object.freeze({
+  width: 460,
+  height: 420,
+});
+
+const TABLE_CARD_SIZE = Object.freeze({
+  width: 560,
+  height: 360,
+});
+
 const RACK_CARD_SIZE = Object.freeze({
   width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
   height: RACK_HEIGHT,
@@ -50,6 +74,48 @@ const RACK_CARD_SIZE = Object.freeze({
 
 const RACK_DEFAULT_TITLE = "Rack";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
+const CHECKLIST_DEFAULT_TITLE = "Checklist";
+const CODE_DEFAULT_TITLE = "Untitled snippet";
+const CODE_DEFAULT_LANGUAGE = "plain";
+const NOTE_DEFAULT_TITLE = "Untitled note";
+const TABLE_DEFAULT_TITLE = "Untitled table";
+const CHECKLIST_DEFAULT_ITEMS = Object.freeze([
+  Object.freeze({
+    id: "item-1",
+    text: "",
+    checked: false,
+  }),
+]);
+const TABLE_COLUMN_KINDS = Object.freeze(["text", "number", "checkbox", "date"]);
+const TABLE_DEFAULT_COLUMNS = Object.freeze([
+  Object.freeze({ id: "col_name", name: "Name", kind: "text" }),
+  Object.freeze({ id: "col_status", name: "Status", kind: "text" }),
+  Object.freeze({ id: "col_notes", name: "Notes", kind: "text" }),
+]);
+const TABLE_DEFAULT_ROWS = Object.freeze([
+  Object.freeze({
+    id: "row_1",
+    cells: Object.freeze({
+      col_name: "",
+      col_status: "",
+      col_notes: "",
+    }),
+  }),
+]);
+const CODE_SUPPORTED_LANGUAGES = Object.freeze([
+  "plain",
+  "bash",
+  "javascript",
+  "typescript",
+  "json",
+  "css",
+  "html",
+  "sql",
+  "regex",
+  "python",
+  "markdown",
+  "yaml",
+]);
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 
 function nowIso() {
@@ -83,6 +149,22 @@ function getCardType(card) {
 
   if (card?.type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_TYPE;
+  }
+
+  if (card?.type === CHECKLIST_CARD_TYPE) {
+    return CHECKLIST_CARD_TYPE;
+  }
+
+  if (card?.type === CODE_CARD_TYPE) {
+    return CODE_CARD_TYPE;
+  }
+
+  if (card?.type === NOTE_CARD_TYPE) {
+    return NOTE_CARD_TYPE;
+  }
+
+  if (card?.type === TABLE_CARD_TYPE) {
+    return TABLE_CARD_TYPE;
   }
 
   if (card?.type === RACK_CARD_TYPE) {
@@ -135,6 +217,130 @@ function isLinkLikeType(type) {
   return type === TILE_TYPES.LINK || type === AMAZON_PRODUCT_CARD_TYPE;
 }
 
+function normalizeChecklistItems(items) {
+  const normalizedItems = Array.isArray(items)
+    ? items
+      .map((item, index) => {
+        const text = typeof item?.text === "string" ? item.text : "";
+        const checked = item?.checked === true;
+        const itemId = typeof item?.id === "string" && item.id.trim().length > 0
+          ? item.id.trim()
+          : `item-${index + 1}`;
+
+        return {
+          id: itemId,
+          text,
+          checked,
+        };
+      })
+      .filter((item) => item.id.length > 0)
+    : [];
+
+  return normalizedItems.length > 0
+    ? normalizedItems
+    : CHECKLIST_DEFAULT_ITEMS.map((item) => ({ ...item }));
+}
+
+function normalizeNoteMode(mode) {
+  return mode === "preview" ? "preview" : "edit";
+}
+
+function normalizeCodeLanguage(language) {
+  return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
+}
+
+function normalizeLanguageHints(languageHints) {
+  return Array.isArray(languageHints)
+    ? [...new Set(
+      languageHints
+        .filter((hint) => typeof hint === "string")
+        .map((hint) => hint.trim())
+        .filter((hint) => hint.length > 0),
+    )]
+    : [];
+}
+
+function normalizeTableColumnKind(kind) {
+  return TABLE_COLUMN_KINDS.includes(kind) ? kind : "text";
+}
+
+function createDefaultTableColumns() {
+  return TABLE_DEFAULT_COLUMNS.map((column) => ({ ...column }));
+}
+
+function createDefaultTableRows(columns = TABLE_DEFAULT_COLUMNS) {
+  const safeColumns = Array.isArray(columns) && columns.length > 0
+    ? columns
+    : TABLE_DEFAULT_COLUMNS;
+
+  return [
+    {
+      id: "row_1",
+      cells: Object.fromEntries(
+        safeColumns.map((column) => [
+          column.id,
+          normalizeTableCellValue(column.kind, TABLE_DEFAULT_ROWS[0]?.cells?.[column.id]),
+        ]),
+      ),
+    },
+  ];
+}
+
+function normalizeTableColumns(columns) {
+  const normalizedColumns = Array.isArray(columns)
+    ? columns
+      .map((column, index) => ({
+        id: typeof column?.id === "string" && column.id.trim().length > 0
+          ? column.id.trim()
+          : `col_${index + 1}`,
+        name: typeof column?.name === "string" && column.name.trim().length > 0
+          ? column.name
+          : `Column ${index + 1}`,
+        kind: normalizeTableColumnKind(column?.kind),
+      }))
+      .filter((column) => column.id.length > 0)
+    : [];
+
+  return normalizedColumns.length > 0 ? normalizedColumns : createDefaultTableColumns();
+}
+
+function normalizeTableCellValue(kind, value) {
+  if (kind === "checkbox") {
+    return value === true;
+  }
+
+  return typeof value === "string"
+    ? value
+    : (value == null ? "" : String(value));
+}
+
+function normalizeTableRows(rows, columns) {
+  const safeColumns = Array.isArray(columns) && columns.length > 0
+    ? columns
+    : createDefaultTableColumns();
+  const normalizedRows = Array.isArray(rows)
+    ? rows
+      .map((row, index) => {
+        const safeCells = row?.cells && typeof row.cells === "object" ? row.cells : {};
+
+        return {
+          id: typeof row?.id === "string" && row.id.trim().length > 0
+            ? row.id.trim()
+            : `row_${index + 1}`,
+          cells: Object.fromEntries(
+            safeColumns.map((column) => [
+              column.id,
+              normalizeTableCellValue(column.kind, safeCells[column.id]),
+            ]),
+          ),
+        };
+      })
+      .filter((row) => row.id.length > 0)
+    : [];
+
+  return normalizedRows.length > 0 ? normalizedRows : createDefaultTableRows(safeColumns);
+}
+
 function normalizeRackTileIds(tileIds) {
   return Array.isArray(tileIds)
     ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
@@ -166,6 +372,22 @@ function getCardSize(type) {
 
   if (type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_SIZE;
+  }
+
+  if (type === CHECKLIST_CARD_TYPE) {
+    return CHECKLIST_CARD_SIZE;
+  }
+
+  if (type === CODE_CARD_TYPE) {
+    return CODE_CARD_SIZE;
+  }
+
+  if (type === NOTE_CARD_TYPE) {
+    return NOTE_CARD_SIZE;
+  }
+
+  if (type === TABLE_CARD_TYPE) {
+    return TABLE_CARD_SIZE;
   }
 
   if (type === RACK_CARD_TYPE) {
@@ -613,6 +835,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const size = getCardSize(type);
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
+  const checklistItems = type === CHECKLIST_CARD_TYPE ? normalizeChecklistItems(card?.items) : [];
+  const codeLanguage = type === CODE_CARD_TYPE ? normalizeCodeLanguage(card?.language) : CODE_DEFAULT_LANGUAGE;
+  const noteMode = type === NOTE_CARD_TYPE ? normalizeNoteMode(card?.mode) : "edit";
+  const languageHints = type === NOTE_CARD_TYPE ? normalizeLanguageHints(card?.languageHints) : [];
+  const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
+  const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
@@ -632,14 +860,29 @@ export function normalizeCard(card, fallbackIndex = 0) {
     contentKind,
     title: isLinkLikeCard
       ? String(card?.title ?? "")
-      : type === RACK_CARD_TYPE
-        ? firstString(card?.title, RACK_DEFAULT_TITLE)
+      : type === CHECKLIST_CARD_TYPE
+        ? firstString(card?.title, CHECKLIST_DEFAULT_TITLE)
+        : type === CODE_CARD_TYPE
+          ? firstString(card?.title, CODE_DEFAULT_TITLE)
+        : type === NOTE_CARD_TYPE
+          ? firstString(card?.title, NOTE_DEFAULT_TITLE)
+          : type === TABLE_CARD_TYPE
+            ? firstString(card?.title, TABLE_DEFAULT_TITLE)
+            : type === RACK_CARD_TYPE
+              ? firstString(card?.title, RACK_DEFAULT_TITLE)
         : "",
     description: isLinkLikeCard
       ? String(card?.description ?? "")
       : type === RACK_CARD_TYPE
         ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
         : "",
+    body: type === NOTE_CARD_TYPE ? String(card?.body ?? "") : "",
+    language: type === CODE_CARD_TYPE ? codeLanguage : "",
+    code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
+    wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
+    showLineNumbers: type === CODE_CARD_TYPE ? card?.showLineNumbers !== false : false,
+    mode: noteMode,
+    languageHints,
     image: isLinkLikeCard ? String(card?.image ?? "") : "",
     favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
     siteName: isLinkLikeCard ? String(card?.siteName ?? "") : "",
@@ -669,6 +912,9 @@ export function normalizeCard(card, fallbackIndex = 0) {
     productReviewCount: type === AMAZON_PRODUCT_CARD_TYPE && Number.isFinite(card?.productReviewCount)
       ? Math.max(0, Math.round(card.productReviewCount))
       : null,
+    items: checklistItems,
+    columns: tableColumns,
+    rows: tableRows,
     tileIds: rackTileIds,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
@@ -788,6 +1034,27 @@ function migrateWorkspace(rawWorkspace) {
       activePageId: migratedPage.id,
       pages: [migratedPage],
       version: 9,
+    };
+  }
+
+  if (version < 10) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 10,
+    };
+  }
+
+  if (version < 11) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 11,
+    };
+  }
+
+  if (version < 12) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 12,
     };
   }
 
@@ -968,6 +1235,86 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
     y: position.y,
     width: position.width,
     height: position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createChecklistCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, CHECKLIST_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: CHECKLIST_CARD_TYPE,
+    title: firstString(options?.title, CHECKLIST_DEFAULT_TITLE),
+    items: normalizeChecklistItems(options?.items),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createCodeCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, CODE_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: CODE_CARD_TYPE,
+    title: firstString(options?.title, CODE_DEFAULT_TITLE),
+    language: normalizeCodeLanguage(options?.language),
+    code: typeof options?.code === "string" ? options.code : "",
+    wrap: options?.wrap !== false,
+    showLineNumbers: options?.showLineNumbers !== false,
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, NOTE_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: NOTE_CARD_TYPE,
+    title: firstString(options?.title, NOTE_DEFAULT_TITLE),
+    body: typeof options?.body === "string" ? options.body : "",
+    mode: normalizeNoteMode(options?.mode),
+    languageHints: normalizeLanguageHints(options?.languageHints),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createTableCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, TABLE_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+  const columns = normalizeTableColumns(options?.columns);
+  const rows = normalizeTableRows(options?.rows, columns);
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: TABLE_CARD_TYPE,
+    title: firstString(options?.title, TABLE_DEFAULT_TITLE),
+    columns,
+    rows,
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -1308,6 +1655,30 @@ export function formatCardSubtitle(card) {
   if (card.type === RACK_CARD_TYPE) {
     const tileCount = card.tileIds.length;
     return `${tileCount} ${tileCount === 1 ? "tile" : "tiles"} on rack`;
+  }
+
+  if (card.type === CHECKLIST_CARD_TYPE) {
+    const totalItems = Array.isArray(card.items) ? card.items.length : 0;
+    const completedItems = Array.isArray(card.items)
+      ? card.items.filter((item) => item.checked).length
+      : 0;
+    return `${completedItems}/${totalItems} complete`;
+  }
+
+  if (card.type === CODE_CARD_TYPE) {
+    const lineCount = String(card.code ?? "").split(/\r?\n/).length;
+    return `${card.language || CODE_DEFAULT_LANGUAGE} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
+  }
+
+  if (card.type === NOTE_CARD_TYPE) {
+    const lineCount = String(card.body ?? "").split(/\r?\n/).length;
+    return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${card.mode === "preview" ? "preview" : "edit"}`;
+  }
+
+  if (card.type === TABLE_CARD_TYPE) {
+    const columnCount = Array.isArray(card.columns) ? card.columns.length : 0;
+    const rowCount = Array.isArray(card.rows) ? card.rows.length : 0;
+    return `${rowCount} rows · ${columnCount} cols`;
   }
 
   if (card.type === AMAZON_PRODUCT_CARD_TYPE) {

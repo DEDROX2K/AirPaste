@@ -663,18 +663,13 @@ function LinkTile({
               {mediaMarkup}
             </div>
           ) : (
-            <a
+            <div
               className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}`}
-              href={card.url}
-              target="_blank"
-              rel="noreferrer"
               title={linkTitle}
-              aria-label={`Open ${linkTitle}`}
-              draggable={false}
-              onClick={(event) => event.preventDefault()}
+              aria-label={linkTitle}
             >
               {mediaMarkup}
-            </a>
+            </div>
           )}
         </div>
 

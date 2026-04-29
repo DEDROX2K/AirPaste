@@ -12,6 +12,7 @@ import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
 import {
+  CODE_CARD_TYPE,
   canRefreshLinkPreviewCard,
   createCanvasSelectionClipboardPayload,
   getWorkspaceActivePage,
@@ -364,6 +365,27 @@ function buildPreviewDiagnosticsExport(card) {
   };
 }
 
+function buildCodeTileDiagnosticsExport(card) {
+  const code = String(card?.code ?? "");
+  const lineCount = code.length > 0 ? code.split(/\r?\n/).length : 0;
+
+  return {
+    schemaVersion: 1,
+    tileId: card?.id || "",
+    type: card?.type || CODE_CARD_TYPE,
+    title: card?.title || "",
+    language: card?.language || "plain",
+    codeLength: code.length,
+    lineCount,
+    wrap: card?.wrap !== false,
+    showLineNumbers: card?.showLineNumbers !== false,
+    finalPersistedCardPayload: {
+      ...card,
+      codePreview: code.slice(0, 240),
+    },
+  };
+}
+
 function buildPreviewCodexReport(card) {
   const diagnostics = buildPreviewDiagnosticsExport(card);
 
@@ -390,6 +412,28 @@ function buildPreviewCodexReport(card) {
       errors: diagnostics.errors,
       warnings: diagnostics.warnings,
     }, null, 2),
+    "```",
+  ].join("\n");
+}
+
+function buildCodeTileCodexReport(card) {
+  const diagnostics = buildCodeTileDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Code Tile Debug Report",
+    "",
+    "### Tile",
+    `- Tile ID: ${diagnostics.tileId}`,
+    `- Type: ${diagnostics.type}`,
+    `- Language: ${diagnostics.language}`,
+    `- Code length: ${diagnostics.codeLength}`,
+    `- Line count: ${diagnostics.lineCount}`,
+    `- Wrap: ${diagnostics.wrap}`,
+    `- Show line numbers: ${diagnostics.showLineNumbers}`,
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
     "```",
   ].join("\n");
 }
@@ -678,8 +722,12 @@ export default function CanvasWorkspaceView() {
     undoWorkspaceChange,
     workspace,
     commitWorkspaceChangeForPath,
+    createNewChecklistCard,
+    createNewCodeCard,
     createNewLinkCard,
+    createNewNoteCard,
     createNewRackCard,
+    createNewTableCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
@@ -723,8 +771,12 @@ export default function CanvasWorkspaceView() {
     openFolderDialog: openExistingWorkspace,
     commitWorkspaceChange,
     discardWorkspaceDraft,
+    createNewChecklistCard,
+    createNewCodeCard,
     createNewLinkCard,
+    createNewNoteCard,
     createNewRackCard,
+    createNewTableCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
@@ -1520,10 +1572,11 @@ export default function CanvasWorkspaceView() {
   const activeContextTile = radialMenu?.kind === "tile"
     ? (tileById[radialMenu.card?.id] ?? radialMenu.card ?? null)
     : null;
+  const isCodeContextTile = activeContextTile?.type === CODE_CARD_TYPE;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
-  const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && isBookmarkLinkCard(activeContextTile);
-  const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && isBookmarkLinkCard(activeContextTile);
+  const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && (isBookmarkLinkCard(activeContextTile) || isCodeContextTile);
+  const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && (isBookmarkLinkCard(activeContextTile) || isCodeContextTile);
 
   const handleRadialFolder = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -1589,7 +1642,9 @@ export default function CanvasWorkspaceView() {
     }
 
     try {
-      const payload = buildPreviewDiagnosticsExport(activeContextTile);
+      const payload = isCodeContextTile
+        ? buildCodeTileDiagnosticsExport(activeContextTile)
+        : buildPreviewDiagnosticsExport(activeContextTile);
       await copyTextToClipboard(JSON.stringify(payload, null, 2));
       toast("success", "Preview diagnostics copied");
       return true;
@@ -1598,7 +1653,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy preview diagnostics");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewDiagnostics, log, toast]);
+  }, [activeContextTile, canCopyPreviewDiagnostics, isCodeContextTile, log, toast]);
 
   const handleCopyPreviewCodexReport = useCallback(async () => {
     if (!canCopyPreviewCodexReport || !activeContextTile) {
@@ -1606,7 +1661,9 @@ export default function CanvasWorkspaceView() {
     }
 
     try {
-      const report = buildPreviewCodexReport(activeContextTile);
+      const report = isCodeContextTile
+        ? buildCodeTileCodexReport(activeContextTile)
+        : buildPreviewCodexReport(activeContextTile);
       await copyTextToClipboard(report);
       toast("success", "Codex report copied");
       return true;
@@ -1615,7 +1672,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy Codex report");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewCodexReport, log, toast]);
+  }, [activeContextTile, canCopyPreviewCodexReport, isCodeContextTile, log, toast]);
 
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
@@ -1756,6 +1813,11 @@ export default function CanvasWorkspaceView() {
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
+      onPointerDownCapture={(event) => {
+          if (event.button === 1) {
+            interactions.handleCanvasPointerDown(event);
+          }
+        }}
       onPointerDown={(event) => {
           if (useSceneSurface) {
             return;

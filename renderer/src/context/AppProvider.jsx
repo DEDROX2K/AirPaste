@@ -4,8 +4,12 @@ import { useTabs } from "./useTabs";
 import {
   createWorkspacePage,
   createEmptyWorkspace,
+  createChecklistCard,
+  createCodeCard,
   createLinkCard,
+  createNoteCard,
   createRackCard,
+  createTableCard,
   getWorkspaceActivePage,
   isBookmarkLinkCard,
   normalizeWorkspace,
@@ -1148,6 +1152,38 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewChecklistCard = useCallback((center = null, options = {}) => {
+    const card = createChecklistCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewCodeCard = useCallback((center = null, options = {}) => {
+    const card = createCodeCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewNoteCard = useCallback((center = null, options = {}) => {
+    const card = createNoteCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewTableCard = useCallback((center = null, options = {}) => {
+    const card = createTableCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const updateExistingCard = useCallback((cardId, updates) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
     ...page,
     cards: updateCard(page.cards, cardId, updates),
@@ -1446,8 +1482,12 @@ export function AppProvider({ children }) {
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
+    createNewChecklistCard,
+    createNewCodeCard,
     createNewLinkCard,
+    createNewNoteCard,
     createNewRackCard,
+    createNewTableCard,
     createCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,
@@ -1502,8 +1542,12 @@ export function AppProvider({ children }) {
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
+    createNewChecklistCard,
+    createNewCodeCard,
     createNewLinkCard,
+    createNewNoteCard,
     createNewRackCard,
+    createNewTableCard,
     createCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,

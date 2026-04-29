@@ -141,8 +141,12 @@ export function useCanvasCommands({
   openFolderDialog,
   commitWorkspaceChange,
   discardWorkspaceDraft,
+  createNewChecklistCard,
+  createNewCodeCard,
   createNewLinkCard,
+  createNewNoteCard,
   createNewRackCard,
+  createNewTableCard,
   deleteExistingCard,
   replaceWorkspaceCards,
   reorderExistingCards,
@@ -268,6 +272,72 @@ export function useCanvasCommands({
     toast("success", "Rack dropped into place.");
     return rack;
   }, [createNewRackCard, folderPath, getViewportCenter, log, toast]);
+
+  const createChecklist = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New checklist blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const checklist = createNewChecklistCard(centerPoint);
+
+    log("success", "New checklist created on the canvas", centerPoint);
+    toast("success", "Checklist dropped into place.");
+    return checklist;
+  }, [createNewChecklistCard, folderPath, getViewportCenter, log, toast]);
+
+  const createCode = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New code snippet blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const codeTile = createNewCodeCard(centerPoint, {
+      title: "Terminal command",
+      language: "bash",
+      code: "npm run dev",
+      wrap: true,
+      showLineNumbers: true,
+    });
+
+    log("success", "New code snippet created on the canvas", centerPoint);
+    toast("success", "Code snippet dropped into place.");
+    return codeTile;
+  }, [createNewCodeCard, folderPath, getViewportCenter, log, toast]);
+
+  const createNote = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New note blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const note = createNewNoteCard(centerPoint);
+
+    log("success", "New note created on the canvas", centerPoint);
+    toast("success", "Note dropped into place.");
+    return note;
+  }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
+
+  const createTable = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New table blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const table = createNewTableCard(centerPoint);
+
+    log("success", "New table created on the canvas", centerPoint);
+    toast("success", "Table dropped into place.");
+    return table;
+  }, [createNewTableCard, folderPath, getViewportCenter, log, toast]);
 
   const moveTiles = useCallback((tileIds, origins, delta) => {
     const updatesById = {};
@@ -715,7 +785,11 @@ export function useCanvasCommands({
   }, [discardWorkspaceDraft]);
 
   return useMemo(() => ({
+    createChecklist,
+    createCode,
+    createNote,
     createRack,
+    createTable,
     createLinkFromClipboard,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
@@ -739,7 +813,11 @@ export function useCanvasCommands({
   }), [
     addTileToRackCommand,
     addTilesToRackCommand,
+    createChecklist,
+    createCode,
+    createNote,
     createRack,
+    createTable,
     createLinkFromClipboard,
     deleteTile,
     deleteTiles,

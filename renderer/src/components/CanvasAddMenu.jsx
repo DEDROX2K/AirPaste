@@ -36,6 +36,34 @@ export default function CanvasAddMenu({
         </AppDropdownMenuLabel>
         <AppDropdownMenuItem
           disabled={disabled}
+          onSelect={() => commands.createChecklist()}
+        >
+          <ChecklistIcon />
+          Checklist
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createCode()}
+        >
+          <CodeIcon />
+          Code Snippet
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createNote()}
+        >
+          <NoteIcon />
+          Note
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createTable()}
+        >
+          <TableIcon />
+          Table
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
           onSelect={() => commands.createRack()}
         >
           <RackIcon />
@@ -66,6 +94,52 @@ function RackIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
+
+function ChecklistIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <rect x="3" y="4" width="4" height="4" rx="1" />
+      <path d="M11 6h10" />
+      <rect x="3" y="10" width="4" height="4" rx="1" />
+      <path d="M11 12h10" />
+      <rect x="3" y="16" width="4" height="4" rx="1" />
+      <path d="M11 18h10" />
+    </svg>
+  );
+}
+
+function NoteIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <path d="M6 3h9l3 3v15H6z" />
+      <path d="M15 3v4h4" />
+      <path d="M9 11h6" />
+      <path d="M9 15h6" />
+      <path d="M9 19h4" />
+    </svg>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <path d="m8 9-4 3 4 3" />
+      <path d="m16 9 4 3-4 3" />
+      <path d="m14 4-4 16" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
     </svg>
   );
 }
