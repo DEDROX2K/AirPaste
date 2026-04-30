@@ -6,8 +6,11 @@ import {
   createEmptyWorkspace,
   createChecklistCard,
   createCodeCard,
+  createCounterCard,
+  createDeadlineCard,
   createLinkCard,
   createNoteCard,
+  createProgressCard,
   createRackCard,
   createTableCard,
   getWorkspaceActivePage,
@@ -1168,8 +1171,32 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewCounterCard = useCallback((center = null, options = {}) => {
+    const card = createCounterCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewDeadlineCard = useCallback((center = null, options = {}) => {
+    const card = createDeadlineCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const createNewNoteCard = useCallback((center = null, options = {}) => {
     const card = createNoteCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewProgressCard = useCallback((center = null, options = {}) => {
+    const card = createProgressCard(workspace.cards, workspace.viewport, center, options);
     commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
       ...page,
       cards: [...page.cards, card],
@@ -1484,8 +1511,11 @@ export function AppProvider({ children }) {
     createFolderEntry,
     createNewChecklistCard,
     createNewCodeCard,
+    createNewCounterCard,
+    createNewDeadlineCard,
     createNewLinkCard,
     createNewNoteCard,
+    createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
     createCanvasPage,
@@ -1544,8 +1574,11 @@ export function AppProvider({ children }) {
     createFolderEntry,
     createNewChecklistCard,
     createNewCodeCard,
+    createNewCounterCard,
+    createNewDeadlineCard,
     createNewLinkCard,
     createNewNoteCard,
+    createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
     createCanvasPage,

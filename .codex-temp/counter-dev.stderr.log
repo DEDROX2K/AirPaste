@@ -1,0 +1,8 @@
+=1 : The term '=1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:58
++ Set-Location 'C:\Users\ragha\Documents\GitHub\AirPaste'; ='1'; npm ru ...
++                                                          ~~~~
+    + CategoryInfo          : ObjectNotFound: (=1:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

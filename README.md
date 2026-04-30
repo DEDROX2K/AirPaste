@@ -15,12 +15,12 @@ AirPaste is a local-first desktop canvas app for capturing links, text, images, 
 
 ## Features
 
-- Global paste support for URL, text, image from clipboard
+- Global paste support for URL, text, and image from clipboard
 - Auto Open Graph link preview with fallback on failure
-- Infinite zoom + pan canvas with card positioning
+- Infinite zoom + pan canvas with tile positioning
 - Selection, drag, context menu, and toolbar actions
-- Notes folder cards with multi-style variants
-- Rack cards with mount/hover/out-of-zone states
+- Manual creation for checklist, note, table, code snippet, and rack tiles
+- Rack tiles with mount/hover/out-of-zone states
 
 ## Project Structure
 
@@ -90,17 +90,27 @@ AirPaste/
 
 ### Storage model
 
-`data.json` layout
-- `version`, `viewport`, and `cards[]`
-- Card types: `link`, `text`, `note-folder`, `rack` etc.
-- Persistent `createdAt`, `updatedAt`, tile coordinates
+Workspace storage and tile schema evolve over time.
+
+For the current tile model, type inventory, and tile lifecycle rules, use:
+
+- [docs/TILE_BOOK.md](docs/TILE_BOOK.md)
+- [docs/TESTING_TILES.md](docs/TESTING_TILES.md)
+- [docs/README.md](docs/README.md)
 
 ## Build and run
 
 - `npm install`
 - `npm run dev` (concurrently starts Vite + Electron)
+- `npm run check:tiles` (verifies registered tile type IDs are represented in the tile book)
 - `npm run build` (renderer bundle)
 - `npm run package` (electron-builder output in `release/`)
+
+## Tile Documentation
+
+- Tile source of truth: [docs/TILE_BOOK.md](docs/TILE_BOOK.md)
+- Testing Tiles QA rules: [docs/TESTING_TILES.md](docs/TESTING_TILES.md)
+- Docs index and trust boundaries: [docs/README.md](docs/README.md)
 
 ## Icon setup
 

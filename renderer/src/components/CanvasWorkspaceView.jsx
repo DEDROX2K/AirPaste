@@ -13,6 +13,9 @@ import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
 import {
   CODE_CARD_TYPE,
+  COUNTER_CARD_TYPE,
+  DEADLINE_CARD_TYPE,
+  PROGRESS_CARD_TYPE,
   canRefreshLinkPreviewCard,
   createCanvasSelectionClipboardPayload,
   getWorkspaceActivePage,
@@ -438,6 +441,110 @@ function buildCodeTileCodexReport(card) {
   ].join("\n");
 }
 
+function buildCounterTileDiagnosticsExport(card) {
+  return {
+    schemaVersion: 1,
+    tileId: card?.id || "",
+    type: card?.type || COUNTER_CARD_TYPE,
+    title: card?.title || "",
+    value: Number.isFinite(card?.value) ? Number(card.value) : 0,
+    step: Number.isFinite(card?.step) ? Number(card.step) : 1,
+    unit: typeof card?.unit === "string" ? card.unit : "",
+    finalPersistedCardPayload: { ...card },
+  };
+}
+
+function buildCounterTileCodexReport(card) {
+  const diagnostics = buildCounterTileDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Counter Tile Debug Report",
+    "",
+    "### Tile",
+    `- Tile ID: ${diagnostics.tileId}`,
+    `- Type: ${diagnostics.type}`,
+    `- Title: ${diagnostics.title}`,
+    `- Value: ${diagnostics.value}`,
+    `- Step: ${diagnostics.step}`,
+    `- Unit: ${diagnostics.unit}`,
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
+    "```",
+  ].join("\n");
+}
+
+function buildDeadlineTileDiagnosticsExport(card) {
+  return {
+    schemaVersion: 1,
+    tileId: card?.id || "",
+    type: card?.type || DEADLINE_CARD_TYPE,
+    title: card?.title || "",
+    targetAt: card?.targetAt || "",
+    timezone: card?.timezone || "local",
+    showSeconds: card?.showSeconds === true,
+    finalPersistedCardPayload: { ...card },
+  };
+}
+
+function buildDeadlineTileCodexReport(card) {
+  const diagnostics = buildDeadlineTileDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Deadline Tile Debug Report",
+    "",
+    "### Tile",
+    `- Tile ID: ${diagnostics.tileId}`,
+    `- Type: ${diagnostics.type}`,
+    `- Title: ${diagnostics.title}`,
+    `- Target at: ${diagnostics.targetAt}`,
+    `- Timezone: ${diagnostics.timezone}`,
+    `- Show seconds: ${diagnostics.showSeconds}`,
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
+    "```",
+  ].join("\n");
+}
+
+function buildProgressTileDiagnosticsExport(card) {
+  return {
+    schemaVersion: 1,
+    tileId: card?.id || "",
+    type: card?.type || PROGRESS_CARD_TYPE,
+    title: card?.title || "",
+    mode: card?.mode || "manual",
+    value: Number.isFinite(card?.value) ? Number(card.value) : 0,
+    max: Number.isFinite(card?.max) ? Number(card.max) : 100,
+    linkedTileId: card?.linkedTileId || null,
+    finalPersistedCardPayload: { ...card },
+  };
+}
+
+function buildProgressTileCodexReport(card) {
+  const diagnostics = buildProgressTileDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Progress Tile Debug Report",
+    "",
+    "### Tile",
+    `- Tile ID: ${diagnostics.tileId}`,
+    `- Type: ${diagnostics.type}`,
+    `- Title: ${diagnostics.title}`,
+    `- Mode: ${diagnostics.mode}`,
+    `- Value: ${diagnostics.value}`,
+    `- Max: ${diagnostics.max}`,
+    `- Linked tile ID: ${diagnostics.linkedTileId || ""}`,
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
+    "```",
+  ].join("\n");
+}
+
 function areStyleVarSetsEqual(left, right) {
   const leftKeys = Object.keys(left ?? {});
   const rightKeys = Object.keys(right ?? {});
@@ -724,8 +831,11 @@ export default function CanvasWorkspaceView() {
     commitWorkspaceChangeForPath,
     createNewChecklistCard,
     createNewCodeCard,
+    createNewCounterCard,
+    createNewDeadlineCard,
     createNewLinkCard,
     createNewNoteCard,
+    createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
     deleteExistingCard,
@@ -773,8 +883,11 @@ export default function CanvasWorkspaceView() {
     discardWorkspaceDraft,
     createNewChecklistCard,
     createNewCodeCard,
+    createNewCounterCard,
+    createNewDeadlineCard,
     createNewLinkCard,
     createNewNoteCard,
+    createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
     deleteExistingCard,
@@ -1573,10 +1686,27 @@ export default function CanvasWorkspaceView() {
     ? (tileById[radialMenu.card?.id] ?? radialMenu.card ?? null)
     : null;
   const isCodeContextTile = activeContextTile?.type === CODE_CARD_TYPE;
+  const isCounterContextTile = activeContextTile?.type === COUNTER_CARD_TYPE;
+  const isDeadlineContextTile = activeContextTile?.type === DEADLINE_CARD_TYPE;
+  const isProgressContextTile = activeContextTile?.type === PROGRESS_CARD_TYPE;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
-  const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && (isBookmarkLinkCard(activeContextTile) || isCodeContextTile);
-  const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED && (isBookmarkLinkCard(activeContextTile) || isCodeContextTile);
+  const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
+    && (
+      isBookmarkLinkCard(activeContextTile)
+      || isCodeContextTile
+      || isCounterContextTile
+      || isDeadlineContextTile
+      || isProgressContextTile
+    );
+  const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
+    && (
+      isBookmarkLinkCard(activeContextTile)
+      || isCodeContextTile
+      || isCounterContextTile
+      || isDeadlineContextTile
+      || isProgressContextTile
+    );
 
   const handleRadialFolder = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -1644,7 +1774,13 @@ export default function CanvasWorkspaceView() {
     try {
       const payload = isCodeContextTile
         ? buildCodeTileDiagnosticsExport(activeContextTile)
-        : buildPreviewDiagnosticsExport(activeContextTile);
+        : isCounterContextTile
+          ? buildCounterTileDiagnosticsExport(activeContextTile)
+          : isDeadlineContextTile
+            ? buildDeadlineTileDiagnosticsExport(activeContextTile)
+            : isProgressContextTile
+              ? buildProgressTileDiagnosticsExport(activeContextTile)
+          : buildPreviewDiagnosticsExport(activeContextTile);
       await copyTextToClipboard(JSON.stringify(payload, null, 2));
       toast("success", "Preview diagnostics copied");
       return true;
@@ -1653,7 +1789,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy preview diagnostics");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewDiagnostics, isCodeContextTile, log, toast]);
+  }, [activeContextTile, canCopyPreviewDiagnostics, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, log, toast]);
 
   const handleCopyPreviewCodexReport = useCallback(async () => {
     if (!canCopyPreviewCodexReport || !activeContextTile) {
@@ -1663,7 +1799,13 @@ export default function CanvasWorkspaceView() {
     try {
       const report = isCodeContextTile
         ? buildCodeTileCodexReport(activeContextTile)
-        : buildPreviewCodexReport(activeContextTile);
+        : isCounterContextTile
+          ? buildCounterTileCodexReport(activeContextTile)
+          : isDeadlineContextTile
+            ? buildDeadlineTileCodexReport(activeContextTile)
+            : isProgressContextTile
+              ? buildProgressTileCodexReport(activeContextTile)
+          : buildPreviewCodexReport(activeContextTile);
       await copyTextToClipboard(report);
       toast("success", "Codex report copied");
       return true;
@@ -1672,7 +1814,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy Codex report");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewCodexReport, isCodeContextTile, log, toast]);
+  }, [activeContextTile, canCopyPreviewCodexReport, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, log, toast]);
 
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,

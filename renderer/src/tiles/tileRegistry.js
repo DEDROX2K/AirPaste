@@ -1,8 +1,11 @@
 import AmazonProductTile from "../components/tiles/AmazonProductTile";
 import ChecklistTile from "../components/tiles/ChecklistTile";
 import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
+import CounterTile from "../components/tiles/CounterTile";
+import DeadlineTile from "../components/tiles/DeadlineTile";
 import LinkTile from "../components/tiles/LinkTile";
 import NoteTile from "../components/tiles/NoteTile";
+import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import TableTile from "../components/tiles/TableTile";
 import TILE_TYPES from "./tileTypes";
@@ -91,6 +94,40 @@ const tileRegistry = {
       lazy: false,
     },
   },
+  [TILE_TYPES.COUNTER]: {
+    type: TILE_TYPES.COUNTER,
+    displayName: "Counter Tile",
+    status: "stable",
+    component: CounterTile,
+    defaultSize: { width: 360, height: 300 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.DEADLINE]: {
+    type: TILE_TYPES.DEADLINE,
+    displayName: "Deadline Countdown Tile",
+    status: "stable",
+    component: DeadlineTile,
+    defaultSize: { width: 400, height: 320 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
   [TILE_TYPES.NOTE]: {
     type: TILE_TYPES.NOTE,
     displayName: "Note Tile",
@@ -114,6 +151,23 @@ const tileRegistry = {
     status: "stable",
     component: TableTile,
     defaultSize: { width: 560, height: 360 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.PROGRESS]: {
+    type: TILE_TYPES.PROGRESS,
+    displayName: "Progress Bar Tile",
+    status: "stable",
+    component: ProgressTile,
+    defaultSize: { width: 400, height: 280 },
     capabilities: {
       draggable: true,
       selectable: true,

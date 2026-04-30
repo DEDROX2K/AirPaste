@@ -50,6 +50,20 @@ export default function CanvasAddMenu({
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
           disabled={disabled}
+          onSelect={() => commands.createCounter()}
+        >
+          <CounterIcon />
+          Counter
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createDeadline()}
+        >
+          <DeadlineIcon />
+          Deadline Countdown
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
           onSelect={() => commands.createNote()}
         >
           <NoteIcon />
@@ -61,6 +75,13 @@ export default function CanvasAddMenu({
         >
           <TableIcon />
           Table
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createProgress()}
+        >
+          <ProgressIcon />
+          Progress Bar
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
           disabled={disabled}
@@ -133,6 +154,26 @@ function CodeIcon() {
   );
 }
 
+function CounterIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 8v8" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
+function DeadlineIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <circle cx="12" cy="13" r="8.5" />
+      <path d="M12 9v4l2.5 1.5" />
+      <path d="M9 3h6" />
+    </svg>
+  );
+}
+
 function TableIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
@@ -140,6 +181,15 @@ function TableIcon() {
       <path d="M3 10h18" />
       <path d="M9 4v16" />
       <path d="M15 4v16" />
+    </svg>
+  );
+}
+
+function ProgressIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <rect x="3" y="8" width="18" height="8" rx="4" />
+      <path d="M7 12h6" />
     </svg>
   );
 }

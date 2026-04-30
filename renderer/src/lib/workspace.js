@@ -13,11 +13,14 @@ export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
 export const CHECKLIST_CARD_TYPE = TILE_TYPES.CHECKLIST;
 export const CODE_CARD_TYPE = TILE_TYPES.CODE;
+export const COUNTER_CARD_TYPE = TILE_TYPES.COUNTER;
+export const DEADLINE_CARD_TYPE = TILE_TYPES.DEADLINE;
 export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
+export const PROGRESS_CARD_TYPE = TILE_TYPES.PROGRESS;
 export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 12;
+export const WORKSPACE_SCHEMA_VERSION = 14;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -57,9 +60,24 @@ const CODE_CARD_SIZE = Object.freeze({
   height: 360,
 });
 
+const COUNTER_CARD_SIZE = Object.freeze({
+  width: 360,
+  height: 300,
+});
+
+const DEADLINE_CARD_SIZE = Object.freeze({
+  width: 400,
+  height: 320,
+});
+
 const NOTE_CARD_SIZE = Object.freeze({
   width: 460,
   height: 420,
+});
+
+const PROGRESS_CARD_SIZE = Object.freeze({
+  width: 400,
+  height: 280,
 });
 
 const TABLE_CARD_SIZE = Object.freeze({
@@ -77,6 +95,16 @@ const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const CHECKLIST_DEFAULT_TITLE = "Checklist";
 const CODE_DEFAULT_TITLE = "Untitled snippet";
 const CODE_DEFAULT_LANGUAGE = "plain";
+const COUNTER_DEFAULT_TITLE = "Counter";
+const COUNTER_DEFAULT_VALUE = 0;
+const COUNTER_DEFAULT_STEP = 1;
+const COUNTER_DEFAULT_UNIT = "";
+const DEADLINE_DEFAULT_TITLE = "Launch countdown";
+const DEADLINE_DEFAULT_TIMEZONE = "local";
+const PROGRESS_DEFAULT_TITLE = "Feature progress";
+const PROGRESS_DEFAULT_MODE = "manual";
+const PROGRESS_DEFAULT_VALUE = 0;
+const PROGRESS_DEFAULT_MAX = 100;
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const TABLE_DEFAULT_TITLE = "Untitled table";
 const CHECKLIST_DEFAULT_ITEMS = Object.freeze([
@@ -159,8 +187,20 @@ function getCardType(card) {
     return CODE_CARD_TYPE;
   }
 
+  if (card?.type === COUNTER_CARD_TYPE) {
+    return COUNTER_CARD_TYPE;
+  }
+
+  if (card?.type === DEADLINE_CARD_TYPE) {
+    return DEADLINE_CARD_TYPE;
+  }
+
   if (card?.type === NOTE_CARD_TYPE) {
     return NOTE_CARD_TYPE;
+  }
+
+  if (card?.type === PROGRESS_CARD_TYPE) {
+    return PROGRESS_CARD_TYPE;
   }
 
   if (card?.type === TABLE_CARD_TYPE) {
@@ -247,6 +287,44 @@ function normalizeNoteMode(mode) {
 
 function normalizeCodeLanguage(language) {
   return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
+}
+
+function normalizeCounterValue(value) {
+  return Number.isFinite(value) ? Number(value) : COUNTER_DEFAULT_VALUE;
+}
+
+function normalizeCounterStep(step) {
+  return Number.isFinite(step) && Number(step) > 0 ? Number(step) : COUNTER_DEFAULT_STEP;
+}
+
+function normalizeCounterUnit(unit) {
+  return typeof unit === "string" ? unit : COUNTER_DEFAULT_UNIT;
+}
+
+function normalizeDeadlineTargetAt(targetAt) {
+  return typeof targetAt === "string" ? targetAt : "";
+}
+
+function normalizeDeadlineTimezone(timezone) {
+  return timezone === DEADLINE_DEFAULT_TIMEZONE ? DEADLINE_DEFAULT_TIMEZONE : DEADLINE_DEFAULT_TIMEZONE;
+}
+
+function normalizeProgressMode(mode) {
+  return mode === "linked" ? "linked" : PROGRESS_DEFAULT_MODE;
+}
+
+function normalizeProgressValue(value) {
+  return Number.isFinite(value) ? Number(value) : PROGRESS_DEFAULT_VALUE;
+}
+
+function normalizeProgressMax(max) {
+  return Number.isFinite(max) && Number(max) > 0 ? Number(max) : PROGRESS_DEFAULT_MAX;
+}
+
+function normalizeProgressLinkedTileId(linkedTileId) {
+  return typeof linkedTileId === "string" && linkedTileId.trim().length > 0
+    ? linkedTileId.trim()
+    : null;
 }
 
 function normalizeLanguageHints(languageHints) {
@@ -382,8 +460,20 @@ function getCardSize(type) {
     return CODE_CARD_SIZE;
   }
 
+  if (type === COUNTER_CARD_TYPE) {
+    return COUNTER_CARD_SIZE;
+  }
+
+  if (type === DEADLINE_CARD_TYPE) {
+    return DEADLINE_CARD_SIZE;
+  }
+
   if (type === NOTE_CARD_TYPE) {
     return NOTE_CARD_SIZE;
+  }
+
+  if (type === PROGRESS_CARD_TYPE) {
+    return PROGRESS_CARD_SIZE;
   }
 
   if (type === TABLE_CARD_TYPE) {
@@ -837,7 +927,16 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const checklistItems = type === CHECKLIST_CARD_TYPE ? normalizeChecklistItems(card?.items) : [];
   const codeLanguage = type === CODE_CARD_TYPE ? normalizeCodeLanguage(card?.language) : CODE_DEFAULT_LANGUAGE;
+  const counterValue = type === COUNTER_CARD_TYPE ? normalizeCounterValue(card?.value) : COUNTER_DEFAULT_VALUE;
+  const counterStep = type === COUNTER_CARD_TYPE ? normalizeCounterStep(card?.step) : COUNTER_DEFAULT_STEP;
+  const counterUnit = type === COUNTER_CARD_TYPE ? normalizeCounterUnit(card?.unit) : COUNTER_DEFAULT_UNIT;
+  const deadlineTargetAt = type === DEADLINE_CARD_TYPE ? normalizeDeadlineTargetAt(card?.targetAt) : "";
+  const deadlineTimezone = type === DEADLINE_CARD_TYPE ? normalizeDeadlineTimezone(card?.timezone) : DEADLINE_DEFAULT_TIMEZONE;
   const noteMode = type === NOTE_CARD_TYPE ? normalizeNoteMode(card?.mode) : "edit";
+  const progressMode = type === PROGRESS_CARD_TYPE ? normalizeProgressMode(card?.mode) : PROGRESS_DEFAULT_MODE;
+  const progressValue = type === PROGRESS_CARD_TYPE ? normalizeProgressValue(card?.value) : PROGRESS_DEFAULT_VALUE;
+  const progressMax = type === PROGRESS_CARD_TYPE ? normalizeProgressMax(card?.max) : PROGRESS_DEFAULT_MAX;
+  const progressLinkedTileId = type === PROGRESS_CARD_TYPE ? normalizeProgressLinkedTileId(card?.linkedTileId) : null;
   const languageHints = type === NOTE_CARD_TYPE ? normalizeLanguageHints(card?.languageHints) : [];
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
@@ -864,8 +963,14 @@ export function normalizeCard(card, fallbackIndex = 0) {
         ? firstString(card?.title, CHECKLIST_DEFAULT_TITLE)
         : type === CODE_CARD_TYPE
           ? firstString(card?.title, CODE_DEFAULT_TITLE)
+        : type === COUNTER_CARD_TYPE
+          ? firstString(card?.title, COUNTER_DEFAULT_TITLE)
+        : type === DEADLINE_CARD_TYPE
+          ? firstString(card?.title, DEADLINE_DEFAULT_TITLE)
         : type === NOTE_CARD_TYPE
           ? firstString(card?.title, NOTE_DEFAULT_TITLE)
+        : type === PROGRESS_CARD_TYPE
+          ? firstString(card?.title, PROGRESS_DEFAULT_TITLE)
           : type === TABLE_CARD_TYPE
             ? firstString(card?.title, TABLE_DEFAULT_TITLE)
             : type === RACK_CARD_TYPE
@@ -881,7 +986,19 @@ export function normalizeCard(card, fallbackIndex = 0) {
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
     showLineNumbers: type === CODE_CARD_TYPE ? card?.showLineNumbers !== false : false,
-    mode: noteMode,
+    value: type === COUNTER_CARD_TYPE
+      ? counterValue
+      : type === PROGRESS_CARD_TYPE
+        ? progressValue
+        : null,
+    step: type === COUNTER_CARD_TYPE ? counterStep : null,
+    unit: type === COUNTER_CARD_TYPE ? counterUnit : "",
+    targetAt: type === DEADLINE_CARD_TYPE ? deadlineTargetAt : "",
+    timezone: type === DEADLINE_CARD_TYPE ? deadlineTimezone : "",
+    showSeconds: type === DEADLINE_CARD_TYPE ? card?.showSeconds === true : false,
+    mode: type === NOTE_CARD_TYPE ? noteMode : type === PROGRESS_CARD_TYPE ? progressMode : "",
+    max: type === PROGRESS_CARD_TYPE ? progressMax : null,
+    linkedTileId: type === PROGRESS_CARD_TYPE ? progressLinkedTileId : null,
     languageHints,
     image: isLinkLikeCard ? String(card?.image ?? "") : "",
     favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
@@ -1279,6 +1396,46 @@ export function createCodeCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
+export function createCounterCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, COUNTER_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: COUNTER_CARD_TYPE,
+    title: firstString(options?.title, COUNTER_DEFAULT_TITLE),
+    value: normalizeCounterValue(options?.value),
+    step: normalizeCounterStep(options?.step),
+    unit: normalizeCounterUnit(options?.unit),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createDeadlineCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, DEADLINE_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: DEADLINE_CARD_TYPE,
+    title: firstString(options?.title, DEADLINE_DEFAULT_TITLE),
+    targetAt: normalizeDeadlineTargetAt(options?.targetAt),
+    timezone: normalizeDeadlineTimezone(options?.timezone),
+    showSeconds: options?.showSeconds === true,
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, NOTE_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
@@ -1290,6 +1447,27 @@ export function createNoteCard(cards, viewport, preferredCenter = null, options 
     body: typeof options?.body === "string" ? options.body : "",
     mode: normalizeNoteMode(options?.mode),
     languageHints: normalizeLanguageHints(options?.languageHints),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function createProgressCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, PROGRESS_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: PROGRESS_CARD_TYPE,
+    title: firstString(options?.title, PROGRESS_DEFAULT_TITLE),
+    mode: normalizeProgressMode(options?.mode),
+    value: normalizeProgressValue(options?.value),
+    max: normalizeProgressMax(options?.max),
+    linkedTileId: normalizeProgressLinkedTileId(options?.linkedTileId),
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,
@@ -1670,9 +1848,26 @@ export function formatCardSubtitle(card) {
     return `${card.language || CODE_DEFAULT_LANGUAGE} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
   }
 
+  if (card.type === COUNTER_CARD_TYPE) {
+    const unitLabel = firstString(card.unit, "items");
+    return `${normalizeCounterValue(card.value)} ${unitLabel} · step ${normalizeCounterStep(card.step)}`;
+  }
+
+  if (card.type === DEADLINE_CARD_TYPE) {
+    return card.targetAt
+      ? (card.showSeconds ? "countdown · live seconds" : "countdown · live")
+      : "no deadline set";
+  }
+
   if (card.type === NOTE_CARD_TYPE) {
     const lineCount = String(card.body ?? "").split(/\r?\n/).length;
     return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${card.mode === "preview" ? "preview" : "edit"}`;
+  }
+
+  if (card.type === PROGRESS_CARD_TYPE) {
+    return card.linkedTileId
+      ? "linked checklist progress"
+      : `${normalizeProgressValue(card.value)} / ${normalizeProgressMax(card.max)}`;
   }
 
   if (card.type === TABLE_CARD_TYPE) {

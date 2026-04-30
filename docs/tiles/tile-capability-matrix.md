@@ -1,5 +1,7 @@
 # Tile Capability Matrix
 
+This is a supporting summary. The canonical source of truth for tile inventory and lifecycle rules is `docs/TILE_BOOK.md`.
+
 Quick inventory of every tile type currently defined in the live AirPaste runtime.
 
 Use this file as the simple source of truth when adding new tiles. For each new tile, update:

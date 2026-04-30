@@ -143,8 +143,11 @@ export function useCanvasCommands({
   discardWorkspaceDraft,
   createNewChecklistCard,
   createNewCodeCard,
+  createNewCounterCard,
+  createNewDeadlineCard,
   createNewLinkCard,
   createNewNoteCard,
+  createNewProgressCard,
   createNewRackCard,
   createNewTableCard,
   deleteExistingCard,
@@ -309,6 +312,46 @@ export function useCanvasCommands({
     return codeTile;
   }, [createNewCodeCard, folderPath, getViewportCenter, log, toast]);
 
+  const createCounter = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New counter blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const counter = createNewCounterCard(centerPoint, {
+      title: "Bugs Found",
+      value: 0,
+      step: 1,
+      unit: "bugs",
+    });
+
+    log("success", "New counter created on the canvas", centerPoint);
+    toast("success", "Counter dropped into place.");
+    return counter;
+  }, [createNewCounterCard, folderPath, getViewportCenter, log, toast]);
+
+  const createDeadline = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New deadline blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const deadline = createNewDeadlineCard(centerPoint, {
+      title: "Launch countdown",
+      targetAt: "",
+      timezone: "local",
+      showSeconds: false,
+    });
+
+    log("success", "New deadline created on the canvas", centerPoint);
+    toast("success", "Deadline dropped into place.");
+    return deadline;
+  }, [createNewDeadlineCard, folderPath, getViewportCenter, log, toast]);
+
   const createNote = useCallback((preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New note blocked because no folder is open");
@@ -323,6 +366,27 @@ export function useCanvasCommands({
     toast("success", "Note dropped into place.");
     return note;
   }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
+
+  const createProgress = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New progress tile blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const progress = createNewProgressCard(centerPoint, {
+      title: "Feature progress",
+      mode: "manual",
+      value: 0,
+      max: 100,
+      linkedTileId: null,
+    });
+
+    log("success", "New progress tile created on the canvas", centerPoint);
+    toast("success", "Progress tile dropped into place.");
+    return progress;
+  }, [createNewProgressCard, folderPath, getViewportCenter, log, toast]);
 
   const createTable = useCallback((preferredCenter = null) => {
     if (!folderPath) {
@@ -787,7 +851,10 @@ export function useCanvasCommands({
   return useMemo(() => ({
     createChecklist,
     createCode,
+    createCounter,
+    createDeadline,
     createNote,
+    createProgress,
     createRack,
     createTable,
     createLinkFromClipboard,
@@ -815,7 +882,10 @@ export function useCanvasCommands({
     addTilesToRackCommand,
     createChecklist,
     createCode,
+    createCounter,
+    createDeadline,
     createNote,
+    createProgress,
     createRack,
     createTable,
     createLinkFromClipboard,

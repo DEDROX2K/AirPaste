@@ -1,3 +1,7 @@
+# Historical / Reference Document
+
+This document is retained for historical context. For current tile implementation status, type IDs, data models, and QA requirements, use `docs/TILE_BOOK.md` and `docs/TESTING_TILES.md`.
+
 # Structured Note-Family Proposal
 
 > **Implementation Status:** Phase 1, 2, 3 (Creation unified, Call sites migrated) have been implemented. See [Implementation Notes](./note-family-implementation-notes.md) for details.

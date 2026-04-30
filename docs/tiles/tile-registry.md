@@ -1,3 +1,7 @@
+# Historical Note
+
+This document is retained for historical context. It may describe older tile types or architecture. For current tile inventory and implementation rules, use `docs/TILE_BOOK.md`.
+
 # Tile Registry
 
 | Tile Name | Type ID | Description | Capabilities | Can Contain Children? | Status |
@@ -12,4 +16,3 @@
 | Game Tile | `game` | Embedded gameplay surface. | drag, resize, interactive, lazy-load | no | planned |
 | 3D Model Tile | `3d-model` | Viewport for 3D content or models. | drag, resize, interactive, lazy-load | no | planned |
 | Physics Item Tile | `physics-item` | Physics-aware tile or object inside a simulation system. | drag, resize, physics, runtime-state | no | planned |
-

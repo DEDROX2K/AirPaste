@@ -1,7 +1,10 @@
 import {
   createEmptyWorkspace,
   createCodeCard,
+  createCounterCard,
+  createDeadlineCard,
   createNoteCard,
+  createProgressCard,
   createLinkCard,
   createTableCard,
   LINK_CONTENT_KIND_IMAGE,
@@ -273,6 +276,110 @@ const TESTING_TILE_ROWS = Object.freeze([
       },
     ],
   },
+  {
+    key: "tracking-productivity",
+    label: "Tracking & Productivity",
+    items: [
+      {
+        kind: "counter",
+        options: {
+          title: "Bugs Found",
+          value: 0,
+          step: 1,
+          unit: "bugs",
+        },
+      },
+      {
+        kind: "counter",
+        options: {
+          title: "Cups of Coffee",
+          value: 2,
+          step: 1,
+          unit: "cups",
+        },
+      },
+      {
+        kind: "counter",
+        options: {
+          title: "Outreach Messages",
+          value: 15,
+          step: 1,
+          unit: "sent",
+        },
+      },
+      {
+        kind: "counter",
+        options: {
+          title: "Tests Passed",
+          value: 42,
+          step: 1,
+          unit: "tests",
+        },
+      },
+      {
+        kind: "progress",
+        options: {
+          title: "QA rollout",
+          mode: "manual",
+          value: 72,
+          max: 100,
+        },
+      },
+      {
+        kind: "progress",
+        options: {
+          title: "Release readiness",
+          mode: "manual",
+          value: 3,
+          max: 5,
+        },
+      },
+      {
+        kind: "progress",
+        options: {
+          title: "Checklist sync",
+          mode: "linked",
+          linkedTileId: null,
+        },
+      },
+      {
+        kind: "deadline",
+        options: {
+          title: "Launch countdown",
+          targetAt: "2026-05-10T17:00",
+          timezone: "local",
+          showSeconds: false,
+        },
+      },
+      {
+        kind: "deadline",
+        options: {
+          title: "Client handoff",
+          targetAt: "2026-05-02T09:30",
+          timezone: "local",
+          showSeconds: true,
+        },
+      },
+      {
+        kind: "deadline",
+        options: {
+          title: "Campaign deadline",
+          targetAt: "2026-04-28T09:00",
+          timezone: "local",
+          showSeconds: false,
+        },
+      },
+      {
+        kind: "deadline",
+        options: {
+          title: "Unset deadline",
+          targetAt: "",
+          timezone: "local",
+          showSeconds: false,
+        },
+      },
+    ],
+  },
 ]);
 
 export function isPreviewDebugModeEnabled() {
@@ -367,6 +474,42 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
       createCodeCard(cards, viewport, null, {
         width: CARD_WIDTH + 120,
         height: CARD_HEIGHT + 48,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "counter") {
+    return positionSeedCard(
+      createCounterCard(cards, viewport, null, {
+        width: CARD_WIDTH + 20,
+        height: CARD_HEIGHT + 20,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "deadline") {
+    return positionSeedCard(
+      createDeadlineCard(cards, viewport, null, {
+        width: CARD_WIDTH + 60,
+        height: CARD_HEIGHT + 40,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "progress") {
+    return positionSeedCard(
+      createProgressCard(cards, viewport, null, {
+        width: CARD_WIDTH + 60,
+        height: CARD_HEIGHT,
         ...(item.options ?? {}),
       }),
       rowIndex,

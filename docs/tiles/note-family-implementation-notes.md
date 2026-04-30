@@ -1,3 +1,7 @@
+# Historical / Reference Document
+
+This document is retained for historical context. For current tile implementation status, type IDs, data models, and QA requirements, use `docs/TILE_BOOK.md` and `docs/TESTING_TILES.md`.
+
 # Note Family Implementation Notes
 
 ## Old Creation Functions
