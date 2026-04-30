@@ -36,6 +36,7 @@ A tile feature is not complete until:
 | Implemented | Commerce | Amazon Product Tile | `amazon-product` | Specialized product preview tile for Amazon items. | `renderer/src/components/tiles/AmazonProductTile.jsx` | `renderer/src/lib/workspace.js` | No | No seeded examples yet | No dedicated copy report documented. | Specialized link-like tile. |
 | Implemented | Structure & Planning | Checklist Tile | `checklist` | Simple checklist with editable items and completion state. | `renderer/src/components/tiles/ChecklistTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable manual tile. |
 | Implemented | Notes & Writing | Note / Markdown Tile | `note` | Scratchpad tile for Markdown notes, explanations, and snippets. | `renderer/src/components/tiles/NoteTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Supports edit/preview. |
+| Implemented | Notes & Writing | Canvas Text Box Tile | `text-box` | Lightweight visible canvas text object for headings, labels, callouts, and annotations. | `renderer/src/components/tiles/TextBoxTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated DEV/testing diagnostics and Codex copy report for text length, line count, preset, size, weight, alignment, and style flags. | Not the same as Note / Markdown Tile. |
 | Implemented | Structured Data | Database / Table Tile | `table` | Lightweight grid tile for small structured datasets. | `renderer/src/components/tiles/TableTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Tracker-style table, not a spreadsheet. |
 | Implemented | Development | Code Snippet Tile | `code` | Syntax-highlighted storage tile for commands, config, SQL, regex, and snippets. | `renderer/src/components/tiles/CodeSnippetTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
 | Implemented | Tracking & Productivity | Counter Tile | `counter` | Large plus/minus counter for lightweight tracking. | `renderer/src/components/tiles/CounterTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated counter diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
@@ -274,6 +275,72 @@ A tile feature is not complete until:
 - Future improvements:
   - Add note-specific diagnostics if needed.
   - Expand rich content support carefully.
+
+## Canvas Text Box Tile
+
+- Type ID: `text-box`
+- Category: Notes & Writing
+- Status: Implemented
+- Purpose: Lightweight Figma-like text object for headings, labels, captions, callouts, annotations, and diagram text directly on the canvas.
+- Important distinction:
+  - This is not the same as the Note / Markdown Tile.
+  - `note` is for scratchpad documentation and Markdown editing.
+  - `text-box` is for visible canvas typography.
+- User-facing UX:
+  - Single click selects like a normal tile
+  - Double click enters edit mode
+  - `Enter` while selected enters edit mode
+  - Typing a printable key while selected enters edit mode and replaces the current text with that typed character
+  - Uses a textarea in edit mode
+  - Blur/click outside saves and exits edit mode
+  - `Escape` exits edit mode
+  - Preserves multiline text and pasted line breaks
+  - Shares one canvas-level formatting toolbar when exactly one text box tile is selected
+- Data model:
+```js
+{
+  type: "text-box",
+  text: "Double click to edit",
+  style: {
+    preset: "simple",
+    fontSize: 48,
+    fontWeight: 500,
+    italic: false,
+    underline: false,
+    strike: false,
+    align: "left",
+    color: "#1f1f1f",
+    lineHeight: 1.15,
+    letterSpacing: 0
+  }
+}
+```
+- Main files:
+  - `renderer/src/components/tiles/TextBoxTile.jsx`
+  - `renderer/src/components/TextFormattingToolbar.jsx`
+  - `renderer/src/lib/textBoxStyle.js`
+  - `renderer/src/lib/workspace.js`
+  - `renderer/src/components/CanvasWorkspaceView.jsx`
+  - `renderer/src/components/CanvasAddMenu.jsx`
+  - `renderer/src/systems/commands/useCanvasCommands.js`
+  - `renderer/src/lib/testingTiles.js`
+- Add menu behavior:
+  - Yes
+  - Label: `Text Box`
+- Testing Tiles examples:
+  - `Text / Typography`
+  - Includes large heading, centered label, technical note, bookish quote, and multiline callout coverage
+- Diagnostics / copy report behavior:
+  - Dedicated DEV/testing diagnostics export exists
+  - Dedicated DEV/testing Codex report exists
+  - Diagnostics include type, text length, line count, preset, font size, font weight, align, and style flags for italic/underline/strike
+- Known limitations:
+  - V1 is whole-box formatting only
+  - No per-character styling or rich text spans
+  - Uses textarea editing instead of a rich-text editor
+- Future improvements:
+  - Optional line-height and letter-spacing controls in the toolbar
+  - Smarter auto-sizing if the canvas gets a shared resize system later
 
 ## Database / Table Tile
 

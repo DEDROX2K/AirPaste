@@ -8,6 +8,7 @@ import NoteTile from "./NoteTile";
 import ProgressTile from "./ProgressTile";
 import RackTile from "./RackTile";
 import TableTile from "./TableTile";
+import TextBoxTile from "./TextBoxTile";
 import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
@@ -37,6 +38,9 @@ const tileRegistry = {
   },
   [TILE_TYPES.TABLE]: {
     Component: TableTile,
+  },
+  [TILE_TYPES.TEXT_BOX]: {
+    Component: TextBoxTile,
   },
   [TILE_TYPES.RACK]: {
     Component: RackTile,

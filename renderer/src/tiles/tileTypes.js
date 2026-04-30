@@ -8,6 +8,7 @@ export const TILE_TYPES = Object.freeze({
   NOTE: "note",
   PROGRESS: "progress",
   TABLE: "table",
+  TEXT_BOX: "text-box",
   RACK: "rack",
   NODE_GROUP: "node-group",
   GAME: "game",

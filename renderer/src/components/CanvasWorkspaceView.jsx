@@ -6,6 +6,7 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
+import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
@@ -16,6 +17,7 @@ import {
   COUNTER_CARD_TYPE,
   DEADLINE_CARD_TYPE,
   PROGRESS_CARD_TYPE,
+  TEXT_BOX_CARD_TYPE,
   canRefreshLinkPreviewCard,
   createCanvasSelectionClipboardPayload,
   getWorkspaceActivePage,
@@ -26,6 +28,7 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
+import { getTextBoxLineCount, normalizeTextBoxStyle } from "../lib/textBoxStyle";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -157,11 +160,107 @@ function WorkspaceViewToggle({ mode, onChange }) {
   );
 }
 
-function WorkspaceTopbarTrail() {
+function HomeTrailIcon() {
   return (
-    <header className="canvas-topbar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10.5V20h14v-9.5" />
+    </svg>
+  );
+}
 
+function FolderTrailIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
+    </svg>
+  );
+}
+
+function CanvasTrailIcon() {
+  return (
+    <img className="canvas-topbar__canvas-icon" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />
+  );
+}
+
+function WorkspaceTopbarTrail({
+  canvasName,
+  folderLabel,
+  folderLoading,
+  onOpenHome,
+  onOpenWorkspaceFolder,
+}) {
+  return (
+    <header className="workspace-trail">
+      <div className="canvas-topbar__left">
+        <button
+          type="button"
+          className="canvas-topbar__crumb canvas-topbar__crumb--home"
+          onClick={onOpenHome}
+          aria-label="Go to Home"
+          title="Home"
+        >
+          <span className="canvas-topbar__crumb-icon">
+            <HomeTrailIcon />
+          </span>
+          <span className="canvas-topbar__crumb-text">Home</span>
+        </button>
+        {folderLabel ? (
+          <>
+            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+            <button
+              type="button"
+              className="canvas-topbar__crumb"
+              onClick={() => onOpenWorkspaceFolder?.()}
+              disabled={folderLoading}
+              aria-label={folderLoading ? "Workspace folder loading" : `Open ${folderLabel} in your file browser`}
+              title={folderLoading ? "Workspace loading" : "Open workspace folder"}
+            >
+              <span className="canvas-topbar__crumb-icon">
+                <FolderTrailIcon />
+              </span>
+              <span className="canvas-topbar__crumb-text">{folderLabel}</span>
+            </button>
+          </>
+        ) : null}
+        <span className="canvas-topbar__sep" aria-hidden="true">/</span>
+        <span
+          className="canvas-topbar__crumb canvas-topbar__crumb--active"
+          aria-current="page"
+          title={canvasName}
+        >
+          <span className="canvas-topbar__crumb-icon">
+            <CanvasTrailIcon />
+          </span>
+          <span className="canvas-topbar__crumb-text">{canvasName}</span>
+        </span>
+      </div>
     </header>
+  );
+}
+
+function GridViewFilterToggle({ value, onChange }) {
+  return (
+    <div className="grid-view-filter-toggle" role="tablist" aria-label="Grid tile visibility">
+      <AppButton tone="unstyled"
+        type="button"
+        className={`grid-view-filter-toggle__button${value === "bookmarks" ? " grid-view-filter-toggle__button--active" : ""}`}
+        onClick={() => onChange("bookmarks")}
+        aria-selected={value === "bookmarks"}
+        role="tab"
+      >
+        Show only bookmarks
+      </AppButton>
+      <AppButton tone="unstyled"
+        type="button"
+        className={`grid-view-filter-toggle__button${value === "all" ? " grid-view-filter-toggle__button--active" : ""}`}
+        onClick={() => onChange("all")}
+        aria-selected={value === "all"}
+        role="tab"
+      >
+        Show bookmarks and all the other tiles
+      </AppButton>
+    </div>
   );
 }
 
@@ -545,6 +644,56 @@ function buildProgressTileCodexReport(card) {
   ].join("\n");
 }
 
+function buildTextBoxTileDiagnosticsExport(card) {
+  const style = normalizeTextBoxStyle(card?.style);
+  const text = String(card?.text ?? "");
+
+  return {
+    schemaVersion: 1,
+    tileId: card?.id || "",
+    type: card?.type || TEXT_BOX_CARD_TYPE,
+    textLength: text.length,
+    lineCount: getTextBoxLineCount(text),
+    preset: style.preset,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+    align: style.align,
+    italic: style.italic,
+    underline: style.underline,
+    strike: style.strike,
+    color: style.color,
+    lineHeight: style.lineHeight,
+    letterSpacing: style.letterSpacing,
+    finalPersistedCardPayload: { ...card },
+  };
+}
+
+function buildTextBoxTileCodexReport(card) {
+  const diagnostics = buildTextBoxTileDiagnosticsExport(card);
+
+  return [
+    "## AirPaste Text Box Tile Debug Report",
+    "",
+    "### Tile",
+    `- Tile ID: ${diagnostics.tileId}`,
+    `- Type: ${diagnostics.type}`,
+    `- Text length: ${diagnostics.textLength}`,
+    `- Line count: ${diagnostics.lineCount}`,
+    `- Preset: ${diagnostics.preset}`,
+    `- Font size: ${diagnostics.fontSize}`,
+    `- Font weight: ${diagnostics.fontWeight}`,
+    `- Align: ${diagnostics.align}`,
+    `- Italic: ${diagnostics.italic}`,
+    `- Underline: ${diagnostics.underline}`,
+    `- Strike: ${diagnostics.strike}`,
+    "",
+    "### Diagnostics",
+    "```json",
+    JSON.stringify(diagnostics, null, 2),
+    "```",
+  ].join("\n");
+}
+
 function areStyleVarSetsEqual(left, right) {
   const leftKeys = Object.keys(left ?? {});
   const rightKeys = Object.keys(right ?? {});
@@ -838,6 +987,7 @@ export default function CanvasWorkspaceView() {
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
+    createNewTextBoxCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
@@ -848,6 +998,9 @@ export default function CanvasWorkspaceView() {
   const { log } = useLog();
   const { toast } = useToast();
   const [cullingTick, setCullingTick] = useState(0);
+  const [textBoxEditorState, setTextBoxEditorState] = useState(null);
+  const [gridTileFilter, setGridTileFilter] = useState("all");
+  const textBoxEditRequestIdRef = useRef(0);
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
   const sceneSurfaceEnabled = useMemo(() => {
@@ -890,6 +1043,7 @@ export default function CanvasWorkspaceView() {
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
+    createNewTextBoxCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
@@ -1155,6 +1309,53 @@ export default function CanvasWorkspaceView() {
     });
     return nextTileById;
   }, [workspace.cards]);
+  const selectedTextBoxTile = useMemo(() => {
+    if (interactions.selectedTileIds.length !== 1) {
+      return null;
+    }
+
+    const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
+    return selectedTile?.type === TEXT_BOX_CARD_TYPE ? selectedTile : null;
+  }, [interactions.selectedTileIds, tileById]);
+  const requestTextBoxEdit = useCallback((tileId, options = {}) => {
+    textBoxEditRequestIdRef.current += 1;
+    setTextBoxEditorState({
+      tileId,
+      requestId: textBoxEditRequestIdRef.current,
+      replacementText: typeof options.replacementText === "string" ? options.replacementText : null,
+      selectAll: options.selectAll === true,
+    });
+  }, []);
+  const clearTextBoxEditState = useCallback((tileId = null) => {
+    setTextBoxEditorState((current) => {
+      if (!current) {
+        return null;
+      }
+
+      if (tileId && current.tileId !== tileId) {
+        return current;
+      }
+
+      return null;
+    });
+  }, []);
+  const patchSelectedTextBoxStyle = useCallback((stylePatch) => {
+    if (!selectedTextBoxTile) {
+      return;
+    }
+
+    updateExistingCard(selectedTextBoxTile.id, {
+      style: normalizeTextBoxStyle({
+        ...(selectedTextBoxTile.style ?? {}),
+        ...stylePatch,
+      }),
+    });
+  }, [selectedTextBoxTile, updateExistingCard]);
+  useEffect(() => {
+    if (textBoxEditorState?.tileId && !tileById[textBoxEditorState.tileId]) {
+      setTextBoxEditorState(null);
+    }
+  }, [textBoxEditorState, tileById]);
   const draggingTileIdSet = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextDraggingTileIdSet = new Set(interactions.draggingTileIds);
@@ -1442,6 +1643,7 @@ export default function CanvasWorkspaceView() {
     function handleKeyDown(event) {
       const activeElement = document.activeElement;
       const activeElementIsEditable = isEditableElement(activeElement);
+      const activeElementIsCanvas = activeElement === canvas.containerRef.current;
 
       if (event.key === "Escape") {
         if (clearDraftLine()) {
@@ -1457,6 +1659,34 @@ export default function CanvasWorkspaceView() {
       }
 
       if (activeElementIsEditable) return;
+
+      if (
+        selectedTextBoxTile
+        && activeElementIsCanvas
+        && !event.ctrlKey
+        && !event.metaKey
+        && !event.altKey
+        && !event.isComposing
+        && !isCanvasMoving
+        && !drawingTool.isLineToolActive
+        && !interactions.contextMenu
+        && !interactions.marqueeBox
+      ) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          requestTextBoxEdit(selectedTextBoxTile.id, { selectAll: false });
+          return;
+        }
+
+        if (event.key.length === 1) {
+          event.preventDefault();
+          requestTextBoxEdit(selectedTextBoxTile.id, {
+            replacementText: event.key,
+            selectAll: false,
+          });
+          return;
+        }
+      }
 
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "c") {
         if (interactions.selectedTileIds.length > 0) {
@@ -1553,9 +1783,12 @@ export default function CanvasWorkspaceView() {
     copySelectedCanvasSelection,
     cutSelectedCanvasSelection,
     deleteSelectedDrawingObject,
+    drawingTool.isLineToolActive,
+    isCanvasMoving,
     pasteCanvasSelection,
+    requestTextBoxEdit,
     redoWorkspaceChange,
-    tileById,
+    selectedTextBoxTile,
     undoWorkspaceChange,
     zoomToFitAll,
   ]);
@@ -1689,6 +1922,7 @@ export default function CanvasWorkspaceView() {
   const isCounterContextTile = activeContextTile?.type === COUNTER_CARD_TYPE;
   const isDeadlineContextTile = activeContextTile?.type === DEADLINE_CARD_TYPE;
   const isProgressContextTile = activeContextTile?.type === PROGRESS_CARD_TYPE;
+  const isTextBoxContextTile = activeContextTile?.type === TEXT_BOX_CARD_TYPE;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
@@ -1698,6 +1932,7 @@ export default function CanvasWorkspaceView() {
       || isCounterContextTile
       || isDeadlineContextTile
       || isProgressContextTile
+      || isTextBoxContextTile
     );
   const canCopyPreviewCodexReport = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
     && (
@@ -1706,6 +1941,7 @@ export default function CanvasWorkspaceView() {
       || isCounterContextTile
       || isDeadlineContextTile
       || isProgressContextTile
+      || isTextBoxContextTile
     );
 
   const handleRadialFolder = useCallback(() => {
@@ -1780,6 +2016,8 @@ export default function CanvasWorkspaceView() {
             ? buildDeadlineTileDiagnosticsExport(activeContextTile)
             : isProgressContextTile
               ? buildProgressTileDiagnosticsExport(activeContextTile)
+              : isTextBoxContextTile
+                ? buildTextBoxTileDiagnosticsExport(activeContextTile)
           : buildPreviewDiagnosticsExport(activeContextTile);
       await copyTextToClipboard(JSON.stringify(payload, null, 2));
       toast("success", "Preview diagnostics copied");
@@ -1789,7 +2027,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy preview diagnostics");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewDiagnostics, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, log, toast]);
+  }, [activeContextTile, canCopyPreviewDiagnostics, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, isTextBoxContextTile, log, toast]);
 
   const handleCopyPreviewCodexReport = useCallback(async () => {
     if (!canCopyPreviewCodexReport || !activeContextTile) {
@@ -1805,6 +2043,8 @@ export default function CanvasWorkspaceView() {
             ? buildDeadlineTileCodexReport(activeContextTile)
             : isProgressContextTile
               ? buildProgressTileCodexReport(activeContextTile)
+              : isTextBoxContextTile
+                ? buildTextBoxTileCodexReport(activeContextTile)
           : buildPreviewCodexReport(activeContextTile);
       await copyTextToClipboard(report);
       toast("success", "Codex report copied");
@@ -1814,7 +2054,7 @@ export default function CanvasWorkspaceView() {
       toast("error", "Could not copy Codex report");
       return false;
     }
-  }, [activeContextTile, canCopyPreviewCodexReport, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, log, toast]);
+  }, [activeContextTile, canCopyPreviewCodexReport, isCodeContextTile, isCounterContextTile, isDeadlineContextTile, isProgressContextTile, isTextBoxContextTile, log, toast]);
 
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
@@ -1862,6 +2102,12 @@ export default function CanvasWorkspaceView() {
   if (isGridMode) {
     return (
       <main className="canvas-stage canvas-stage--grid">
+        {createPortal(
+          <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
+            <GridViewFilterToggle value={gridTileFilter} onChange={setGridTileFilter} />
+          </div>,
+          document.getElementById("titlebar-right-slot") || document.body
+        )}
         <div className="canvas-stage__fab">
           <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} side="top" />
         </div>
@@ -1877,6 +2123,7 @@ export default function CanvasWorkspaceView() {
         />
         <GridWorkspaceView
           dropImport={dropImport}
+          tileFilter={gridTileFilter}
           isDropTarget={dropImport.isDropTarget}
           openTileLink={commands.openTileLink}
           updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
@@ -1926,6 +2173,12 @@ export default function CanvasWorkspaceView() {
           onChange={updateCanvasBackgroundSkin}
         />
       </div>
+      {selectedTextBoxTile ? (
+        <TextFormattingToolbar
+          card={selectedTextBoxTile}
+          onPatchStyle={patchSelectedTextBoxStyle}
+        />
+      ) : null}
 
       {/* ── Top bar ── */}
       <WorkspaceTopbarTrail
@@ -2034,6 +2287,9 @@ export default function CanvasWorkspaceView() {
                   onMediaLoad={commands.updateTileFromMediaLoad}
                   onPressStart={interactions.handleTilePressStart}
                   onRetry={commands.retryTilePreview}
+                  textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
+                  onRequestTextBoxEdit={requestTextBoxEdit}
+                  onEndTextBoxEdit={clearTextBoxEditState}
                 />
               ))}
             </div>

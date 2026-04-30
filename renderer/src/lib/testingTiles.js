@@ -7,6 +7,7 @@ import {
   createProgressCard,
   createLinkCard,
   createTableCard,
+  createTextBoxCard,
   LINK_CONTENT_KIND_IMAGE,
 } from "./workspace";
 
@@ -150,6 +151,79 @@ const TESTING_TILE_ROWS = Object.freeze([
           title: "Long note scroll test",
           body: "## Scroll test\n\nThis note exists to confirm long content wraps and scrolls cleanly.\n\n- Paragraph one with extra detail.\n- Paragraph two with extra detail.\n- Paragraph three with extra detail.\n\n> Keep typing inside the tile without triggering canvas shortcuts.\n\n### Reminder\n\nUse this space for larger technical scratchpads and postmortems.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
           mode: "edit",
+        },
+      },
+    ],
+  },
+  {
+    key: "text-typography",
+    label: "Text / Typography",
+    items: [
+      {
+        kind: "text-box",
+        options: {
+          text: "Launch Plan",
+          width: 520,
+          height: 120,
+          style: {
+            preset: "simple",
+            fontSize: 64,
+            fontWeight: 700,
+            align: "left",
+          },
+        },
+      },
+      {
+        kind: "text-box",
+        options: {
+          text: "Milestone 01",
+          width: 420,
+          height: 110,
+          style: {
+            preset: "simple",
+            fontSize: 32,
+            fontWeight: 600,
+            align: "center",
+          },
+        },
+      },
+      {
+        kind: "text-box",
+        options: {
+          text: "API → Resolver → Tile",
+          width: 500,
+          height: 108,
+          style: {
+            preset: "technical",
+            fontSize: 28,
+            fontWeight: 500,
+          },
+        },
+      },
+      {
+        kind: "text-box",
+        options: {
+          text: "Make it work, make it clear, make it fast.",
+          width: 520,
+          height: 130,
+          style: {
+            preset: "bookish",
+            fontSize: 30,
+            fontWeight: 500,
+            italic: true,
+          },
+        },
+      },
+      {
+        kind: "text-box",
+        options: {
+          text: "Remember:\n- Test the canvas\n- Check diagnostics\n- Update docs",
+          width: 500,
+          height: 180,
+          style: {
+            preset: "simple",
+            fontSize: 24,
+          },
         },
       },
     ],
@@ -462,6 +536,18 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
       createTableCard(cards, viewport, null, {
         width: CARD_WIDTH + 140,
         height: CARD_HEIGHT + 36,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "text-box") {
+    return positionSeedCard(
+      createTextBoxCard(cards, viewport, null, {
+        width: CARD_WIDTH + 100,
+        height: 160,
         ...(item.options ?? {}),
       }),
       rowIndex,

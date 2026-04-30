@@ -12,6 +12,16 @@ It exists to visually validate:
 - representative seeded states for those tiles
 - edge/fallback states where relevant
 - diagnostics and copy-report behavior in DEV/testing flows
+- shared UI polish after shell, tile, or control styling changes
+
+## Visual QA Rule
+
+When shared UI styles change, use Testing Tiles to verify:
+
+- tile spacing still feels consistent across types
+- title/input/control styling still matches the current UI guide
+- selected, hover, focus, empty, and fallback states still read clearly
+- no tile becomes cramped or visually off-family at smaller sizes
 
 ## Core Rule
 
@@ -66,6 +76,7 @@ Current seeded rows in `renderer/src/lib/testingTiles.js`:
 - `iframe-blocked sites`
 - `broken/redirect/edge cases`
 - `Notes / Markdown`
+- `Text / Typography`
 - `Tables / Databases`
 - `Development / Technical`
 - `Tracking & Productivity`
@@ -80,6 +91,8 @@ The target rule is that every implemented tile has representative seeded coverag
   - multiple seeded QA rows already exist
 - Note / Markdown Tile
   - seeded examples exist
+- Canvas Text Box Tile
+  - seeded typography examples exist
 - Database / Table Tile
   - seeded examples exist
 - Code Snippet Tile
@@ -101,6 +114,18 @@ The target rule is that every implemented tile has representative seeded coverag
   - no dedicated seeded examples yet
 - Rack Tile
   - no dedicated seeded examples yet
+
+## Text Box QA Notes
+
+For `text-box` coverage, verify:
+
+- selected state
+- editing state
+- resized state
+- multiline rendering
+- multiline paste behavior
+- toolbar style updates for preset, size, weight, italic, underline, strike, align, and color
+- canvas shortcuts stay quiet while the textarea is focused
 
 ## Diagnostics And Copy Reports
 

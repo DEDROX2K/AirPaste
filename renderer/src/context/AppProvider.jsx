@@ -13,6 +13,7 @@ import {
   createProgressCard,
   createRackCard,
   createTableCard,
+  createTextBoxCard,
   getWorkspaceActivePage,
   isBookmarkLinkCard,
   normalizeWorkspace,
@@ -1211,6 +1212,14 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewTextBoxCard = useCallback((center = null, options = {}) => {
+    const card = createTextBoxCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const updateExistingCard = useCallback((cardId, updates) => updateWorkspaceState((current) => updateActivePageDocument(current, (page) => ({
     ...page,
     cards: updateCard(page.cards, cardId, updates),
@@ -1518,6 +1527,7 @@ export function AppProvider({ children }) {
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
+    createNewTextBoxCard,
     createCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,
@@ -1581,6 +1591,7 @@ export function AppProvider({ children }) {
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
+    createNewTextBoxCard,
     createCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,

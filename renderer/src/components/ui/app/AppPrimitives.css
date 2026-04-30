@@ -4,14 +4,14 @@
   justify-content: center;
   gap: var(--ap-space-2);
   width: fit-content;
-  min-height: 30px;
-  padding-inline: var(--ap-space-3);
-  padding-block: var(--ap-space-1\.5);
-  border: var(--ap-border-thin) solid var(--ap-border-subtle);
-  border-radius: var(--ap-radius-sm);
-  background: var(--ap-surface-default);
+  min-height: 36px;
+  padding-inline: var(--ap-space-4);
+  padding-block: var(--ap-space-2);
+  border: var(--ap-border-thin) solid var(--ap-border-default);
+  border-radius: var(--ap-radius-lg);
+  background: color-mix(in srgb, var(--ap-surface-default) 96%, var(--ap-bg-base));
   color: var(--ap-text-primary);
-  box-shadow: none;
+  box-shadow: var(--ap-shadow-xs);
   cursor: pointer;
   transition:
     color var(--ap-transition-fast),
@@ -23,14 +23,23 @@
 
 .ap-ui-button:hover:not(:disabled) {
   background: var(--ap-interactive-bg-hover);
-  border-color: var(--ap-border-default);
-  box-shadow: none;
+  border-color: var(--ap-border-strong);
+  box-shadow: var(--ap-shadow-sm);
   transform: none;
 }
 
 .ap-ui-button:active:not(:disabled) {
   background: var(--ap-interactive-bg-active);
-  transform: none;
+  box-shadow: var(--ap-shadow-xs);
+  transform: translateY(1px);
+}
+
+.ap-ui-button:focus-visible {
+  outline: none;
+  border-color: var(--ap-border-focus);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ap-accent-tint-hover) 88%, transparent),
+    var(--ap-shadow-sm);
 }
 
 .ap-ui-button:disabled {
@@ -49,10 +58,9 @@
   min-height: var(--ap-space-16);
   padding-inline: var(--ap-space-5);
   padding-block: var(--ap-space-4);
-  border-radius: var(--ap-radius-lg);
-  background: var(--ap-surface-overlay-bg);
-  box-shadow: none;
-  backdrop-filter: blur(var(--ap-blur-xs));
+  border-radius: var(--ap-radius-xl);
+  background: color-mix(in srgb, var(--ap-surface-overlay-bg) 92%, var(--ap-bg-base));
+  box-shadow: var(--ap-shadow-sm);
   text-align: left;
 }
 
@@ -60,24 +68,25 @@
   border-color: var(--ap-border-accent);
   background: var(--ap-accent-bg);
   color: var(--ap-text-on-accent);
-  box-shadow: none;
+  box-shadow: 0 8px 24px rgba(20, 17, 14, 0.12);
 }
 
 .ap-ui-button--accent:hover:not(:disabled) {
   background: var(--ap-accent-bg-hover);
   border-color: var(--ap-border-accent);
-  box-shadow: none;
+  box-shadow: 0 10px 28px rgba(20, 17, 14, 0.14);
 }
 
 .ap-ui-button--accent:active:not(:disabled) {
   background: var(--ap-accent-bg-active);
+  box-shadow: 0 4px 12px rgba(20, 17, 14, 0.12);
 }
 
 .ap-ui-button--danger {
   border-color: var(--ap-border-danger);
   background: color-mix(in srgb, var(--ap-danger-base) 14%, var(--ap-surface-raised));
   color: var(--ap-danger-base);
-  box-shadow: var(--ap-shadow-card);
+  box-shadow: var(--ap-shadow-xs);
 }
 
 .ap-ui-button--danger:hover:not(:disabled) {
@@ -116,12 +125,14 @@
   padding-inline: var(--ap-space-3);
   padding-block: var(--ap-space-2);
   border: var(--ap-border-thin) solid var(--ap-border-default);
-  border-radius: var(--ap-radius-sm);
-  background: var(--ap-surface-default);
+  border-radius: var(--ap-radius-lg);
+  background: color-mix(in srgb, var(--ap-surface-default) 96%, var(--ap-bg-base));
   color: var(--ap-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
   transition:
     background-color var(--ap-transition-fast),
     border-color var(--ap-transition-fast),
+    box-shadow var(--ap-transition-fast),
     outline-color var(--ap-transition-fast);
 }
 
@@ -131,12 +142,15 @@
 
 .ap-ui-input:hover:not(:disabled) {
   background: var(--ap-interactive-bg-hover);
+  border-color: var(--ap-border-strong);
 }
 
 .ap-ui-input:focus-visible {
-  outline: var(--ap-border-base) solid var(--ap-border-focus);
-  outline-offset: var(--ap-border-none);
+  outline: none;
   border-color: var(--ap-border-focus);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ap-accent-tint-hover) 88%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .ap-ui-input:disabled {

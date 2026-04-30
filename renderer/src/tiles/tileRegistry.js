@@ -8,6 +8,7 @@ import NoteTile from "../components/tiles/NoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import TableTile from "../components/tiles/TableTile";
+import TextBoxTile from "../components/tiles/TextBoxTile";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
 
@@ -155,6 +156,23 @@ const tileRegistry = {
       draggable: true,
       selectable: true,
       resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.TEXT_BOX]: {
+    type: TILE_TYPES.TEXT_BOX,
+    displayName: "Canvas Text Box Tile",
+    status: "stable",
+    component: TextBoxTile,
+    defaultSize: { width: 520, height: 180 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: true,
       editable: true,
       container: false,
       navigation: false,

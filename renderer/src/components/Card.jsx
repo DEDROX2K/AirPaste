@@ -34,7 +34,10 @@ function areCardPropsEqual(previousProps, nextProps) {
     && previousProps.onOpenLink === nextProps.onOpenLink
     && previousProps.onMediaLoad === nextProps.onMediaLoad
     && previousProps.onPressStart === nextProps.onPressStart
-    && previousProps.onRetry === nextProps.onRetry;
+    && previousProps.onRetry === nextProps.onRetry
+    && previousProps.textBoxEditorState === nextProps.textBoxEditorState
+    && previousProps.onRequestTextBoxEdit === nextProps.onRequestTextBoxEdit
+    && previousProps.onEndTextBoxEdit === nextProps.onEndTextBoxEdit;
 }
 
 export default memo(Card, areCardPropsEqual);

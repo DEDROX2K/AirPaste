@@ -9,57 +9,57 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --ap-bg-page: #f4f6fa;
-  --ap-bg-base: #f7f9fc;
-  --ap-bg-sunken: #eef2f8;
+  --ap-bg-page: #f5f3ef;
+  --ap-bg-base: #f8f7f4;
+  --ap-bg-sunken: #f0ede7;
 
   --ap-surface-default: #ffffff;
-  --ap-surface-raised: #ffffff;
-  --ap-surface-overlay: #ffffff;
-  --ap-surface-overlay-bg: rgba(255, 255, 255, 0.94);
+  --ap-surface-raised: #fffdfb;
+  --ap-surface-overlay: #fffdfb;
+  --ap-surface-overlay-bg: rgba(255, 253, 251, 0.94);
   --ap-surface-modal: #ffffff;
-  --ap-surface-inset: #f1f4fa;
+  --ap-surface-inset: #f4f1eb;
 
-  --ap-text-primary: #1f2937;
-  --ap-text-secondary: #4b5a73;
-  --ap-text-tertiary: #72819b;
-  --ap-text-placeholder: #91a0b8;
-  --ap-text-disabled: #a0adc2;
+  --ap-text-primary: #1f1c17;
+  --ap-text-secondary: #59544d;
+  --ap-text-tertiary: #827a70;
+  --ap-text-placeholder: #a69f94;
+  --ap-text-disabled: #b4aca1;
   --ap-text-inverse: #ffffff;
-  --ap-text-accent: #3f6fdb;
+  --ap-text-accent: #1f1c17;
   --ap-text-on-accent: #ffffff;
 
-  --ap-icon-default: #5a6d8a;
-  --ap-icon-muted: #8fa0ba;
-  --ap-icon-accent: #3f6fdb;
+  --ap-icon-default: #6b655d;
+  --ap-icon-muted: #9d958b;
+  --ap-icon-accent: #1f1c17;
 
-  --ap-border-subtle: #d9e0ee;
-  --ap-border-default: #c9d3e3;
-  --ap-border-strong: #b3c0d4;
-  --ap-border-focus: #7aa2ff;
-  --ap-border-accent: #7aa2ff;
+  --ap-border-subtle: #ece5db;
+  --ap-border-default: #ddd3c7;
+  --ap-border-strong: #c9bdae;
+  --ap-border-focus: #9a8f82;
+  --ap-border-accent: #24201c;
   --ap-border-danger: #d65d5d;
 
   --ap-interactive-bg: transparent;
-  --ap-interactive-bg-hover: #edf2fb;
-  --ap-interactive-bg-active: #e2e9f7;
-  --ap-interactive-bg-selected: #dce7fb;
-  --ap-interactive-text-selected: #2148a2;
+  --ap-interactive-bg-hover: #f4f0e9;
+  --ap-interactive-bg-active: #ece5dc;
+  --ap-interactive-bg-selected: #e8e0d5;
+  --ap-interactive-text-selected: #1f1c17;
 
-  --ap-accent-bg: #5d86e5;
-  --ap-accent-bg-hover: #6b92ee;
-  --ap-accent-bg-active: #4b77da;
-  --ap-accent-tint: rgba(93, 134, 229, 0.14);
-  --ap-accent-tint-hover: rgba(93, 134, 229, 0.24);
+  --ap-accent-bg: #24201c;
+  --ap-accent-bg-hover: #2f2a25;
+  --ap-accent-bg-active: #171411;
+  --ap-accent-tint: rgba(36, 32, 28, 0.1);
+  --ap-accent-tint-hover: rgba(36, 32, 28, 0.16);
 
-  --ap-shadow-card: 0 1px 3px rgba(45, 65, 100, 0.08);
-  --ap-shadow-card-hover: 0 6px 14px rgba(45, 65, 100, 0.12);
-  --ap-shadow-panel: 0 14px 32px rgba(45, 65, 100, 0.14);
-  --ap-shadow-modal: 0 20px 44px rgba(45, 65, 100, 0.18);
-  --ap-shadow-welcome: 0 26px 60px rgba(45, 65, 100, 0.2);
+  --ap-shadow-card: 0 1px 2px rgba(32, 24, 17, 0.06);
+  --ap-shadow-card-hover: 0 8px 24px rgba(32, 24, 17, 0.08);
+  --ap-shadow-panel: 0 18px 42px rgba(32, 24, 17, 0.1);
+  --ap-shadow-modal: 0 24px 56px rgba(32, 24, 17, 0.14);
+  --ap-shadow-welcome: 0 28px 70px rgba(32, 24, 17, 0.12);
 
-  --ap-overlay-backdrop: rgba(20, 31, 50, 0.32);
-  --ap-overlay-scrim: rgba(20, 31, 50, 0.16);
+  --ap-overlay-backdrop: rgba(20, 17, 14, 0.22);
+  --ap-overlay-scrim: rgba(20, 17, 14, 0.08);
 
   --ap-status-success-bg: rgba(56, 161, 105, 0.12);
   --ap-status-success-text: #2f855a;
@@ -73,13 +73,13 @@
   --ap-status-danger-text: #b91c1c;
   --ap-status-danger-border: rgba(220, 38, 38, 0.28);
 
-  --ap-status-info-bg: rgba(37, 99, 235, 0.12);
-  --ap-status-info-text: #1d4ed8;
-  --ap-status-info-border: rgba(37, 99, 235, 0.3);
+  --ap-status-info-bg: rgba(93, 107, 122, 0.12);
+  --ap-status-info-text: #475569;
+  --ap-status-info-border: rgba(93, 107, 122, 0.24);
 
   --ap-scrollbar-track: transparent;
-  --ap-scrollbar-thumb: #bfcbde;
-  --ap-scrollbar-thumb-hover: #a8b7cf;
+  --ap-scrollbar-thumb: #cec5b9;
+  --ap-scrollbar-thumb-hover: #b9b0a3;
 }
 
 [data-theme="dark"] {

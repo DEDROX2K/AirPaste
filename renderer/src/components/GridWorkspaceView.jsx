@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Card from "./Card";
 import { useAppContext } from "../context/useAppContext";
 import { AppEmptyState } from "./ui/app";
+import { isBookmarkLinkCard } from "../lib/workspace";
 
 const COLUMN_WIDTH_MIN = 240;
 const COLUMN_WIDTH_MAX = 320;
@@ -512,6 +513,7 @@ function MasonryGrid({
 
 export default function GridWorkspaceView({
   dropImport = null,
+  tileFilter = "all",
   isDropTarget = false,
   openTileLink,
   updateTileFromMediaLoad,
@@ -533,10 +535,14 @@ export default function GridWorkspaceView({
     setSelectedIds([]);
     setHoveredTileId(null);
     setFocusedTileId(null);
-  }, [workspace?.cards]);
+  }, [tileFilter, workspace?.cards]);
 
-  const allTiles = workspace.cards ?? [];
-  const filteredTiles = allTiles;
+  const allTiles = useMemo(() => workspace.cards ?? [], [workspace.cards]);
+  const filteredTiles = useMemo(() => (
+    tileFilter === "bookmarks"
+      ? allTiles.filter((tile) => isBookmarkLinkCard(tile))
+      : allTiles
+  ), [allTiles, tileFilter]);
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const selectTile = useCallback((tileId, event, { toggle = false, forceSingle = false } = {}) => {
@@ -603,6 +609,7 @@ export default function GridWorkspaceView({
   }, []);
 
   const totalCount = allTiles.length;
+  const visibleCount = filteredTiles.length;
 
   if (!folderPath && !folderLoading) {
     return (
@@ -638,7 +645,7 @@ export default function GridWorkspaceView({
         positions={layoutState.positions}
         scrollContainerRef={scrollRef}
         totalHeight={layoutState.totalHeight}
-        visible={totalCount > 0}
+        visible={visibleCount > 0}
       />
       <div ref={scrollRef} className="grid-workspace__scroll">
         {totalCount === 0 ? (
@@ -648,6 +655,16 @@ export default function GridWorkspaceView({
             icon={(
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
+              </svg>
+            )}
+          />
+        ) : visibleCount === 0 ? (
+          <AppEmptyState
+            title="No bookmarks to show"
+            description="Switch the grid filter back to show every tile, or add bookmark tiles to this canvas."
+            icon={(
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
             )}
           />

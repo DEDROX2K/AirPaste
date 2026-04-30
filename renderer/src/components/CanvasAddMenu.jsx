@@ -21,6 +21,7 @@ export default function CanvasAddMenu({
           size="sm"
           className="canvas-add-menu__trigger gap-2 px-3 font-medium"
           disabled={disabled}
+          aria-label={disabled ? "Open a folder to start adding tiles" : "Open add menu"}
           title={disabled ? "Open a folder to start adding" : "Create something new"}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -68,6 +69,13 @@ export default function CanvasAddMenu({
         >
           <NoteIcon />
           Note
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createTextBox()}
+        >
+          <TextBoxIcon />
+          Text Box
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
           disabled={disabled}
@@ -140,6 +148,17 @@ function NoteIcon() {
       <path d="M9 11h6" />
       <path d="M9 15h6" />
       <path d="M9 19h4" />
+    </svg>
+  );
+}
+
+function TextBoxIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <path d="M4 6h16" />
+      <path d="M9 6v12" />
+      <path d="M15 6v12" />
+      <path d="M6 18h12" />
     </svg>
   );
 }

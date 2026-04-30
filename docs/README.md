@@ -6,6 +6,8 @@ This directory contains canonical, supporting, and historical AirPaste documenta
 
 Start here for all future tile work.
 
+- [UI_GUIDE.md](./UI_GUIDE.md)
+  - Canonical UI direction for shell, controls, tiles, menus, spacing, and responsive behavior.
 - [TILE_BOOK.md](./TILE_BOOK.md)
   - Source of truth for all tile types, implemented/planned status, type IDs, UX, data models, files, diagnostics, and Testing Tiles coverage.
 - [TESTING_TILES.md](./TESTING_TILES.md)

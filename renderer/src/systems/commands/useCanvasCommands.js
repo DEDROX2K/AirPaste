@@ -150,6 +150,7 @@ export function useCanvasCommands({
   createNewProgressCard,
   createNewRackCard,
   createNewTableCard,
+  createNewTextBoxCard,
   deleteExistingCard,
   replaceWorkspaceCards,
   reorderExistingCards,
@@ -402,6 +403,21 @@ export function useCanvasCommands({
     toast("success", "Table dropped into place.");
     return table;
   }, [createNewTableCard, folderPath, getViewportCenter, log, toast]);
+
+  const createTextBox = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New text box blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const textBox = createNewTextBoxCard(centerPoint);
+
+    log("success", "New text box created on the canvas", centerPoint);
+    toast("success", "Text box dropped into place.");
+    return textBox;
+  }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
 
   const moveTiles = useCallback((tileIds, origins, delta) => {
     const updatesById = {};
@@ -857,6 +873,7 @@ export function useCanvasCommands({
     createProgress,
     createRack,
     createTable,
+    createTextBox,
     createLinkFromClipboard,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
@@ -888,6 +905,7 @@ export function useCanvasCommands({
     createProgress,
     createRack,
     createTable,
+    createTextBox,
     createLinkFromClipboard,
     deleteTile,
     deleteTiles,

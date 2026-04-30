@@ -654,6 +654,8 @@ export default function HomeShell() {
                   type="button"
                   className={`home-view-toggle__button ${homePreferences.viewMode === "grid" ? "home-view-toggle__button--active" : ""}`}
                   onClick={() => handlePreferenceChange({ viewMode: "grid" })}
+                  aria-label="Show grid view"
+                  title="Grid view"
                 >
                   <IconGrid />
                 </button>
@@ -661,6 +663,8 @@ export default function HomeShell() {
                   type="button"
                   className={`home-view-toggle__button ${homePreferences.viewMode === "list" ? "home-view-toggle__button--active" : ""}`}
                   onClick={() => handlePreferenceChange({ viewMode: "list" })}
+                  aria-label="Show list view"
+                  title="List view"
                 >
                   <IconList />
                 </button>

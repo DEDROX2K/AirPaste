@@ -8,6 +8,13 @@ import {
   getSoftGlobeRadius,
 } from "../systems/globe/globeLayout";
 import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawingTypes";
+import {
+  getTextBoxLineCount,
+  normalizeTextBoxStyle,
+  normalizeTextBoxText,
+  TEXT_BOX_DEFAULT_STYLE,
+  TEXT_BOX_DEFAULT_TEXT,
+} from "./textBoxStyle";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
@@ -18,9 +25,10 @@ export const DEADLINE_CARD_TYPE = TILE_TYPES.DEADLINE;
 export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
 export const PROGRESS_CARD_TYPE = TILE_TYPES.PROGRESS;
 export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
+export const TEXT_BOX_CARD_TYPE = TILE_TYPES.TEXT_BOX;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 14;
+export const WORKSPACE_SCHEMA_VERSION = 15;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -83,6 +91,11 @@ const PROGRESS_CARD_SIZE = Object.freeze({
 const TABLE_CARD_SIZE = Object.freeze({
   width: 560,
   height: 360,
+});
+
+const TEXT_BOX_CARD_SIZE = Object.freeze({
+  width: 520,
+  height: 180,
 });
 
 const RACK_CARD_SIZE = Object.freeze({
@@ -207,6 +220,10 @@ function getCardType(card) {
     return TABLE_CARD_TYPE;
   }
 
+  if (card?.type === TEXT_BOX_CARD_TYPE) {
+    return TEXT_BOX_CARD_TYPE;
+  }
+
   if (card?.type === RACK_CARD_TYPE) {
     return RACK_CARD_TYPE;
   }
@@ -325,6 +342,13 @@ function normalizeProgressLinkedTileId(linkedTileId) {
   return typeof linkedTileId === "string" && linkedTileId.trim().length > 0
     ? linkedTileId.trim()
     : null;
+}
+
+function normalizeTextBoxPayload(card) {
+  return {
+    text: normalizeTextBoxText(card?.text),
+    style: normalizeTextBoxStyle(card?.style),
+  };
 }
 
 function normalizeLanguageHints(languageHints) {
@@ -478,6 +502,10 @@ function getCardSize(type) {
 
   if (type === TABLE_CARD_TYPE) {
     return TABLE_CARD_SIZE;
+  }
+
+  if (type === TEXT_BOX_CARD_TYPE) {
+    return TEXT_BOX_CARD_SIZE;
   }
 
   if (type === RACK_CARD_TYPE) {
@@ -940,6 +968,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const languageHints = type === NOTE_CARD_TYPE ? normalizeLanguageHints(card?.languageHints) : [];
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
+  const textBox = type === TEXT_BOX_CARD_TYPE ? normalizeTextBoxPayload(card) : null;
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
@@ -973,6 +1002,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
           ? firstString(card?.title, PROGRESS_DEFAULT_TITLE)
           : type === TABLE_CARD_TYPE
             ? firstString(card?.title, TABLE_DEFAULT_TITLE)
+            : type === TEXT_BOX_CARD_TYPE
+              ? ""
             : type === RACK_CARD_TYPE
               ? firstString(card?.title, RACK_DEFAULT_TITLE)
         : "",
@@ -982,6 +1013,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
         ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
         : "",
     body: type === NOTE_CARD_TYPE ? String(card?.body ?? "") : "",
+    text: type === TEXT_BOX_CARD_TYPE ? textBox.text : "",
+    style: type === TEXT_BOX_CARD_TYPE ? textBox.style : null,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1498,6 +1531,24 @@ export function createTableCard(cards, viewport, preferredCenter = null, options
   });
 }
 
+export function createTextBoxCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, TEXT_BOX_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: TEXT_BOX_CARD_TYPE,
+    text: typeof options?.text === "string" ? options.text : TEXT_BOX_DEFAULT_TEXT,
+    style: normalizeTextBoxStyle(options?.style),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
   const type = options?.type === AMAZON_PRODUCT_CARD_TYPE ? AMAZON_PRODUCT_CARD_TYPE : TILE_TYPES.LINK;
   const position = getNextCardPosition(cards, viewport, type, preferredCenter);
@@ -1826,7 +1877,7 @@ export function isEditableElement(element) {
     return false;
   }
 
-  return Boolean(element.closest("input, textarea, [contenteditable='true']"));
+  return Boolean(element.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
 }
 
 export function formatCardSubtitle(card) {
@@ -1874,6 +1925,11 @@ export function formatCardSubtitle(card) {
     const columnCount = Array.isArray(card.columns) ? card.columns.length : 0;
     const rowCount = Array.isArray(card.rows) ? card.rows.length : 0;
     return `${rowCount} rows · ${columnCount} cols`;
+  }
+
+  if (card.type === TEXT_BOX_CARD_TYPE) {
+    const lineCount = getTextBoxLineCount(card.text ?? "");
+    return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${card.style?.preset || TEXT_BOX_DEFAULT_STYLE.preset}`;
   }
 
   if (card.type === AMAZON_PRODUCT_CARD_TYPE) {
