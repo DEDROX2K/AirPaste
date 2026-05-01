@@ -1729,6 +1729,44 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
   });
 }
 
+export function createStickerCard(options = {}) {
+  const timestamp = nowIso();
+  const width = Number.isFinite(options?.width) ? Math.max(1, Math.round(options.width)) : 160;
+  const height = Number.isFinite(options?.height) ? Math.max(1, Math.round(options.height)) : 160;
+  const x = Number.isFinite(options?.x) ? Math.round(options.x) : 120;
+  const y = Number.isFinite(options?.y) ? Math.round(options.y) : 120;
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: TILE_TYPES.LINK,
+    url: "",
+    contentKind: LINK_CONTENT_KIND_IMAGE,
+    title: typeof options?.title === "string" ? options.title : "Sticker",
+    siteName: "Sticker",
+    description: "",
+    image: typeof options?.image === "string" ? options.image : "",
+    favicon: "",
+    resolvedUrl: "",
+    previewStatus: "ready",
+    contentType: "sticker",
+    sourceType: "sticker",
+    duration: null,
+    author: "",
+    channelName: "",
+    mediaAspectRatio: null,
+    previewKind: "default",
+    previewError: "",
+    status: "ready",
+    asset: null,
+    x,
+    y,
+    width,
+    height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function updateCard(cards, cardId, updates) {
   return cards
     .map((card) =>

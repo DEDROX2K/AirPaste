@@ -6,6 +6,9 @@ const IMAGE_CARD_LANDSCAPE_MAX_WIDTH = 420;
 const IMAGE_CARD_LANDSCAPE_MAX_HEIGHT = 320;
 const IMAGE_CARD_MIN_WIDTH = 180;
 const IMAGE_CARD_MIN_HEIGHT = 140;
+const STICKER_TILE_MAX_WIDTH = 188;
+const STICKER_TILE_MAX_HEIGHT = 188;
+const STICKER_TILE_MIN_SIDE = 92;
 
 export function getImageTileSize(width, height, previewKind = "default") {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
@@ -57,6 +60,35 @@ export function getImageTileSize(width, height, previewKind = "default") {
       IMAGE_CARD_MIN_HEIGHT / nextHeight,
     );
 
+    nextWidth *= upscale;
+    nextHeight *= upscale;
+  }
+
+  return {
+    width: Math.round(nextWidth),
+    height: Math.round(nextHeight),
+  };
+}
+
+export function getStickerTileSize(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return {
+      width: STICKER_TILE_MAX_WIDTH,
+      height: STICKER_TILE_MAX_HEIGHT,
+    };
+  }
+
+  const scaleToFit = Math.min(
+    STICKER_TILE_MAX_WIDTH / width,
+    STICKER_TILE_MAX_HEIGHT / height,
+  );
+  let nextWidth = width * scaleToFit;
+  let nextHeight = height * scaleToFit;
+
+  const largestSide = Math.max(nextWidth, nextHeight);
+
+  if (largestSide < STICKER_TILE_MIN_SIDE) {
+    const upscale = STICKER_TILE_MIN_SIDE / Math.max(1, largestSide);
     nextWidth *= upscale;
     nextHeight *= upscale;
   }

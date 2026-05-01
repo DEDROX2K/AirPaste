@@ -13,6 +13,7 @@ import {
   createNoteCard,
   createProgressCard,
   createRackCard,
+  createStickerCard,
   createTableCard,
   createTextBoxCard,
   getWorkspaceActivePage,
@@ -1149,6 +1150,14 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewStickerCard = useCallback((options = {}) => {
+    const card = createStickerCard(options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange]);
   const createNewRackCard = useCallback((center = null, options = {}) => {
     const card = createRackCard(workspace.cards, workspace.viewport, center, options);
     commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
@@ -1536,6 +1545,7 @@ export function AppProvider({ children }) {
     createNewNoteCard,
     createNewProgressCard,
     createNewRackCard,
+    createNewStickerCard,
     createNewTableCard,
     createNewTextBoxCard,
     createCanvasPage,
@@ -1601,6 +1611,7 @@ export function AppProvider({ children }) {
     createNewNoteCard,
     createNewProgressCard,
     createNewRackCard,
+    createNewStickerCard,
     createNewTableCard,
     createNewTextBoxCard,
     createCanvasPage,

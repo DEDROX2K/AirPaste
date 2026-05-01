@@ -55,6 +55,35 @@ function getCardLabel(card) {
   return card.title.trim() || formatCardSubtitle(card);
 }
 
+function isTwitterLikeSource(card) {
+  const sourceType = String(card?.sourceType || "").toLowerCase();
+  const url = String(card?.url || "").toLowerCase();
+  return sourceType === "twitter" || sourceType === "x" || url.includes("twitter.com/") || url.includes("x.com/");
+}
+
+function getAsciiDomain(url) {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./i, "");
+    return hostname.toUpperCase();
+  } catch {
+    return "UNTITLED.LINK";
+  }
+}
+
+function getFallbackLogoSrc(card) {
+  const favicon = typeof card?.favicon === "string" ? card.favicon.trim() : "";
+  if (favicon) {
+    return favicon;
+  }
+
+  const url = typeof card?.url === "string" ? card.url.trim() : "";
+  if (!url) {
+    return "";
+  }
+
+  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
+}
+
 function findPreviewDiagnosticReason(card) {
   const diagnostics = card?.previewDiagnostics;
   const resolverMetadata = diagnostics?.resolverMetadata;
@@ -284,6 +313,7 @@ function LinkTile({
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
+  const isStickerTile = isImageTile && card.sourceType === "sticker";
   const isVideoCard = card.contentType === "video";
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const previewTier = renderHint?.previewTier ?? "original";
@@ -302,6 +332,7 @@ function LinkTile({
   const isYouTubeVideoUrl = isYouTubeUrl(card.url);
   const isYouTubeLink = isYouTubeVideoSource || isYouTubeVideoUrl;
   const isPlainVideoLink = isVideoCard && isYouTubeLink;
+  const isTwitterLikeLink = isTwitterLikeSource(card);
   const useYouTubeThumbnailCrop = isYouTubeLink;
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
@@ -336,16 +367,23 @@ function LinkTile({
     : mediaSrc;
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
+  const isAsciiFallbackActive = !isImageTile && !shouldRenderImage && !isPreviewLoading;
+  const fallbackBadgeLabel = isTwitterLikeLink ? "X/TWITTER FALLBACK TILE" : "LINK FALLBACK TILE";
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
-  const enableReveal = renderHint?.disableImageReveal !== true;
+  const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
   const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
+  const fallbackDomainLabel = getAsciiDomain(card.url);
+  const fallbackShortLabel = formatShortUrl(card.url).slice(0, 48).toUpperCase();
+  const fallbackLogoSrc = getFallbackLogoSrc(card);
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
+    isStickerTile ? "card__surface-frame--sticker" : "",
     isMusicCard ? "card__surface-frame--music" : "",
+    isAsciiFallbackActive ? "card__surface-frame--paper-fallback" : "",
     isVideoCard && !isPlainVideoLink ? "card__surface-frame--video" : "",
     isVideoCard && !isPlainVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
@@ -454,6 +492,17 @@ function LinkTile({
 
   const mediaMarkup = (
     <>
+      {isStickerTile ? (
+        <img
+          className="card__image card__image--sticker"
+          src={mediaSrc}
+          alt={linkTitle}
+          draggable={false}
+          decoding="async"
+          loading="eager"
+          onLoad={handleMediaLoad}
+        />
+      ) : null}
       {isImageTile ? null : (
         <div
           className={`card__link-actions${showLinkActions ? "" : " card__link-actions--hidden"}`}
@@ -587,9 +636,9 @@ function LinkTile({
             )}
           </div>
         </div>
-      ) : shouldRenderImage ? (
+      ) : shouldRenderImage && !isStickerTile ? (
         <TileImageReveal
-          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}`}
+          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
           src={isPlainVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
@@ -611,13 +660,29 @@ function LinkTile({
           <p className="card__link-loading-label">Loading preview</p>
         </div>
       ) : (
-        <div className={`card__placeholder${renderHint?.simplify ? " card__placeholder--simplified" : ""}`}>
-          <p className="card__placeholder-title">{linkTitle}</p>
-          <p className="card__placeholder-subtitle">
-            {isImageTile
-              ? (card.asset?.fileName || "Imported image")
-              : (previewFallbackReason || formatShortUrl(card.url))}
-          </p>
+        <div className="card__fallback-paper" role="note" aria-label={`Fallback preview for ${linkTitle}`}>
+          <div className="card__fallback-paper__tear" />
+          <div className="card__fallback-paper__body">
+            <div className="card__fallback-paper__head">
+              <div className="card__fallback-paper__logo-wrap" aria-hidden="true">
+                {fallbackLogoSrc ? (
+                  <img className="card__fallback-paper__logo" src={fallbackLogoSrc} alt="" />
+                ) : (
+                  <span className="card__fallback-paper__logo-fallback">{fallbackDomainLabel.slice(0, 1)}</span>
+                )}
+              </div>
+              <p className="card__fallback-paper__title">{fallbackDomainLabel}</p>
+            </div>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__line">{fallbackBadgeLabel}</p>
+            <p className="card__fallback-paper__line">{fallbackShortLabel || "NO PREVIEW AVAILABLE"}</p>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__line">STATUS: {String(card.status || "READY").toUpperCase()}</p>
+            <p className="card__fallback-paper__line">SOURCE: {String(card.sourceType || "LINK").toUpperCase()}</p>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__foot">:: ASCII PREVIEW ::</p>
+            <p className="card__fallback-paper__ascii">[] [] [] [] [] []</p>
+          </div>
         </div>
       )}
     </>
@@ -629,8 +694,8 @@ function LinkTile({
       renderHint={renderHint}
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
-      className={isMusicCard ? "card--music" : ""}
-      toolbar={renderHint?.showToolbar === false ? null : (
+      className={`${isMusicCard ? "card--music " : ""}${isStickerTile ? "card--sticker" : ""}`.trim()}
+      toolbar={renderHint?.showToolbar === false || isStickerTile ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
           <p className="card__label">{label}</p>
           {previewDiagnosticBadges.length > 0 ? (
@@ -656,7 +721,7 @@ function LinkTile({
         <div className={surfaceFrameClassName} {...surfaceGesture}>
           {isImageTile ? (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >
@@ -664,7 +729,7 @@ function LinkTile({
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >

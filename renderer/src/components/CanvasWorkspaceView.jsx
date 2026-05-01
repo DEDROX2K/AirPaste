@@ -6,6 +6,7 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
+import StickerPaletteControl from "./StickerPaletteControl";
 import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import DrawingLayer from "./canvas/DrawingLayer";
@@ -64,6 +65,7 @@ import {
   recordDerivedMetric,
   setPerfSummary,
 } from "../lib/perf";
+import { recordStickerDebug } from "../lib/stickerDebug";
 import {
   buildTileRenderHint,
   resolveWorkspaceLodLevel,
@@ -119,6 +121,31 @@ const CANVAS_BACKGROUND_SKINS = [
   },
 ];
 const DEFAULT_CANVAS_BACKGROUND_SKIN_ID = CANVAS_BACKGROUND_SKINS[0].id;
+const STICKER_FILE_NAMES = Object.freeze([
+  "ba2.png",
+  "ba3.png",
+  "ba4.png",
+  "ba5.png",
+  "ba6.png",
+  "ba7.png",
+  "ba8.png",
+  "flow1.png",
+  "flow2.png",
+  "flow3.png",
+  "flow4.png",
+  "flow5.png",
+  "heart.png",
+  "holonn.png",
+  "icanfix.png",
+  "lasupdate.png",
+  "lessgoo.png",
+  "lesworktogg.png",
+  "logo.png",
+  "meee.png",
+  "peace.png",
+  "tape.png",
+  "welcome.png",
+]);
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -133,6 +160,53 @@ function normalizeCanvasBackgroundSkinId(value) {
   return CANVAS_BACKGROUND_SKINS.some((skin) => skin.id === value)
     ? value
     : DEFAULT_CANVAS_BACKGROUND_SKIN_ID;
+}
+
+function formatStickerLabel(fileName) {
+  const name = String(fileName).replace(/\.[^.]+$/, "");
+  return name
+    .replace(/[-_]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function fitSizeWithinBounds(width, height, maxWidth, maxHeight) {
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
+  const scale = Math.min(maxWidth / safeWidth, maxHeight / safeHeight);
+
+  return {
+    width: Math.max(48, Math.round(safeWidth * scale)),
+    height: Math.max(48, Math.round(safeHeight * scale)),
+  };
+}
+
+function getStickerCanvasHoverState(canvasElement, clientX, clientY) {
+  const canvasRect = canvasElement?.getBoundingClientRect?.() ?? null;
+  const isInsideCanvas = Boolean(
+    canvasRect
+    && clientX >= canvasRect.left
+    && clientX <= canvasRect.right
+    && clientY >= canvasRect.top
+    && clientY <= canvasRect.bottom
+  );
+
+  if (!isInsideCanvas) {
+    return false;
+  }
+
+  if (typeof document === "undefined" || typeof document.elementFromPoint !== "function") {
+    return true;
+  }
+
+  const targetElement = document.elementFromPoint(clientX, clientY);
+  const isBlockedByStickerUi = Boolean(
+    targetElement?.closest?.(".sticker-paper, .sticker-palette__toggle")
+  );
+
+  return !isBlockedByStickerUi;
 }
 
 function WorkspaceViewToggle({ mode, onChange }) {
@@ -194,7 +268,7 @@ function WorkspaceTopbarTrail({
 }) {
   return (
     <header className="workspace-trail">
-      <div className="canvas-topbar__left">
+      {/* <div className="canvas-topbar__left">
         <button
           type="button"
           className="canvas-topbar__crumb canvas-topbar__crumb--home"
@@ -236,7 +310,7 @@ function WorkspaceTopbarTrail({
           </span>
           <span className="canvas-topbar__crumb-text">{canvasName}</span>
         </span>
-      </div>
+      </div> */}
     </header>
   );
 }
@@ -1017,6 +1091,7 @@ export default function CanvasWorkspaceView() {
     createNewNoteCard,
     createNewProgressCard,
     createNewRackCard,
+    createNewStickerCard,
     createNewTableCard,
     createNewTextBoxCard,
     deleteExistingCard,
@@ -1031,7 +1106,16 @@ export default function CanvasWorkspaceView() {
   const [cullingTick, setCullingTick] = useState(0);
   const [textBoxEditorState, setTextBoxEditorState] = useState(null);
   const [gridTileFilter, setGridTileFilter] = useState("all");
+  const [isStickerPaletteOpen, setIsStickerPaletteOpen] = useState(false);
+  const [stickerDragState, setStickerDragState] = useState(null);
+  const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
+  const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
   const textBoxEditRequestIdRef = useRef(0);
+  const stickerDragStateRef = useRef(null);
+  const stickerPlacementStatesRef = useRef([]);
+  const stickerPlacementCleanupTimeoutsRef = useRef(new Map());
+  const stickerAnimationTimeoutsRef = useRef(new Map());
+  const isStickerDragging = stickerDragState !== null;
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
   const sceneSurfaceEnabled = useMemo(() => {
@@ -1047,6 +1131,14 @@ export default function CanvasWorkspaceView() {
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
+  const stickerCatalog = useMemo(() => (
+    STICKER_FILE_NAMES.map((fileName) => ({
+      id: fileName.replace(/\.[^.]+$/, ""),
+      fileName,
+      label: formatStickerLabel(fileName),
+      src: assetUrl(`Stickers/${fileName}`),
+    }))
+  ), []);
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
@@ -1079,6 +1171,7 @@ export default function CanvasWorkspaceView() {
     createNewNoteCard,
     createNewProgressCard,
     createNewRackCard,
+    createNewStickerCard,
     createNewTableCard,
     createNewTextBoxCard,
     deleteExistingCard,
@@ -1089,6 +1182,128 @@ export default function CanvasWorkspaceView() {
     log,
     toast,
   });
+  const recordStickerPipelineStage = useCallback((stage, detail = {}, level = "info") => {
+    const payload = {
+      stage,
+      ...detail,
+    };
+    recordStickerDebug("pipeline-stage", payload);
+    log(level, `Sticker pipeline ${stage}`, payload);
+  }, [log]);
+
+  useEffect(() => {
+    stickerPlacementStatesRef.current = stickerPlacementStates;
+  }, [stickerPlacementStates]);
+
+  useEffect(() => () => {
+    stickerPlacementCleanupTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    stickerPlacementCleanupTimeoutsRef.current.clear();
+    stickerAnimationTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    stickerAnimationTimeoutsRef.current.clear();
+  }, []);
+
+  const markStickerPlacementStage = useCallback((tileId, stage, detail = {}, level = "info") => {
+    if (!tileId || !stage) {
+      return false;
+    }
+
+    let shouldRecord = false;
+
+    setStickerPlacementStates((currentStates) => currentStates.map((entry) => {
+      if (entry.tileId !== tileId || entry.stages?.[stage] === true) {
+        return entry;
+      }
+
+      shouldRecord = true;
+      return {
+        ...entry,
+        stages: {
+          ...entry.stages,
+          [stage]: true,
+        },
+      };
+    }));
+
+    if (!shouldRecord) {
+      return false;
+    }
+
+    const placementEntry = stickerPlacementStatesRef.current.find((entry) => entry.tileId === tileId) ?? null;
+    recordStickerPipelineStage(stage, {
+      tileId,
+      stickerId: placementEntry?.stickerId ?? null,
+      label: placementEntry?.label ?? "",
+      ...detail,
+    }, level);
+    return true;
+  }, [recordStickerPipelineStage]);
+
+  const registerStickerPlacement = useCallback((tile, sticker, worldPoint) => {
+    if (!tile?.id) {
+      return;
+    }
+
+    const cleanupTimeoutId = stickerPlacementCleanupTimeoutsRef.current.get(tile.id);
+    if (cleanupTimeoutId) {
+      window.clearTimeout(cleanupTimeoutId);
+    }
+
+    setStickerPlacementStates((currentStates) => [
+      ...currentStates.filter((entry) => entry.tileId !== tile.id),
+      {
+        tileId: tile.id,
+        stickerId: sticker?.id ?? null,
+        label: tile?.title ?? sticker?.label ?? "Sticker",
+        createdAt: Date.now(),
+        stages: {
+          created: true,
+          normalized: false,
+          "in-layout": false,
+          "render-layer": false,
+          animated: false,
+        },
+      },
+    ]);
+
+    const timeoutId = window.setTimeout(() => {
+      const latestEntry = stickerPlacementStatesRef.current.find((entry) => entry.tileId === tile.id) ?? null;
+
+      if (latestEntry) {
+        const missingStages = Object.entries(latestEntry.stages)
+          .filter(([, completed]) => completed !== true)
+          .map(([stageName]) => stageName);
+
+        if (missingStages.length > 0) {
+          recordStickerDebug("verification-failed", {
+            tileId: tile.id,
+            stickerId: latestEntry.stickerId,
+            missingStages,
+          });
+          log("warn", "Sticker verification failed", {
+            tileId: tile.id,
+            stickerId: latestEntry.stickerId,
+            missingStages,
+          });
+        }
+      }
+
+      setStickerPlacementStates((currentStates) => currentStates.filter((entry) => entry.tileId !== tile.id));
+      stickerPlacementCleanupTimeoutsRef.current.delete(tile.id);
+    }, 1800);
+
+    stickerPlacementCleanupTimeoutsRef.current.set(tile.id, timeoutId);
+    recordStickerPipelineStage("created", {
+      tileId: tile.id,
+      stickerId: sticker?.id ?? null,
+      label: tile?.title ?? sticker?.label ?? "Sticker",
+      worldX: Math.round(worldPoint?.x ?? tile.x ?? 0),
+      worldY: Math.round(worldPoint?.y ?? tile.y ?? 0),
+    });
+  }, [log, recordStickerPipelineStage]);
 
   const dropImport = useCanvasDropImport({
     canvas,
@@ -1115,6 +1330,125 @@ export default function CanvasWorkspaceView() {
     suppressHoverUpdates: cameraIsMoving || isLineToolActive,
   });
   const resetTransientState = interactions.resetTransientState;
+
+  useEffect(() => {
+    stickerDragStateRef.current = stickerDragState;
+  }, [stickerDragState]);
+
+  useEffect(() => {
+    if (!isStickerDragging) {
+      return undefined;
+    }
+
+    const updateDragPosition = (event) => {
+      const canvasElement = canvas.containerRef.current;
+      const isOverCanvas = getStickerCanvasHoverState(
+        canvasElement,
+        event.clientX,
+        event.clientY,
+      );
+
+      setStickerDragState((currentState) => (
+        currentState
+          ? {
+            ...currentState,
+            pointerX: event.clientX,
+            pointerY: event.clientY,
+            isOverCanvas,
+          }
+          : currentState
+      ));
+    };
+
+    const finishDrag = (event) => {
+      const canvasElement = canvas.containerRef.current;
+      const isOverCanvas = getStickerCanvasHoverState(
+        canvasElement,
+        event.clientX,
+        event.clientY,
+      );
+      const activeStickerDragState = stickerDragStateRef.current;
+      const canvasRect = canvasElement?.getBoundingClientRect?.() ?? null;
+      const debugDetail = {
+        stickerId: activeStickerDragState?.sticker?.id ?? null,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        isOverCanvas,
+        canvasRect: canvasRect ? {
+          left: Math.round(canvasRect.left),
+          top: Math.round(canvasRect.top),
+          right: Math.round(canvasRect.right),
+          bottom: Math.round(canvasRect.bottom),
+        } : null,
+      };
+
+      recordStickerDebug("drop-attempt", debugDetail);
+      log("info", "Sticker drop attempt", debugDetail);
+
+      if (isOverCanvas) {
+        const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+        if (!activeStickerDragState) {
+          recordStickerDebug("drop-missing-drag-state", {
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+          log("warn", "Sticker drop ended without an active drag state");
+          setStickerDragState(null);
+          return;
+        }
+
+        const createdTile = commands.createSticker({
+          ...activeStickerDragState.sticker,
+          width: activeStickerDragState.width,
+          height: activeStickerDragState.height,
+        }, worldPoint);
+
+        const createdTileDetail = {
+          stickerId: activeStickerDragState.sticker?.id ?? null,
+          tileId: createdTile?.id ?? null,
+          worldX: Math.round(worldPoint.x),
+          worldY: Math.round(worldPoint.y),
+          previewWidth: activeStickerDragState.previewWidth,
+          previewHeight: activeStickerDragState.previewHeight,
+          naturalWidth: activeStickerDragState.width,
+          naturalHeight: activeStickerDragState.height,
+        };
+
+        recordStickerDebug("drop-created", createdTileDetail);
+        log("success", "Sticker drop created tile", createdTileDetail);
+        registerStickerPlacement(createdTile, activeStickerDragState.sticker, worldPoint);
+      } else if (activeStickerDragState) {
+        const rejectionDetail = {
+          stickerId: activeStickerDragState.sticker?.id ?? null,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          reason: "release-outside-canvas",
+        };
+        recordStickerDebug("drop-rejected", rejectionDetail);
+        log("warn", "Sticker drop rejected", rejectionDetail);
+      }
+
+      setStickerDragState(null);
+    };
+
+    const handlePointerUp = (event) => {
+      finishDrag(event);
+    };
+
+    const handlePointerCancel = () => {
+      setStickerDragState(null);
+    };
+
+    window.addEventListener("pointermove", updateDragPosition);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+
+    return () => {
+      window.removeEventListener("pointermove", updateDragPosition);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
+  }, [canvas, commands, isStickerDragging, log, registerStickerPlacement]);
 
   useEffect(() => {
     resetTransientState();
@@ -1510,14 +1844,21 @@ export default function CanvasWorkspaceView() {
     lodFrozenZoomRef.current = liveViewport.zoom;
     return liveViewport.zoom;
   }, [isCanvasMoving, liveViewport.zoom]);
+  const stickerTileIdSet = useMemo(() => new Set(
+    layout.rootTiles
+      .filter((tile) => tile?.sourceType === "sticker")
+      .map((tile) => tile.id),
+  ), [layout.rootTiles]);
   const interactionOverlayTileIdSet = useMemo(() => new Set([
     ...interactions.selectedTileIds,
     ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
     ...interactions.draggingTileIds,
+    ...stickerTileIdSet,
   ]), [
     interactions.draggingTileIds,
     interactions.focusedTileId,
     interactions.selectedTileIds,
+    stickerTileIdSet,
   ]);
   const workspaceLodLevel = useMemo(() => {
     if (isGridMode) {
@@ -1639,6 +1980,83 @@ export default function CanvasWorkspaceView() {
       ? layout.rootTiles.filter((tile) => overlayTileIdSet.has(tile.id))
       : layout.rootTiles
   ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
+  const activeRenderTiles = useMemo(() => (
+    useSceneSurface ? overlayTiles : layout.rootTiles
+  ), [layout.rootTiles, overlayTiles, useSceneSurface]);
+  const animatingStickerTileIdSet = useMemo(() => new Set(animatingStickerTileIds), [animatingStickerTileIds]);
+  const presentWorkspaceCardsById = useMemo(() => new Map(
+    workspace.cards.map((card) => [card.id, card]),
+  ), [workspace.cards]);
+  const layoutRootTileIdSet = useMemo(() => new Set(layout.rootTiles.map((tile) => tile.id)), [layout.rootTiles]);
+  const activeRenderTileIdSet = useMemo(() => new Set(activeRenderTiles.map((tile) => tile.id)), [activeRenderTiles]);
+  const decoratedTileMetaById = useMemo(() => {
+    if (animatingStickerTileIdSet.size === 0) {
+      return stableTileMetaById;
+    }
+
+    return Object.fromEntries(
+      Object.entries(stableTileMetaById).map(([tileId, tileMeta]) => [
+        tileId,
+        animatingStickerTileIdSet.has(tileId)
+          ? {
+            ...tileMeta,
+            isStickerPlacementAnimating: true,
+          }
+          : tileMeta,
+      ]),
+    );
+  }, [animatingStickerTileIdSet, stableTileMetaById]);
+
+  useEffect(() => {
+    stickerPlacementStates.forEach((entry) => {
+      const normalizedCard = presentWorkspaceCardsById.get(entry.tileId) ?? null;
+
+      if (normalizedCard && entry.stages?.normalized !== true) {
+        markStickerPlacementStage(entry.tileId, "normalized", {
+          x: normalizedCard.x,
+          y: normalizedCard.y,
+          width: normalizedCard.width,
+          height: normalizedCard.height,
+        });
+      }
+
+      if (layoutRootTileIdSet.has(entry.tileId) && entry.stages?.["in-layout"] !== true) {
+        markStickerPlacementStage(entry.tileId, "in-layout");
+      }
+
+      if (activeRenderTileIdSet.has(entry.tileId) && entry.stages?.["render-layer"] !== true) {
+        const reachedRenderLayer = markStickerPlacementStage(entry.tileId, "render-layer", {
+          surfaceRenderer: useSceneSurface ? "overlay" : "dom",
+        });
+
+        if (reachedRenderLayer && entry.stages?.animated !== true) {
+          setAnimatingStickerTileIds((currentIds) => (
+            currentIds.includes(entry.tileId) ? currentIds : [...currentIds, entry.tileId]
+          ));
+          markStickerPlacementStage(entry.tileId, "animated");
+
+          const existingTimeoutId = stickerAnimationTimeoutsRef.current.get(entry.tileId);
+          if (existingTimeoutId) {
+            window.clearTimeout(existingTimeoutId);
+          }
+
+          const timeoutId = window.setTimeout(() => {
+            setAnimatingStickerTileIds((currentIds) => currentIds.filter((tileId) => tileId !== entry.tileId));
+            stickerAnimationTimeoutsRef.current.delete(entry.tileId);
+          }, 520);
+
+          stickerAnimationTimeoutsRef.current.set(entry.tileId, timeoutId);
+        }
+      }
+    });
+  }, [
+    activeRenderTileIdSet,
+    layoutRootTileIdSet,
+    markStickerPlacementStage,
+    presentWorkspaceCardsById,
+    stickerPlacementStates,
+    useSceneSurface,
+  ]);
 
   const handleSceneTilePressStart = useCallback((tile, event) => {
     if (isTextToolActive && tile.type === TEXT_BOX_CARD_TYPE) {
@@ -1722,6 +2140,63 @@ export default function CanvasWorkspaceView() {
       };
     });
   }, [setWorkspaceView]);
+
+  const toggleStickerPalette = useCallback(() => {
+    setIsStickerPaletteOpen((currentValue) => !currentValue);
+  }, []);
+
+  const handleStickerPointerDown = useCallback((sticker, event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const imageElement = event.currentTarget.querySelector("img");
+    const chipElement = event.currentTarget.querySelector(".sticker-paper__chip");
+    const chipRect = chipElement?.getBoundingClientRect?.() ?? null;
+    const width = Number.isFinite(imageElement?.naturalWidth) && imageElement.naturalWidth > 0
+      ? imageElement.naturalWidth
+      : 512;
+    const height = Number.isFinite(imageElement?.naturalHeight) && imageElement.naturalHeight > 0
+      ? imageElement.naturalHeight
+      : 512;
+    const previewBounds = fitSizeWithinBounds(
+      width,
+      height,
+      Math.max(72, Math.min(128, (chipRect?.width ?? 96) - 18)),
+      Math.max(72, Math.min(128, (chipRect?.height ?? 96) - 18)),
+    );
+
+    recordStickerDebug("drag-start", {
+      stickerId: sticker?.id ?? null,
+      label: sticker?.label ?? "",
+      naturalWidth: width,
+      naturalHeight: height,
+      previewWidth: previewBounds.width,
+      previewHeight: previewBounds.height,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    log("info", "Sticker drag started", {
+      stickerId: sticker?.id ?? null,
+      previewWidth: previewBounds.width,
+      previewHeight: previewBounds.height,
+    });
+
+    setStickerDragState({
+      sticker,
+      width,
+      height,
+      previewWidth: previewBounds.width,
+      previewHeight: previewBounds.height,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      isOverCanvas: false,
+      rotation: ((sticker.id.length % 5) - 2) * 2.2,
+    });
+  }, [log]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -2291,6 +2766,13 @@ export default function CanvasWorkspaceView() {
           activeTool={selectedCanvasToolMode}
           onToolChange={setCanvasToolMode}
         />
+        <StickerPaletteControl
+          stickers={stickerCatalog}
+          isOpen={isStickerPaletteOpen}
+          onToggle={toggleStickerPalette}
+          onStickerPointerDown={handleStickerPointerDown}
+          activeStickerId={stickerDragState?.sticker?.id ?? null}
+        />
         <CanvasBackgroundSkinControl
           activeSkinId={selectedCanvasBackgroundSkin.id}
           onChange={updateCanvasBackgroundSkin}
@@ -2370,7 +2852,7 @@ export default function CanvasWorkspaceView() {
               <SceneWorkspaceSurface
                 folderPath={folderPath}
                 tiles={sceneTiles}
-                tileMetaById={stableTileMetaById}
+                tileMetaById={decoratedTileMetaById}
                 tileRenderHintsById={tileRenderHintsById}
                 isCanvasMoving={isCanvasMoving}
                 cameraSnapshot={workspace.viewport}
@@ -2402,11 +2884,11 @@ export default function CanvasWorkspaceView() {
               ref={canvas.contentRef}
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
             >
-              {(useSceneSurface ? overlayTiles : layout.rootTiles).map((card) => (
+              {activeRenderTiles.map((card) => (
                 <Card
                   key={card.id}
                   card={card}
-                  tileMeta={stableTileMetaById[card.id]}
+                  tileMeta={decoratedTileMetaById[card.id]}
                   viewportZoom={viewportZoomForRender}
                   renderHint={tileRenderHintsById[card.id]}
                   dragVisualDelta={interactions.dragVisualDelta}
@@ -2479,6 +2961,26 @@ export default function CanvasWorkspaceView() {
         actions={contextMenuActions}
         onClose={interactions.closeContextMenu}
       />
+      {stickerDragState ? (
+        <div
+          className={`sticker-drag-preview${stickerDragState.isOverCanvas ? " sticker-drag-preview--over-canvas" : ""}`}
+          style={{
+            left: `${stickerDragState.pointerX}px`,
+            top: `${stickerDragState.pointerY}px`,
+            width: `${stickerDragState.previewWidth ?? 96}px`,
+            height: `${stickerDragState.previewHeight ?? 96}px`,
+            "--sticker-drag-rotation": `${stickerDragState.rotation}deg`,
+          }}
+          aria-hidden="true"
+        >
+          <img
+            className="sticker-drag-preview__image"
+            src={stickerDragState.sticker.src}
+            alt=""
+            draggable={false}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }
