@@ -1,18 +1,38 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../../context/useAppContext";
 import {
   getTextBoxFontFamily,
+  normalizeTextBoxStyle,
   normalizeTextBoxText,
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { DRAWING_TOOL_MODE_SELECT, DRAWING_TOOL_MODE_TEXT } from "../../systems/drawing/drawingTypes";
 import TileShell from "./TileShell";
 
-function stopInteractivePointer(event) {
-  event.stopPropagation();
+const MIN_TEXT_BOX_WIDTH = 140;
+const MAX_TEXT_BOX_WIDTH = 1600;
+const MIN_TEXT_BOX_HEIGHT = 52;
+const TEXT_BOX_VERTICAL_PADDING = 8;
+const TEXT_BOX_HEIGHT_EPSILON = 1;
+const TEXT_BOX_WIDTH_EPSILON = 0.5;
+
+function clamp(value, minValue, maxValue) {
+  return Math.max(minValue, Math.min(maxValue, value));
 }
 
-function stopInteractiveKey(event) {
+function getMeasuredTextBoxHeight(measureElement) {
+  if (!measureElement) {
+    return MIN_TEXT_BOX_HEIGHT;
+  }
+
+  return Math.max(
+    MIN_TEXT_BOX_HEIGHT,
+    Math.ceil(measureElement.getBoundingClientRect().height + (TEXT_BOX_VERTICAL_PADDING * 2)),
+  );
+}
+
+function stopInteractivePointer(event) {
   event.stopPropagation();
 }
 
@@ -41,18 +61,51 @@ function TextBoxTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  viewportZoom,
+  canvasToolMode,
   textBoxEditorState,
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { setCanvasInteractionState, updateExistingCard } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState(card.text ?? TEXT_BOX_DEFAULT_TEXT);
   const textareaRef = useRef(null);
+  const measureRef = useRef(null);
   const editRequestIdRef = useRef(null);
+  const resizeStateRef = useRef(null);
+  const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [card.style]);
+  const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
+  const isTextToolActive = canvasToolMode === DRAWING_TOOL_MODE_TEXT;
+  const isPlaceholderText = card.placeholder === true && !isEditing;
+  const displayText = isPlaceholderText ? TEXT_BOX_DEFAULT_TEXT : (card.text ?? "");
+  const measuredText = isEditing ? draftText : displayText;
+
+  function syncEditorHeight(textarea) {
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
+
+  const growTextBoxHeight = useCallback((nextHeight) => {
+    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
+
+    if (nextHeight > currentHeight + TEXT_BOX_HEIGHT_EPSILON) {
+      updateExistingCard(card.id, { height: nextHeight });
+    }
+  }, [card.height, card.id, updateExistingCard]);
+
   const surfaceGesture = useTileGesture({
     card,
-    canDrag: !isEditing,
+    canDrag: !isEditing && isSelectToolActive,
+    onActivate: () => {
+      if (isTextToolActive) {
+        onRequestTextBoxEdit(card.id, { selectAll: false });
+      }
+    },
     onDoubleActivate: () => {
       onRequestTextBoxEdit(card.id, { selectAll: false });
     },
@@ -70,16 +123,33 @@ function TextBoxTile({
     .filter(Boolean)
     .join(" ");
   const textStyle = useMemo(() => ({
-    fontFamily: getTextBoxFontFamily(card.style?.preset),
-    fontSize: `${card.style?.fontSize ?? 48}px`,
-    fontWeight: card.style?.fontWeight ?? 500,
-    fontStyle: card.style?.italic ? "italic" : "normal",
-    textDecoration: getTextDecoration(card.style),
-    textAlign: card.style?.align ?? "left",
-    color: card.style?.color ?? "#1f1f1f",
-    lineHeight: card.style?.lineHeight ?? 1.15,
-    letterSpacing: `${card.style?.letterSpacing ?? 0}px`,
-  }), [card.style]);
+    fontFamily: getTextBoxFontFamily(normalizedStyle.preset),
+    fontSize: `${normalizedStyle.fontSize}px`,
+    fontWeight: normalizedStyle.fontWeight,
+    fontStyle: normalizedStyle.italic ? "italic" : "normal",
+    textDecoration: getTextDecoration(normalizedStyle),
+    textAlign: normalizedStyle.align,
+    color: normalizedStyle.color,
+    lineHeight: normalizedStyle.lineHeight,
+    letterSpacing: `${normalizedStyle.letterSpacing}px`,
+    opacity: isPlaceholderText ? 0.5 : 1,
+  }), [isPlaceholderText, normalizedStyle]);
+
+  useLayoutEffect(() => {
+    syncEditorHeight(textareaRef.current);
+  }, [draftText, normalizedStyle, card.width]);
+
+  useLayoutEffect(() => {
+    if (isEditing) {
+      return;
+    }
+
+    if (!measureRef.current) {
+      return;
+    }
+
+    growTextBoxHeight(getMeasuredTextBoxHeight(measureRef.current));
+  }, [card.height, card.id, card.width, growTextBoxHeight, isEditing, measuredText, normalizedStyle]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -109,6 +179,7 @@ function TextBoxTile({
     const textarea = textareaRef.current;
     const frame = requestAnimationFrame(() => {
       textarea.focus({ preventScroll: true });
+      syncEditorHeight(textarea);
 
       if (textBoxEditorState?.selectAll) {
         textarea.setSelectionRange(0, textarea.value.length);
@@ -124,28 +195,97 @@ function TextBoxTile({
 
   const commitDraft = () => {
     const nextText = normalizeTextBoxText(draftText);
+    const nextPlaceholder = card.placeholder === true && nextText === "Type something";
 
-    if (nextText !== card.text) {
-      updateExistingCard(card.id, { text: nextText });
+    if (nextText !== card.text || nextPlaceholder !== (card.placeholder === true)) {
+      updateExistingCard(card.id, {
+        text: nextText,
+        placeholder: nextPlaceholder,
+      });
     }
   };
 
-  const exitEditMode = ({ save = true } = {}) => {
+  const exitEditMode = ({ save = true, restoreCanvasFocus = false } = {}) => {
     if (save) {
       commitDraft();
     }
 
     setIsEditing(false);
-    onEndTextBoxEdit?.(card.id);
+    onEndTextBoxEdit?.(card.id, { restoreCanvasFocus });
+  };
+
+  const handleEditorBlur = (event) => {
+    const nextFocusTarget = event.relatedTarget;
+
+    if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-text-toolbar-root='true']")) {
+      return;
+    }
+
+    exitEditMode({ save: true });
   };
 
   const handleEditorKeyDown = (event) => {
-    stopInteractiveKey(event);
-
     if (event.key === "Escape") {
       event.preventDefault();
-      exitEditMode({ save: true });
+      exitEditMode({ save: true, restoreCanvasFocus: true });
     }
+  };
+
+  const handleResizePointerDown = (event) => {
+    if (!tileMeta?.isSelected || isEditing) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const zoom = Math.max(0.2, viewportZoom ?? 1);
+    resizeStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startWidth: card.width,
+    };
+    setCanvasInteractionState?.(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const handlePointerMove = (moveEvent) => {
+      const resizeState = resizeStateRef.current;
+
+      if (!resizeState || resizeState.pointerId !== moveEvent.pointerId) {
+        return;
+      }
+
+      const deltaX = (moveEvent.clientX - resizeState.startClientX) / zoom;
+      const nextWidth = clamp(
+        Math.round(resizeState.startWidth + deltaX),
+        MIN_TEXT_BOX_WIDTH,
+        MAX_TEXT_BOX_WIDTH,
+      );
+
+      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
+        updateExistingCard(card.id, { width: nextWidth });
+      }
+    };
+
+    const finishResize = (finishEvent) => {
+      const resizeState = resizeStateRef.current;
+
+      if (!resizeState || (finishEvent && resizeState.pointerId !== finishEvent.pointerId)) {
+        return;
+      }
+
+      resizeStateRef.current = null;
+      setCanvasInteractionState?.(false);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerup", finishResize, true);
+      window.removeEventListener("pointercancel", finishResize, true);
+      window.removeEventListener("blur", finishResize);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, true);
+    window.addEventListener("pointerup", finishResize, true);
+    window.addEventListener("pointercancel", finishResize, true);
+    window.addEventListener("blur", finishResize);
   };
 
   return (
@@ -172,19 +312,40 @@ function TextBoxTile({
                 rows={1}
                 style={textStyle}
                 onPointerDown={stopInteractivePointer}
+                onClick={stopInteractivePointer}
                 onKeyDown={handleEditorKeyDown}
-                onBlur={() => exitEditMode({ save: true })}
-                onChange={(event) => setDraftText(event.target.value)}
+                onBlur={handleEditorBlur}
+                onChange={(event) => {
+                  setDraftText(event.target.value);
+                  syncEditorHeight(event.target);
+                  growTextBoxHeight(Math.max(MIN_TEXT_BOX_HEIGHT, event.target.scrollHeight + TEXT_BOX_VERTICAL_PADDING));
+                }}
               />
             ) : (
               <div
-                className={`card__text-box-display${card.text ? "" : " card__text-box-display--placeholder"}`}
+                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}`}
                 style={textStyle}
               >
-                {card.text || TEXT_BOX_DEFAULT_TEXT}
+                {displayText}
               </div>
             )}
+            <div
+              ref={measureRef}
+              className="card__text-box-measure"
+              aria-hidden="true"
+              style={textStyle}
+            >
+              {measuredText}
+            </div>
           </section>
+          {tileMeta?.isSelected && !isEditing ? (
+            <button
+              type="button"
+              className="card__text-box-resize-handle"
+              aria-label="Resize text box width"
+              onPointerDown={handleResizePointerDown}
+            />
+          ) : null}
         </div>
       </div>
     </TileShell>

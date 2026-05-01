@@ -34,6 +34,7 @@ export function useCanvasInteractionSystem({
   cards,
   canvas,
   commands,
+  interactionMode = "select",
   resetKey,
   snapSettings,
   suppressHoverUpdates = false,
@@ -60,6 +61,8 @@ export function useCanvasInteractionSystem({
   const suppressCanvasContextMenuRef = useRef(false);
 
   const selectedTileIdSet = useMemo(() => new Set(selectedTileIds), [selectedTileIds]);
+  const isSelectMode = interactionMode === "select";
+  const isHandMode = interactionMode === "hand";
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -220,6 +223,11 @@ export function useCanvasInteractionSystem({
   const handleTilePressStart = useCallback((tile, event) => {
     closeContextMenu();
 
+    if (isHandMode) {
+      canvas.beginCanvasPan(event);
+      return true;
+    }
+
     if (isSelectionModifierPressed(event)) {
       selectTile(tile.id, { toggle: true });
       return true;
@@ -227,7 +235,7 @@ export function useCanvasInteractionSystem({
 
     selectTile(tile.id, { forceSingle: !selectedTileIdSet.has(tile.id) });
     return false;
-  }, [closeContextMenu, selectTile, selectedTileIdSet]);
+  }, [canvas, closeContextMenu, isHandMode, selectTile, selectedTileIdSet]);
 
   const handleTileContextMenu = useCallback((tile, event) => {
     event.preventDefault();
@@ -305,6 +313,10 @@ export function useCanvasInteractionSystem({
   }, [canvas]);
 
   const beginTileDrag = useCallback((tile, event) => {
+    if (!isSelectMode) {
+      return;
+    }
+
     closeContextMenu();
     clearRackDropPreview();
 
@@ -423,6 +435,7 @@ export function useCanvasInteractionSystem({
     clearRackDropPreview,
     closeContextMenu,
     commands,
+    isSelectMode,
     selectedTileIdSet,
     selectedTileIds,
   ]);
@@ -708,6 +721,16 @@ export function useCanvasInteractionSystem({
   }, [canvas, clearRackDropPreview, commands]);
 
   const handleCanvasPointerDown = useCallback((event) => {
+    if (isHandMode && event.button !== 2) {
+      closeContextMenu();
+      setHoveredTileId(null);
+      setFocusedTileId(null);
+      suppressCanvasContextMenuRef.current = false;
+      event.preventDefault();
+      canvas.beginCanvasPan(event);
+      return;
+    }
+
     if (event.button === 1) {
       closeContextMenu();
       setHoveredTileId(null);
@@ -747,8 +770,7 @@ export function useCanvasInteractionSystem({
     }
 
     setSelectedTileIds([]);
-    canvas.beginCanvasPan(event);
-  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu]);
+  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, isHandMode]);
 
   const handleCanvasContextMenu = useCallback((event) => {
     if (!isCanvasBackgroundTarget(event)) {

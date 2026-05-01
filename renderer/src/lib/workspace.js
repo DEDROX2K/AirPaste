@@ -98,6 +98,9 @@ const TEXT_BOX_CARD_SIZE = Object.freeze({
   height: 180,
 });
 
+const TEXT_BOX_MIN_WIDTH = 140;
+const TEXT_BOX_MIN_HEIGHT = 52;
+
 const RACK_CARD_SIZE = Object.freeze({
   width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
   height: RACK_HEIGHT,
@@ -348,6 +351,7 @@ function normalizeTextBoxPayload(card) {
   return {
     text: normalizeTextBoxText(card?.text),
     style: normalizeTextBoxStyle(card?.style),
+    placeholder: card?.placeholder === true,
   };
 }
 
@@ -982,8 +986,16 @@ export function normalizeCard(card, fallbackIndex = 0) {
     type,
     x: Number.isFinite(card?.x) ? card.x : 120,
     y: Number.isFinite(card?.y) ? card.y : 120,
-    width: type === RACK_CARD_TYPE ? rackSize.width : Number.isFinite(card?.width) ? card.width : size.width,
-    height: type === RACK_CARD_TYPE ? rackSize.height : Number.isFinite(card?.height) ? card.height : size.height,
+    width: type === RACK_CARD_TYPE
+      ? rackSize.width
+      : type === TEXT_BOX_CARD_TYPE
+        ? Math.max(TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
+        : Number.isFinite(card?.width) ? card.width : size.width,
+    height: type === RACK_CARD_TYPE
+      ? rackSize.height
+      : type === TEXT_BOX_CARD_TYPE
+        ? Math.max(TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
+        : Number.isFinite(card?.height) ? card.height : size.height,
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
     title: isLinkLikeCard
@@ -1015,6 +1027,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     body: type === NOTE_CARD_TYPE ? String(card?.body ?? "") : "",
     text: type === TEXT_BOX_CARD_TYPE ? textBox.text : "",
     style: type === TEXT_BOX_CARD_TYPE ? textBox.style : null,
+    placeholder: type === TEXT_BOX_CARD_TYPE ? textBox.placeholder : false,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1534,16 +1547,19 @@ export function createTableCard(cards, viewport, preferredCenter = null, options
 export function createTextBoxCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, TEXT_BOX_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
+  const width = Number.isFinite(options?.width) ? options.width : position.width;
+  const height = Number.isFinite(options?.height) ? options.height : position.height;
 
   return normalizeCard({
     id: crypto.randomUUID(),
     type: TEXT_BOX_CARD_TYPE,
     text: typeof options?.text === "string" ? options.text : TEXT_BOX_DEFAULT_TEXT,
     style: normalizeTextBoxStyle(options?.style),
+    placeholder: options?.placeholder === true,
     x: position.x,
     y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
+    width: Math.max(TEXT_BOX_MIN_WIDTH, width),
+    height: Math.max(TEXT_BOX_MIN_HEIGHT, height),
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -1872,12 +1888,18 @@ export function createLinkPreviewRefreshPatch(card) {
   };
 }
 
-export function isEditableElement(element) {
-  if (!(element instanceof HTMLElement)) {
+export function isTypingTarget(target) {
+  if (!(target instanceof HTMLElement)) {
     return false;
   }
 
-  return Boolean(element.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
+  return Boolean(target.closest(
+    "input, textarea, select, [role='textbox'], [contenteditable]:not([contenteditable='false'])",
+  ));
+}
+
+export function isEditableElement(element) {
+  return isTypingTarget(element);
 }
 
 export function formatCardSubtitle(card) {

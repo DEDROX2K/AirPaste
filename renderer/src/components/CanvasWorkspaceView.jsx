@@ -23,6 +23,7 @@ import {
   getWorkspaceActivePage,
   isBookmarkLinkCard,
   isEditableElement,
+  isTypingTarget,
   pasteCanvasSelectionClipboardPayload,
   removeCard,
   removeStructuredEntriesForTileIds,
@@ -37,8 +38,9 @@ import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
 import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
-  DRAWING_TOOL_MODE_LINE,
+  DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_TEXT,
 } from "../systems/drawing/drawingTypes";
 import {
   buildCanvasSnapUiStatePatch,
@@ -266,45 +268,56 @@ function GridViewFilterToggle({ value, onChange }) {
 
 function DrawingToolControls({
   activeTool,
-  strokeColor,
   onToolChange,
-  onStrokeColorChange,
 }) {
-  const isLineToolActive = activeTool === DRAWING_TOOL_MODE_LINE;
+  const isHandToolActive = activeTool === DRAWING_TOOL_MODE_HAND;
+  const isTextToolActive = activeTool === DRAWING_TOOL_MODE_TEXT;
 
   return (
-    <div className="drawing-tool-controls" role="group" aria-label="Drawing tool controls">
+    <div className="drawing-tool-controls" role="group" aria-label="Canvas tools">
       <div className="drawing-tool-controls__mode" role="group" aria-label="Canvas tool mode">
         <AppButton tone="unstyled"
           type="button"
           className={`drawing-tool-controls__button${activeTool === DRAWING_TOOL_MODE_SELECT ? " drawing-tool-controls__button--active" : ""}`}
           onClick={() => onToolChange(DRAWING_TOOL_MODE_SELECT)}
-          aria-label="Switch to normal canvas mode"
+          aria-label="Switch to Select tool"
           aria-pressed={activeTool === DRAWING_TOOL_MODE_SELECT}
-          title="Normal mode"
+          title="Select (V)"
         >
           <img className="drawing-tool-controls__icon" src={assetUrl("icons/gesture_select.png")} alt="" aria-hidden="true" />
+          <span className="drawing-tool-controls__text">Select</span>
         </AppButton>
         <AppButton tone="unstyled"
           type="button"
-          className={`drawing-tool-controls__button${isLineToolActive ? " drawing-tool-controls__button--active" : ""}`}
-          onClick={() => onToolChange(DRAWING_TOOL_MODE_LINE)}
-          aria-label="Switch to line drawing mode"
-          aria-pressed={isLineToolActive}
-          title="Line tool"
+          className={`drawing-tool-controls__button${isHandToolActive ? " drawing-tool-controls__button--active" : ""}`}
+          onClick={() => onToolChange(DRAWING_TOOL_MODE_HAND)}
+          aria-label="Switch to hand tool"
+          aria-pressed={isHandToolActive}
+          title="Hand (H)"
         >
-          <img className="drawing-tool-controls__icon" src={assetUrl("icons/wysiwyg.png")} alt="" aria-hidden="true" />
+          <svg className="drawing-tool-controls__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7 11.5V6.8a1.8 1.8 0 1 1 3.6 0V10" />
+            <path d="M10.6 10V5.8a1.8 1.8 0 1 1 3.6 0V10" />
+            <path d="M14.2 10V7.4a1.8 1.8 0 1 1 3.6 0v6.1c0 4-2.7 6.5-6.4 6.5H10c-2.8 0-4.6-1.5-5.5-4.3l-1.2-3.7a1.7 1.7 0 0 1 3.2-1.1L7 12" />
+          </svg>
+          <span className="drawing-tool-controls__text">Hand</span>
+        </AppButton>
+        <AppButton tone="unstyled"
+          type="button"
+          className={`drawing-tool-controls__button${isTextToolActive ? " drawing-tool-controls__button--active" : ""}`}
+          onClick={() => onToolChange(DRAWING_TOOL_MODE_TEXT)}
+          aria-label="Switch to text tool"
+          aria-pressed={isTextToolActive}
+          title="Text (T)"
+        >
+          <svg className="drawing-tool-controls__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 6h14" />
+            <path d="M12 6v12" />
+            <path d="M8 18h8" />
+          </svg>
+          <span className="drawing-tool-controls__text">Text</span>
         </AppButton>
       </div>
-      <label className="drawing-tool-controls__style">
-        <span className="drawing-tool-controls__label">Color</span>
-        <input
-          className="drawing-tool-controls__color"
-          type="color"
-          value={strokeColor}
-          onChange={(event) => onStrokeColorChange(event.target.value)}
-        />
-      </label>
     </div>
   );
 }
@@ -658,12 +671,18 @@ function buildTextBoxTileDiagnosticsExport(card) {
     fontSize: style.fontSize,
     fontWeight: style.fontWeight,
     align: style.align,
+    styleFlags: {
+      italic: style.italic,
+      underline: style.underline,
+      strike: style.strike,
+    },
     italic: style.italic,
     underline: style.underline,
     strike: style.strike,
     color: style.color,
     lineHeight: style.lineHeight,
     letterSpacing: style.letterSpacing,
+    placeholder: card?.placeholder === true,
     finalPersistedCardPayload: { ...card },
   };
 }
@@ -750,6 +769,17 @@ function areRenderHintsEqual(left, right) {
     && left.showActions === right.showActions
     && left.disableImageReveal === right.disableImageReveal
     && left.usePreviewColorBlock === right.usePreviewColorBlock;
+}
+
+function isPrintableTextKey(event) {
+  return (
+    typeof event?.key === "string"
+    && event.key.length === 1
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && !event.isComposing
+  );
 }
 
 function CanvasPerformanceOverlay({
@@ -1023,6 +1053,11 @@ export default function CanvasWorkspaceView() {
     commitWorkspaceChange,
     enabled: !isGridMode,
   });
+  const canvasToolMode = drawingTool.activeTool;
+  const selectedCanvasToolMode = drawingTool.selectedTool;
+  const isLineToolActive = drawingTool.isLineToolActive;
+  const isTextToolActive = drawingTool.isTextToolActive;
+  const setCanvasToolMode = drawingTool.handleToolModeChange;
   const clearDraftLine = drawingTool.clearDraftLine;
   const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
 
@@ -1072,9 +1107,10 @@ export default function CanvasWorkspaceView() {
     cards: workspace.cards,
     canvas,
     commands,
+    interactionMode: drawingTool.activeTool,
     resetKey: folderPath,
     snapSettings,
-    suppressHoverUpdates: cameraIsMoving || drawingTool.isLineToolActive,
+    suppressHoverUpdates: cameraIsMoving || isLineToolActive,
   });
   const resetTransientState = interactions.resetTransientState;
 
@@ -1261,7 +1297,7 @@ export default function CanvasWorkspaceView() {
   ]);
 
   const handleWorkspacePaste = useCallback(async (event) => {
-    if (isEditableElement(document.activeElement)) {
+    if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) {
       return;
     }
 
@@ -1326,7 +1362,7 @@ export default function CanvasWorkspaceView() {
       selectAll: options.selectAll === true,
     });
   }, []);
-  const clearTextBoxEditState = useCallback((tileId = null) => {
+  const clearTextBoxEditState = useCallback((tileId = null, options = {}) => {
     setTextBoxEditorState((current) => {
       if (!current) {
         return null;
@@ -1338,7 +1374,12 @@ export default function CanvasWorkspaceView() {
 
       return null;
     });
-  }, []);
+    if (options.restoreCanvasFocus && canvas.containerRef.current) {
+      requestAnimationFrame(() => {
+        canvas.containerRef.current?.focus?.({ preventScroll: true });
+      });
+    }
+  }, [canvas]);
   const patchSelectedTextBoxStyle = useCallback((stylePatch) => {
     if (!selectedTextBoxTile) {
       return;
@@ -1351,6 +1392,31 @@ export default function CanvasWorkspaceView() {
       }),
     });
   }, [selectedTextBoxTile, updateExistingCard]);
+  const beginTextBoxCreation = useCallback((worldPoint) => {
+    const textBox = commands.createTextBox(worldPoint, {
+      text: "",
+      style: {
+        preset: "simple",
+        fontSize: 48,
+        fontWeight: 500,
+        italic: false,
+        underline: false,
+        strike: false,
+        align: "left",
+        color: "#1f1f1f",
+        lineHeight: 1.15,
+        letterSpacing: 0,
+      },
+    });
+
+    if (!textBox) {
+      return false;
+    }
+
+    interactions.selectTile(textBox.id, { forceSingle: true });
+    requestTextBoxEdit(textBox.id, { selectAll: true });
+    return true;
+  }, [commands, interactions, requestTextBoxEdit]);
   useEffect(() => {
     if (textBoxEditorState?.tileId && !tileById[textBoxEditorState.tileId]) {
       setTextBoxEditorState(null);
@@ -1572,9 +1638,15 @@ export default function CanvasWorkspaceView() {
       : layout.rootTiles
   ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
 
-  const handleSceneTilePressStart = useCallback((tile, event) => (
-    interactions.handleTilePressStart(tile, event)
-  ), [interactions]);
+  const handleSceneTilePressStart = useCallback((tile, event) => {
+    if (isTextToolActive && tile.type === TEXT_BOX_CARD_TYPE) {
+      interactions.selectTile(tile.id, { forceSingle: true });
+      requestTextBoxEdit(tile.id, { selectAll: false });
+      return true;
+    }
+
+    return interactions.handleTilePressStart(tile, event);
+  }, [interactions, isTextToolActive, requestTextBoxEdit]);
 
   const handleSceneTileDragStart = useCallback((tile, event) => {
     interactions.beginTileDrag(tile, event);
@@ -1589,8 +1661,18 @@ export default function CanvasWorkspaceView() {
   }, [interactions]);
 
   const handleSceneBackgroundPointerDown = useCallback((event) => {
+    if (isTextToolActive && event.button === 0) {
+      const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+
+      if (beginTextBoxCreation(worldPoint)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
+
     interactions.handleCanvasPointerDown(event);
-  }, [interactions]);
+  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive]);
 
   useEffect(() => {
     if (
@@ -1642,8 +1724,17 @@ export default function CanvasWorkspaceView() {
   useEffect(() => {
     function handleKeyDown(event) {
       const activeElement = document.activeElement;
-      const activeElementIsEditable = isEditableElement(activeElement);
+      const typingTarget = isTypingTarget(event.target) || isTypingTarget(activeElement);
+      const activeElementIsEditable = typingTarget;
       const activeElementIsCanvas = activeElement === canvas.containerRef.current;
+      const canvasToolShortcutContext = activeElementIsCanvas
+        || activeElement === document.body
+        || activeElement === document.documentElement;
+      const activeKey = event.key.toLowerCase();
+
+      if (activeElementIsEditable) {
+        return;
+      }
 
       if (event.key === "Escape") {
         if (clearDraftLine()) {
@@ -1658,17 +1749,36 @@ export default function CanvasWorkspaceView() {
         }
       }
 
-      if (activeElementIsEditable) return;
+      if (canvasToolShortcutContext && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
+        if (activeKey === "v") {
+          event.preventDefault();
+          setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
+          return;
+        }
+
+        if (activeKey === "h") {
+          event.preventDefault();
+          setCanvasToolMode(DRAWING_TOOL_MODE_HAND);
+          return;
+        }
+
+        if (activeKey === "t") {
+          event.preventDefault();
+          setCanvasToolMode(DRAWING_TOOL_MODE_TEXT);
+          return;
+        }
+      }
 
       if (
         selectedTextBoxTile
+        && canvasToolShortcutContext
         && activeElementIsCanvas
         && !event.ctrlKey
         && !event.metaKey
         && !event.altKey
         && !event.isComposing
         && !isCanvasMoving
-        && !drawingTool.isLineToolActive
+        && !isLineToolActive
         && !interactions.contextMenu
         && !interactions.marqueeBox
       ) {
@@ -1678,7 +1788,7 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
-        if (event.key.length === 1) {
+        if (isPrintableTextKey(event) && !["v", "h", "t"].includes(activeKey)) {
           event.preventDefault();
           requestTextBoxEdit(selectedTextBoxTile.id, {
             replacementText: event.key,
@@ -1783,7 +1893,9 @@ export default function CanvasWorkspaceView() {
     copySelectedCanvasSelection,
     cutSelectedCanvasSelection,
     deleteSelectedDrawingObject,
-    drawingTool.isLineToolActive,
+    isLineToolActive,
+    isTextToolActive,
+    setCanvasToolMode,
     isCanvasMoving,
     pasteCanvasSelection,
     requestTextBoxEdit,
@@ -2163,10 +2275,8 @@ export default function CanvasWorkspaceView() {
       <div className="canvas-stage__bottom-controls">
         <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
         <DrawingToolControls
-          activeTool={drawingTool.activeTool}
-          strokeColor={drawingTool.strokeColor}
-          onToolChange={drawingTool.handleToolModeChange}
-          onStrokeColorChange={drawingTool.setStrokeColor}
+          activeTool={selectedCanvasToolMode}
+          onToolChange={setCanvasToolMode}
         />
         <CanvasBackgroundSkinControl
           activeSkinId={selectedCanvasBackgroundSkin.id}
@@ -2193,7 +2303,7 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
-        className={`canvas${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
+        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
         style={{
           "--canvas-grid-background-image": selectedCanvasBackgroundSkin.kind === "image"
             ? `url("${assetUrl(selectedCanvasBackgroundSkin.assetPath)}")`
@@ -2208,14 +2318,27 @@ export default function CanvasWorkspaceView() {
         onDragOver={dropImport.handleDragOver}
         onDragLeave={dropImport.handleDragLeave}
         onDrop={(event) => { void dropImport.handleDrop(event); }}
-      onPointerDownCapture={(event) => {
+        onPointerDownCapture={(event) => {
           if (event.button === 1) {
             interactions.handleCanvasPointerDown(event);
           }
         }}
-      onPointerDown={(event) => {
+        onPointerDown={(event) => {
           if (useSceneSurface) {
             return;
+          }
+
+          const isCanvasBackground = event.target === event.currentTarget
+            || event.target.classList?.contains("canvas__content");
+
+          if (isTextToolActive && isCanvasBackground && event.button === 0) {
+            const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+
+            if (beginTextBoxCreation(worldPoint)) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
           }
 
           interactions.handleCanvasPointerDown(event);
@@ -2287,6 +2410,7 @@ export default function CanvasWorkspaceView() {
                   onMediaLoad={commands.updateTileFromMediaLoad}
                   onPressStart={interactions.handleTilePressStart}
                   onRetry={commands.retryTilePreview}
+                  canvasToolMode={canvasToolMode}
                   textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
                   onRequestTextBoxEdit={requestTextBoxEdit}
                   onEndTextBoxEdit={clearTextBoxEditState}

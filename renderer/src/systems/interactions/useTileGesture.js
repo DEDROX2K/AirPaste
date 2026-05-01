@@ -51,7 +51,13 @@ export function useTileGesture({
   const handlePointerMove = useCallback((event) => {
     const pressState = pressStateRef.current;
 
-    if (!pressState || pressState.pointerId !== event.pointerId || pressState.hasTriggeredDrag || !canDrag) {
+    if (
+      !pressState
+      || pressState.pointerId !== event.pointerId
+      || pressState.hasTriggeredDrag
+      || pressState.suppressActivation
+      || !canDrag
+    ) {
       return;
     }
 

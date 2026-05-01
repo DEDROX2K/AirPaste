@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isEditableElement } from "../../lib/workspace";
+import { isTypingTarget } from "../../lib/workspace";
 import {
   appendDrawingObject,
   buildCommittedLineFromDraft,
@@ -12,8 +12,10 @@ import {
 import {
   createEmptyDrawings,
   DEFAULT_DRAWING_STYLE,
+  DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_LINE,
   DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_TEXT,
   normalizeDrawings,
 } from "./drawingTypes";
 
@@ -25,7 +27,7 @@ export function useDrawingTool({
   commitWorkspaceChange,
   enabled = true,
 }) {
-  const [activeTool, setActiveTool] = useState(DRAWING_TOOL_MODE_SELECT);
+  const [selectedTool, setSelectedTool] = useState(DRAWING_TOOL_MODE_SELECT);
   const [strokeColor, setStrokeColor] = useState(DEFAULT_DRAWING_STYLE.stroke);
   const [draftLine, setDraftLine] = useState(null);
   const [selectedObjectId, setSelectedObjectId] = useState(null);
@@ -36,7 +38,12 @@ export function useDrawingTool({
     () => normalizeDrawings(drawings ?? createEmptyDrawings()),
     [drawings],
   );
+  const activeTool = enabled && isSpacePanning
+    ? DRAWING_TOOL_MODE_HAND
+    : selectedTool;
   const isLineToolActive = enabled && activeTool === DRAWING_TOOL_MODE_LINE;
+  const isHandToolActive = enabled && activeTool === DRAWING_TOOL_MODE_HAND;
+  const isTextToolActive = enabled && activeTool === DRAWING_TOOL_MODE_TEXT;
   const lineStyle = useMemo(() => ({
     stroke: strokeColor,
     strokeWidth: FIXED_LINE_STROKE_WIDTH,
@@ -205,8 +212,13 @@ export function useDrawingTool({
   }, [isLineToolActive]);
 
   const handleToolModeChange = useCallback((nextToolMode) => {
-    const normalizedMode = nextToolMode === DRAWING_TOOL_MODE_LINE
-      ? DRAWING_TOOL_MODE_LINE
+    const normalizedMode = [
+      DRAWING_TOOL_MODE_SELECT,
+      DRAWING_TOOL_MODE_HAND,
+      DRAWING_TOOL_MODE_TEXT,
+      DRAWING_TOOL_MODE_LINE,
+    ].includes(nextToolMode)
+      ? nextToolMode
       : DRAWING_TOOL_MODE_SELECT;
 
     if (normalizedMode !== DRAWING_TOOL_MODE_LINE) {
@@ -215,14 +227,14 @@ export function useDrawingTool({
       setSelectedObjectId(null);
     }
 
-    setActiveTool(normalizedMode);
+    setSelectedTool(normalizedMode);
   }, [updateDraftState]);
 
   useEffect(() => {
-    if (!isLineToolActive) {
+    if (!enabled || activeTool !== DRAWING_TOOL_MODE_HAND) {
       setIsSpacePanning(false);
     }
-  }, [isLineToolActive]);
+  }, [activeTool, enabled]);
 
   useEffect(() => {
     if (!selectedObjectId) {
@@ -238,7 +250,7 @@ export function useDrawingTool({
 
   useEffect(() => {
     function handleKeyDown(event) {
-      if (!isLineToolActive || event.code !== "Space") {
+      if (!enabled || event.code !== "Space") {
         return;
       }
 
@@ -246,7 +258,7 @@ export function useDrawingTool({
         return;
       }
 
-      if (isEditableElement(document.activeElement)) {
+      if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) {
         return;
       }
 
@@ -274,15 +286,18 @@ export function useDrawingTool({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [isLineToolActive]);
+  }, [enabled]);
 
   return {
     activeTool,
     drawings: normalizedDrawings,
     draftLine,
+    isHandToolActive,
     isLineToolActive,
     isSpacePanning,
+    isTextToolActive,
     lineStyle,
+    selectedTool,
     selectedObjectId,
     setStrokeColor,
     strokeColor,

@@ -1,6 +1,8 @@
 export const DRAWINGS_SCHEMA_VERSION = 1;
 export const DRAWING_OBJECT_TYPE_LINE = "line";
 export const DRAWING_TOOL_MODE_SELECT = "select";
+export const DRAWING_TOOL_MODE_HAND = "hand";
+export const DRAWING_TOOL_MODE_TEXT = "text";
 export const DRAWING_TOOL_MODE_LINE = "line";
 
 export const DEFAULT_DRAWING_STYLE = Object.freeze({

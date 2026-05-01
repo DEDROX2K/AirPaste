@@ -282,25 +282,33 @@ A tile feature is not complete until:
 - Category: Notes & Writing
 - Status: Implemented
 - Purpose: Lightweight Figma-like text object for headings, labels, captions, callouts, annotations, and diagram text directly on the canvas.
-- Important distinction:
-  - This is not the same as the Note / Markdown Tile.
-  - `note` is for scratchpad documentation and Markdown editing.
-  - `text-box` is for visible canvas typography.
+- Important distinction: this is not the same as the Note / Markdown Tile.
+- `note` is for scratchpad documentation and Markdown editing.
+- `text-box` is for visible canvas typography.
+- `placeholder` is optional and reserved for lightweight seeded/demo flows when a box should render starter copy before editing.
 - User-facing UX:
   - Single click selects like a normal tile
+  - Single click in Text tool selects and enters edit mode
   - Double click enters edit mode
   - `Enter` while selected enters edit mode
   - Typing a printable key while selected enters edit mode and replaces the current text with that typed character
+  - `Select`, `Hand`, and `Text` are explicit canvas tools, with `V`, `H`, and `T` as shortcuts when the canvas is focused
+  - Holding `Space` temporarily switches the canvas into Hand mode until the key is released
+  - The `Text` canvas tool creates a new text box at the click point, enters editing immediately, and stays in Text tool
+  - The `Text` tool uses the existing `text-box` tile type with an empty initial `text` payload and the standard simple-text style defaults
+  - The `Hand` canvas tool pans without trying to select or drag tiles
   - Uses a textarea in edit mode
-  - Blur/click outside saves and exits edit mode
+  - Blur/click outside saves and exits edit mode, except when focus moves into the floating toolbar
   - `Escape` exits edit mode
   - Preserves multiline text and pasted line breaks
-  - Shares one canvas-level formatting toolbar when exactly one text box tile is selected
+  - Width resize uses a visible selected-state handle and the tile auto-fits height to wrapped text
+  - Shares one canvas-level floating formatting toolbar when exactly one text box tile is selected
+  - Toolbar edits apply to the whole text box and do not recreate the editor
 - Data model:
 ```js
 {
   type: "text-box",
-  text: "Double click to edit",
+  text: "",
   style: {
     preset: "simple",
     fontSize: 48,
@@ -329,15 +337,16 @@ A tile feature is not complete until:
   - Label: `Text Box`
 - Testing Tiles examples:
   - `Text / Typography`
-  - Includes large heading, centered label, technical note, bookish quote, and multiline callout coverage
+  - Includes large heading, centered label, technical note, bookish quote, multiline callout, and narrow-wrap coverage
 - Diagnostics / copy report behavior:
   - Dedicated DEV/testing diagnostics export exists
   - Dedicated DEV/testing Codex report exists
-  - Diagnostics include type, text length, line count, preset, font size, font weight, align, and style flags for italic/underline/strike
+  - Diagnostics include type, text length, line count, preset, font size, font weight, align, and explicit style flags for italic/underline/strike
 - Known limitations:
   - V1 is whole-box formatting only
   - No per-character styling or rich text spans
   - Uses textarea editing instead of a rich-text editor
+  - Resize is width-first; height is derived from wrapped content instead of being independently authored
 - Future improvements:
   - Optional line-height and letter-spacing controls in the toolbar
   - Smarter auto-sizing if the canvas gets a shared resize system later

@@ -124,8 +124,15 @@ For `text-box` coverage, verify:
 - resized state
 - multiline rendering
 - multiline paste behavior
+- `Enter`-to-edit and printable-key replace behavior when the canvas itself has focus
+- `Select`, `Hand`, and `Text` canvas tools, including `V`, `H`, and `T` shortcuts
+- temporary `Space` hand-tool behavior and return-to-previous-tool behavior
+- `Text` tool creation flow on blank canvas space
+- `Text` tool click-to-edit flow on an existing text box
+- visible resize handle behavior on selected text boxes
 - toolbar style updates for preset, size, weight, italic, underline, strike, align, and color
-- canvas shortcuts stay quiet while the textarea is focused
+- clipboard editing state: `Cmd/Ctrl+C` copies selected text while editing, `Cmd/Ctrl+X` cuts selected text while editing, and `Cmd/Ctrl+V` pastes text while editing
+- canvas shortcuts stay quiet while any `isTypingTarget(target)` surface is focused, including the textarea and other tile editors
 
 ## Diagnostics And Copy Reports
 

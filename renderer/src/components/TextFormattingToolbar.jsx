@@ -32,7 +32,7 @@ export default function TextFormattingToolbar({
   const currentFontWeight = Number(style.fontWeight) || 500;
 
   return (
-    <div className="canvas-text-toolbar-shell" role="presentation">
+    <div className="canvas-text-toolbar-shell" role="presentation" data-text-toolbar-root="true">
       <div className="text-formatting-toolbar" role="toolbar" aria-label="Text formatting toolbar">
         <label className="text-formatting-toolbar__field">
           <span className="text-formatting-toolbar__label">Preset</span>

@@ -178,6 +178,14 @@ Rules:
 - Do not rely on color alone for destructive or disabled meaning
 - Keep transitions short and purposeful
 
+Canvas text tools:
+
+- `V` selects the canvas Select tool
+- `H` selects the canvas Hand tool
+- `T` selects the canvas Text tool
+- Hold `Space` for a temporary Hand tool and release to return to the previously selected tool
+- Canvas-level tool shortcuts must use `isTypingTarget(target)` and stay quiet while typing in an `input`, `textarea`, `select`, `[contenteditable]`, `[role="textbox"]`, or tile editor surface
+
 ## Responsive Principles
 
 Major screens must hold up at narrow, medium, and large widths.

@@ -158,6 +158,7 @@ const TESTING_TILE_ROWS = Object.freeze([
   {
     key: "text-typography",
     label: "Text / Typography",
+    // These text-box seeds cover heading, label, technical, quote, and multiline states.
     items: [
       {
         kind: "text-box",
@@ -223,6 +224,18 @@ const TESTING_TILE_ROWS = Object.freeze([
           style: {
             preset: "simple",
             fontSize: 24,
+          },
+        },
+      },
+      {
+        kind: "text-box",
+        options: {
+          text: "A narrow text box should wrap, grow vertically, and keep the typography readable.",
+          width: 240,
+          style: {
+            preset: "simple",
+            fontSize: 22,
+            fontWeight: 500,
           },
         },
       },

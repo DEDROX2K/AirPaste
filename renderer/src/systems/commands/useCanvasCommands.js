@@ -404,7 +404,7 @@ export function useCanvasCommands({
     return table;
   }, [createNewTableCard, folderPath, getViewportCenter, log, toast]);
 
-  const createTextBox = useCallback((preferredCenter = null) => {
+  const createTextBox = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
       log("warn", "New text box blocked because no folder is open");
       toast("warn", "Open a folder first.");
@@ -412,7 +412,10 @@ export function useCanvasCommands({
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const textBox = createNewTextBoxCard(centerPoint);
+    const textBox = createNewTextBoxCard(centerPoint, {
+      ...options,
+      placeholder: options?.placeholder === true,
+    });
 
     log("success", "New text box created on the canvas", centerPoint);
     toast("success", "Text box dropped into place.");
