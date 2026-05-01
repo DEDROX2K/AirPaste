@@ -16,8 +16,9 @@ import {
 } from "../../lib/workspace";
 import { desktop } from "../../lib/desktop";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
-import { getImageTileSize } from "../import/imageSizing";
+import { getImageTileSize, getStickerTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
+import { recordStickerDebug } from "../../lib/stickerDebug";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
@@ -149,6 +150,7 @@ export function useCanvasCommands({
   createNewNoteCard,
   createNewProgressCard,
   createNewRackCard,
+  createNewStickerCard,
   createNewTableCard,
   createNewTextBoxCard,
   deleteExistingCard,
@@ -587,7 +589,7 @@ export function useCanvasCommands({
   }, [commitWorkspaceChange, folderPath, log, toast]);
 
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
-    if (!tile?.id || !tile.image) {
+    if (!tile?.id || !tile.image || tile?.sourceType === "sticker") {
       return;
     }
 
@@ -728,6 +730,52 @@ export function useCanvasCommands({
     void queueLinkPreview(tile);
     return tile;
   }, [createNewLinkCard, folderPath, getViewportCenter, log, queueLinkPreview, toast]);
+
+  const createSticker = useCallback((sticker, preferredCenter = null) => {
+    if (!sticker?.src) {
+      recordStickerDebug("create-missing-src", {
+        stickerId: sticker?.id ?? null,
+      });
+      log("warn", "Sticker create blocked because no image source was provided", {
+        stickerId: sticker?.id ?? null,
+      });
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const stickerWidth = Number.isFinite(sticker?.width) && sticker.width > 0 ? sticker.width : 512;
+    const stickerHeight = Number.isFinite(sticker?.height) && sticker.height > 0 ? sticker.height : 512;
+    const nextSize = getStickerTileSize(stickerWidth, stickerHeight);
+    const tileLeft = Math.round(centerPoint.x - (nextSize.width / 2));
+    const tileTop = Math.round(centerPoint.y - (nextSize.height / 2));
+    const tile = createNewStickerCard({
+      title: typeof sticker?.label === "string" ? sticker.label : "Sticker",
+      image: sticker.src,
+      width: nextSize.width,
+      height: nextSize.height,
+      x: tileLeft,
+      y: tileTop,
+    });
+    if (tile?.id) {
+      reorderExistingCards([tile.id]);
+    }
+
+    const detail = {
+      stage: "created",
+      stickerId: sticker?.id ?? null,
+      centerPoint,
+      tileId: tile?.id ?? null,
+      x: tileLeft,
+      y: tileTop,
+      width: nextSize.width,
+      height: nextSize.height,
+      image: sticker.src,
+    };
+    recordStickerDebug("pipeline-stage", detail);
+    log("success", "Sticker pasted onto the canvas", detail);
+    toast("success", "Sticker pasted.");
+    return tile;
+  }, [createNewStickerCard, getViewportCenter, log, reorderExistingCards, toast]);
 
   const importResolvedDrop = useCallback(async (resolvedDrop, dropWorldPoint) => {
     if (!folderPath) {
@@ -877,6 +925,7 @@ export function useCanvasCommands({
     createRack,
     createTable,
     createTextBox,
+    createSticker,
     createLinkFromClipboard,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
@@ -909,6 +958,7 @@ export function useCanvasCommands({
     createRack,
     createTable,
     createTextBox,
+    createSticker,
     createLinkFromClipboard,
     deleteTile,
     deleteTiles,

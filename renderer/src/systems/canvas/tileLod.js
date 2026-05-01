@@ -17,29 +17,19 @@ export const WORKSPACE_LOD_LEVEL = Object.freeze({
   FAR: "lod1",
 });
 
-const FAR_ZOOM_ENTER_PERCENT = 30;
-const FAR_ZOOM_EXIT_PERCENT = 40;
-const FAR_ZOOM_ENTER = FAR_ZOOM_ENTER_PERCENT / 100;
-const FAR_ZOOM_EXIT = FAR_ZOOM_EXIT_PERCENT / 100;
-const FAR_VISIBLE_ENTER = 64;
-const FAR_VISIBLE_EXIT = 48;
+const FAR_VISIBLE_THRESHOLD = 70;
 
 export function resolveWorkspaceLodLevel({
   viewportZoom,
   visibleTileCount,
   previousLevel = WORKSPACE_LOD_LEVEL.NORMAL,
 }) {
-  const safeZoom = Number.isFinite(viewportZoom) ? viewportZoom : 1;
+  void viewportZoom;
+  void previousLevel;
   const safeVisibleCount = Number.isFinite(visibleTileCount) ? visibleTileCount : 0;
-  const wasFar = previousLevel === WORKSPACE_LOD_LEVEL.FAR;
-
-  if (wasFar) {
-    const shouldRemainFar = safeZoom < FAR_ZOOM_EXIT || safeVisibleCount > FAR_VISIBLE_EXIT;
-    return shouldRemainFar ? WORKSPACE_LOD_LEVEL.FAR : WORKSPACE_LOD_LEVEL.NORMAL;
-  }
-
-  const shouldEnterFar = safeZoom <= FAR_ZOOM_ENTER || safeVisibleCount >= FAR_VISIBLE_ENTER;
-  return shouldEnterFar ? WORKSPACE_LOD_LEVEL.FAR : WORKSPACE_LOD_LEVEL.NORMAL;
+  return safeVisibleCount > FAR_VISIBLE_THRESHOLD
+    ? WORKSPACE_LOD_LEVEL.FAR
+    : WORKSPACE_LOD_LEVEL.NORMAL;
 }
 
 export function buildTileRenderHint({

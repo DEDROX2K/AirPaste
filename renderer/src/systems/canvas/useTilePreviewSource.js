@@ -73,6 +73,7 @@ export function useTilePreviewSource({
   const [resolvedImageSrc, setResolvedImageSrc] = useState("");
   const normalizedTier = normalizePreviewTier(previewTier);
   const isImageTile = card?.contentKind === LINK_CONTENT_KIND_IMAGE;
+  const isStickerTile = card?.sourceType === "sticker";
   const assetRelativePath = card?.asset?.relativePath ?? "";
 
   const fallbackImageSrc = useMemo(() => {
@@ -93,6 +94,11 @@ export function useTilePreviewSource({
     async function resolveSource() {
       if (!imageEnabled) {
         setResolvedImageSrc("");
+        return;
+      }
+
+      if (isStickerTile) {
+        setResolvedImageSrc(fallbackImageSrc);
         return;
       }
 
@@ -125,6 +131,7 @@ export function useTilePreviewSource({
     folderPath,
     imageEnabled,
     isImageTile,
+    isStickerTile,
     normalizedTier,
   ]);
 

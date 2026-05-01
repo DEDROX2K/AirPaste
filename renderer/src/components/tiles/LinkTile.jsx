@@ -284,6 +284,7 @@ function LinkTile({
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
+  const isStickerTile = isImageTile && card.sourceType === "sticker";
   const isVideoCard = card.contentType === "video";
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
   const previewTier = renderHint?.previewTier ?? "original";
@@ -337,7 +338,7 @@ function LinkTile({
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
-  const enableReveal = renderHint?.disableImageReveal !== true;
+  const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
   const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
@@ -345,6 +346,7 @@ function LinkTile({
     "card__surface-frame",
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
+    isStickerTile ? "card__surface-frame--sticker" : "",
     isMusicCard ? "card__surface-frame--music" : "",
     isVideoCard && !isPlainVideoLink ? "card__surface-frame--video" : "",
     isVideoCard && !isPlainVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
@@ -454,6 +456,17 @@ function LinkTile({
 
   const mediaMarkup = (
     <>
+      {isStickerTile ? (
+        <img
+          className="card__image card__image--sticker"
+          src={mediaSrc}
+          alt={linkTitle}
+          draggable={false}
+          decoding="async"
+          loading="eager"
+          onLoad={handleMediaLoad}
+        />
+      ) : null}
       {isImageTile ? null : (
         <div
           className={`card__link-actions${showLinkActions ? "" : " card__link-actions--hidden"}`}
@@ -587,9 +600,9 @@ function LinkTile({
             )}
           </div>
         </div>
-      ) : shouldRenderImage ? (
+      ) : shouldRenderImage && !isStickerTile ? (
         <TileImageReveal
-          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}`}
+          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
           src={isPlainVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
@@ -629,8 +642,8 @@ function LinkTile({
       renderHint={renderHint}
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
-      className={isMusicCard ? "card--music" : ""}
-      toolbar={renderHint?.showToolbar === false ? null : (
+      className={`${isMusicCard ? "card--music " : ""}${isStickerTile ? "card--sticker" : ""}`.trim()}
+      toolbar={renderHint?.showToolbar === false || isStickerTile ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
           <p className="card__label">{label}</p>
           {previewDiagnosticBadges.length > 0 ? (
@@ -656,7 +669,7 @@ function LinkTile({
         <div className={surfaceFrameClassName} {...surfaceGesture}>
           {isImageTile ? (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >
@@ -664,7 +677,7 @@ function LinkTile({
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >

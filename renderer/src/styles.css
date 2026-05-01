@@ -8742,6 +8742,160 @@ intentional so the top edge reads much shorter than the bottom edge. */
   max-width: min(100% - 32px, 920px);
 }
 
+.sticker-palette {
+  position: relative;
+}
+
+.sticker-palette__toggle {
+  min-width: 112px;
+}
+
+.sticker-paper {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 16px);
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(68vh, 620px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(198, 186, 171, 0.9);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.94), transparent 26%),
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(246, 239, 229, 0.98));
+  box-shadow:
+    0 30px 70px rgba(52, 37, 18, 0.18),
+    0 10px 24px rgba(71, 54, 31, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  z-index: 45;
+}
+
+.sticker-paper__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sticker-paper__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sticker-paper__eyebrow,
+.sticker-paper__hint {
+  margin: 0;
+  color: rgba(102, 88, 71, 0.78);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sticker-paper__title {
+  margin: 0;
+  color: rgba(36, 28, 19, 0.96);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sticker-paper__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+}
+
+.sticker-paper__item {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: grab;
+  display: grid;
+  place-items: center;
+}
+
+.sticker-paper__item:active {
+  cursor: grabbing;
+}
+
+.sticker-paper__chip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  padding: 10px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.sticker-paper__item:hover .sticker-paper__chip,
+.sticker-paper__item:focus-visible .sticker-paper__chip {
+  transform: translateY(-3px) rotate(-1.5deg);
+  box-shadow: none;
+}
+
+.sticker-paper__item--active .sticker-paper__chip {
+  transform: translateY(4px) scale(0.95);
+  box-shadow: none;
+}
+
+.sticker-paper__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.sticker-drag-preview {
+  position: fixed;
+  z-index: 120;
+  pointer-events: none;
+  transform:
+    translate(-50%, -56%)
+    rotate(var(--sticker-drag-rotation, 0deg))
+    scale(1.06);
+  animation: sticker-drag-float 1400ms ease-in-out infinite alternate;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.sticker-drag-preview--over-canvas {
+  transform:
+    translate(-50%, -58%)
+    rotate(calc(var(--sticker-drag-rotation, 0deg) * 0.45))
+    scale(1.12);
+}
+
+.sticker-drag-preview__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 26px 30px rgba(42, 28, 8, 0.18))
+    drop-shadow(0 10px 12px rgba(255, 255, 255, 0.34));
+}
+
+@keyframes sticker-drag-float {
+  from {
+    margin-top: -2px;
+  }
+
+  to {
+    margin-top: -9px;
+  }
+}
+
 .canvas__empty-action {
   border-color: var(--ap-border-default);
   border-radius: 12px;
@@ -9059,6 +9213,68 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__surface--link {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 241, 235, 0.98));
+}
+
+.card--sticker {
+  isolation: isolate;
+}
+
+.card--sticker .card__content {
+  gap: 0;
+}
+
+.card--sticker-drop .card__surface-frame--sticker {
+  animation: sticker-paste-pop 460ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.card__surface-frame--sticker {
+  filter: none;
+}
+
+.card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame--sticker,
+.card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame--sticker {
+  transform: translateY(-4px) rotate(-1.5deg) scale(1.02);
+}
+
+.card__surface--sticker {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.card__surface-frame--selected .card__surface--sticker {
+  outline: none;
+}
+
+.card__image--sticker,
+.card__surface--sticker .card__image-reveal__final {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.card__surface--sticker .card__image-reveal {
+  overflow: visible;
+}
+
+@keyframes sticker-paste-pop {
+  0% {
+    transform: translateY(-18px) rotate(-4deg) scale(1.16);
+    filter: drop-shadow(0 18px 24px rgba(56, 35, 11, 0.18));
+  }
+
+  58% {
+    transform: translateY(3px) rotate(1.2deg) scale(0.94);
+    filter: drop-shadow(0 8px 12px rgba(56, 35, 11, 0.08));
+  }
+
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    filter: none;
+  }
 }
 
 .card__surface--video {

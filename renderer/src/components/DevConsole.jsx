@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
+import { readStickerDebugSnapshot } from "../lib/stickerDebug";
 import { AppButton } from "./ui/app";
 
 const LEVEL_META = {
@@ -75,6 +76,7 @@ export function DevConsole() {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("all");
   const [perfSnapshot, setPerfSnapshot] = useState(() => readPerfSnapshot());
+  const [stickerSnapshot, setStickerSnapshot] = useState(() => readStickerDebugSnapshot());
   const bodyRef = useRef(null);
 
   /* Toggle with Ctrl+` */
@@ -103,6 +105,7 @@ export function DevConsole() {
 
     const intervalId = window.setInterval(() => {
       setPerfSnapshot(readPerfSnapshot());
+      setStickerSnapshot(readStickerDebugSnapshot());
     }, 400);
 
     return () => {
@@ -115,6 +118,9 @@ export function DevConsole() {
     : entries.filter((e) => e.level === filter);
   const visibleLogText = useMemo(() => visible.map(serializeEntry).join("\n"), [visible]);
   const allLogText = useMemo(() => entries.map(serializeEntry).join("\n"), [entries]);
+  const stickerDebugText = useMemo(() => (
+    JSON.stringify(stickerSnapshot, null, 2)
+  ), [stickerSnapshot]);
 
   const handleCopyText = async (text, label) => {
     if (!text) {
@@ -188,6 +194,15 @@ export function DevConsole() {
                 size="sm"
                 variant="ghost"
                 className="h-6 px-2 text-xs"
+                onClick={() => { void handleCopyText(stickerDebugText, "Sticker debug"); }}
+                title="Copy latest sticker diagnostics"
+              >
+                Copy Sticker
+              </AppButton>
+              <AppButton
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs"
                 onClick={clearLog}
                 title="Clear log"
               >
@@ -202,6 +217,8 @@ export function DevConsole() {
             <span>Commit {perfSnapshot.latestCommitMs.toFixed(2)}ms</span>
             <span>Visible {perfSnapshot.visibleTileCount}/{perfSnapshot.totalTileCount}</span>
             <span>Drag layers {perfSnapshot.activeDragLayers}</span>
+            <span>Sticker events {stickerSnapshot.count}</span>
+            <span>Sticker latest {stickerSnapshot.latest?.event ?? "none"}</span>
           </div>
 
           {/* Log body */}

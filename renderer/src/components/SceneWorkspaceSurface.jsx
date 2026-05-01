@@ -76,6 +76,10 @@ function isLikelyRemoteImage(url) {
     return false;
   }
 
+  if (url.startsWith("/")) {
+    return IMAGE_EXTENSIONS.test(url);
+  }
+
   if (url.startsWith("data:image/")) {
     return true;
   }
@@ -231,6 +235,10 @@ async function resolveSceneTileImageSource({
 }) {
   const directImage = typeof tile?.image === "string" ? tile.image : "";
   const relativePath = tile?.asset?.relativePath ?? "";
+
+  if (tile?.sourceType === "sticker" && directImage) {
+    return directImage;
+  }
 
   if (previewTier === PREVIEW_TIER.THUMBNAIL) {
     return "";

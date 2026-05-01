@@ -28,6 +28,7 @@ function TileShell({
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
     tileMeta?.isRackAttached ? "card--rack-attached" : "",
     tileMeta?.isRackDropTarget ? "card--rack-drop-target" : "",
+    tileMeta?.isStickerPlacementAnimating ? "card--sticker-drop" : "",
     renderHint?.simplify ? "card--simplified" : "",
     renderHint?.previewTier ? `card--lod-${renderHint.previewTier}` : "",
     className,
