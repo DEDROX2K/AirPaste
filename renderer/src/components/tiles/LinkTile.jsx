@@ -55,6 +55,35 @@ function getCardLabel(card) {
   return card.title.trim() || formatCardSubtitle(card);
 }
 
+function isTwitterLikeSource(card) {
+  const sourceType = String(card?.sourceType || "").toLowerCase();
+  const url = String(card?.url || "").toLowerCase();
+  return sourceType === "twitter" || sourceType === "x" || url.includes("twitter.com/") || url.includes("x.com/");
+}
+
+function getAsciiDomain(url) {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./i, "");
+    return hostname.toUpperCase();
+  } catch {
+    return "UNTITLED.LINK";
+  }
+}
+
+function getFallbackLogoSrc(card) {
+  const favicon = typeof card?.favicon === "string" ? card.favicon.trim() : "";
+  if (favicon) {
+    return favicon;
+  }
+
+  const url = typeof card?.url === "string" ? card.url.trim() : "";
+  if (!url) {
+    return "";
+  }
+
+  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
+}
+
 function findPreviewDiagnosticReason(card) {
   const diagnostics = card?.previewDiagnostics;
   const resolverMetadata = diagnostics?.resolverMetadata;
@@ -303,6 +332,7 @@ function LinkTile({
   const isYouTubeVideoUrl = isYouTubeUrl(card.url);
   const isYouTubeLink = isYouTubeVideoSource || isYouTubeVideoUrl;
   const isPlainVideoLink = isVideoCard && isYouTubeLink;
+  const isTwitterLikeLink = isTwitterLikeSource(card);
   const useYouTubeThumbnailCrop = isYouTubeLink;
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
@@ -337,17 +367,23 @@ function LinkTile({
     : mediaSrc;
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
+  const isAsciiFallbackActive = !isImageTile && !shouldRenderImage && !isPreviewLoading;
+  const fallbackBadgeLabel = isTwitterLikeLink ? "X/TWITTER FALLBACK TILE" : "LINK FALLBACK TILE";
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
   const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const label = getCardLabel(card);
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
+  const fallbackDomainLabel = getAsciiDomain(card.url);
+  const fallbackShortLabel = formatShortUrl(card.url).slice(0, 48).toUpperCase();
+  const fallbackLogoSrc = getFallbackLogoSrc(card);
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     isStickerTile ? "card__surface-frame--sticker" : "",
     isMusicCard ? "card__surface-frame--music" : "",
+    isAsciiFallbackActive ? "card__surface-frame--paper-fallback" : "",
     isVideoCard && !isPlainVideoLink ? "card__surface-frame--video" : "",
     isVideoCard && !isPlainVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
@@ -624,13 +660,29 @@ function LinkTile({
           <p className="card__link-loading-label">Loading preview</p>
         </div>
       ) : (
-        <div className={`card__placeholder${renderHint?.simplify ? " card__placeholder--simplified" : ""}`}>
-          <p className="card__placeholder-title">{linkTitle}</p>
-          <p className="card__placeholder-subtitle">
-            {isImageTile
-              ? (card.asset?.fileName || "Imported image")
-              : (previewFallbackReason || formatShortUrl(card.url))}
-          </p>
+        <div className="card__fallback-paper" role="note" aria-label={`Fallback preview for ${linkTitle}`}>
+          <div className="card__fallback-paper__tear" />
+          <div className="card__fallback-paper__body">
+            <div className="card__fallback-paper__head">
+              <div className="card__fallback-paper__logo-wrap" aria-hidden="true">
+                {fallbackLogoSrc ? (
+                  <img className="card__fallback-paper__logo" src={fallbackLogoSrc} alt="" />
+                ) : (
+                  <span className="card__fallback-paper__logo-fallback">{fallbackDomainLabel.slice(0, 1)}</span>
+                )}
+              </div>
+              <p className="card__fallback-paper__title">{fallbackDomainLabel}</p>
+            </div>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__line">{fallbackBadgeLabel}</p>
+            <p className="card__fallback-paper__line">{fallbackShortLabel || "NO PREVIEW AVAILABLE"}</p>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__line">STATUS: {String(card.status || "READY").toUpperCase()}</p>
+            <p className="card__fallback-paper__line">SOURCE: {String(card.sourceType || "LINK").toUpperCase()}</p>
+            <p className="card__fallback-paper__rule">--------------------------------</p>
+            <p className="card__fallback-paper__foot">:: ASCII PREVIEW ::</p>
+            <p className="card__fallback-paper__ascii">[] [] [] [] [] []</p>
+          </div>
         </div>
       )}
     </>
@@ -677,7 +729,7 @@ function LinkTile({
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >

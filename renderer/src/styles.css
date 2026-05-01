@@ -3821,6 +3821,132 @@ intentional so the top edge reads much shorter than the bottom edge. */
   font-size: 11px;
 }
 
+.card__fallback-paper {
+  position: relative;
+  width: min(100%, 220px);
+  max-height: 100%;
+  aspect-ratio: 1 / 2;
+  margin: 0 auto;
+  border: 1px solid rgba(18, 18, 18, 0.28);
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(0, 0, 0, 0.05), transparent 22%),
+    radial-gradient(circle at 82% 88%, rgba(0, 0, 0, 0.06), transparent 24%),
+    repeating-linear-gradient(6deg, rgba(0, 0, 0, 0.02) 0 2px, rgba(255, 255, 255, 0.96) 2px 6px),
+    #fdfdf9;
+  box-shadow: none;
+  overflow: hidden;
+  transform: rotate(-1deg);
+  clip-path: polygon(2% 0.8%, 10% 0.2%, 17% 1%, 25% 0.1%, 33% 1%, 41% 0.2%, 49% 1.1%, 57% 0.3%, 65% 0.8%, 73% 0.2%, 81% 1.2%, 90% 0.3%, 98% 1%, 99.5% 7%, 98.8% 16%, 99.6% 24%, 98.9% 33%, 99.7% 43%, 99% 55%, 99.4% 66%, 98.7% 77%, 99.5% 89%, 97.6% 98.8%, 90% 99.7%, 80% 98.9%, 72% 99.6%, 64% 98.8%, 56% 99.8%, 47% 98.7%, 39% 99.5%, 30% 98.7%, 21% 99.4%, 12% 98.8%, 3% 99.4%, 0.4% 92%, 1.2% 83%, 0.3% 74%, 1.1% 63%, 0.2% 52%, 1% 41%, 0.2% 29%, 1.1% 18%, 0.3% 8%);
+}
+
+@font-face {
+  font-family: "AirPasteFallbackAscii";
+  src: url("/fonts/jgs_Font.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.card__fallback-paper__tear {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background:
+    radial-gradient(circle at 6px -2px, transparent 8px, #fdfdf9 8.5px) repeat-x;
+  background-size: 12px 14px;
+  pointer-events: none;
+}
+
+.card__fallback-paper__body {
+  position: absolute;
+  inset: 15px 11px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #111;
+  font-family: "AirPasteFallbackAscii", "Courier New", "Lucida Console", monospace;
+  font-size: 10px;
+  line-height: 1.12;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.card__fallback-paper__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card__fallback-paper__logo-wrap {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.82);
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.card__fallback-paper__logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: grayscale(1) contrast(2.2) brightness(0.15);
+}
+
+.card__fallback-paper__logo-fallback {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: #111;
+}
+
+.card__fallback-paper__title {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.card__fallback-paper__line,
+.card__fallback-paper__rule,
+.card__fallback-paper__foot,
+.card__fallback-paper__ascii {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card__fallback-paper__rule {
+  color: rgba(17, 17, 17, 0.78);
+}
+
+.card__fallback-paper__foot {
+  margin-top: auto;
+}
+
+.card__surface-frame--paper-fallback {
+  transform: none !important;
+  filter: none !important;
+}
+
+.card__surface-frame--paper-fallback .card__surface--paper-fallback {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  overflow: visible !important;
+  padding: 0;
+}
+
+.card__surface-frame--selected .card__surface--paper-fallback {
+  outline: none !important;
+}
+
 .card__retry {
   align-self: center;
   min-height: 32px;
@@ -9191,6 +9317,13 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__surface--progress {
   border: 1px solid var(--ap-tile-border);
   box-shadow: none;
+}
+
+.card__surface--paper-fallback {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 
 .card__surface--note,
