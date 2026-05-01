@@ -12,12 +12,14 @@ import {
   getTextBoxLineCount,
   normalizeTextBoxStyle,
   normalizeTextBoxText,
+  TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_STYLE,
   TEXT_BOX_DEFAULT_TEXT,
 } from "./textBoxStyle";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
+export const CALENDAR_CARD_TYPE = TILE_TYPES.CALENDAR;
 export const CHECKLIST_CARD_TYPE = TILE_TYPES.CHECKLIST;
 export const CODE_CARD_TYPE = TILE_TYPES.CODE;
 export const COUNTER_CARD_TYPE = TILE_TYPES.COUNTER;
@@ -28,7 +30,7 @@ export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const TEXT_BOX_CARD_TYPE = TILE_TYPES.TEXT_BOX;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 15;
+export const WORKSPACE_SCHEMA_VERSION = 16;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -61,6 +63,11 @@ const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
 const CHECKLIST_CARD_SIZE = Object.freeze({
   width: 380,
   height: 360,
+});
+
+const CALENDAR_CARD_SIZE = Object.freeze({
+  width: 980,
+  height: 412,
 });
 
 const CODE_CARD_SIZE = Object.freeze({
@@ -97,9 +104,14 @@ const TEXT_BOX_CARD_SIZE = Object.freeze({
   width: 520,
   height: 180,
 });
+const STICKY_TEXT_BOX_CARD_SIZE = Object.freeze({
+  width: 212,
+  height: 212,
+});
 
 const TEXT_BOX_MIN_WIDTH = 140;
 const TEXT_BOX_MIN_HEIGHT = 52;
+const TEXT_BOX_APPEARANCES = new Set(["plain", "sticky"]);
 
 const RACK_CARD_SIZE = Object.freeze({
   width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
@@ -109,6 +121,12 @@ const RACK_CARD_SIZE = Object.freeze({
 const RACK_DEFAULT_TITLE = "Rack";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const CHECKLIST_DEFAULT_TITLE = "Checklist";
+const CALENDAR_DEFAULT_TITLE = "Calendar";
+const CALENDAR_DEFAULT_MONTH = 1;
+const CALENDAR_DEFAULT_YEAR = 2023;
+const CALENDAR_DEFAULT_VIEW = "month";
+const CALENDAR_DEFAULT_THEME_ID = "mist";
+const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";
 const CODE_DEFAULT_TITLE = "Untitled snippet";
 const CODE_DEFAULT_LANGUAGE = "plain";
 const COUNTER_DEFAULT_TITLE = "Counter";
@@ -193,6 +211,10 @@ function getCardType(card) {
 
   if (card?.type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_TYPE;
+  }
+
+  if (card?.type === CALENDAR_CARD_TYPE) {
+    return CALENDAR_CARD_TYPE;
   }
 
   if (card?.type === CHECKLIST_CARD_TYPE) {
@@ -301,6 +323,32 @@ function normalizeChecklistItems(items) {
     : CHECKLIST_DEFAULT_ITEMS.map((item) => ({ ...item }));
 }
 
+function normalizeCalendarMonth(month) {
+  return Number.isFinite(month)
+    ? Math.max(0, Math.min(11, Math.round(month)))
+    : CALENDAR_DEFAULT_MONTH;
+}
+
+function normalizeCalendarYear(year) {
+  return Number.isFinite(year)
+    ? Math.max(1970, Math.min(9999, Math.round(year)))
+    : CALENDAR_DEFAULT_YEAR;
+}
+
+function normalizeCalendarView(view) {
+  return view === "week" ? "week" : CALENDAR_DEFAULT_VIEW;
+}
+
+function normalizeCalendarThemeId(themeId) {
+  return typeof themeId === "string" && themeId.trim().length > 0
+    ? themeId.trim()
+    : CALENDAR_DEFAULT_THEME_ID;
+}
+
+function normalizeCalendarHeightPreset(heightPreset) {
+  return heightPreset === "tall" ? "tall" : CALENDAR_DEFAULT_HEIGHT_PRESET;
+}
+
 function normalizeNoteMode(mode) {
   return mode === "preview" ? "preview" : "edit";
 }
@@ -348,10 +396,19 @@ function normalizeProgressLinkedTileId(linkedTileId) {
 }
 
 function normalizeTextBoxPayload(card) {
+  const appearance = TEXT_BOX_APPEARANCES.has(card?.appearance) ? card.appearance : "plain";
+  const placeholderText = typeof card?.placeholderText === "string" && card.placeholderText.trim().length > 0
+    ? card.placeholderText
+    : appearance === "sticky"
+      ? "Add text"
+      : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT;
+
   return {
     text: normalizeTextBoxText(card?.text),
     style: normalizeTextBoxStyle(card?.style),
     placeholder: card?.placeholder === true,
+    appearance,
+    placeholderText,
   };
 }
 
@@ -478,6 +535,10 @@ function getCardSize(type) {
 
   if (type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_SIZE;
+  }
+
+  if (type === CALENDAR_CARD_TYPE) {
+    return CALENDAR_CARD_SIZE;
   }
 
   if (type === CHECKLIST_CARD_TYPE) {
@@ -957,6 +1018,13 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const size = getCardSize(type);
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
+  const calendarMonth = type === CALENDAR_CARD_TYPE ? normalizeCalendarMonth(card?.month) : CALENDAR_DEFAULT_MONTH;
+  const calendarYear = type === CALENDAR_CARD_TYPE ? normalizeCalendarYear(card?.year) : CALENDAR_DEFAULT_YEAR;
+  const calendarView = type === CALENDAR_CARD_TYPE ? normalizeCalendarView(card?.view) : CALENDAR_DEFAULT_VIEW;
+  const calendarThemeId = type === CALENDAR_CARD_TYPE ? normalizeCalendarThemeId(card?.themeId) : CALENDAR_DEFAULT_THEME_ID;
+  const calendarHeightPreset = type === CALENDAR_CARD_TYPE
+    ? normalizeCalendarHeightPreset(card?.heightPreset)
+    : CALENDAR_DEFAULT_HEIGHT_PRESET;
   const checklistItems = type === CHECKLIST_CARD_TYPE ? normalizeChecklistItems(card?.items) : [];
   const codeLanguage = type === CODE_CARD_TYPE ? normalizeCodeLanguage(card?.language) : CODE_DEFAULT_LANGUAGE;
   const counterValue = type === COUNTER_CARD_TYPE ? normalizeCounterValue(card?.value) : COUNTER_DEFAULT_VALUE;
@@ -1000,6 +1068,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
     contentKind,
     title: isLinkLikeCard
       ? String(card?.title ?? "")
+      : type === CALENDAR_CARD_TYPE
+        ? firstString(card?.title, CALENDAR_DEFAULT_TITLE)
       : type === CHECKLIST_CARD_TYPE
         ? firstString(card?.title, CHECKLIST_DEFAULT_TITLE)
         : type === CODE_CARD_TYPE
@@ -1028,6 +1098,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
     text: type === TEXT_BOX_CARD_TYPE ? textBox.text : "",
     style: type === TEXT_BOX_CARD_TYPE ? textBox.style : null,
     placeholder: type === TEXT_BOX_CARD_TYPE ? textBox.placeholder : false,
+    appearance: type === TEXT_BOX_CARD_TYPE ? textBox.appearance : "plain",
+    placeholderText: type === TEXT_BOX_CARD_TYPE ? textBox.placeholderText : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1045,6 +1117,11 @@ export function normalizeCard(card, fallbackIndex = 0) {
     mode: type === NOTE_CARD_TYPE ? noteMode : type === PROGRESS_CARD_TYPE ? progressMode : "",
     max: type === PROGRESS_CARD_TYPE ? progressMax : null,
     linkedTileId: type === PROGRESS_CARD_TYPE ? progressLinkedTileId : null,
+    month: type === CALENDAR_CARD_TYPE ? calendarMonth : null,
+    year: type === CALENDAR_CARD_TYPE ? calendarYear : null,
+    view: type === CALENDAR_CARD_TYPE ? calendarView : "",
+    themeId: type === CALENDAR_CARD_TYPE ? calendarThemeId : "",
+    heightPreset: type === CALENDAR_CARD_TYPE ? calendarHeightPreset : "",
     languageHints,
     image: isLinkLikeCard ? String(card?.image ?? "") : "",
     favicon: isLinkLikeCard ? String(card?.favicon ?? "") : "",
@@ -1421,6 +1498,28 @@ export function createChecklistCard(cards, viewport, preferredCenter = null, opt
   });
 }
 
+export function createCalendarCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, CALENDAR_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: CALENDAR_CARD_TYPE,
+    title: firstString(options?.title, CALENDAR_DEFAULT_TITLE),
+    month: normalizeCalendarMonth(options?.month),
+    year: normalizeCalendarYear(options?.year),
+    view: normalizeCalendarView(options?.view),
+    themeId: normalizeCalendarThemeId(options?.themeId),
+    heightPreset: normalizeCalendarHeightPreset(options?.heightPreset),
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function createCodeCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CODE_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
@@ -1547,8 +1646,16 @@ export function createTableCard(cards, viewport, preferredCenter = null, options
 export function createTextBoxCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, TEXT_BOX_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
-  const width = Number.isFinite(options?.width) ? options.width : position.width;
-  const height = Number.isFinite(options?.height) ? options.height : position.height;
+  const appearance = TEXT_BOX_APPEARANCES.has(options?.appearance) ? options.appearance : "plain";
+  const defaultSize = appearance === "sticky" ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
+  const width = Number.isFinite(options?.width) ? options.width : defaultSize.width;
+  const height = Number.isFinite(options?.height) ? options.height : defaultSize.height;
+  const x = Number.isFinite(preferredCenter?.x)
+    ? Math.round(preferredCenter.x - width / 2)
+    : position.x;
+  const y = Number.isFinite(preferredCenter?.y)
+    ? Math.round(preferredCenter.y - height / 2)
+    : position.y;
 
   return normalizeCard({
     id: crypto.randomUUID(),
@@ -1556,8 +1663,14 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
     text: typeof options?.text === "string" ? options.text : TEXT_BOX_DEFAULT_TEXT,
     style: normalizeTextBoxStyle(options?.style),
     placeholder: options?.placeholder === true,
-    x: position.x,
-    y: position.y,
+    appearance,
+    placeholderText: typeof options?.placeholderText === "string" && options.placeholderText.trim().length > 0
+      ? options.placeholderText
+      : appearance === "sticky"
+        ? "Add text"
+        : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    x,
+    y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),
     height: Math.max(TEXT_BOX_MIN_HEIGHT, height),
     createdAt: timestamp,
@@ -1914,6 +2027,10 @@ export function formatCardSubtitle(card) {
       ? card.items.filter((item) => item.checked).length
       : 0;
     return `${completedItems}/${totalItems} complete`;
+  }
+
+  if (card.type === CALENDAR_CARD_TYPE) {
+    return `${normalizeCalendarView(card.view)} view · ${normalizeCalendarHeightPreset(card.heightPreset)}`;
   }
 
   if (card.type === CODE_CARD_TYPE) {

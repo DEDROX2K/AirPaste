@@ -3,7 +3,7 @@ import { useAppContext } from "../../context/useAppContext";
 import {
   getTextBoxFontFamily,
   normalizeTextBoxStyle,
-  normalizeTextBoxText,
+  TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
@@ -69,7 +69,11 @@ function TextBoxTile({
 }) {
   const { setCanvasInteractionState, updateExistingCard } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
-  const [draftText, setDraftText] = useState(card.text ?? TEXT_BOX_DEFAULT_TEXT);
+  const placeholderText = typeof card.placeholderText === "string" && card.placeholderText.length > 0
+    ? card.placeholderText
+    : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT;
+  const appearance = card.appearance === "sticky" ? "sticky" : "plain";
+  const [draftText, setDraftText] = useState(card.text ?? placeholderText);
   const textareaRef = useRef(null);
   const measureRef = useRef(null);
   const editRequestIdRef = useRef(null);
@@ -78,7 +82,7 @@ function TextBoxTile({
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const isTextToolActive = canvasToolMode === DRAWING_TOOL_MODE_TEXT;
   const isPlaceholderText = card.placeholder === true && !isEditing;
-  const displayText = isPlaceholderText ? TEXT_BOX_DEFAULT_TEXT : (card.text ?? "");
+  const displayText = isPlaceholderText ? placeholderText : (card.text ?? "");
   const measuredText = isEditing ? draftText : displayText;
 
   function syncEditorHeight(textarea) {
@@ -116,6 +120,7 @@ function TextBoxTile({
     "card__surface-frame",
     "card__surface-frame--interactive",
     "card__surface-frame--text-box",
+    appearance === "sticky" ? "card__surface-frame--text-box-sticky" : "",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
     isEditing ? "card__surface-frame--editing" : "",
@@ -153,9 +158,9 @@ function TextBoxTile({
 
   useEffect(() => {
     if (!isEditing) {
-      setDraftText(card.text ?? TEXT_BOX_DEFAULT_TEXT);
+      setDraftText(card.text ?? placeholderText);
     }
-  }, [card.text, isEditing]);
+  }, [card.text, isEditing, placeholderText]);
 
   useEffect(() => {
     if (!textBoxEditorState || textBoxEditorState.requestId === editRequestIdRef.current) {
@@ -166,10 +171,10 @@ function TextBoxTile({
     setDraftText(
       typeof textBoxEditorState.replacementText === "string"
         ? textBoxEditorState.replacementText
-        : (card.text ?? TEXT_BOX_DEFAULT_TEXT),
+        : (card.placeholder === true ? "" : (card.text ?? placeholderText)),
     );
     setIsEditing(true);
-  }, [card.text, textBoxEditorState]);
+  }, [card.placeholder, card.text, placeholderText, textBoxEditorState]);
 
   useEffect(() => {
     if (!isEditing || !textareaRef.current) {
@@ -194,13 +199,22 @@ function TextBoxTile({
   }, [isEditing, textBoxEditorState]);
 
   const commitDraft = () => {
-    const nextText = normalizeTextBoxText(draftText);
-    const nextPlaceholder = card.placeholder === true && nextText === "Type something";
+    const trimmedDraftText = typeof draftText === "string" ? draftText.trim() : "";
+    const nextPlaceholder = trimmedDraftText.length === 0
+      || (card.placeholder === true && draftText === placeholderText);
+    const nextText = nextPlaceholder
+      ? placeholderText
+      : (typeof draftText === "string" && draftText.length > 0 ? draftText : TEXT_BOX_DEFAULT_TEXT);
 
-    if (nextText !== card.text || nextPlaceholder !== (card.placeholder === true)) {
+    if (
+      nextText !== card.text
+      || nextPlaceholder !== (card.placeholder === true)
+      || placeholderText !== card.placeholderText
+    ) {
       updateExistingCard(card.id, {
         text: nextText,
         placeholder: nextPlaceholder,
+        placeholderText,
       });
     }
   };
@@ -301,11 +315,11 @@ function TextBoxTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className="card__surface card__surface--text-box" aria-label="Canvas text box">
+          <section className={`card__surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
             {isEditing ? (
               <textarea
                 ref={textareaRef}
-                className="card__text-box-editor"
+                className={`card__text-box-editor${appearance === "sticky" ? " card__text-box-editor--sticky" : ""}`}
                 value={draftText}
                 aria-label="Canvas text box editor"
                 spellCheck={false}
@@ -323,7 +337,7 @@ function TextBoxTile({
               />
             ) : (
               <div
-                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}`}
+                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}${appearance === "sticky" ? " card__text-box-display--sticky" : ""}`}
                 style={textStyle}
               >
                 {displayText}
@@ -331,7 +345,7 @@ function TextBoxTile({
             )}
             <div
               ref={measureRef}
-              className="card__text-box-measure"
+              className={`card__text-box-measure${appearance === "sticky" ? " card__text-box-measure--sticky" : ""}`}
               aria-hidden="true"
               style={textStyle}
             >

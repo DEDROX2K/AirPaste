@@ -141,6 +141,7 @@ export function useCanvasCommands({
   openFolderDialog,
   commitWorkspaceChange,
   discardWorkspaceDraft,
+  createNewCalendarCard,
   createNewChecklistCard,
   createNewCodeCard,
   createNewCounterCard,
@@ -292,6 +293,30 @@ export function useCanvasCommands({
     return checklist;
   }, [createNewChecklistCard, folderPath, getViewportCenter, log, toast]);
 
+  const createCalendar = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New calendar blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const calendar = createNewCalendarCard(centerPoint, {
+      title: "Calendar",
+      month: 1,
+      year: 2023,
+      view: "month",
+      themeId: "mist",
+      heightPreset: "compact",
+      width: 980,
+      height: 412,
+    });
+
+    log("success", "New calendar created on the canvas", centerPoint);
+    toast("success", "Calendar dropped into place.");
+    return calendar;
+  }, [createNewCalendarCard, folderPath, getViewportCenter, log, toast]);
+
   const createCode = useCallback((preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New code snippet blocked because no folder is open");
@@ -420,6 +445,40 @@ export function useCanvasCommands({
     log("success", "New text box created on the canvas", centerPoint);
     toast("success", "Text box dropped into place.");
     return textBox;
+  }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
+
+  const createSticky = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New sticky blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const sticky = createNewTextBoxCard(centerPoint, {
+      text: "Add text",
+      placeholder: true,
+      placeholderText: "Add text",
+      appearance: "sticky",
+      width: 212,
+      height: 212,
+      style: {
+        preset: "simple",
+        fontSize: 18,
+        fontWeight: 400,
+        italic: false,
+        underline: false,
+        strike: false,
+        align: "left",
+        color: "#8d7331",
+        lineHeight: 1.25,
+        letterSpacing: 0,
+      },
+    });
+
+    log("success", "New sticky created on the canvas", centerPoint);
+    toast("success", "Sticky dropped into place.");
+    return sticky;
   }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
 
   const moveTiles = useCallback((tileIds, origins, delta) => {
@@ -868,6 +927,7 @@ export function useCanvasCommands({
   }, [discardWorkspaceDraft]);
 
   return useMemo(() => ({
+    createCalendar,
     createChecklist,
     createCode,
     createCounter,
@@ -877,6 +937,7 @@ export function useCanvasCommands({
     createRack,
     createTable,
     createTextBox,
+    createSticky,
     createLinkFromClipboard,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
@@ -900,6 +961,7 @@ export function useCanvasCommands({
   }), [
     addTileToRackCommand,
     addTilesToRackCommand,
+    createCalendar,
     createChecklist,
     createCode,
     createCounter,
@@ -909,6 +971,7 @@ export function useCanvasCommands({
     createRack,
     createTable,
     createTextBox,
+    createSticky,
     createLinkFromClipboard,
     deleteTile,
     deleteTiles,

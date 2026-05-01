@@ -1,4 +1,5 @@
 import AmazonProductTile from "../components/tiles/AmazonProductTile";
+import CalendarTile from "../components/tiles/CalendarTile";
 import ChecklistTile from "../components/tiles/ChecklistTile";
 import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
 import CounterTile from "../components/tiles/CounterTile";
@@ -57,6 +58,23 @@ const tileRegistry = {
       editable: false,
       container: false,
       navigation: true,
+      physics: false,
+      lazy: false,
+    },
+  },
+  [TILE_TYPES.CALENDAR]: {
+    type: TILE_TYPES.CALENDAR,
+    displayName: "Calendar Tile",
+    status: "stable",
+    component: CalendarTile,
+    defaultSize: { width: 980, height: 412 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: true,
+      container: false,
+      navigation: false,
       physics: false,
       lazy: false,
     },

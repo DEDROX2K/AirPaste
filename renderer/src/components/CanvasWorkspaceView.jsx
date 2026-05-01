@@ -1008,6 +1008,7 @@ export default function CanvasWorkspaceView() {
     undoWorkspaceChange,
     workspace,
     commitWorkspaceChangeForPath,
+    createNewCalendarCard,
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
@@ -1069,6 +1070,7 @@ export default function CanvasWorkspaceView() {
     openFolderDialog: openExistingWorkspace,
     commitWorkspaceChange,
     discardWorkspaceDraft,
+    createNewCalendarCard,
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
@@ -1767,6 +1769,17 @@ export default function CanvasWorkspaceView() {
           setCanvasToolMode(DRAWING_TOOL_MODE_TEXT);
           return;
         }
+
+        if (activeKey === "s") {
+          event.preventDefault();
+          const sticky = commands.createSticky();
+
+          if (sticky) {
+            interactions.selectTile(sticky.id, { forceSingle: true });
+            requestTextBoxEdit(sticky.id, { selectAll: false });
+          }
+          return;
+        }
       }
 
       if (
@@ -1788,7 +1801,7 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
-        if (isPrintableTextKey(event) && !["v", "h", "t"].includes(activeKey)) {
+        if (isPrintableTextKey(event) && !["v", "h", "t", "s"].includes(activeKey)) {
           event.preventDefault();
           requestTextBoxEdit(selectedTextBoxTile.id, {
             replacementText: event.key,

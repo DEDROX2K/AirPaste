@@ -37,6 +37,13 @@ export default function CanvasAddMenu({
         </AppDropdownMenuLabel>
         <AppDropdownMenuItem
           disabled={disabled}
+          onSelect={() => commands.createCalendar()}
+        >
+          <CalendarIcon />
+          Calendar
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
           onSelect={() => commands.createChecklist()}
         >
           <ChecklistIcon />
@@ -69,6 +76,13 @@ export default function CanvasAddMenu({
         >
           <NoteIcon />
           Note
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          disabled={disabled}
+          onSelect={() => commands.createSticky()}
+        >
+          <StickyIcon />
+          Sticky
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
           disabled={disabled}
@@ -118,6 +132,17 @@ export default function CanvasAddMenu({
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+      <path d="M3 10h18" />
+    </svg>
+  );
+}
+
 function RackIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
@@ -148,6 +173,16 @@ function NoteIcon() {
       <path d="M9 11h6" />
       <path d="M9 15h6" />
       <path d="M9 19h4" />
+    </svg>
+  );
+}
+
+function StickyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
+      <path d="M5 3h14v14H9l-4 4z" />
+      <path d="M9 8h6" />
+      <path d="M9 12h4" />
     </svg>
   );
 }

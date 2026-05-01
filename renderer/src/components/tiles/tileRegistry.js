@@ -1,4 +1,5 @@
 import AmazonProductTile from "./AmazonProductTile";
+import CalendarTile from "./CalendarTile";
 import ChecklistTile from "./ChecklistTile";
 import CodeSnippetTile from "./CodeSnippetTile";
 import CounterTile from "./CounterTile";
@@ -17,6 +18,9 @@ const tileRegistry = {
   },
   [TILE_TYPES.AMAZON_PRODUCT]: {
     Component: AmazonProductTile,
+  },
+  [TILE_TYPES.CALENDAR]: {
+    Component: CalendarTile,
   },
   [TILE_TYPES.CHECKLIST]: {
     Component: ChecklistTile,

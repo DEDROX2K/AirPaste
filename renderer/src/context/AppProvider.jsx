@@ -4,6 +4,7 @@ import { useTabs } from "./useTabs";
 import {
   createWorkspacePage,
   createEmptyWorkspace,
+  createCalendarCard,
   createChecklistCard,
   createCodeCard,
   createCounterCard,
@@ -1164,6 +1165,14 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewCalendarCard = useCallback((center = null, options = {}) => {
+    const card = createCalendarCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const createNewCodeCard = useCallback((center = null, options = {}) => {
     const card = createCodeCard(workspace.cards, workspace.viewport, center, options);
     commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
@@ -1518,6 +1527,7 @@ export function AppProvider({ children }) {
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
+    createNewCalendarCard,
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
@@ -1582,6 +1592,7 @@ export function AppProvider({ children }) {
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
+    createNewCalendarCard,
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,

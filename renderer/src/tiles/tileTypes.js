@@ -1,6 +1,7 @@
 export const TILE_TYPES = Object.freeze({
   LINK: "link",
   AMAZON_PRODUCT: "amazon-product",
+  CALENDAR: "calendar",
   CHECKLIST: "checklist",
   CODE: "code",
   COUNTER: "counter",

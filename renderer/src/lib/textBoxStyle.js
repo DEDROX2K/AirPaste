@@ -1,4 +1,5 @@
 export const TEXT_BOX_DEFAULT_TEXT = "Double click to edit";
+export const TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT = TEXT_BOX_DEFAULT_TEXT;
 export const TEXT_BOX_DEFAULT_STYLE = Object.freeze({
   preset: "simple",
   fontSize: 48,
