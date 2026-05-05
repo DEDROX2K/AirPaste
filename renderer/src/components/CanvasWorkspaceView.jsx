@@ -6,7 +6,6 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
-import StickerPaletteControl from "./StickerPaletteControl";
 import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import DrawingLayer from "./canvas/DrawingLayer";
@@ -50,12 +49,6 @@ import {
 } from "../systems/snapping/canvasSnapSettings";
 import {
   AppButton,
-  AppDropdownMenu,
-  AppDropdownMenuContent,
-  AppDropdownMenuItem,
-  AppDropdownMenuLabel,
-  AppDropdownMenuSeparator,
-  AppDropdownMenuTrigger,
   AppEmptyState,
 } from "./ui/app";
 import { folderNameFromPath } from "../lib/home";
@@ -121,31 +114,6 @@ const CANVAS_BACKGROUND_SKINS = [
   },
 ];
 const DEFAULT_CANVAS_BACKGROUND_SKIN_ID = CANVAS_BACKGROUND_SKINS[0].id;
-const STICKER_FILE_NAMES = Object.freeze([
-  "ba2.png",
-  "ba3.png",
-  "ba4.png",
-  "ba5.png",
-  "ba6.png",
-  "ba7.png",
-  "ba8.png",
-  "flow1.png",
-  "flow2.png",
-  "flow3.png",
-  "flow4.png",
-  "flow5.png",
-  "heart.png",
-  "holonn.png",
-  "icanfix.png",
-  "lasupdate.png",
-  "lessgoo.png",
-  "lesworktogg.png",
-  "logo.png",
-  "meee.png",
-  "peace.png",
-  "tape.png",
-  "welcome.png",
-]);
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -160,27 +128,6 @@ function normalizeCanvasBackgroundSkinId(value) {
   return CANVAS_BACKGROUND_SKINS.some((skin) => skin.id === value)
     ? value
     : DEFAULT_CANVAS_BACKGROUND_SKIN_ID;
-}
-
-function formatStickerLabel(fileName) {
-  const name = String(fileName).replace(/\.[^.]+$/, "");
-  return name
-    .replace(/[-_]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function fitSizeWithinBounds(width, height, maxWidth, maxHeight) {
-  const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
-  const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
-  const scale = Math.min(maxWidth / safeWidth, maxHeight / safeHeight);
-
-  return {
-    width: Math.max(48, Math.round(safeWidth * scale)),
-    height: Math.max(48, Math.round(safeHeight * scale)),
-  };
 }
 
 function getStickerCanvasHoverState(canvasElement, clientX, clientY) {
@@ -236,83 +183,8 @@ function WorkspaceViewToggle({ mode, onChange }) {
   );
 }
 
-function HomeTrailIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 11.5 12 4l9 7.5" />
-      <path d="M5 10.5V20h14v-9.5" />
-    </svg>
-  );
-}
-
-function FolderTrailIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
-    </svg>
-  );
-}
-
-function CanvasTrailIcon() {
-  return (
-    <img className="canvas-topbar__canvas-icon" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />
-  );
-}
-
-function WorkspaceTopbarTrail({
-  canvasName,
-  folderLabel,
-  folderLoading,
-  onOpenHome,
-  onOpenWorkspaceFolder,
-}) {
-  return (
-    <header className="workspace-trail">
-      {/* <div className="canvas-topbar__left">
-        <button
-          type="button"
-          className="canvas-topbar__crumb canvas-topbar__crumb--home"
-          onClick={onOpenHome}
-          aria-label="Go to Home"
-          title="Home"
-        >
-          <span className="canvas-topbar__crumb-icon">
-            <HomeTrailIcon />
-          </span>
-          <span className="canvas-topbar__crumb-text">Home</span>
-        </button>
-        {folderLabel ? (
-          <>
-            <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-            <button
-              type="button"
-              className="canvas-topbar__crumb"
-              onClick={() => onOpenWorkspaceFolder?.()}
-              disabled={folderLoading}
-              aria-label={folderLoading ? "Workspace folder loading" : `Open ${folderLabel} in your file browser`}
-              title={folderLoading ? "Workspace loading" : "Open workspace folder"}
-            >
-              <span className="canvas-topbar__crumb-icon">
-                <FolderTrailIcon />
-              </span>
-              <span className="canvas-topbar__crumb-text">{folderLabel}</span>
-            </button>
-          </>
-        ) : null}
-        <span className="canvas-topbar__sep" aria-hidden="true">/</span>
-        <span
-          className="canvas-topbar__crumb canvas-topbar__crumb--active"
-          aria-current="page"
-          title={canvasName}
-        >
-          <span className="canvas-topbar__crumb-icon">
-            <CanvasTrailIcon />
-          </span>
-          <span className="canvas-topbar__crumb-text">{canvasName}</span>
-        </span>
-      </div> */}
-    </header>
-  );
+function WorkspaceTopbarTrail() {
+  return <header className="workspace-trail" />;
 }
 
 function GridViewFilterToggle({ value, onChange }) {
@@ -342,13 +214,15 @@ function GridViewFilterToggle({ value, onChange }) {
 
 function DrawingToolControls({
   activeTool,
+  iconOnly = false,
   onToolChange,
 }) {
   const isHandToolActive = activeTool === DRAWING_TOOL_MODE_HAND;
   const isTextToolActive = activeTool === DRAWING_TOOL_MODE_TEXT;
+  const iconOnlyClassName = iconOnly ? " drawing-tool-controls--icon-only" : "";
 
   return (
-    <div className="drawing-tool-controls" role="group" aria-label="Canvas tools">
+    <div className={`drawing-tool-controls${iconOnlyClassName}`} role="group" aria-label="Canvas tools">
       <div className="drawing-tool-controls__mode" role="group" aria-label="Canvas tool mode">
         <AppButton tone="unstyled"
           type="button"
@@ -358,8 +232,8 @@ function DrawingToolControls({
           aria-pressed={activeTool === DRAWING_TOOL_MODE_SELECT}
           title="Select (V)"
         >
-          <img className="drawing-tool-controls__icon" src={assetUrl("icons/gesture_select.png")} alt="" aria-hidden="true" />
-          <span className="drawing-tool-controls__text">Select</span>
+          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/cursor-default.png")} alt="" aria-hidden="true" />
+          {!iconOnly ? <span className="drawing-tool-controls__text">Select</span> : null}
         </AppButton>
         <AppButton tone="unstyled"
           type="button"
@@ -369,12 +243,8 @@ function DrawingToolControls({
           aria-pressed={isHandToolActive}
           title="Hand (H)"
         >
-          <svg className="drawing-tool-controls__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M7 11.5V6.8a1.8 1.8 0 1 1 3.6 0V10" />
-            <path d="M10.6 10V5.8a1.8 1.8 0 1 1 3.6 0V10" />
-            <path d="M14.2 10V7.4a1.8 1.8 0 1 1 3.6 0v6.1c0 4-2.7 6.5-6.4 6.5H10c-2.8 0-4.6-1.5-5.5-4.3l-1.2-3.7a1.7 1.7 0 0 1 3.2-1.1L7 12" />
-          </svg>
-          <span className="drawing-tool-controls__text">Hand</span>
+          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/hand-back-left.png")} alt="" aria-hidden="true" />
+          {!iconOnly ? <span className="drawing-tool-controls__text">Hand</span> : null}
         </AppButton>
         <AppButton tone="unstyled"
           type="button"
@@ -384,66 +254,11 @@ function DrawingToolControls({
           aria-pressed={isTextToolActive}
           title="Text (T)"
         >
-          <svg className="drawing-tool-controls__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 6h14" />
-            <path d="M12 6v12" />
-            <path d="M8 18h8" />
-          </svg>
-          <span className="drawing-tool-controls__text">Text</span>
+          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/text-recognition.png")} alt="" aria-hidden="true" />
+          {!iconOnly ? <span className="drawing-tool-controls__text">Text</span> : null}
         </AppButton>
       </div>
     </div>
-  );
-}
-
-function CanvasBackgroundSkinControl({ activeSkinId, onChange }) {
-  const activeSkin = CANVAS_BACKGROUND_SKINS.find((skin) => skin.id === activeSkinId)
-    ?? CANVAS_BACKGROUND_SKINS[0];
-
-  return (
-    <AppDropdownMenu>
-      <AppDropdownMenuTrigger asChild>
-        <AppButton
-          variant="default"
-          size="sm"
-          className="canvas-background-skin__trigger gap-2 px-3 font-medium"
-          title="Choose canvas background skin"
-        >
-          <span>Background</span>
-          <span className="canvas-background-skin__value">{activeSkin.label}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </AppButton>
-      </AppDropdownMenuTrigger>
-      <AppDropdownMenuContent className="w-56" align="center" side="top" sideOffset={8}>
-        <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
-          Canvas backgrounds
-        </AppDropdownMenuLabel>
-        <AppDropdownMenuSeparator />
-        {CANVAS_BACKGROUND_SKINS.map((skin) => (
-          <AppDropdownMenuItem
-            key={skin.id}
-            className="canvas-background-skin__item"
-            onSelect={() => onChange(skin.id)}
-          >
-            <span
-              className="canvas-background-skin__swatch"
-              style={{
-                backgroundImage: skin.kind === "image"
-                  ? `url("${assetUrl(skin.assetPath)}")`
-                  : "radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)",
-                backgroundSize: skin.kind === "image"
-                  ? skin.backgroundSize
-                  : "14px 14px",
-              }}
-            />
-            <span>{skin.label}</span>
-            {activeSkinId === skin.id ? <span className="ml-auto text-xs text-ap-text-secondary">Active</span> : null}
-          </AppDropdownMenuItem>
-        ))}
-      </AppDropdownMenuContent>
-    </AppDropdownMenu>
   );
 }
 
@@ -1106,7 +921,6 @@ export default function CanvasWorkspaceView() {
   const [cullingTick, setCullingTick] = useState(0);
   const [textBoxEditorState, setTextBoxEditorState] = useState(null);
   const [gridTileFilter, setGridTileFilter] = useState("all");
-  const [isStickerPaletteOpen, setIsStickerPaletteOpen] = useState(false);
   const [stickerDragState, setStickerDragState] = useState(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
@@ -1131,14 +945,6 @@ export default function CanvasWorkspaceView() {
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
-  const stickerCatalog = useMemo(() => (
-    STICKER_FILE_NAMES.map((fileName) => ({
-      id: fileName.replace(/\.[^.]+$/, ""),
-      fileName,
-      label: formatStickerLabel(fileName),
-      src: assetUrl(`Stickers/${fileName}`),
-    }))
-  ), []);
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
@@ -1883,6 +1689,7 @@ export default function CanvasWorkspaceView() {
   }, [workspaceLodLevel]);
 
   const useSceneSurface = sceneSurfaceEnabled && workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR;
+  const isImageBackgroundSkin = selectedCanvasBackgroundSkin.kind === "image";
   const stableTileMetaById = useMemo(() => {
     const previousCache = tileMetaCacheRef.current;
     const nextCache = new Map();
@@ -2140,63 +1947,6 @@ export default function CanvasWorkspaceView() {
       };
     });
   }, [setWorkspaceView]);
-
-  const toggleStickerPalette = useCallback(() => {
-    setIsStickerPaletteOpen((currentValue) => !currentValue);
-  }, []);
-
-  const handleStickerPointerDown = useCallback((sticker, event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const imageElement = event.currentTarget.querySelector("img");
-    const chipElement = event.currentTarget.querySelector(".sticker-paper__chip");
-    const chipRect = chipElement?.getBoundingClientRect?.() ?? null;
-    const width = Number.isFinite(imageElement?.naturalWidth) && imageElement.naturalWidth > 0
-      ? imageElement.naturalWidth
-      : 512;
-    const height = Number.isFinite(imageElement?.naturalHeight) && imageElement.naturalHeight > 0
-      ? imageElement.naturalHeight
-      : 512;
-    const previewBounds = fitSizeWithinBounds(
-      width,
-      height,
-      Math.max(72, Math.min(128, (chipRect?.width ?? 96) - 18)),
-      Math.max(72, Math.min(128, (chipRect?.height ?? 96) - 18)),
-    );
-
-    recordStickerDebug("drag-start", {
-      stickerId: sticker?.id ?? null,
-      label: sticker?.label ?? "",
-      naturalWidth: width,
-      naturalHeight: height,
-      previewWidth: previewBounds.width,
-      previewHeight: previewBounds.height,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    });
-    log("info", "Sticker drag started", {
-      stickerId: sticker?.id ?? null,
-      previewWidth: previewBounds.width,
-      previewHeight: previewBounds.height,
-    });
-
-    setStickerDragState({
-      sticker,
-      width,
-      height,
-      previewWidth: previewBounds.width,
-      previewHeight: previewBounds.height,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      isOverCanvas: false,
-      rotation: ((sticker.id.length % 5) - 2) * 2.2,
-    });
-  }, [log]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -2708,8 +2458,16 @@ export default function CanvasWorkspaceView() {
           </div>,
           document.getElementById("titlebar-right-slot") || document.body
         )}
-        <div className="canvas-stage__fab">
-          <CanvasAddMenu commands={commands} disabled={!folderPath || folderLoading} side="top" />
+        <div className="canvas-stage__fab canvas-stage__fab--start">
+          <div className="canvas-win-strip">
+            <CanvasAddMenu
+              commands={commands}
+              backgroundSkins={CANVAS_BACKGROUND_SKINS}
+              activeBackgroundSkinId={selectedCanvasBackgroundSkin.id}
+              disabled={!folderPath || folderLoading}
+              onSelectBackground={updateCanvasBackgroundSkin}
+            />
+          </div>
         </div>
         <div className="canvas-stage__bottom-controls">
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
@@ -2753,30 +2511,21 @@ export default function CanvasWorkspaceView() {
         document.getElementById("titlebar-right-slot") || document.body
       )}
 
-      <div className="canvas-stage__fab">
-        <CanvasAddMenu
-          commands={commands}
-          disabled={!folderPath || folderLoading}
-          side="top"
-        />
-      </div>
-      <div className="canvas-stage__bottom-controls">
-        <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-        <DrawingToolControls
-          activeTool={selectedCanvasToolMode}
-          onToolChange={setCanvasToolMode}
-        />
-        <StickerPaletteControl
-          stickers={stickerCatalog}
-          isOpen={isStickerPaletteOpen}
-          onToggle={toggleStickerPalette}
-          onStickerPointerDown={handleStickerPointerDown}
-          activeStickerId={stickerDragState?.sticker?.id ?? null}
-        />
-        <CanvasBackgroundSkinControl
-          activeSkinId={selectedCanvasBackgroundSkin.id}
-          onChange={updateCanvasBackgroundSkin}
-        />
+      <div className="canvas-stage__fab canvas-stage__fab--start">
+        <div className="canvas-win-strip">
+          <CanvasAddMenu
+            commands={commands}
+            backgroundSkins={CANVAS_BACKGROUND_SKINS}
+            activeBackgroundSkinId={selectedCanvasBackgroundSkin.id}
+            disabled={!folderPath || folderLoading}
+            onSelectBackground={updateCanvasBackgroundSkin}
+          />
+          <DrawingToolControls
+            activeTool={selectedCanvasToolMode}
+            iconOnly
+            onToolChange={setCanvasToolMode}
+          />
+        </div>
       </div>
       {selectedTextBoxTile ? (
         <TextFormattingToolbar
@@ -2800,13 +2549,18 @@ export default function CanvasWorkspaceView() {
         id="canvas-board"
         className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
         style={{
-          "--canvas-grid-background-image": selectedCanvasBackgroundSkin.kind === "image"
-            ? `url("${assetUrl(selectedCanvasBackgroundSkin.assetPath)}")`
+          "--canvas-grid-background-image": isImageBackgroundSkin
+            ? "none"
             : "radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)",
-          "--canvas-grid-background-size": selectedCanvasBackgroundSkin.kind === "image"
-            ? "calc(var(--canvas-grid-size, 28px) * var(--canvas-grid-background-scale, 10)) calc(var(--canvas-grid-size, 28px) * var(--canvas-grid-background-scale, 10))"
+          "--canvas-grid-background-size": isImageBackgroundSkin
+            ? "0 0"
             : "var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)",
           "--canvas-grid-background-scale": String(selectedCanvasBackgroundSkin.backgroundScale ?? 1),
+          "--canvas-background-plane-image": isImageBackgroundSkin
+            ? `url("${assetUrl(selectedCanvasBackgroundSkin.assetPath)}")`
+            : "none",
+          "--canvas-background-plane-size": selectedCanvasBackgroundSkin.backgroundSize
+            ?? "calc(32px * var(--canvas-grid-background-scale, 10)) auto",
         }}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
@@ -2884,6 +2638,9 @@ export default function CanvasWorkspaceView() {
               ref={canvas.contentRef}
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
             >
+              {isImageBackgroundSkin ? (
+                <div className="canvas__background-plane" aria-hidden="true" />
+              ) : null}
               {activeRenderTiles.map((card) => (
                 <Card
                   key={card.id}

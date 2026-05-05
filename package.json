@@ -23,7 +23,8 @@
     "check:tiles": "node scripts/check-tile-book.js",
     "lint": "eslint .",
     "build": "vite build --config vite.config.mjs",
-    "package": "npm run build && electron-builder --publish never"
+    "package": "npm run build && electron-builder --publish never",
+    "package:win": "node scripts/package-windows.js"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.2.16",
@@ -81,6 +82,7 @@
   "build": {
     "appId": "com.airpaste.app",
     "productName": "AirPaste",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
@@ -94,7 +96,6 @@
       "package.json"
     ],
     "win": {
-      "signAndEditExecutable": false,
       "target": [
         "nsis"
       ],

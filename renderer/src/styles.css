@@ -577,6 +577,17 @@ a {
   pointer-events: auto;
 }
 
+.canvas-stage__fab--start {
+  left: 20px;
+  right: auto;
+}
+
+.canvas-win-strip {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
 .canvas-stage__bottom-controls {
   position: absolute;
   left: 50%;
@@ -856,6 +867,20 @@ a {
     translate(var(--canvas-viewport-x, 0), var(--canvas-viewport-y, 0)) scale(var(--canvas-viewport-zoom, 1));
 }
 
+.canvas__background-plane {
+  position: absolute;
+  left: -200000px;
+  top: -200000px;
+  width: 400000px;
+  height: 400000px;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--canvas-background-plane-image, none);
+  background-repeat: repeat;
+  background-position: 0 0;
+  background-size: var(--canvas-background-plane-size, 320px auto);
+}
+
 .canvas__scene-surface {
   position: absolute;
   inset: 0;
@@ -871,6 +896,10 @@ a {
 
 .canvas__content--overlay .card {
   pointer-events: auto;
+}
+
+.canvas__content .card {
+  z-index: max(1, var(--tile-z, 1));
 }
 
 .canvas__marquee {
@@ -1527,10 +1556,14 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px;
-  border-radius: 14px;
-  border: 1px solid rgba(58, 50, 44, 0.12);
-  background: rgba(245, 241, 236, 0.96);
+  padding: 2px;
+  border: 2px solid;
+  border-color: #f7f7f7 #2f2f2f #2f2f2f #f7f7f7;
+  background: #bfbfbf;
+  box-shadow:
+    inset -1px -1px 0 #7b7b7b,
+    inset 1px 1px 0 #ffffff,
+    1px 1px 0 rgba(0, 0, 0, 0.24);
 }
 
 .drawing-tool-controls__mode {
@@ -1540,42 +1573,53 @@ a {
 }
 
 .drawing-tool-controls__button {
-  min-height: 40px;
+  min-height: 32px;
   min-width: 0;
   padding: 0 12px;
   border: none;
-  border-radius: 10px;
   background: transparent;
-  color: rgba(93, 83, 74, 0.88);
+  color: #111111;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  transition: none;
 }
 
 .drawing-tool-controls__button:hover {
-  color: rgba(20, 18, 15, 0.94);
+  background: #d2d2d2;
+  color: #111111;
 }
 
 .drawing-tool-controls__button--active {
-  background: rgba(255, 255, 255, 0.94);
-  color: rgba(16, 14, 11, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(56, 48, 42, 0.12);
+  background: #9f9f9f;
+  box-shadow:
+    inset 1px 1px 0 #7b7b7b,
+    inset -1px -1px 0 #ffffff;
 }
 
 .drawing-tool-controls__icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: block;
   object-fit: contain;
+}
+
+.drawing-tool-controls__icon--pixel {
+  image-rendering: pixelated;
 }
 
 .drawing-tool-controls__text {
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
+}
+
+.drawing-tool-controls--icon-only .drawing-tool-controls__button {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
 }
 
 .drawing-tool-controls__style {
@@ -1711,30 +1755,236 @@ a {
   line-height: 1.25;
 }
 
-.canvas-add-menu__trigger {
-  min-height: var(--control-height-lg);
-  border-radius: var(--control-radius);
-  border: var(--control-border);
-  background: var(--control-bg);
-  color: var(--control-text-muted);
-  box-shadow: var(--control-shadow);
-  backdrop-filter: blur(var(--ap-blur-xs));
-  transition:
-    background-color var(--ap-transition-fast),
-    border-color var(--ap-transition-fast),
-    color var(--ap-transition-fast),
-    box-shadow var(--ap-transition-fast);
+.canvas-start-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  font-family: Tahoma, "MS Sans Serif", "Segoe UI", sans-serif;
 }
 
-.canvas-add-menu__trigger:hover:not(:disabled) {
-  background: var(--control-bg-hover);
-  border-color: var(--ap-border-strong);
-  color: var(--control-text);
-  box-shadow: var(--control-shadow-hover);
+.canvas-start-menu__trigger {
+  position: relative;
+  min-width: 128px;
+  min-height: 38px;
+  padding: 2px;
+  border: 2px solid;
+  border-color: #f7f7f7 #2f2f2f #2f2f2f #f7f7f7;
+  background: #bfbfbf;
+  box-shadow:
+    inset -1px -1px 0 #7b7b7b,
+    inset 1px 1px 0 #ffffff,
+    1px 1px 0 rgba(0, 0, 0, 0.32);
+  color: #111111;
+  cursor: pointer;
 }
 
-.canvas-add-menu__trigger:disabled {
-  opacity: 0.52;
+.canvas-start-menu__trigger:hover:not(:disabled) {
+  background: #c9c9c9;
+}
+
+.canvas-start-menu__trigger:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.canvas-start-menu__trigger--open {
+  border-color: #2f2f2f #f7f7f7 #f7f7f7 #2f2f2f;
+  box-shadow:
+    inset -1px -1px 0 #ffffff,
+    inset 1px 1px 0 #7b7b7b;
+}
+
+.canvas-start-menu__trigger-inset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 12px 0 10px;
+  border: 1px dotted #202020;
+}
+
+.canvas-start-menu:not(.canvas-start-menu--open) .canvas-start-menu__trigger-inset {
+  border-color: transparent;
+}
+
+.canvas-start-menu__trigger-icon,
+.canvas-start-menu__hero-icon,
+.canvas-start-menu__item-icon-image {
+  image-rendering: pixelated;
+}
+
+.canvas-start-menu__trigger-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
+}
+
+.canvas-start-menu__trigger-label {
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  font-weight: 700;
+}
+
+.canvas-start-menu__panel {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  width: 280px;
+  padding: 4px 4px 6px;
+  border: 2px solid;
+  border-color: #f7f7f7 #202020 #202020 #f7f7f7;
+  background: #c3c3c3;
+  box-shadow:
+    inset -1px -1px 0 #7b7b7b,
+    inset 1px 1px 0 #ffffff,
+    2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.canvas-start-menu__hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  margin-bottom: 6px;
+  padding: 10px 12px;
+  border-bottom: 2px solid #f2f2f2;
+  box-shadow: inset 0 -1px 0 #7b7b7b;
+  background: #c3c3c3;
+}
+
+.canvas-start-menu__hero-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+
+.canvas-start-menu__hero-icon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  object-fit: contain;
+}
+
+.canvas-start-menu__hero-label {
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: #111111;
+}
+
+.canvas-start-menu__section {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-start-menu__submenu {
+  position: relative;
+}
+
+.canvas-start-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 10px 6px 12px;
+  border: none;
+  background: transparent;
+  color: #111111;
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-start-menu__item:hover:not(:disabled),
+.canvas-start-menu__submenu:hover > .canvas-start-menu__item--submenu {
+  background: #0a246a;
+  color: #ffffff;
+}
+
+.canvas-start-menu__item:disabled {
+  cursor: default;
+}
+
+.canvas-start-menu__item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.canvas-start-menu__item-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.canvas-start-menu__item-icon-image {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
+}
+
+.canvas-start-menu__item-label {
+  flex: 1 1 auto;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.canvas-start-menu__item-arrow {
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 8px;
+}
+
+.canvas-start-menu__submenu-panel {
+  position: absolute;
+  left: calc(100% - 3px);
+  top: -4px;
+  display: none;
+  min-width: 220px;
+  padding: 4px;
+  border: 2px solid;
+  border-color: #f7f7f7 #202020 #202020 #f7f7f7;
+  background: #c3c3c3;
+  box-shadow:
+    inset -1px -1px 0 #7b7b7b,
+    inset 1px 1px 0 #ffffff,
+    2px 2px 0 rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.canvas-start-menu__submenu:hover .canvas-start-menu__submenu-panel {
+  display: block;
+}
+
+.canvas-start-menu__item--active {
+  background: #0a246a;
+  color: #ffffff;
+}
+
+.canvas-start-menu__background-swatch {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid #5b5b5b;
+  background-position: center;
+  background-repeat: repeat;
+}
+
+.canvas-start-menu__separator {
+  height: 0;
+  margin: 6px 10px 8px;
+  border-top: 2px solid #7b7b7b;
+  border-bottom: 2px solid #f7f7f7;
 }
 
 .canvas-background-skin__trigger {
@@ -1787,8 +2037,8 @@ a {
   background-repeat: repeat;
 }
 
-.canvas-stage__fab .canvas-add-menu__trigger {
-  min-width: 92px;
+.canvas-stage__fab .canvas-start-menu__trigger {
+  min-width: 140px;
 }
 
 /* ── Canvas empty states ── */
@@ -2493,6 +2743,9 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card__surface--link-plain {
+  display: block;
+  height: auto;
+  overflow: visible;
   background: transparent;
   border-radius: 0;
 }
@@ -3143,6 +3396,23 @@ intentional so the top edge reads much shorter than the bottom edge. */
   inset: 0;
 }
 
+.card__image-reveal--natural {
+  height: auto;
+  overflow: visible;
+}
+
+.card__image-reveal--natural .card__image-reveal__placeholder {
+  display: none;
+}
+
+.card__image-reveal--natural .card__image-reveal__final {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .card__image-reveal__placeholder {
   background:
     radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.32), transparent 28%),
@@ -3224,6 +3494,11 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__image-reveal--disabled .card__image-reveal__preview,
 .card__image-reveal--disabled .card__image-reveal__pixel-grid {
   opacity: 0;
+}
+
+.card__image--natural {
+  height: auto;
+  object-fit: contain;
 }
 
 .card__record-shell {
@@ -9052,12 +9327,6 @@ intentional so the top edge reads much shorter than the bottom edge. */
   backdrop-filter: blur(16px);
 }
 
-.drawing-tool-controls {
-  background: color-mix(in srgb, var(--ap-surface-default) 96%, #f3efe8);
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
 .canvas-topbar__left {
   min-height: 50px;
   padding: 5px 8px;
@@ -9075,9 +9344,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .workspace-view-toggle__button:hover,
 .drawing-tool-controls__button:hover,
 .grid-view-filter-toggle__button:hover {
-  background: rgba(255, 255, 255, 0.72);
   color: var(--ap-text-primary);
-  box-shadow: inset 0 0 0 1px rgba(201, 189, 174, 0.36);
   transform: none;
 }
 
@@ -9086,7 +9353,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .grid-view-filter-toggle__button:focus-visible,
 .drawing-tool-controls__button:focus-visible,
 .drawing-tool-controls__color:focus-visible,
-.canvas-add-menu__trigger:focus-visible,
+.canvas-start-menu__trigger:focus-visible,
 .canvas-background-skin__trigger:focus-visible,
 .tile-context-menu__item:focus-visible,
 .canvas__empty-action:focus-visible {
@@ -9100,9 +9367,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .workspace-view-toggle__button--active,
 .drawing-tool-controls__button--active,
 .grid-view-filter-toggle__button--active {
-  background: rgba(255, 255, 255, 0.96);
   color: var(--ap-text-primary);
-  box-shadow: inset 0 0 0 1px rgba(201, 189, 174, 0.42);
 }
 
 .drawing-tool-controls__style {
@@ -9116,15 +9381,10 @@ intentional so the top edge reads much shorter than the bottom edge. */
   overflow: hidden;
 }
 
-.canvas-add-menu__trigger,
+.canvas-start-menu__trigger,
 .canvas-background-skin__trigger {
   min-height: 40px;
-  border-radius: 14px;
-  border-color: var(--ap-canvas-float-border);
-  background: var(--ap-canvas-float-bg);
   color: var(--ap-text-primary);
-  box-shadow: var(--ap-canvas-float-shadow);
-  backdrop-filter: blur(16px);
 }
 
 .canvas-stage__bottom-controls {

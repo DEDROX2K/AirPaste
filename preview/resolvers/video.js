@@ -112,12 +112,12 @@ async function resolveYouTubeVideoPreview(url, fetchJson, explicitSourceType = "
   const title = firstString(noembedPayload?.title, youtubeOembedPayload?.title);
   const author = firstString(noembedPayload?.author_name, youtubeOembedPayload?.author_name);
   const candidateImageUrls = uniqueValues([
-    noembedPayload?.thumbnail_url,
-    youtubeOembedPayload?.thumbnail_url,
     `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
     `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
     `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    noembedPayload?.thumbnail_url,
+    youtubeOembedPayload?.thumbnail_url,
   ]);
   const mediaAspectRatio = sourceType === "youtube-shorts" ? (9 / 16) : (16 / 9);
 

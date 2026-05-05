@@ -333,7 +333,6 @@ function LinkTile({
   const isYouTubeLink = isYouTubeVideoSource || isYouTubeVideoUrl;
   const isPlainVideoLink = isVideoCard && isYouTubeLink;
   const isTwitterLikeLink = isTwitterLikeSource(card);
-  const useYouTubeThumbnailCrop = isYouTubeLink;
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
     [card, loadedVideoAspectRatio],
@@ -354,14 +353,17 @@ function LinkTile({
     const diagnosticsCandidates = Array.isArray(card?.previewDiagnostics?.candidateImageUrls)
       ? card.previewDiagnostics.candidateImageUrls
       : [];
+    const orderedCandidates = isYouTubeLink
+      ? [...diagnosticsCandidates, card.image]
+      : [card.image, ...diagnosticsCandidates];
 
     return [...new Set(
-      [card.image, ...diagnosticsCandidates]
+      orderedCandidates
         .filter((candidate) => typeof candidate === "string")
         .map((candidate) => candidate.trim())
         .filter((candidate) => candidate.length > 0),
     )];
-  }, [card.image, card.previewDiagnostics?.candidateImageUrls, isVideoCard]);
+  }, [card.image, card.previewDiagnostics?.candidateImageUrls, isVideoCard, isYouTubeLink]);
   const activeVideoImageSrc = isVideoCard
     ? (videoCandidateUrls[videoImageIndex] || mediaSrc)
     : mediaSrc;
@@ -638,7 +640,8 @@ function LinkTile({
         </div>
       ) : shouldRenderImage && !isStickerTile ? (
         <TileImageReveal
-          className={`card__image${useYouTubeThumbnailCrop ? " card__image--youtube-crop" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
+          className={`card__image${isPlainVideoLink ? " card__image--natural" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
+          wrapperClassName={isPlainVideoLink ? "card__image-reveal--natural" : ""}
           src={isPlainVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}

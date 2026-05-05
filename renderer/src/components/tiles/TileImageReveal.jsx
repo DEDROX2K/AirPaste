@@ -6,6 +6,7 @@ function TileImageReveal({
   src,
   alt,
   className = "",
+  wrapperClassName = "",
   enableReveal = true,
   onError,
   onLoad,
@@ -34,7 +35,7 @@ function TileImageReveal({
   }
 
   return (
-    <div className={`card__image-reveal${isLoaded ? " card__image-reveal--final" : " card__image-reveal--loading"}${enableReveal ? "" : " card__image-reveal--disabled"}`}>
+    <div className={`card__image-reveal${isLoaded ? " card__image-reveal--final" : " card__image-reveal--loading"}${enableReveal ? "" : " card__image-reveal--disabled"}${wrapperClassName ? ` ${wrapperClassName}` : ""}`}>
       <div className="card__image-reveal__placeholder" aria-hidden="true" />
       <img
         className={`card__image-reveal__final ${className}`.trim()}

@@ -165,6 +165,8 @@ function resolveWindowIconPath() {
   const iconCandidates = [
     path.join(__dirname, "build", "icon.png"),
     path.join(__dirname, "build", "icon.ico"),
+    path.join(__dirname, "public", "Logo.png"),
+    path.join(__dirname, "build", "logo.png"),
     path.join(__dirname, "build", "favicon.ico"),
   ];
 
@@ -1823,7 +1825,9 @@ function fetchYouTubePreview(url) {
     siteName: "YouTube",
     imageUrls: [
       `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+      `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
       `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
     ],
     previewKind: "default",
   };

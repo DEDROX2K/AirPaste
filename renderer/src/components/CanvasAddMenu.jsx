@@ -1,268 +1,278 @@
-import {
-  AppButton,
-  AppDropdownMenu,
-  AppDropdownMenuContent,
-  AppDropdownMenuItem,
-  AppDropdownMenuLabel,
-  AppDropdownMenuSeparator,
-  AppDropdownMenuTrigger,
-} from "./ui/app";
+import { useEffect, useRef, useState } from "react";
+
+const ASSET_BASE_URL = import.meta.env.BASE_URL;
+
+const MENU_ITEMS = [
+  { key: "notes", label: "Notes", icon: "notes" },
+  { key: "checklist", label: "Checklist", icon: "checklist" },
+  { key: "table", label: "Table", icon: "table" },
+  { key: "sticky", label: "Sticky note", icon: "sticky" },
+  { key: "text", label: "Text box", icon: "text" },
+  { key: "rack", label: "Rack", icon: "rack" },
+];
+
+function assetUrl(relativePath) {
+  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
+}
 
 export default function CanvasAddMenu({
   commands,
-  disabled,
-  side = "bottom",
+  backgroundSkins = [],
+  activeBackgroundSkinId = "",
+  disabled = false,
+  onSelectBackground,
 }) {
+  const rootRef = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <AppDropdownMenu>
-      <AppDropdownMenuTrigger asChild>
-        <AppButton
-          variant="default"
-          size="sm"
-          className="canvas-add-menu__trigger gap-2 px-3 font-medium"
-          disabled={disabled}
-          aria-label={disabled ? "Open a folder to start adding tiles" : "Open add menu"}
-          title={disabled ? "Open a folder to start adding" : "Create something new"}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span>Add</span>
-        </AppButton>
-      </AppDropdownMenuTrigger>
+    <div ref={rootRef} className={`canvas-start-menu${open ? " canvas-start-menu--open" : ""}`}>
+      {open ? (
+        <div className="canvas-start-menu__panel" role="menu" aria-label="Create menu">
+          <div className="canvas-start-menu__hero">
+            <span className="canvas-start-menu__hero-icon-wrap" aria-hidden="true">
+              <img className="canvas-start-menu__hero-icon" src={assetUrl("Logo.png")} alt="" />
+            </span>
+            <span className="canvas-start-menu__hero-label">AirPaste Create</span>
+          </div>
 
-      <AppDropdownMenuContent className="w-52" align="end" side={side} sideOffset={8}>
-        <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
-          Structure
-        </AppDropdownMenuLabel>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createCalendar()}
-        >
-          <CalendarIcon />
-          Calendar
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createChecklist()}
-        >
-          <ChecklistIcon />
-          Checklist
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createCode()}
-        >
-          <CodeIcon />
-          Code Snippet
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createCounter()}
-        >
-          <CounterIcon />
-          Counter
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createDeadline()}
-        >
-          <DeadlineIcon />
-          Deadline Countdown
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createNote()}
-        >
-          <NoteIcon />
-          Note
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createSticky()}
-        >
-          <StickyIcon />
-          Sticky
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createTextBox()}
-        >
-          <TextBoxIcon />
-          Text Box
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createTable()}
-        >
-          <TableIcon />
-          Table
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createProgress()}
-        >
-          <ProgressIcon />
-          Progress Bar
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          disabled={disabled}
-          onSelect={() => commands.createRack()}
-        >
-          <RackIcon />
-          Rack
-        </AppDropdownMenuItem>
+          <div className="canvas-start-menu__section">
+            {MENU_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="canvas-start-menu__item"
+                role="menuitem"
+                disabled={disabled}
+                onClick={() => {
+                  handleMenuAction(commands, item.key);
+                  setOpen(false);
+                }}
+              >
+                <span className="canvas-start-menu__item-icon" aria-hidden="true">
+                  <MenuIcon icon={item.icon} />
+                </span>
+                <span className="canvas-start-menu__item-label">{item.label}</span>
+              </button>
+            ))}
 
-        <AppDropdownMenuSeparator />
-        <AppDropdownMenuLabel className="text-ap-text-secondary text-xs uppercase tracking-wider font-semibold pb-1">
-          Import
-        </AppDropdownMenuLabel>
-        <AppDropdownMenuItem disabled className="opacity-50 cursor-not-allowed gap-2">
-          <LinkIcon />
-          <span>Link</span>
-          <span className="ml-auto text-[10px] text-ap-text-secondary bg-ap-surface-muted px-1.5 py-0.5 rounded-ap-sm">Paste</span>
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem disabled className="opacity-50 cursor-not-allowed gap-2">
-          <ImageIcon />
-          <span>Image</span>
-          <span className="ml-auto text-[10px] text-ap-text-secondary bg-ap-surface-muted px-1.5 py-0.5 rounded-ap-sm">Paste</span>
-        </AppDropdownMenuItem>
-      </AppDropdownMenuContent>
-    </AppDropdownMenu>
+            <div className="canvas-start-menu__separator" aria-hidden="true" />
+
+            <div className="canvas-start-menu__submenu">
+              <button
+                type="button"
+                className="canvas-start-menu__item canvas-start-menu__item--submenu"
+                role="menuitem"
+                disabled={disabled}
+              >
+                <span className="canvas-start-menu__item-icon" aria-hidden="true">
+                  <MenuIcon icon="background" />
+                </span>
+                <span className="canvas-start-menu__item-label">Background</span>
+                <span className="canvas-start-menu__item-arrow" aria-hidden="true">▶</span>
+              </button>
+
+              <div className="canvas-start-menu__submenu-panel" role="menu" aria-label="Backgrounds">
+                {backgroundSkins.map((skin) => (
+                  <button
+                    key={skin.id}
+                    type="button"
+                    className={`canvas-start-menu__item canvas-start-menu__item--background${activeBackgroundSkinId === skin.id ? " canvas-start-menu__item--active" : ""}`}
+                    role="menuitem"
+                    onClick={() => {
+                      onSelectBackground?.(skin.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <span
+                      className="canvas-start-menu__background-swatch"
+                      aria-hidden="true"
+                      style={{
+                        backgroundImage: skin.kind === "image"
+                          ? `url("${assetUrl(skin.assetPath)}")`
+                          : "radial-gradient(circle, #3d3d3d 1px, transparent 1px)",
+                        backgroundSize: skin.kind === "image"
+                          ? skin.backgroundSize
+                          : "8px 8px",
+                      }}
+                    />
+                    <span className="canvas-start-menu__item-label">{skin.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        className={`canvas-start-menu__trigger${open ? " canvas-start-menu__trigger--open" : ""}`}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={disabled ? "Create menu unavailable" : "Open Create menu"}
+        title={disabled ? "Open a folder to enable create actions later" : "Open Create menu"}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="canvas-start-menu__trigger-inset">
+          <img className="canvas-start-menu__trigger-icon" src={assetUrl("Logo.png")} alt="" aria-hidden="true" />
+          <span className="canvas-start-menu__trigger-label">Create</span>
+        </span>
+      </button>
+    </div>
   );
 }
 
-function CalendarIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M8 3v4" />
-      <path d="M16 3v4" />
-      <path d="M3 10h18" />
-    </svg>
-  );
+function handleMenuAction(commands, key) {
+  if (!commands) {
+    return;
+  }
+
+  if (key === "notes") {
+    commands.createNote();
+    return;
+  }
+
+  if (key === "checklist") {
+    commands.createChecklist();
+    return;
+  }
+
+  if (key === "table") {
+    commands.createTable();
+    return;
+  }
+
+  if (key === "sticky") {
+    commands.createSticky();
+    return;
+  }
+
+  if (key === "text") {
+    commands.createTextBox();
+    return;
+  }
+
+  if (key === "rack") {
+    commands.createRack();
+  }
 }
 
-function RackIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <rect x="2" y="7" width="20" height="14" rx="2" />
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-    </svg>
-  );
-}
+function MenuIcon({ icon }) {
+  if (icon === "canvas") {
+    return <img className="canvas-start-menu__item-icon-image" src={assetUrl("icons/canvas.png")} alt="" />;
+  }
 
-function ChecklistIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <rect x="3" y="4" width="4" height="4" rx="1" />
-      <path d="M11 6h10" />
-      <rect x="3" y="10" width="4" height="4" rx="1" />
-      <path d="M11 12h10" />
-      <rect x="3" y="16" width="4" height="4" rx="1" />
-      <path d="M11 18h10" />
-    </svg>
-  );
-}
+  if (icon === "notes") {
+    return <img className="canvas-start-menu__item-icon-image" src={assetUrl("icons/notes.png")} alt="" />;
+  }
 
-function NoteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M6 3h9l3 3v15H6z" />
-      <path d="M15 3v4h4" />
-      <path d="M9 11h6" />
-      <path d="M9 15h6" />
-      <path d="M9 19h4" />
-    </svg>
-  );
-}
+  if (icon === "sticky") {
+    return <img className="canvas-start-menu__item-icon-image" src={assetUrl("icons/sticky_note_2.png")} alt="" />;
+  }
 
-function StickyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M5 3h14v14H9l-4 4z" />
-      <path d="M9 8h6" />
-      <path d="M9 12h4" />
-    </svg>
-  );
-}
+  if (icon === "background") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="13" height="13" fill="#ffffff" stroke="#111111" strokeWidth="1" />
+        <circle cx="4.8" cy="4.8" r="1.2" fill="#0078d7" />
+        <path d="m3 12 3.2-2.8 2.4 1.8 2.2-2L13 12" stroke="#247324" strokeWidth="1.1" />
+      </svg>
+    );
+  }
 
-function TextBoxIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="M4 6h16" />
-      <path d="M9 6v12" />
-      <path d="M15 6v12" />
-      <path d="M6 18h12" />
-    </svg>
-  );
-}
+  if (icon === "checklist") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="4" height="4" fill="#fff7b6" stroke="#655500" strokeWidth="1" />
+        <path d="M8.5 4.5h5" stroke="#111111" strokeWidth="1.2" />
+        <rect x="2" y="10" width="4" height="4" fill="#fff7b6" stroke="#655500" strokeWidth="1" />
+        <path d="M8.5 12.5h5" stroke="#111111" strokeWidth="1.2" />
+      </svg>
+    );
+  }
 
-function CodeIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <path d="m8 9-4 3 4 3" />
-      <path d="m16 9 4 3-4 3" />
-      <path d="m14 4-4 16" />
-    </svg>
-  );
-}
+  if (icon === "table") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="1.5" y="2" width="13" height="12" fill="#ffffff" stroke="#111111" strokeWidth="1" />
+        <path d="M1.5 6.5h13M6 2v12M10.5 2v12" stroke="#111111" strokeWidth="1" />
+      </svg>
+    );
+  }
 
-function CounterIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 8v8" />
-      <path d="M8 12h8" />
-    </svg>
-  );
-}
+  if (icon === "text") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 3.5h10M8 3.5v9M5 12.5h6" stroke="#111111" strokeWidth="1.4" strokeLinecap="square" />
+      </svg>
+    );
+  }
 
-function DeadlineIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <circle cx="12" cy="13" r="8.5" />
-      <path d="M12 9v4l2.5 1.5" />
-      <path d="M9 3h6" />
-    </svg>
-  );
-}
+  if (icon === "rack") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2" y="4" width="12" height="9" fill="#d8d8d8" stroke="#111111" strokeWidth="1" />
+        <path d="M4 7.5h8M4 10h8" stroke="#111111" strokeWidth="1" />
+      </svg>
+    );
+  }
 
-function TableIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 10h18" />
-      <path d="M9 4v16" />
-      <path d="M15 4v16" />
-    </svg>
-  );
-}
+  if (icon === "import") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 2v7M5 6l3-4 3 4" stroke="#111111" strokeWidth="1.3" strokeLinecap="square" />
+        <rect x="2" y="10" width="12" height="4" fill="#fff7b6" stroke="#655500" strokeWidth="1" />
+      </svg>
+    );
+  }
 
-function ProgressIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0">
-      <rect x="3" y="8" width="18" height="8" rx="4" />
-      <path d="M7 12h6" />
-    </svg>
-  );
-}
+  if (icon === "link") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M6.5 9.5 4.5 11.5a2 2 0 1 1-2.8-2.8l2-2" stroke="#111111" strokeWidth="1.2" />
+        <path d="M9.5 6.5 11.5 4.5a2 2 0 1 1 2.8 2.8l-2 2" stroke="#111111" strokeWidth="1.2" />
+        <path d="M5.5 10.5 10.5 5.5" stroke="#111111" strokeWidth="1.2" />
+      </svg>
+    );
+  }
 
-function LinkIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
+  if (icon === "image") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="1.5" y="2" width="13" height="11" fill="#ffffff" stroke="#111111" strokeWidth="1" />
+        <circle cx="5" cy="5.5" r="1.3" fill="#0095ff" />
+        <path d="m3 12 3.5-3 2.5 2L11 8.5 13 12" stroke="#2a6f2a" strokeWidth="1.1" />
+      </svg>
+    );
+  }
 
-function ImageIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <polyline points="21 15 16 10 5 21" />
-    </svg>
-  );
+  return null;
 }
