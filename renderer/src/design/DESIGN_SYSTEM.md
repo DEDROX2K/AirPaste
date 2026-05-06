@@ -1,14 +1,14 @@
 # AirPaste Design System
 
-AirPaste uses a calm, white-to-warm-neutral desktop UI system.
+AirPaste now uses a retro desktop visual system for beta stage two.
 
 The product direction is:
 
-- Apple-like restraint in spacing, radius, and depth
-- Claude-like readability, focus, and low-chrome calm
-- Neutral surfaces instead of blue-tinted shell chrome
-- Soft borders and light shadows instead of heavy glow
-- Clear interaction states that stay visible without shouting
+- Win98 and early-2000s desktop chrome as the base language
+- Silver hardware surfaces with crisp 1px bevels
+- Deep blue active states for windows, tabs, and primary actions
+- Dense, practical controls that still read clearly on modern displays
+- Nostalgic shell styling without sacrificing canvas speed or usability
 
 ## Source Of Truth
 
@@ -38,4 +38,4 @@ Components should prefer semantic tokens and shared primitives over hardcoded co
 
 Non-negotiable tile rule:
 
-- Tiles do not use shadows
+- Tiles do not use soft modern shadows

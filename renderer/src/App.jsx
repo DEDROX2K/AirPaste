@@ -82,16 +82,18 @@ export default function App() {
 
   return (
     <div className={`app-shell app-shell--with-tabs ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""}`}>
-      <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
-      
-      <div className="app-shell__view-container">
-        {currentEditor.kind === "canvas" ? (
-          <div className="app-shell__workspace-layout">
-            <LeftPagesPanel />
-            <CanvasWorkspaceView />
-          </div>
-        ) : null}
-        {currentEditor.kind === "home" ? <HomeShell /> : null}
+      <div className="app-window window glass active">
+        <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
+        
+        <div className="app-shell__view-container window-body">
+          {currentEditor.kind === "canvas" ? (
+            <div className="app-shell__workspace-layout">
+              <LeftPagesPanel />
+              <CanvasWorkspaceView />
+            </div>
+          ) : null}
+          {currentEditor.kind === "home" ? <HomeShell /> : null}
+        </div>
       </div>
 
       <ToastStack />

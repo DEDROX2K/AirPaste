@@ -51,7 +51,6 @@ import {
   AppButton,
   AppEmptyState,
 } from "./ui/app";
-import { folderNameFromPath } from "../lib/home";
 import {
   readPointerMoveStats,
   recordBoardRender,
@@ -891,7 +890,6 @@ export default function CanvasWorkspaceView() {
     setCanvasInteractionState,
     setViewport,
     setWorkspaceView,
-    showHome,
     canvasClipboard,
     redoWorkspaceChange,
     undoWorkspaceChange,
@@ -2146,8 +2144,6 @@ export default function CanvasWorkspaceView() {
   const totalTileCount = workspace.cards.length;
   const visibleTileCount = layout.visibleTileCount ?? layout.rootTiles.length;
   const renderedTileCount = layout.rootTiles.length;
-  const folderLabel = folderPath ? folderNameFromPath(folderPath) : null;
-  const canvasName = currentEditor.name || "Canvas";
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: isCanvasMoving,
     sceneSurfaceEnabled: useSceneSurface,
@@ -2453,6 +2449,12 @@ export default function CanvasWorkspaceView() {
     return (
       <main className="canvas-stage canvas-stage--grid">
         {createPortal(
+          <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
+            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+          </div>,
+          document.getElementById("titlebar-center-slot") || document.body
+        )}
+        {createPortal(
           <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
             <GridViewFilterToggle value={gridTileFilter} onChange={setGridTileFilter} />
           </div>,
@@ -2469,16 +2471,7 @@ export default function CanvasWorkspaceView() {
             />
           </div>
         </div>
-        <div className="canvas-stage__bottom-controls">
-          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-        </div>
-        <WorkspaceTopbarTrail
-          canvasName={canvasName}
-          folderLabel={folderLabel}
-          folderLoading={folderLoading}
-          onOpenHome={() => void showHome()}
-          onOpenWorkspaceFolder={commands.openWorkspaceFolder}
-        />
+        <WorkspaceTopbarTrail />
         <GridWorkspaceView
           dropImport={dropImport}
           tileFilter={gridTileFilter}
@@ -2494,6 +2487,12 @@ export default function CanvasWorkspaceView() {
 
   return (
     <main className="canvas-stage">
+      {createPortal(
+        <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+        </div>,
+        document.getElementById("titlebar-center-slot") || document.body
+      )}
       {/* ── Right Tools Portal ── */}
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
@@ -2535,13 +2534,7 @@ export default function CanvasWorkspaceView() {
       ) : null}
 
       {/* ── Top bar ── */}
-      <WorkspaceTopbarTrail
-        canvasName={canvasName}
-        folderLabel={folderLabel}
-        folderLoading={folderLoading}
-        onOpenHome={() => void showHome()}
-        onOpenWorkspaceFolder={commands.openWorkspaceFolder}
-      />
+      <WorkspaceTopbarTrail />
 
       {/* ── Canvas board ── */}
       <div

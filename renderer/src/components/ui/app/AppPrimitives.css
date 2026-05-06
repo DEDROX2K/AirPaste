@@ -4,42 +4,35 @@
   justify-content: center;
   gap: var(--ap-space-2);
   width: fit-content;
-  min-height: 36px;
-  padding-inline: var(--ap-space-4);
-  padding-block: var(--ap-space-2);
-  border: var(--ap-border-thin) solid var(--ap-border-default);
-  border-radius: var(--ap-radius-lg);
-  background: color-mix(in srgb, var(--ap-surface-default) 96%, var(--ap-bg-base));
+  min-height: 30px;
+  padding-inline: var(--ap-space-3);
+  padding-block: var(--ap-space-1\.5);
+  border: 1px solid #000000;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f3f3f3 0%, #d4d0c8 100%);
   color: var(--ap-text-primary);
-  box-shadow: var(--ap-shadow-xs);
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
   cursor: pointer;
-  transition:
-    color var(--ap-transition-fast),
-    background-color var(--ap-transition-fast),
-    border-color var(--ap-transition-fast),
-    box-shadow var(--ap-transition-fast),
-    transform var(--ap-transition-fast);
+  transition: background-color var(--ap-transition-fast), color var(--ap-transition-fast);
 }
 
 .ap-ui-button:hover:not(:disabled) {
-  background: var(--ap-interactive-bg-hover);
-  border-color: var(--ap-border-strong);
-  box-shadow: var(--ap-shadow-sm);
-  transform: none;
+  background: linear-gradient(180deg, #ffffff 0%, #ddd9d1 100%);
 }
 
 .ap-ui-button:active:not(:disabled) {
-  background: var(--ap-interactive-bg-active);
-  box-shadow: var(--ap-shadow-xs);
-  transform: translateY(1px);
+  background: linear-gradient(180deg, #c8c4bd 0%, #e6e2db 100%);
+  box-shadow:
+    inset -1px -1px 0 #ffffff,
+    inset 1px 1px 0 #808080;
+  transform: translate(1px, 1px);
 }
 
 .ap-ui-button:focus-visible {
-  outline: none;
-  border-color: var(--ap-border-focus);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--ap-accent-tint-hover) 88%, transparent),
-    var(--ap-shadow-sm);
+  outline: 1px dotted var(--ap-border-focus);
+  outline-offset: -4px;
 }
 
 .ap-ui-button:disabled {
@@ -55,55 +48,65 @@
   align-items: flex-start;
   justify-content: flex-start;
   gap: var(--ap-space-4);
-  min-height: var(--ap-space-16);
-  padding-inline: var(--ap-space-5);
-  padding-block: var(--ap-space-4);
-  border-radius: var(--ap-radius-xl);
-  background: color-mix(in srgb, var(--ap-surface-overlay-bg) 92%, var(--ap-bg-base));
-  box-shadow: var(--ap-shadow-sm);
+  min-height: 34px;
+  padding-inline: var(--ap-space-4);
+  padding-block: var(--ap-space-2);
+  border-radius: 0;
+  background: linear-gradient(180deg, #f3f3f3 0%, #d4d0c8 100%);
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
   text-align: left;
 }
 
 .ap-ui-button--accent {
-  border-color: var(--ap-border-accent);
+  border-color: #000000;
   background: var(--ap-accent-bg);
   color: var(--ap-text-on-accent);
-  box-shadow: 0 8px 24px rgba(20, 17, 14, 0.12);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.24);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset -1px -1px 0 rgba(7, 56, 105, 0.95);
 }
 
 .ap-ui-button--accent:hover:not(:disabled) {
   background: var(--ap-accent-bg-hover);
-  border-color: var(--ap-border-accent);
-  box-shadow: 0 10px 28px rgba(20, 17, 14, 0.14);
+  border-color: #000000;
 }
 
 .ap-ui-button--accent:active:not(:disabled) {
   background: var(--ap-accent-bg-active);
-  box-shadow: 0 4px 12px rgba(20, 17, 14, 0.12);
+  box-shadow:
+    inset -1px -1px 0 rgba(255, 255, 255, 0.35),
+    inset 1px 1px 0 rgba(7, 56, 105, 0.95);
 }
 
 .ap-ui-button--danger {
-  border-color: var(--ap-border-danger);
-  background: color-mix(in srgb, var(--ap-danger-base) 14%, var(--ap-surface-raised));
-  color: var(--ap-danger-base);
-  box-shadow: var(--ap-shadow-xs);
+  border-color: #000000;
+  background: linear-gradient(180deg, #f0d0d0 0%, #d4d0c8 100%);
+  color: #6f1010;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
 }
 
 .ap-ui-button--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ap-danger-base) 20%, var(--ap-surface-raised));
-  border-color: var(--ap-border-danger);
+  background: linear-gradient(180deg, #f5d9d9 0%, #ddd9d1 100%);
 }
 
 .ap-ui-button--danger:active:not(:disabled) {
-  background: color-mix(in srgb, var(--ap-danger-base) 26%, var(--ap-surface-raised));
+  background: linear-gradient(180deg, #cfb5b5 0%, #e4dfd7 100%);
 }
 
 .ap-ui-surface {
-  border: var(--ap-border-thin) solid var(--ap-border-default);
-  border-radius: var(--ap-radius-2xl);
+  border: 1px solid #000000;
+  border-radius: 0;
   background: var(--ap-surface-raised);
   color: var(--ap-text-primary);
-  box-shadow: var(--ap-shadow-panel);
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080,
+    2px 2px 0 rgba(0, 0, 0, 0.18);
   transition:
     border-color var(--ap-transition-fast),
     background-color var(--ap-transition-fast),
@@ -115,20 +118,25 @@
 }
 
 .ap-ui-surface--interactive:hover {
-  border-color: var(--ap-border-strong);
-  box-shadow: var(--ap-shadow-modal);
+  border-color: #000000;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #6f6f6f,
+    3px 3px 0 rgba(0, 0, 0, 0.18);
 }
 
 .ap-ui-input {
   width: 100%;
-  min-height: var(--ap-space-10);
+  min-height: 30px;
   padding-inline: var(--ap-space-3);
-  padding-block: var(--ap-space-2);
-  border: var(--ap-border-thin) solid var(--ap-border-default);
-  border-radius: var(--ap-radius-lg);
-  background: color-mix(in srgb, var(--ap-surface-default) 96%, var(--ap-bg-base));
+  padding-block: var(--ap-space-1\.5);
+  border: 1px solid #000000;
+  border-radius: 0;
+  background: #ffffff;
   color: var(--ap-text-primary);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  box-shadow:
+    inset 1px 1px 0 #808080,
+    inset -1px -1px 0 #ffffff;
   transition:
     background-color var(--ap-transition-fast),
     border-color var(--ap-transition-fast),
@@ -141,16 +149,13 @@
 }
 
 .ap-ui-input:hover:not(:disabled) {
-  background: var(--ap-interactive-bg-hover);
-  border-color: var(--ap-border-strong);
+  background: #fbfbfb;
+  border-color: #000000;
 }
 
 .ap-ui-input:focus-visible {
-  outline: none;
-  border-color: var(--ap-border-focus);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--ap-accent-tint-hover) 88%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  outline: 1px dotted var(--ap-border-focus);
+  outline-offset: -3px;
 }
 
 .ap-ui-input:disabled {

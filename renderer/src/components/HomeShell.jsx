@@ -576,7 +576,10 @@ export default function HomeShell() {
 
       <aside className={`home-sidebar home-sidebar--workspace-nav ${sidebarCollapsed ? "home-sidebar--collapsed" : ""}`}>
         <div className="home-sidebar__topbar">
-          <span className="home-sidebar__topbar-title">{homeData.workspace?.name || folderNameFromPath(folderPath) || "Workspace"}</span>
+          <div className="home-sidebar__brand">
+            <span className="home-sidebar__topbar-title">{homeData.workspace?.name || folderNameFromPath(folderPath) || "Workspace"}</span>
+            <span className="home-beta-badge">Beta 2</span>
+          </div>
           <AppButton
             tone="surface"
             className="home-button home-button--icon home-sidebar__collapse-btn"

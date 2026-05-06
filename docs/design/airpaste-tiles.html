@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AirPaste Tile Playground</title>
+    <link rel="stylesheet" href="./airpaste-tiles.css" />
+  </head>
+  <body>
+    <main class="tiles-page">
+      <header class="tiles-header">
+        <div class="tiles-kicker">AirPaste Beta 2</div>
+        <h1 class="tiles-title">Standalone Tile and Canvas Object Playground</h1>
+        <p class="tiles-intro">
+          This file isolates tile behavior and canvas object styling from the
+          broader app shell. Use it to test density, hierarchy, state handling,
+          and attachment patterns before translating ideas into the real app.
+        </p>
+      </header>
+
+      <div class="tiles-layout">
+        <section class="tiles-section">
+          <div class="section-header">
+            <div class="section-kicker">Tile Set</div>
+            <h2 class="section-title">Primary tile types</h2>
+            <p class="section-copy">
+              Shared card language with type-specific fills, compact controls,
+              and no decorative shadows.
+            </p>
+          </div>
+          <div class="section-body">
+            <div class="tile-grid">
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">L</div>
+                  <div class="tile-type">Bookmark</div>
+                  <div class="tile-chip">Pinned</div>
+                </div>
+                <h3 class="tile-title">A practical reference on local-first UI</h3>
+                <div class="tile-link-box">
+                  <div class="tile-link-url">https://example.com/local-first/ui-systems</div>
+                </div>
+                <p class="tile-copy">Saved from browser · 3 tags · last opened today</p>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Open</div>
+                    <div class="control-chip">Copy</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card is-image">
+                <div class="tile-topbar">
+                  <div class="tile-icon">I</div>
+                  <div class="tile-type">Image</div>
+                  <div class="tile-chip">PNG</div>
+                </div>
+                <div class="tile-image-frame">
+                  <div class="tile-image-mark">Preview</div>
+                </div>
+                <h3 class="tile-title">Moodboard crop</h3>
+                <p class="tile-copy">1200 × 900 · attached to launch board</p>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Zoom</div>
+                    <div class="control-chip">Replace</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card is-note">
+                <div class="tile-topbar">
+                  <div class="tile-icon">N</div>
+                  <div class="tile-type">Text Note</div>
+                  <div class="tile-chip">Draft</div>
+                </div>
+                <h3 class="tile-title">Beta 2 direction</h3>
+                <div class="tile-note-body">
+                  Keep tiles readable at a glance. The shell can feel retro, but
+                  the content still needs strong hierarchy and fast scanning.
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Edit</div>
+                    <div class="control-chip">Pin</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card is-code">
+                <div class="tile-topbar">
+                  <div class="tile-icon">C</div>
+                  <div class="tile-type">Code</div>
+                  <div class="tile-chip">JSX</div>
+                </div>
+                <h3 class="tile-title">TopTabBar slot logic</h3>
+                <div class="tile-code-frame">
+                  <div class="code-line">
+                    <span class="code-line-no">01</span>
+                    <span>const titlebarSlot = "center";</span>
+                  </div>
+                  <div class="code-line">
+                    <span class="code-line-no">02</span>
+                    <span>return renderToggle(titlebarSlot);</span>
+                  </div>
+                  <div class="code-line">
+                    <span class="code-line-no">03</span>
+                    <span>/* keep compact and stable */</span>
+                  </div>
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Copy</div>
+                    <div class="control-chip">Wrap</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">K</div>
+                  <div class="tile-type">Checklist</div>
+                  <div class="tile-chip">4 items</div>
+                </div>
+                <h3 class="tile-title">Release pass</h3>
+                <div class="tile-checklist">
+                  <div class="tile-checklist-row">
+                    <div class="check-box is-done"></div>
+                    <span>Refine shell spacing</span>
+                  </div>
+                  <div class="tile-checklist-row">
+                    <div class="check-box is-done"></div>
+                    <span>Prototype menus</span>
+                  </div>
+                  <div class="tile-checklist-row">
+                    <div class="check-box"></div>
+                    <span>Test drag states</span>
+                  </div>
+                  <div class="tile-checklist-row">
+                    <div class="check-box"></div>
+                    <span>Port back to React</span>
+                  </div>
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Add row</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">#</div>
+                  <div class="tile-type">Counter</div>
+                  <div class="tile-chip">Live</div>
+                </div>
+                <h3 class="tile-title">Imported files</h3>
+                <div class="tile-counter-row">
+                  <div class="tile-counter-value">128</div>
+                  <div class="tile-metadata">
+                    <div class="state-badge is-green">+12 today</div>
+                  </div>
+                </div>
+                <p class="tile-copy">Useful for lightweight dashboard signals inside a canvas.</p>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Reset</div>
+                    <div class="control-chip">Edit rule</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card is-progress">
+                <div class="tile-topbar">
+                  <div class="tile-icon">P</div>
+                  <div class="tile-type">Progress</div>
+                  <div class="tile-chip">Sprint</div>
+                </div>
+                <h3 class="tile-title">Migration to prototype flow</h3>
+                <div class="tile-progress-track">
+                  <div class="tile-progress-fill"></div>
+                </div>
+                <p class="tile-copy">64% complete · shell and tile playgrounds now separated.</p>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Update</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">D</div>
+                  <div class="tile-type">Deadline</div>
+                  <div class="tile-chip">Calendar</div>
+                </div>
+                <h3 class="tile-title">Beta 2 review handoff</h3>
+                <div class="tile-deadline-box">
+                  <div class="deadline-date">09 MAY</div>
+                  <p class="tile-meta-copy">Friday · 14:00 · local prototype review</p>
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="state-badge is-blue">Upcoming</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">R</div>
+                  <div class="tile-type">Rack</div>
+                  <div class="tile-chip">2 attached</div>
+                </div>
+                <h3 class="tile-title">Research rack</h3>
+                <div class="rack-body">
+                  <div class="rack-slot">
+                    <div class="rack-attachment">
+                      <span>Bookmark: shell references</span>
+                      <span class="tile-chip">Link</span>
+                    </div>
+                    <div class="rack-attachment">
+                      <span>Image: moodboard crop</span>
+                      <span class="tile-chip">PNG</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Attach</div>
+                    <div class="control-chip">Expand</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+
+              <article class="tile-card">
+                <div class="tile-topbar">
+                  <div class="tile-icon">F</div>
+                  <div class="tile-type">Folder</div>
+                  <div class="tile-chip">3 notes</div>
+                </div>
+                <h3 class="tile-title">Launch planning folder</h3>
+                <div class="folder-tree">
+                  <div class="folder-branch">
+                    <span>Overview note</span>
+                    <span class="tile-chip">TXT</span>
+                  </div>
+                  <div class="folder-branch">
+                    <span>Open questions</span>
+                    <span class="tile-chip">TXT</span>
+                  </div>
+                  <div class="folder-branch">
+                    <span>Follow-up links</span>
+                    <span class="tile-chip">URL</span>
+                  </div>
+                </div>
+                <div class="tile-actions">
+                  <div class="tile-metadata">
+                    <div class="control-chip">Open</div>
+                    <div class="control-chip">Add note</div>
+                  </div>
+                  <button class="mini-button">...</button>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="tiles-section">
+          <div class="section-header">
+            <div class="section-kicker">States</div>
+            <h2 class="section-title">Idle, hover, selected, focused, dragging, disabled, loading, error</h2>
+          </div>
+          <div class="section-body">
+            <div class="state-grid">
+              <div class="state-sample">
+                <p class="state-label">Idle</p>
+                <article class="tile-card">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">N</div>
+                    <div class="tile-type">Note</div>
+                    <div class="tile-chip">Idle</div>
+                  </div>
+                  <h3 class="tile-title">Neutral resting state</h3>
+                  <p class="tile-copy">Default card with no extra emphasis.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Hover</p>
+                <article class="tile-card">
+                  <div class="status-strip">
+                    <div class="state-badge is-blue">Hover affordance</div>
+                    <button class="mini-button">...</button>
+                  </div>
+                  <h3 class="tile-title">Show controls, do not distort layout</h3>
+                  <p class="tile-copy">Hover should reveal actions by contrast, not by shadows.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Selected</p>
+                <article class="tile-card is-selected">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">S</div>
+                    <div class="tile-type">Selection</div>
+                    <div class="tile-chip">Active</div>
+                  </div>
+                  <h3 class="tile-title">Blue outline, subtle fill shift</h3>
+                  <p class="tile-copy">Selection should read immediately at zoomed-out scales.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Focused</p>
+                <article class="tile-card is-focused">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">F</div>
+                    <div class="tile-type">Keyboard</div>
+                    <div class="tile-chip">Focus</div>
+                  </div>
+                  <h3 class="tile-title">Keyboard focus ring</h3>
+                  <p class="tile-copy">A dotted focus treatment stays retro and explicit.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Dragging</p>
+                <article class="tile-card is-dragging">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">D</div>
+                    <div class="tile-type">Drag</div>
+                    <div class="tile-chip">Move</div>
+                  </div>
+                  <h3 class="tile-title">Dashed edge and warmer fill</h3>
+                  <p class="tile-copy">State should communicate motion without blur or lift.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Disabled</p>
+                <article class="tile-card is-disabled">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">X</div>
+                    <div class="tile-type">Disabled</div>
+                    <div class="tile-chip">Locked</div>
+                  </div>
+                  <h3 class="tile-title">Muted and calm</h3>
+                  <p class="tile-copy">Reduce contrast while preserving legibility.</p>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Loading</p>
+                <article class="tile-card is-loading">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">~</div>
+                    <div class="tile-type">Loading</div>
+                    <div class="tile-chip">Syncing</div>
+                  </div>
+                  <h3 class="tile-title">Progress without motion dependency</h3>
+                  <div class="tile-progress-track">
+                    <div class="tile-progress-fill" style="width: 32%;"></div>
+                  </div>
+                </article>
+              </div>
+
+              <div class="state-sample">
+                <p class="state-label">Error</p>
+                <article class="tile-card is-error">
+                  <div class="tile-topbar">
+                    <div class="tile-icon">!</div>
+                    <div class="tile-type">Error</div>
+                    <div class="tile-chip">Missing</div>
+                  </div>
+                  <h3 class="tile-title">Attachment missing</h3>
+                  <p class="tile-copy">Source file moved. Reconnect or remove the reference.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tiles-section">
+          <div class="section-header">
+            <div class="section-kicker">Attachments</div>
+            <h2 class="section-title">Rack attachments and grouped stacks</h2>
+          </div>
+          <div class="section-body">
+            <div class="rack-demo">
+              <div class="rack-attachments">
+                <div class="rack-attachment">
+                  <span>Bookmark stack</span>
+                  <span class="tile-chip">4 links</span>
+                </div>
+                <div class="rack-attachment">
+                  <span>Image refs</span>
+                  <span class="tile-chip">3 PNG</span>
+                </div>
+                <div class="rack-attachment">
+                  <span>Checklist note</span>
+                  <span class="tile-chip">1 note</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="stack-group" style="margin-top: 16px;">
+              <div class="stack-card">
+                <div class="tile-type">Grouped Stack A</div>
+                <h3 class="tile-title">Reference cluster</h3>
+                <p class="tile-copy">Bookmark, image, and note tiles arranged as one working set.</p>
+              </div>
+              <div class="stack-card">
+                <div class="tile-type">Grouped Stack B</div>
+                <h3 class="tile-title">Sprint cluster</h3>
+                <p class="tile-copy">Deadline, checklist, and progress tiles attached together.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tiles-section">
+          <div class="section-header">
+            <div class="section-kicker">Canvas Object</div>
+            <h2 class="section-title">Plain text box object</h2>
+            <p class="section-copy">
+              This is not a tile. It is direct canvas text with only the minimum
+              framing needed to remain editable and readable.
+            </p>
+          </div>
+          <div class="section-body">
+            <div class="text-object-demo">
+              <div class="control-chip">Canvas text object</div>
+              <div class="text-object-body">
+                Rewrite idea: separate app shell prototypes from tile prototypes,
+                keep both pages plain HTML and CSS, then translate approved
+                visuals back into React later.
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

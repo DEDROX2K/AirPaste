@@ -1,7 +1,7 @@
 /**
  * AirPaste Design System — theme.css
  *
- * Obsidian-inspired semantic tokens.
+ * Retro desktop semantic tokens.
  * Components consume semantic tokens only.
  */
 
@@ -9,77 +9,77 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --ap-bg-page: #f5f3ef;
-  --ap-bg-base: #f8f7f4;
-  --ap-bg-sunken: #f0ede7;
+  --ap-bg-page: #9aa7b5;
+  --ap-bg-base: #c3c7cb;
+  --ap-bg-sunken: #9fa4aa;
 
-  --ap-surface-default: #ffffff;
-  --ap-surface-raised: #fffdfb;
-  --ap-surface-overlay: #fffdfb;
-  --ap-surface-overlay-bg: rgba(255, 253, 251, 0.94);
-  --ap-surface-modal: #ffffff;
-  --ap-surface-inset: #f4f1eb;
+  --ap-surface-default: #c0c0c0;
+  --ap-surface-raised: #d4d0c8;
+  --ap-surface-overlay: #d4d0c8;
+  --ap-surface-overlay-bg: rgba(212, 208, 200, 0.98);
+  --ap-surface-modal: #d4d0c8;
+  --ap-surface-inset: #ffffff;
 
-  --ap-text-primary: #1f1c17;
-  --ap-text-secondary: #59544d;
-  --ap-text-tertiary: #827a70;
-  --ap-text-placeholder: #a69f94;
-  --ap-text-disabled: #b4aca1;
+  --ap-text-primary: #111111;
+  --ap-text-secondary: #3f3f3f;
+  --ap-text-tertiary: #5c5c5c;
+  --ap-text-placeholder: #6d6d6d;
+  --ap-text-disabled: #7d7d7d;
   --ap-text-inverse: #ffffff;
-  --ap-text-accent: #1f1c17;
+  --ap-text-accent: #0a246a;
   --ap-text-on-accent: #ffffff;
 
-  --ap-icon-default: #6b655d;
-  --ap-icon-muted: #9d958b;
-  --ap-icon-accent: #1f1c17;
+  --ap-icon-default: #2f2f2f;
+  --ap-icon-muted: #666666;
+  --ap-icon-accent: #0a246a;
 
-  --ap-border-subtle: #ece5db;
-  --ap-border-default: #ddd3c7;
-  --ap-border-strong: #c9bdae;
-  --ap-border-focus: #9a8f82;
-  --ap-border-accent: #24201c;
-  --ap-border-danger: #d65d5d;
+  --ap-border-subtle: #ffffff;
+  --ap-border-default: #808080;
+  --ap-border-strong: #404040;
+  --ap-border-focus: #0a246a;
+  --ap-border-accent: #0a246a;
+  --ap-border-danger: #8b1d1d;
 
   --ap-interactive-bg: transparent;
-  --ap-interactive-bg-hover: #f4f0e9;
-  --ap-interactive-bg-active: #ece5dc;
-  --ap-interactive-bg-selected: #e8e0d5;
-  --ap-interactive-text-selected: #1f1c17;
+  --ap-interactive-bg-hover: #e5e5e5;
+  --ap-interactive-bg-active: #b6b6b6;
+  --ap-interactive-bg-selected: #0a246a;
+  --ap-interactive-text-selected: #ffffff;
 
-  --ap-accent-bg: #24201c;
-  --ap-accent-bg-hover: #2f2a25;
-  --ap-accent-bg-active: #171411;
-  --ap-accent-tint: rgba(36, 32, 28, 0.1);
-  --ap-accent-tint-hover: rgba(36, 32, 28, 0.16);
+  --ap-accent-bg: linear-gradient(180deg, #2f8ce0 0%, #0f66bf 45%, #0a5aaa 100%);
+  --ap-accent-bg-hover: linear-gradient(180deg, #44a0f4 0%, #1974d0 45%, #0a5aaa 100%);
+  --ap-accent-bg-active: linear-gradient(180deg, #0a5aaa 0%, #0f66bf 60%, #2f8ce0 100%);
+  --ap-accent-tint: rgba(15, 102, 191, 0.18);
+  --ap-accent-tint-hover: rgba(15, 102, 191, 0.28);
 
-  --ap-shadow-card: 0 1px 2px rgba(32, 24, 17, 0.06);
-  --ap-shadow-card-hover: 0 8px 24px rgba(32, 24, 17, 0.08);
-  --ap-shadow-panel: 0 18px 42px rgba(32, 24, 17, 0.1);
-  --ap-shadow-modal: 0 24px 56px rgba(32, 24, 17, 0.14);
-  --ap-shadow-welcome: 0 28px 70px rgba(32, 24, 17, 0.12);
+  --ap-shadow-card: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 rgba(0, 0, 0, 0.16);
+  --ap-shadow-card-hover: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #6d6d6d, 3px 3px 0 rgba(0, 0, 0, 0.18);
+  --ap-shadow-panel: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #7a7a7a, 4px 4px 0 rgba(0, 0, 0, 0.16);
+  --ap-shadow-modal: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #707070, 5px 5px 0 rgba(0, 0, 0, 0.2);
+  --ap-shadow-welcome: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #6f6f6f, 6px 6px 0 rgba(0, 0, 0, 0.2);
 
-  --ap-overlay-backdrop: rgba(20, 17, 14, 0.22);
-  --ap-overlay-scrim: rgba(20, 17, 14, 0.08);
+  --ap-overlay-backdrop: rgba(43, 51, 59, 0.34);
+  --ap-overlay-scrim: rgba(255, 255, 255, 0.08);
 
-  --ap-status-success-bg: rgba(56, 161, 105, 0.12);
-  --ap-status-success-text: #2f855a;
-  --ap-status-success-border: rgba(56, 161, 105, 0.28);
+  --ap-status-success-bg: rgba(0, 128, 0, 0.15);
+  --ap-status-success-text: #005b00;
+  --ap-status-success-border: rgba(0, 91, 0, 0.45);
 
-  --ap-status-warning-bg: rgba(217, 119, 6, 0.12);
-  --ap-status-warning-text: #b45309;
-  --ap-status-warning-border: rgba(217, 119, 6, 0.28);
+  --ap-status-warning-bg: rgba(237, 181, 57, 0.18);
+  --ap-status-warning-text: #6b4d00;
+  --ap-status-warning-border: rgba(107, 77, 0, 0.45);
 
-  --ap-status-danger-bg: rgba(220, 38, 38, 0.12);
-  --ap-status-danger-text: #b91c1c;
-  --ap-status-danger-border: rgba(220, 38, 38, 0.28);
+  --ap-status-danger-bg: rgba(186, 49, 49, 0.18);
+  --ap-status-danger-text: #6f1010;
+  --ap-status-danger-border: rgba(111, 16, 16, 0.45);
 
-  --ap-status-info-bg: rgba(93, 107, 122, 0.12);
-  --ap-status-info-text: #475569;
-  --ap-status-info-border: rgba(93, 107, 122, 0.24);
+  --ap-status-info-bg: rgba(15, 102, 191, 0.16);
+  --ap-status-info-text: #0a246a;
+  --ap-status-info-border: rgba(10, 36, 106, 0.36);
 
-  --ap-scrollbar-track: transparent;
-  --ap-scrollbar-thumb: #cec5b9;
-  --ap-scrollbar-thumb-hover: #b9b0a3;
+  --ap-scrollbar-track: #c0c0c0;
+  --ap-scrollbar-thumb: #9e9e9e;
+  --ap-scrollbar-thumb-hover: #7f7f7f;
 }
 
 [data-theme="dark"] {

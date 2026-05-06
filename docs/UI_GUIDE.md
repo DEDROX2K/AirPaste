@@ -1,182 +1,123 @@
 # AirPaste UI Guide
 
-## Visual Direction
+## Beta Two Direction
 
-AirPaste should feel calm, precise, and local-first.
+AirPaste beta two should feel like a creative desktop utility from the Win98 and Y2K era that somehow stayed useful long enough to become modern again.
 
-- White and warm-neutral surfaces
-- Soft, restrained depth
-- Clear hierarchy without dashboard-like noise
-- Content-first shell chrome
-- Apple-like spacing and softness
-- Claude-like readability and focus
+- The shell should feel like a compact desktop window, not a web dashboard.
+- Panels should read as physical UI pieces with 1px bevel logic.
+- Blue is reserved for active title bars, selected states, and primary actions.
+- Silver, gray, off-white, and muted teal carry the rest of the interface.
+- The canvas is still the hero. Retro chrome frames it, but never overwhelms it.
 
-The interface should not feel blue-tinted, glossy, glassy, or overdesigned.
-
-## Color Tokens
+## Color Model
 
 Use semantic tokens from `renderer/src/design/theme.css`.
 
-Core light theme intent:
+Core intent:
 
-- Page background: warm off-white
-- Panels and cards: near-white
-- Borders: subtle stone/beige grays
-- Primary text: deep charcoal
-- Secondary text: softened neutral gray
-- Accent button: neutral dark, not blue
-- Focus ring: muted warm gray
+- Desktop background: cool gray or steel-blue field
+- Window chrome: silver
+- Raised face: `#d4d0c8` family
+- Inset field: white with darker top-left edge
+- Active blue: strong classic OS blue
+- Text: near-black, never low-contrast beige
 
 Rules:
 
-- Use neutral backgrounds by default
-- Use accent color for emphasis, not for general shell tinting
-- Keep destructive styling explicit but restrained
-- Avoid introducing one-off blues for hover, selection, or focus states
+- Do not use soft luxury neutrals as the default shell direction anymore.
+- Do not introduce purple accents.
+- Do not spread blue across every surface. Blue means active, selected, or primary.
+- Warning and danger colors should feel system-native, not marketing-bright.
 
 ## Typography
 
-- UI font: system sans-serif via the existing semantic font tokens
-- Code font: existing monospace token stack
-- Default body size: 14px equivalent
-- Small metadata: 12px to 13px
-- Titles: use clear weight changes before increasing size too much
+- Body UI uses a Tahoma or MS Sans Serif style stack.
+- Display and accent labels can use a mono or bitmap-adjacent stack for retro flavor.
+- Metadata stays compact at 11px to 12px.
+- Standard control labels should usually stay in the 12px to 14px range.
 
 Rules:
 
-- Prefer a tight, readable hierarchy
-- Avoid random weight jumps
-- Avoid tiny low-contrast labels
-- Keep code tiles on monospace only
+- Favor dense clarity over oversized airy layouts.
+- Use uppercase sparingly for section labels, tabs, and meta chrome.
+- Do not rely on giant type to create hierarchy.
+- Code surfaces keep monospace.
 
-## Spacing
+## Surfaces And Borders
 
-- Base spacing follows the token scale in `renderer/src/design/tokens.css`
-- Use 8px/12px/16px/24px rhythm most often
-- Increase whitespace before increasing decoration
+AirPaste now uses physical UI logic instead of soft modern depth.
+
+- Raised surfaces get light top-left and dark bottom-right edges.
+- Pressed surfaces invert the bevel.
+- Windows, trays, menus, and panels use square or near-square corners.
+- Large soft radii are no longer the default language.
 
 Rules:
 
-- Toolbars should breathe
-- Cards should not feel cramped
-- Menus should not feel padded like dialogs
-- Small controls should still have comfortable hit targets
+- Prefer 1px border systems.
+- If a component needs hierarchy, solve it with bevel, tone, and spacing first.
+- Avoid blurred glass, frosted overlays, and soft card fog.
+- Shadows should be minimal and mechanical, not atmospheric.
 
 ## Buttons
 
-AirPaste uses a restrained button system:
+Button families:
 
-- Primary: dark neutral fill, white text
-- Secondary: white/near-white fill, subtle border
-- Ghost: transparent or nearly transparent, soft neutral hover
-- Icon: same height/radius rhythm as text buttons, centered icon, quiet hover
-- Danger: light destructive tint with clear red text or border
-- Disabled: reduced contrast and no fake hover affordance
+- Primary: blue system button
+- Standard: silver raised button
+- Utility: icon button using the same bevel logic
+- Danger: silver base with restrained red signal
 
 Rules:
 
-- Keep button heights consistent in the same area
-- Reuse shared button primitives before creating one-off styles
-- Avoid oversized shadows and loud gradients
-- Avoid bright blue CTAs for standard app actions
+- Buttons should look clickable even when motion is disabled.
+- Pressed state must read as physically depressed.
+- Disabled buttons should flatten and desaturate.
+- Avoid pill buttons unless a component is intentionally non-system.
 
-## Menus And Popovers
+## Inputs
 
-- Neutral background
-- Soft border
-- Rounded corners
-- Compact but breathable row spacing
-- Hover states should be obvious and quiet
+- Inputs are inset white wells inside silver chrome.
+- Focus should use a clear dotted or crisp blue treatment.
+- Placeholder text stays legible and system-like.
 
 Rules:
 
-- Menu items should not jump in width
-- Keep labels left-aligned
-- Keep status or shortcut labels visually secondary
-- Avoid cramped separators and edge-to-edge hover fills
+- Keep forms rectangular.
+- Do not use glowing focus rings.
+- Do not style inputs like floating modern search bars.
 
-## Form Controls
+## Home Shell
 
-Normalize the following around one height/radius language:
+The home screen should feel like a file manager crossed with a media utility.
 
-- text inputs
-- textareas
-- selects
-- checkboxes
-- toggles
-- number inputs
-- date/time inputs
+- Sidebar acts like navigation chrome.
+- Toolbar reads like a command strip.
+- Browser cards read like selectable file objects inside a desktop app.
+- Empty states should feel like utility prompts, not marketing banners.
 
 Rules:
 
-- Use visible focus states
-- Use neutral hover fills, not default browser blue when avoidable
-- Match corner radius to surrounding UI
-- Keep placeholder text readable but clearly secondary
+- Keep action groups grouped tightly.
+- Use OS-like separators and borders.
+- If something can look like a pane or list item, it should.
 
-## Tile Styling Rules
+## Canvas Shell
 
-Tiles should feel like one family even when they keep some personality.
+The canvas is the most important screen and should inherit the retro language without losing performance.
 
-Shared expectations:
-
-- consistent outer radius
-- subtle border
-- no shadow
-- readable title treatment
-- calm selected, hovered, and focused states
-- consistent internal controls
-
-Allowed variation:
-
-- subtle tonal tinting by tile type
-- different internal layouts based on content needs
-- darker treatment for code tiles
-
-Not allowed:
-
-- random gradients across standard tiles
-- loud neon selection colors
-- inconsistent internal button systems
-- any tile shadow in idle, hover, focused, selected, or dragging states
-
-Hard rule:
-
-- Tiles should not have shadows ever again
-- Do not add tile shadows as a hover affordance
-- Do not add tile shadows as a selection affordance
-- Do not add tile shadows back for “premium” or “depth” styling
-- If a tile needs separation, use border, spacing, tone, or outline instead
-
-## Shell And Canvas
-
-Home:
-
-- clean panel structure
-- one button language for create/import/testing actions
-- stable wrapping at smaller widths
-- no harsh blue shell tint
-
-Canvas:
-
-- floating controls should stay visually quiet
-- selection and focus should be visible but soft
-- avoid adding motion or shadow work that hurts drag performance
-- canvas chrome should frame content, not compete with it
-
-## Interaction States
-
-- Hover: slight tonal lift or background shift
-- Active/pressed: slightly darker or inset state
-- Focus: visible muted ring
-- Selected: stronger border/ring, still neutral
-- Disabled: lower contrast and no misleading hover behavior
+- Floating controls should feel like compact tool trays.
+- The create button should feel like a primary system action.
+- The board can carry a subtle scanline or brushed texture, but drag clarity wins.
+- Selection should be crisp and unmistakable.
 
 Rules:
 
-- Keyboard focus must remain visible
-- Do not rely on color alone for destructive or disabled meaning
-- Keep transitions short and purposeful
+- No heavy blur on floating chrome.
+- No decorative animations on board controls.
+- No oversized shadows around the canvas tools.
+- Keep keyboard tool flows intact.
 
 Canvas text tools:
 
@@ -184,26 +125,55 @@ Canvas text tools:
 - `H` selects the canvas Hand tool
 - `T` selects the canvas Text tool
 - Hold `Space` for a temporary Hand tool and release to return to the previously selected tool
-- Canvas-level tool shortcuts must use `isTypingTarget(target)` and stay quiet while typing in an `input`, `textarea`, `select`, `[contenteditable]`, `[role="textbox"]`, or tile editor surface
+- Canvas shortcuts must stay silent while typing in editable fields
 
-## Responsive Principles
+## Tiles
 
-Major screens must hold up at narrow, medium, and large widths.
+Tiles should look like content windows dropped onto the board.
+
+- Default tiles use crisp edge definition.
+- Selected tiles should read as active windows.
+- Internal tile controls should borrow from the same retro control family.
+- Code and utility tiles may be slightly darker, but should still feel native to the system.
 
 Rules:
 
-- Toolbars should wrap cleanly
-- Action groups should stay aligned when wrapped
-- Menus should clamp to viewport bounds
-- Cards should avoid unreadable dense controls on narrow widths
-- Prefer stacking controls over shrinking text too far
+- Do not reintroduce soft floating-card aesthetics.
+- Do not use neon outlines.
+- Do not mix rounded modern controls inside sharp retro shells.
+- Keep tile drag performance clean.
 
-## What Not To Do
+## Menus, Dialogs, Toasts
 
-- Do not tint the entire shell blue
-- Do not add glassmorphism-heavy blur layers
-- Do not use flashy gradients outside tile content that already needs them
-- Do not mix multiple button systems in one toolbar
-- Do not hide focus rings
-- Do not use loud shadows during drag or pan interactions
-- Do not introduce new one-off colors when semantic tokens already cover the need
+- Menus should feel like native context menus.
+- Dialogs should read like compact system modals.
+- Toasts can feel like small status windows rather than soft snackbars.
+
+Rules:
+
+- Use edge definition, not blur.
+- Maintain compact spacing.
+- Keep status color visible but secondary to structure.
+
+## Responsive Behavior
+
+The retro language still needs to survive smaller widths.
+
+- Toolbar groups may wrap, but each control should stay usable.
+- Sidebar collapse should preserve icon recognizability.
+- Floating canvas controls should stack cleanly.
+- Menus and trays must clamp to the viewport.
+
+Rules:
+
+- Reduce chrome before reducing readability.
+- Avoid shrinking controls below practical pointer size.
+
+## Anti-Patterns
+
+- Do not drift back into warm-minimal SaaS styling.
+- Do not use glassmorphism.
+- Do not use purple gradients.
+- Do not use large 16px to 24px corner radii as the default.
+- Do not make everything blue.
+- Do not trade canvas responsiveness for decoration.

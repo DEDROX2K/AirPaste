@@ -1,13 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
 import { desktop } from "../lib/desktop";
-import {
-  AppButton,
-  AppContextMenu,
-  AppContextMenuContent,
-  AppContextMenuItem,
-  AppContextMenuTrigger,
-} from "./ui/app";
+import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
 import "./TopTabBar.css";
 
 function IconClose() {
@@ -26,65 +20,32 @@ function IconHomeFilled() {
   );
 }
 
-function IconWindowToggle() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <rect x="3.25" y="3.25" width="7.5" height="7.5" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function IconWindowMinimize() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M3.5 7H10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconWindowClose() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M4 4L10 10M10 4L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function TitleBarControls() {
   return (
     <div className="titlebar-controls">
-      <AppButton
-        tone="unstyled"
-        className="titlebar-btn titlebar-btn--minimize"
+      <button
+        className="titlebar-btn titlebar-btn--minimize is-minimize"
         type="button"
         title="Minimize"
         aria-label="Minimize"
         onClick={() => desktop.window.minimize()}
-      >
-        <IconWindowMinimize />
-      </AppButton>
+      />
 
-      <AppButton
-        tone="unstyled"
-        className="titlebar-btn titlebar-btn--maximize"
+      <button
+        className="titlebar-btn titlebar-btn--maximize is-maximize"
         type="button"
         title="Toggle maximize"
-        aria-label="Toggle maximize"
+        aria-label="Maximize"
         onClick={() => desktop.window.maximize()}
-      >
-        <IconWindowToggle />
-      </AppButton>
+      />
 
-      <AppButton
-        tone="unstyled"
-        className="titlebar-btn titlebar-btn--close"
+      <button
+        className="titlebar-btn titlebar-btn--close is-close"
         type="button"
         title="Close"
         aria-label="Close"
         onClick={() => desktop.window.close()}
-      >
-        <IconWindowClose />
-      </AppButton>
+      />
     </div>
   );
 }
@@ -141,8 +102,8 @@ function TabItem({
             <>
               <span className="titlebar-tab-label">{tab.title}</span>
               {tab.closable ? (
-                <AppButton
-                  tone="unstyled"
+                <button
+                  type="button"
                   className="titlebar-tab-close"
                   onMouseDown={(event) => {
                     event.stopPropagation();
@@ -155,7 +116,7 @@ function TabItem({
                   aria-label="Close tab"
                 >
                   <IconClose />
-                </AppButton>
+                </button>
               ) : null}
             </>
           )}
@@ -278,12 +239,13 @@ export function TopTabBar({ usesCustomTitlebar }) {
 
   return (
     <div
-      className="titlebar-root"
+      className="titlebar-root title-bar active"
       onDoubleClick={() => {
         desktop.window?.maximize?.();
       }}
     >
       <div className="titlebar-left">
+        <div className="titlebar-caption title-bar-text">AirPaste</div>
         <div className="titlebar-tabs">
           {tabs.map((tab) => (
             <div

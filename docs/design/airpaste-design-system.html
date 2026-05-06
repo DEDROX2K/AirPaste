@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AirPaste Design System Playground</title>
+    <link rel="stylesheet" href="./airpaste-design-system.css" />
+  </head>
+  <body>
+    <main class="prototype-page">
+      <header class="prototype-header">
+        <div class="prototype-kicker">AirPaste Beta 2</div>
+        <h1 class="prototype-title">Standalone Design System Playground</h1>
+        <p class="prototype-intro">
+          This file is a manual prototype for shell, navigation, menus, dialogs,
+          canvas chrome, and UI primitives. It is intentionally not wired into
+          the production app.
+        </p>
+      </header>
+
+      <div class="prototype-grid">
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">App Shell</div>
+            <h2 class="section-title">Window, top tabs, and loaded home shell</h2>
+            <p class="section-copy">
+              Warm neutral desktop frame with strong borders, compact spacing,
+              and blue reserved for active states.
+            </p>
+          </div>
+          <div class="section-body">
+            <div class="app-window">
+              <div class="window-titlebar">
+                <div class="window-titlebar-group">
+                  <div class="window-app-mark">A</div>
+                  <div class="window-title">AirPaste</div>
+                  <div class="window-badge">Beta 2</div>
+                </div>
+                <div class="titlebar-tabs">
+                  <div class="titlebar-tab">Home</div>
+                  <div class="titlebar-tab is-active">Canvas</div>
+                  <div class="titlebar-tab">Library</div>
+                </div>
+                <div class="window-controls">
+                  <button class="window-control is-minimize" type="button" aria-label="Minimize">
+                    <span class="window-control-glyph"></span>
+                  </button>
+                  <button class="window-control is-maximize" type="button" aria-label="Maximize">
+                    <span class="window-control-glyph"></span>
+                  </button>
+                  <button class="window-control is-close" type="button" aria-label="Close">
+                    <span class="window-control-glyph"></span>
+                  </button>
+                </div>
+              </div>
+              <div class="window-body">
+                <div class="home-shell">
+                  <aside class="home-sidebar">
+                    <div class="brand-lockup">
+                      <div class="brand-wordmark">AIR</div>
+                      <div class="beta-badge">BETA 2</div>
+                    </div>
+
+                    <div class="sidebar-section">
+                      <label class="eyebrow" for="workspace-search">Search</label>
+                      <input
+                        id="workspace-search"
+                        class="workspace-search"
+                        type="text"
+                        value="Search folders, canvases, files"
+                      />
+                    </div>
+
+                    <div class="sidebar-section sidebar-sections">
+                      <div class="sidebar-link is-active">
+                        <span>Home</span>
+                        <span class="workspace-badge">5</span>
+                      </div>
+                      <div class="sidebar-link">
+                        <span>Recent</span>
+                        <span class="workspace-badge">5</span>
+                      </div>
+                      <div class="sidebar-link">
+                        <span>Starred</span>
+                        <span class="workspace-badge">0</span>
+                      </div>
+                    </div>
+
+                    <div class="sidebar-footer">
+                      <div class="workspace-summary">
+                        <h3 class="workspace-summary-title">AIR</h3>
+                        <p class="workspace-summary-path">
+                          C:\Users\Aircards 2D Team\Documents\air
+                        </p>
+                      </div>
+                      <button class="ui-button">Manage Workspaces</button>
+                    </div>
+                  </aside>
+
+                  <section class="workspace-main">
+                    <div class="home-toolbar-shell">
+                      <div class="toolbar-cluster">
+                        <div class="eyebrow">View</div>
+                        <div class="toolbar-view-toggle">
+                          <button class="toolbar-view-button is-active">Grid</button>
+                          <button class="toolbar-view-button">List</button>
+                        </div>
+                      </div>
+                      <div class="toolbar-cluster">
+                        <button class="ui-button">New Folder</button>
+                        <button class="ui-button is-primary">Create Canvas</button>
+                        <button class="ui-button">Import Files</button>
+                        <button class="ui-button">More</button>
+                      </div>
+                    </div>
+
+                    <div class="browser-panel">
+                      <div class="browser-panel-header">
+                        <h3 class="panel-title">All Files</h3>
+                        <div class="eyebrow">5 Items</div>
+                      </div>
+                      <div class="home-browser-grid">
+                        <article class="browser-card">
+                          <div class="browser-card-thumb"></div>
+                          <div>
+                            <h4 class="browser-card-title">Canvas</h4>
+                            <p class="browser-card-copy">Edited 9 minutes ago</p>
+                          </div>
+                          <button class="ui-button">Open</button>
+                        </article>
+                        <article class="browser-card">
+                          <div class="browser-card-thumb"></div>
+                          <div>
+                            <h4 class="browser-card-title">AirPaste Widgets</h4>
+                            <p class="browser-card-copy">Edited 19 hours ago</p>
+                          </div>
+                          <button class="ui-button">Open</button>
+                        </article>
+                        <article class="browser-card">
+                          <div class="browser-card-thumb"></div>
+                          <div>
+                            <h4 class="browser-card-title">Testing Tiles</h4>
+                            <p class="browser-card-copy">Edited 20 hours ago</p>
+                          </div>
+                          <button class="ui-button">Open</button>
+                        </article>
+                      </div>
+                    </div>
+
+                    <div class="browser-panel">
+                      <div class="browser-panel-header">
+                        <h3 class="panel-title">Recent Canvases</h3>
+                        <div class="eyebrow">List Browser</div>
+                      </div>
+                      <div class="home-browser-list">
+                        <div class="list-row is-selected">
+                          <div class="list-row-copy">
+                            <div class="list-row-title">Canvas.airpaste.json</div>
+                            <div class="muted-copy">Main Canvas · 5 May</div>
+                          </div>
+                          <button class="mini-button">...</button>
+                        </div>
+                        <div class="list-row">
+                          <div class="list-row-copy">
+                            <div class="list-row-title">Dwell.airpaste.json</div>
+                            <div class="muted-copy">Links forever saved</div>
+                          </div>
+                          <button class="mini-button">...</button>
+                        </div>
+                        <div class="list-row">
+                          <div class="list-row-copy">
+                            <div class="list-row-title">Widgets.airpaste.json</div>
+                            <div class="muted-copy">AirPaste widgets</div>
+                          </div>
+                          <button class="mini-button">...</button>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">States</div>
+            <h2 class="section-title">Boot, restore, and no-workspace home</h2>
+          </div>
+          <div class="section-body">
+            <div class="boot-grid">
+              <div class="boot-card">
+                <div class="boot-header">
+                  <div class="eyebrow">Boot State</div>
+                </div>
+                <div class="boot-body sample-stack">
+                  <h3 class="dialog-title">Restoring workspace layout</h3>
+                  <p class="muted-copy">
+                    Loading tabs, checking recent workspaces, and rebuilding the
+                    last active canvas session.
+                  </p>
+                  <div class="boot-progress">
+                    <div class="boot-progress-bar"></div>
+                  </div>
+                  <div class="eyebrow">4 of 6 modules online</div>
+                </div>
+              </div>
+
+              <div class="app-window">
+                <div class="window-titlebar">
+                  <div class="window-titlebar-group">
+                    <div class="window-app-mark">A</div>
+                    <div class="window-title">AirPaste</div>
+                  </div>
+                  <div class="window-controls">
+                    <button class="window-control is-minimize" type="button" aria-label="Minimize">
+                      <span class="window-control-glyph"></span>
+                    </button>
+                    <button class="window-control is-maximize" type="button" aria-label="Maximize">
+                      <span class="window-control-glyph"></span>
+                    </button>
+                    <button class="window-control is-close" type="button" aria-label="Close">
+                      <span class="window-control-glyph"></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="window-body">
+                  <div class="home-shell is-empty">
+                    <section class="workspace-main">
+                      <div class="browser-panel">
+                        <div class="browser-panel-header">
+                          <h3 class="panel-title">No Workspace Loaded</h3>
+                        </div>
+                        <div class="empty-layout section-body">
+                          <div class="empty-card">
+                            <div class="empty-mark">+</div>
+                            <h3 class="dialog-title">Create a workspace</h3>
+                            <p class="muted-copy">
+                              Start a new local workspace to store canvases,
+                              folders, and file references.
+                            </p>
+                            <button class="ui-button is-primary">Create Workspace</button>
+                          </div>
+                          <div class="empty-card">
+                            <div class="empty-mark">O</div>
+                            <h3 class="dialog-title">Open an existing workspace</h3>
+                            <p class="muted-copy">
+                              Browse to an AirPaste workspace folder and restore
+                              your recent pages.
+                            </p>
+                            <button class="ui-button">Open Workspace</button>
+                          </div>
+                          <div class="empty-card">
+                            <div class="empty-mark">?</div>
+                            <h3 class="dialog-title">Recent sessions</h3>
+                            <p class="muted-copy">
+                              Keep the landing state direct and useful. No heavy
+                              onboarding layer by default.
+                            </p>
+                            <button class="ui-button">View Recent</button>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Panels</div>
+            <h2 class="section-title">Sidebar and left pages panel</h2>
+          </div>
+          <div class="section-body">
+            <div class="sample-row">
+              <aside class="home-sidebar" style="width: 320px;">
+                <div class="brand-lockup">
+                  <div class="brand-wordmark">AIR</div>
+                  <div class="beta-badge">BETA 2</div>
+                </div>
+                <div class="sidebar-section">
+                  <input class="workspace-search" type="text" value="Search everything" />
+                </div>
+                <div class="sidebar-section sidebar-sections">
+                  <div class="sidebar-link is-active">Home</div>
+                  <div class="sidebar-link">All files</div>
+                  <div class="sidebar-link">Pinned</div>
+                  <div class="sidebar-link">Trash</div>
+                </div>
+                <div class="workspace-summary">
+                  <h3 class="workspace-summary-title">AIR</h3>
+                  <p class="workspace-summary-path">C:\workspace\airpaste</p>
+                </div>
+              </aside>
+
+              <aside class="left-pages-panel">
+                <div class="pages-header">
+                  <div class="eyebrow">Canvas Pages</div>
+                </div>
+                <div class="pages-list">
+                  <div class="page-link is-active">
+                    <span>Launch board</span>
+                    <span class="workspace-badge">12</span>
+                  </div>
+                  <div class="page-link">
+                    <span>Bookmarks</span>
+                    <span class="workspace-badge">8</span>
+                  </div>
+                  <div class="page-link">
+                    <span>Research</span>
+                    <span class="workspace-badge">24</span>
+                  </div>
+                  <div class="page-link">
+                    <span>Archive</span>
+                    <span class="workspace-badge">2</span>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Controls</div>
+            <h2 class="section-title">Buttons, inputs, search, and toolbar controls</h2>
+          </div>
+          <div class="section-body sample-stack">
+            <div class="sample-frame">
+              <p class="sample-label">Buttons</p>
+              <div class="sample-row">
+                <button class="ui-button">Default</button>
+                <button class="ui-button is-primary">Primary</button>
+                <button class="ui-button is-muted">Muted</button>
+                <button class="ui-button is-danger">Danger</button>
+                <button class="mini-button">+</button>
+                <button class="mini-button">...</button>
+              </div>
+            </div>
+
+            <div class="sample-frame">
+              <p class="sample-label">Inputs and search</p>
+              <div class="sample-row" style="width: 100%;">
+                <input class="ui-input" type="text" value="Untitled canvas" style="max-width: 280px;" />
+                <input class="ui-search" type="search" value="Search folders, canvases, files" style="max-width: 380px;" />
+                <div class="toolbar-view-toggle">
+                  <button class="toolbar-view-button is-active">Grid</button>
+                  <button class="toolbar-view-button">List</button>
+                </div>
+                <div class="sidebar-link" style="min-width: 180px;">Sort: Recently edited</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Menus</div>
+            <h2 class="section-title">Dropdown, context, and add menus</h2>
+          </div>
+          <div class="section-body">
+            <div class="menu-grid">
+              <div class="menu-card">
+                <div class="menu-header">
+                  <div class="eyebrow">Dropdown Menu</div>
+                </div>
+                <div class="menu-body">
+                  <div class="menu-list">
+                    <div class="dropdown-item is-active">Sort by recently edited</div>
+                    <div class="dropdown-item">Sort by name</div>
+                    <div class="dropdown-item">Sort by size</div>
+                    <div class="dropdown-item">Show hidden items</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="menu-card">
+                <div class="menu-header">
+                  <div class="eyebrow">Context Menu</div>
+                </div>
+                <div class="menu-body">
+                  <div class="menu-list">
+                    <div class="context-item">Open canvas</div>
+                    <div class="context-item">Rename</div>
+                    <div class="context-item">Duplicate</div>
+                    <div class="context-item is-danger">Delete</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="menu-card">
+                <div class="menu-header">
+                  <div class="eyebrow">Add Menu</div>
+                </div>
+                <div class="menu-body">
+                  <div class="menu-list">
+                    <div class="add-item is-primary">Create text note</div>
+                    <div class="add-item">Add bookmark tile</div>
+                    <div class="add-item">Attach image</div>
+                    <div class="add-item">Insert code block</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Dialogs</div>
+            <h2 class="section-title">Create, rename, and destructive confirmation</h2>
+          </div>
+          <div class="section-body">
+            <div class="dialog-grid">
+              <div class="dialog-card">
+                <div class="dialog-header">
+                  <div class="eyebrow">Create Canvas</div>
+                </div>
+                <div class="dialog-body">
+                  <h3 class="dialog-title">New canvas</h3>
+                  <input class="ui-input" type="text" value="Research board" />
+                  <div class="dialog-actions">
+                    <button class="ui-button">Cancel</button>
+                    <button class="ui-button is-primary">Create</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dialog-card">
+                <div class="dialog-header">
+                  <div class="eyebrow">Rename</div>
+                </div>
+                <div class="dialog-body">
+                  <h3 class="dialog-title">Rename workspace</h3>
+                  <input class="ui-input" type="text" value="AIR" />
+                  <div class="dialog-actions">
+                    <button class="ui-button">Cancel</button>
+                    <button class="ui-button is-primary">Save</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dialog-card">
+                <div class="dialog-header">
+                  <div class="eyebrow">Delete</div>
+                </div>
+                <div class="dialog-body">
+                  <h3 class="dialog-title">Delete selected canvas?</h3>
+                  <p class="muted-copy">
+                    Remove “Launch board” from the workspace index. The source
+                    file can remain on disk.
+                  </p>
+                  <div class="dialog-actions">
+                    <button class="ui-button">Cancel</button>
+                    <button class="ui-button is-danger">Delete</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Toasts</div>
+            <h2 class="section-title">Success, warning, and error feedback</h2>
+          </div>
+          <div class="section-body">
+            <div class="toast-stack">
+              <div class="toast-card is-success">
+                <div class="toast-header">
+                  <div class="eyebrow">Toast</div>
+                </div>
+                <div class="toast-body">
+                  <h3 class="toast-title">Canvas created</h3>
+                  <p class="muted-copy">Research board is ready in the AIR workspace.</p>
+                </div>
+              </div>
+              <div class="toast-card is-warning">
+                <div class="toast-header">
+                  <div class="eyebrow">Toast</div>
+                </div>
+                <div class="toast-body">
+                  <h3 class="toast-title">Workspace offline</h3>
+                  <p class="muted-copy">Recent thumbnails are cached, but sync targets are unavailable.</p>
+                </div>
+              </div>
+              <div class="toast-card is-error">
+                <div class="toast-header">
+                  <div class="eyebrow">Toast</div>
+                </div>
+                <div class="toast-body">
+                  <h3 class="toast-title">Import failed</h3>
+                  <p class="muted-copy">One attachment was blocked because the source file moved.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Canvas Chrome</div>
+            <h2 class="section-title">Canvas shell, floating controls, and empty state</h2>
+          </div>
+          <div class="section-body">
+            <div class="canvas-shell">
+              <div class="canvas-header">
+                <div>
+                  <h3 class="canvas-title">Launch board</h3>
+                  <p class="canvas-copy">Compact, utility-first chrome with lightweight floating trays.</p>
+                </div>
+                <div class="canvas-toolbar">
+                  <button class="ui-button">Grid View</button>
+                  <button class="ui-button is-primary">Canvas View</button>
+                  <button class="ui-button">Zoom 100%</button>
+                </div>
+              </div>
+              <div class="canvas-body">
+                <div class="canvas-stage">
+                  <div class="canvas-floating-controls">
+                    <button class="mini-button">+</button>
+                    <button class="mini-button">T</button>
+                    <button class="mini-button">[]</button>
+                    <button class="mini-button">#</button>
+                  </div>
+                  <div class="canvas-viewport-chip">Canvas · 100% · Snap On</div>
+
+                  <div class="canvas-panel" style="top: 96px; left: 88px;">
+                    <h4 class="browser-card-title">Quick Add</h4>
+                    <p class="muted-copy">Bookmark, note, code, image, or checklist.</p>
+                  </div>
+
+                  <div class="canvas-placeholder-card" style="top: 188px; left: 360px;">
+                    <h4 class="browser-card-title">Selected tile area</h4>
+                    <p class="muted-copy">
+                      Tile visuals live in the separate tiles prototype file.
+                    </p>
+                    <button class="ui-button">Open tile playground</button>
+                  </div>
+
+                  <div class="canvas-note" style="top: 124px; right: 120px;">
+                    Keep direct text objects lightweight. No card chrome unless the
+                    object actually behaves like a tile.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-header">
+            <div class="section-kicker">Tokens</div>
+            <h2 class="section-title">Spacing, type, and color examples</h2>
+          </div>
+          <div class="section-body">
+            <div class="specimen-grid">
+              <div class="specimen-card">
+                <div class="boot-header">
+                  <div class="eyebrow">Color</div>
+                </div>
+                <div class="specimen-body sample-stack">
+                  <div class="token-row">
+                    <div class="token-swatch" style="background: #d9d2c5;"></div>
+                    <div>Page background<br />#d9d2c5</div>
+                  </div>
+                  <div class="token-row">
+                    <div class="token-swatch" style="background: #ebe5db;"></div>
+                    <div>Panel background<br />#ebe5db</div>
+                  </div>
+                  <div class="token-row">
+                    <div class="token-swatch" style="background: #2a65b6;"></div>
+                    <div>Active blue<br />#2a65b6</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="specimen-card">
+                <div class="boot-header">
+                  <div class="eyebrow">Type</div>
+                </div>
+                <div class="specimen-body sample-stack">
+                  <p class="type-line is-display">AirPaste Utility</p>
+                  <p class="type-line is-heading">Section heading</p>
+                  <p class="type-line is-body">
+                    Body text stays compact, calm, and readable under dense desktop layouts.
+                  </p>
+                </div>
+              </div>
+
+              <div class="specimen-card">
+                <div class="boot-header">
+                  <div class="eyebrow">Spacing</div>
+                </div>
+                <div class="specimen-body sample-stack">
+                  <div class="spacing-bar is-4"></div>
+                  <div class="spacing-bar is-8"></div>
+                  <div class="spacing-bar is-12"></div>
+                  <div class="spacing-bar is-16"></div>
+                  <div class="spacing-bar is-24"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
