@@ -1,0 +1,67 @@
+:root {
+  --ap-proto-font-retro: 'Silkscreen', monospace;
+  --ap-proto-font-body: 'VT323', monospace;
+
+  --ap-proto-bg-desktop: #5f6671;
+  --ap-proto-bg-window: #d4d4d4;
+  --ap-proto-bg-white: #ffffff;
+  --ap-proto-bg-black: #000000;
+  --ap-proto-bg-active: #0089ff;
+  --ap-proto-bg-off-white: #f5f5f5;
+  --ap-proto-bg-grey: #cccccc;
+
+  --ap-proto-text-main: #000000;
+
+  --ap-proto-checker-bw: repeating-conic-gradient(#000 0% 25%, #fff 0% 50%) 50% / 4px 4px;
+  --ap-proto-checker-shadow: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%) 50% / 4px 4px;
+  --ap-proto-shine-gradient: linear-gradient(
+    110deg,
+    transparent 0%,
+    transparent 45%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.4) 48%,
+    rgba(255, 255, 255, 0.9) 48%,
+    rgba(255, 255, 255, 0.9) 52%,
+    rgba(255, 255, 255, 0.4) 52%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 55%,
+    transparent 100%
+  );
+
+  --ap-proto-pixel-borders:
+    -2px 0 0 0 #000, 2px 0 0 0 #000, 0 -2px 0 0 #000, 0 2px 0 0 #000,
+    -4px 0 0 0 var(--ap-proto-bg-white), 4px 0 0 0 var(--ap-proto-bg-white), 0 -4px 0 0 var(--ap-proto-bg-white), 0 4px 0 0 var(--ap-proto-bg-white),
+    -2px -2px 0 0 var(--ap-proto-bg-white), 2px -2px 0 0 var(--ap-proto-bg-white), -2px 2px 0 0 var(--ap-proto-bg-white), 2px 2px 0 0 var(--ap-proto-bg-white);
+
+  --ap-proto-shadow-clip: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    calc(100% - 4px) 2px,
+    calc(100% - 2px) 2px,
+    calc(100% - 2px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 4px) calc(100% - 2px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 2px),
+    2px calc(100% - 2px),
+    2px calc(100% - 4px),
+    0 calc(100% - 4px),
+    0 4px,
+    2px 4px,
+    2px 2px,
+    4px 2px,
+    4px 0
+  );
+
+  --ap-proto-space-4: 4px;
+  --ap-proto-space-8: 8px;
+  --ap-proto-space-12: 12px;
+  --ap-proto-space-16: 16px;
+  --ap-proto-space-20: 20px;
+  --ap-proto-space-24: 24px;
+  --ap-proto-space-32: 32px;
+}

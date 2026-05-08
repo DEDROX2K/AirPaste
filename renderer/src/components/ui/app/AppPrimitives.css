@@ -4,35 +4,34 @@
   justify-content: center;
   gap: var(--ap-space-2);
   width: fit-content;
-  min-height: 30px;
-  padding-inline: var(--ap-space-3);
-  padding-block: var(--ap-space-1\.5);
-  border: 1px solid #000000;
+  min-height: 36px;
+  padding-inline: var(--ap-space-4);
+  padding-block: var(--ap-space-2);
+  border: 2px solid #000000;
   border-radius: 0;
-  background: linear-gradient(180deg, #f3f3f3 0%, #d4d0c8 100%);
-  color: var(--ap-text-primary);
-  box-shadow:
-    inset 1px 1px 0 #ffffff,
-    inset -1px -1px 0 #808080;
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--ap-font-display);
+  font-size: 12px;
+  line-height: 1;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 #000000;
   cursor: pointer;
-  transition: background-color var(--ap-transition-fast), color var(--ap-transition-fast);
+  transition: transform var(--ap-transition-fast), box-shadow var(--ap-transition-fast), background-color var(--ap-transition-fast), color var(--ap-transition-fast);
 }
 
 .ap-ui-button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #ddd9d1 100%);
+  transform: translateY(-2px);
 }
 
 .ap-ui-button:active:not(:disabled) {
-  background: linear-gradient(180deg, #c8c4bd 0%, #e6e2db 100%);
-  box-shadow:
-    inset -1px -1px 0 #ffffff,
-    inset 1px 1px 0 #808080;
-  transform: translate(1px, 1px);
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .ap-ui-button:focus-visible {
-  outline: 1px dotted var(--ap-border-focus);
-  outline-offset: -4px;
+  outline: 2px dotted #000000;
+  outline-offset: 2px;
 }
 
 .ap-ui-button:disabled {
@@ -48,65 +47,59 @@
   align-items: flex-start;
   justify-content: flex-start;
   gap: var(--ap-space-4);
-  min-height: 34px;
+  min-height: 38px;
   padding-inline: var(--ap-space-4);
-  padding-block: var(--ap-space-2);
+  padding-block: var(--ap-space-2\.5);
   border-radius: 0;
-  background: linear-gradient(180deg, #f3f3f3 0%, #d4d0c8 100%);
-  box-shadow:
-    inset 1px 1px 0 #ffffff,
-    inset -1px -1px 0 #808080;
+  background: #ffffff;
   text-align: left;
 }
 
 .ap-ui-button--accent {
   border-color: #000000;
-  background: var(--ap-accent-bg);
-  color: var(--ap-text-on-accent);
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.24);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.45),
-    inset -1px -1px 0 rgba(7, 56, 105, 0.95);
+  background: #000000;
+  color: #ffffff;
 }
 
 .ap-ui-button--accent:hover:not(:disabled) {
-  background: var(--ap-accent-bg-hover);
-  border-color: #000000;
+  background: #000000;
 }
 
 .ap-ui-button--accent:active:not(:disabled) {
-  background: var(--ap-accent-bg-active);
-  box-shadow:
-    inset -1px -1px 0 rgba(255, 255, 255, 0.35),
-    inset 1px 1px 0 rgba(7, 56, 105, 0.95);
+  background: #000000;
 }
 
 .ap-ui-button--danger {
   border-color: #000000;
-  background: linear-gradient(180deg, #f0d0d0 0%, #d4d0c8 100%);
-  color: #6f1010;
-  box-shadow:
-    inset 1px 1px 0 #ffffff,
-    inset -1px -1px 0 #808080;
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
+    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
+  color: #ffffff;
+  text-shadow:
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
 }
 
 .ap-ui-button--danger:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f5d9d9 0%, #ddd9d1 100%);
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
+    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
 }
 
 .ap-ui-button--danger:active:not(:disabled) {
-  background: linear-gradient(180deg, #cfb5b5 0%, #e4dfd7 100%);
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
+    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
 }
 
 .ap-ui-surface {
-  border: 1px solid #000000;
+  border: 2px solid #000000;
   border-radius: 0;
-  background: var(--ap-surface-raised);
-  color: var(--ap-text-primary);
-  box-shadow:
-    inset 1px 1px 0 #ffffff,
-    inset -1px -1px 0 #808080,
-    2px 2px 0 rgba(0, 0, 0, 0.18);
+  background: #b3cc8e;
+  color: #000000;
+  box-shadow: 6px 6px 0 #000000;
   transition:
     border-color var(--ap-transition-fast),
     background-color var(--ap-transition-fast),
@@ -114,29 +107,27 @@
 }
 
 .ap-ui-surface--elevated {
-  box-shadow: var(--ap-shadow-welcome);
+  box-shadow: 8px 8px 0 #000000;
 }
 
 .ap-ui-surface--interactive:hover {
   border-color: #000000;
-  box-shadow:
-    inset 1px 1px 0 #ffffff,
-    inset -1px -1px 0 #6f6f6f,
-    3px 3px 0 rgba(0, 0, 0, 0.18);
+  box-shadow: 8px 10px 0 #000000;
 }
 
 .ap-ui-input {
   width: 100%;
-  min-height: 30px;
+  min-height: 38px;
   padding-inline: var(--ap-space-3);
-  padding-block: var(--ap-space-1\.5);
-  border: 1px solid #000000;
+  padding-block: var(--ap-space-2);
+  border: 2px solid #000000;
   border-radius: 0;
   background: #ffffff;
-  color: var(--ap-text-primary);
-  box-shadow:
-    inset 1px 1px 0 #808080,
-    inset -1px -1px 0 #ffffff;
+  color: #000000;
+  font-family: var(--ap-font-body);
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 4px 4px 0 #000000;
   transition:
     background-color var(--ap-transition-fast),
     border-color var(--ap-transition-fast),
@@ -145,17 +136,16 @@
 }
 
 .ap-ui-input::placeholder {
-  color: var(--ap-text-placeholder);
+  color: #4a4a4a;
 }
 
 .ap-ui-input:hover:not(:disabled) {
-  background: #fbfbfb;
-  border-color: #000000;
+  background: #ffffff;
 }
 
 .ap-ui-input:focus-visible {
-  outline: 1px dotted var(--ap-border-focus);
-  outline-offset: -3px;
+  outline: 2px dotted #000000;
+  outline-offset: 2px;
 }
 
 .ap-ui-input:disabled {

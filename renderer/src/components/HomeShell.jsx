@@ -1,223 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import HomeCubeTrail from "./HomeCubeTrail";
 import { useAppContext } from "../context/useAppContext";
 import {
   basenameFromRelativePath,
   buildHomeRouteState,
   filterItemsByPreference,
-  folderNameFromPath,
-  formatDateTime,
   formatRelativeTime,
   normalizeHomeNavigation,
   normalizeHomePreferences,
   sortEntriesByPreference,
 } from "../lib/home";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
-import {
-  AppButton,
-  AppDialog,
-  AppDialogContent,
-  AppDialogDescription,
-  AppDialogFooter,
-  AppDialogHeader,
-  AppDialogTitle,
-  AppDropdownMenu,
-  AppDropdownMenuContent,
-  AppDropdownMenuItem,
-  AppDropdownMenuLabel,
-  AppDropdownMenuSeparator,
-  AppDropdownMenuTrigger,
-  AppInput,
-  AppScrambleText,
-} from "./ui/app";
+import "./HomeShellPrototype.css";
 
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
 
 function assetUrl(relativePath) {
   return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
-}
-
-function IconStar({ filled = false }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  );
-}
-
-function IconSearch() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
-
-function IconSidebarToggle() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="m14 10 3 2-3 2" />
-    </svg>
-  );
-}
-
-function IconHome() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 11.5 12 4l9 7.5" />
-      <path d="M5 10.5V20h14v-9.5" />
-    </svg>
-  );
-}
-
-function IconRecent() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v5l3 2" />
-    </svg>
-  );
-}
-
-function IconFolder() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
-    </svg>
-  );
-}
-
-function IconCanvas() {
-  return <img className="home-browser-entry__icon-image" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />;
-}
-
-function IconFile() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-      <path d="M14 3v5h5" />
-    </svg>
-  );
-}
-
-function IconGrid() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <rect x="4" y="4" width="6" height="6" rx="1.5" />
-      <rect x="14" y="4" width="6" height="6" rx="1.5" />
-      <rect x="4" y="14" width="6" height="6" rx="1.5" />
-      <rect x="14" y="14" width="6" height="6" rx="1.5" />
-    </svg>
-  );
-}
-
-function IconList() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M8 6h12" />
-      <path d="M8 12h12" />
-      <path d="M8 18h12" />
-      <path d="M4 6h.01" />
-      <path d="M4 12h.01" />
-      <path d="M4 18h.01" />
-    </svg>
-  );
-}
-
-function IconPlus() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function IconUpload() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 16V4" />
-      <path d="m7 9 5-5 5 5" />
-      <path d="M20 16.5v1a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-1" />
-    </svg>
-  );
-}
-
-function IconMore() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="6" cy="12" r="1.5" />
-      <circle cx="12" cy="12" r="1.5" />
-      <circle cx="18" cy="12" r="1.5" />
-    </svg>
-  );
-}
-
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="m19 6-1 14H6L5 6" />
-    </svg>
-  );
-}
-
-function IconPencil() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-    </svg>
-  );
-}
-
-function TextPromptDialog({ open = false, title, description, confirmLabel, value, disabled, onChange, onCancel, onConfirm }) {
-  return (
-    <AppDialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <AppDialogContent>
-        <AppDialogHeader>
-          <AppDialogTitle>{title}</AppDialogTitle>
-          <AppDialogDescription>{description}</AppDialogDescription>
-        </AppDialogHeader>
-        <AppInput
-          value={value}
-          autoFocus
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !disabled) {
-              event.preventDefault();
-              onConfirm();
-            }
-          }}
-        />
-        <AppDialogFooter>
-          <AppButton tone="surface" className="home-button home-button--secondary" onClick={onCancel}><AppScrambleText>Cancel</AppScrambleText></AppButton>
-          <AppButton tone="accent" className="home-button" disabled={disabled} onClick={onConfirm}><AppScrambleText>{confirmLabel}</AppScrambleText></AppButton>
-        </AppDialogFooter>
-      </AppDialogContent>
-    </AppDialog>
-  );
-}
-
-function ConfirmDialog({ title, description, disabled, onCancel, onConfirm }) {
-  return (
-    <AppDialog open={Boolean(title)} onOpenChange={(open) => !open && onCancel()}>
-      <AppDialogContent>
-        <AppDialogHeader>
-          <AppDialogTitle>{title}</AppDialogTitle>
-          <AppDialogDescription>{description}</AppDialogDescription>
-        </AppDialogHeader>
-        <AppDialogFooter>
-          <AppButton tone="surface" className="home-button home-button--secondary" onClick={onCancel}><AppScrambleText>Cancel</AppScrambleText></AppButton>
-          <AppButton tone="danger" className="home-button" disabled={disabled} onClick={onConfirm}><AppScrambleText>Delete</AppScrambleText></AppButton>
-        </AppDialogFooter>
-      </AppDialogContent>
-    </AppDialog>
-  );
 }
 
 function typeLabel(type) {
@@ -227,22 +25,10 @@ function typeLabel(type) {
   return "File";
 }
 
-function typeIcon(type) {
-  if (type === "folder") return <IconFolder />;
-  if (type === "canvas") return <IconCanvas />;
-  return <IconFile />;
-}
-
 function sectionLabel(section) {
   if (section === "recents") return "Recent";
   if (section === "starred") return "Starred";
   return "All files";
-}
-
-function sectionIcon(section) {
-  if (section === "home") return <IconHome />;
-  if (section === "recents") return <IconRecent />;
-  return <IconStar />;
 }
 
 function buildBrowserItems(items, preferences, searchQuery) {
@@ -265,93 +51,203 @@ function buildBrowserItems(items, preferences, searchQuery) {
   return [...folders, ...files];
 }
 
+function itemKey(item) {
+  return item.id || item.filePath || item.path || item.name;
+}
+
+function BrowserEntryMenu({ item, onRename, onDelete, onToggleStar, onClose }) {
+  return (
+    <div className="menu-card is-dropdown" role="menu">
+      <div className="menu-list">
+        <button type="button" className="dropdown-item" onClick={() => { onToggleStar(item); onClose(); }}>
+          {item.starred ? "Remove star" : "Add star"}
+        </button>
+        <button type="button" className="dropdown-item" onClick={() => { onRename(item); onClose(); }}>
+          Rename
+        </button>
+        <button type="button" className="dropdown-item ui-button is-danger" onClick={() => { onDelete(item); onClose(); }}>
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMenuToggle, onMenuClose, onOpen, onRename, onDelete, onToggleStar }) {
+  const primaryMeta = item.type !== "folder"
+    ? `Edited ${formatRelativeTime(item.updatedAt)}`
+    : (item.path || "Workspace root");
+  const secondaryMeta = item.type !== "folder" && item.path
+    ? basenameFromRelativePath(item.path)
+    : "";
+
+  if (viewMode === "list") {
+    return (
+      <div className={`list-row${isActive ? " is-selected" : ""}`}>
+        <button type="button" className="list-row-button" onClick={() => onOpen(item)}>
+          <div>
+            <div className="list-row-title">{item.name}</div>
+            <div className="muted-copy">{secondaryMeta || primaryMeta}</div>
+          </div>
+        </button>
+        <div className="menu-shell">
+          <button type="button" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</button>
+          {menuOpen ? (
+            <BrowserEntryMenu
+              item={item}
+              onRename={onRename}
+              onDelete={onDelete}
+              onToggleStar={onToggleStar}
+              onClose={onMenuClose}
+            />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <article className={`browser-card${isActive ? " is-selected" : ""}`}>
+      <button type="button" className="browser-card-button" onClick={() => onOpen(item)}>
+        <div className="browser-card-thumb">
+          {item.type === "canvas" ? <img className="browser-card-thumb-img" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" /> : null}
+        </div>
+        <div className="browser-card-copy">
+          <h4 className="browser-card-title">{item.name}</h4>
+          <p className="muted-copy">{primaryMeta}</p>
+        </div>
+      </button>
+      <div className="browser-card-actions">
+        <button type="button" className="ui-button is-flex" onClick={() => onOpen(item)}>Open</button>
+        <div className="menu-shell">
+          <button type="button" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</button>
+          {menuOpen ? (
+            <BrowserEntryMenu
+              item={item}
+              onRename={onRename}
+              onDelete={onDelete}
+              onToggleStar={onToggleStar}
+              onClose={onMenuClose}
+            />
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function BrowserEmptyState({ title, description, onNewCanvas, onNewFolder, onImportFiles }) {
   return (
-    <section className="home-browser-empty">
-      <div className="home-browser-empty__eyebrow">Workspace</div>
-      <h2 className="home-browser-empty__title">{title}</h2>
-      <p className="home-browser-empty__description">{description}</p>
-      <div className="home-browser-empty__actions">
-        <AppButton tone="accent" className="home-button" onClick={onNewCanvas}><AppScrambleText>New Canvas</AppScrambleText></AppButton>
-        <AppButton tone="surface" className="home-button home-button--secondary" onClick={onNewFolder}><AppScrambleText>New Folder</AppScrambleText></AppButton>
-        <AppButton tone="surface" className="home-button home-button--secondary" onClick={onImportFiles}><AppScrambleText>Import files</AppScrambleText></AppButton>
+    <section className="empty-card">
+      <div className="eyebrow">Workspace</div>
+      <h2 className="dialog-title">{title}</h2>
+      <p className="muted-copy">{description}</p>
+      <div className="dome-actions">
+        <button type="button" className="ui-button is-primary" onClick={onNewCanvas}>Create Canvas</button>
+        <button type="button" className="ui-button" onClick={onNewFolder}>New Folder</button>
+        <button type="button" className="ui-button" onClick={onImportFiles}>Import Files</button>
       </div>
     </section>
   );
 }
 
-function BrowserEntry({ item, viewMode, isActive = false, onOpen, onRename, onDelete, onToggleStar }) {
-  const canStar = Boolean(item.id);
-  const canRename = item.type === "folder" || item.type === "canvas" || item.type === "asset" || item.type === "file";
-  const canDelete = canRename;
-  const metaParts = [];
-
-  if (item.type !== "folder") {
-    metaParts.push(`Edited ${formatRelativeTime(item.updatedAt)}`);
-  } else {
-    metaParts.push(item.path || "Workspace root");
-  }
-
-  if (item.type !== "folder" && item.path) {
-    metaParts.push(basenameFromRelativePath(item.path));
-  }
+function TextPromptDialog({ open, title, description, confirmLabel, value, disabled, onChange, onCancel, onConfirm }) {
+  if (!open) return null;
 
   return (
-    <article className={`home-browser-entry home-browser-entry--${viewMode} ${isActive ? "home-browser-entry--active" : ""}`}>
-      <button type="button" className="home-browser-entry__main" onClick={() => onOpen(item)}>
-        <span className={`home-browser-entry__icon home-browser-entry__icon--${item.type}`}>
-          {typeIcon(item.type)}
-        </span>
-        <span className="home-browser-entry__content">
-          <span className="home-browser-entry__eyebrow">{typeLabel(item.type)}</span>
-          <span className="home-browser-entry__title">{item.name}</span>
-          <span className="home-browser-entry__meta">{metaParts.join(" · ")}</span>
-          {item.type !== "folder" ? (
-            <span className="home-browser-entry__submeta">{item.path} · {formatDateTime(item.updatedAt)}</span>
-          ) : (
-            <span className="home-browser-entry__submeta">{item.path || "Workspace root"}</span>
-          )}
-        </span>
-      </button>
-      <div className="home-browser-entry__actions">
-        <AppDropdownMenu>
-          <AppDropdownMenuTrigger asChild>
-            <AppButton
-              tone="surface"
-              className="home-button home-button--icon home-browser-entry__menu-trigger"
-              aria-label={`More actions for ${item.name}`}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <IconMore />
-            </AppButton>
-          </AppDropdownMenuTrigger>
-          <AppDropdownMenuContent className="home-browser-entry__menu" align="end" sideOffset={6}>
-            <AppDropdownMenuLabel className="home-browser-entry__menu-label">{item.name}</AppDropdownMenuLabel>
-            {canStar ? (
-              <AppDropdownMenuItem onSelect={() => void onToggleStar(item)}>
-                <IconStar filled={item.starred} />
-                {item.starred ? "Remove star" : "Add star"}
-              </AppDropdownMenuItem>
-            ) : null}
-            {canRename ? (
-              <AppDropdownMenuItem onSelect={() => onRename(item)}>
-                <IconPencil />
-                Rename
-              </AppDropdownMenuItem>
-            ) : null}
-            {canDelete ? (
-              <>
-                <AppDropdownMenuSeparator />
-                <AppDropdownMenuItem className="home-browser-entry__menu-item--danger" onSelect={() => onDelete(item)}>
-                  <IconTrash />
-                  Delete
-                </AppDropdownMenuItem>
-              </>
-            ) : null}
-          </AppDropdownMenuContent>
-        </AppDropdownMenu>
+    <div className="dialog-overlay" onMouseDown={onCancel}>
+      <div className="dialog-card is-small" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dialog-header">
+          <h3 className="dialog-title">{title}</h3>
+        </div>
+        <div className="dialog-body">
+          <p className="muted-copy">{description}</p>
+          <input
+            className="workspace-search"
+            value={value}
+            autoFocus
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !disabled) {
+                event.preventDefault();
+                onConfirm();
+              }
+            }}
+          />
+        </div>
+        <div className="dialog-actions is-padded">
+          <button type="button" className="ui-button" onClick={onCancel}>Cancel</button>
+          <button type="button" className="ui-button is-primary" disabled={disabled} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
       </div>
-    </article>
+    </div>
+  );
+}
+
+function ConfirmDialog({ open, title, description, disabled, onCancel, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <div className="dialog-overlay" onMouseDown={onCancel}>
+      <div className="dialog-card is-small" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dialog-header">
+          <h3 className="dialog-title">{title}</h3>
+        </div>
+        <div className="dialog-body">
+          <p className="muted-copy">{description}</p>
+        </div>
+        <div className="dialog-actions is-padded">
+          <button type="button" className="ui-button" onClick={onCancel}>Cancel</button>
+          <button type="button" className="ui-button is-danger" disabled={disabled} onClick={onConfirm}>Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onClose, onRefresh, onCreateNew, onOpenFolder, onOpenDome, onRevealDome, onRemoveDome }) {
+  if (!open) return null;
+
+  return (
+    <div className="dialog-overlay" onMouseDown={onClose}>
+      <div className="dialog-card is-large" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="dialog-header">
+          <h3 className="dialog-title">Manage Workspaces</h3>
+        </div>
+        <div className="dialog-body">
+          <p className="muted-copy">Switch, reveal, remove, or create workspaces.</p>
+          <div className="workspace-main-content">
+            {domes.length === 0 ? (
+              <div className="muted-copy">No workspaces yet.</div>
+            ) : (
+              domes.map((dome) => (
+                <div key={dome.id} className="dome-list-row">
+                  <div>
+                    <div className="dome-name">{dome.name}{dome.id === activeDomeId ? " (active)" : ""}</div>
+                    <div className="muted-copy">
+                      {dome.path}
+                      {dome.exists === false ? " · Missing" : ""}
+                      {dome.valid === false ? " · Needs initialization" : ""}
+                    </div>
+                  </div>
+                  <div className="dome-actions">
+                    <button type="button" className="ui-button" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</button>
+                    <button type="button" className="ui-button" onClick={() => onRevealDome(dome.path)}>Reveal</button>
+                    <button type="button" className="ui-button is-danger" onClick={() => onRemoveDome(dome.id)}>Remove</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="dialog-actions is-padded">
+          <button type="button" className="ui-button" onClick={onClose}>Close</button>
+          <button type="button" className="ui-button" onClick={onRefresh}>Refresh</button>
+          <button type="button" className="ui-button" onClick={onCreateNew}>Create New</button>
+          <button type="button" className="ui-button is-primary" onClick={onOpenFolder}>Open Folder</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -390,8 +286,8 @@ export default function HomeShell() {
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openMenuKey, setOpenMenuKey] = useState("");
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
 
   useEffect(() => {
@@ -400,6 +296,17 @@ export default function HomeShell() {
   }, [homeData.uiState]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!event.target.closest(".menu-shell")) {
+        setOpenMenuKey("");
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   useEffect(() => {
     if (!bodyRef.current) return;
@@ -435,6 +342,7 @@ export default function HomeShell() {
 
   const hasWorkspace = Boolean(folderPath);
   const activeItemPath = homeData.uiState?.lastOpenedItemPath ?? null;
+
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
     void saveHomeUiState({
@@ -464,19 +372,15 @@ export default function HomeShell() {
     homeData.recentItems
       .filter((item) => item.type === "canvas")
       .forEach((item) => {
-        const key = item.id || item.filePath || item.path;
-        if (!key || seen.has(key)) {
-          return;
-        }
+        const key = itemKey(item);
+        if (!key || seen.has(key)) return;
         seen.add(key);
         ordered.push(item);
       });
 
     allCanvasItems.forEach((item) => {
-      const key = item.id || item.filePath || item.path;
-      if (!key || seen.has(key)) {
-        return;
-      }
+      const key = itemKey(item);
+      if (!key || seen.has(key)) return;
       seen.add(key);
       ordered.push(item);
     });
@@ -495,6 +399,11 @@ export default function HomeShell() {
     [homePreferences, searchQuery, sectionItems],
   );
 
+  const recentBrowserItems = useMemo(
+    () => recentCanvasItems.slice(0, 3),
+    [recentCanvasItems],
+  );
+
   const handleSectionChange = useCallback(async (selectedSection) => {
     const nextNavigation = {
       ...navigation,
@@ -508,10 +417,10 @@ export default function HomeShell() {
     }
   }, [folderPath, homePreferences, navigation, persistHomeContext, refreshHomeData]);
 
-  const handlePreferenceChange = useCallback((partialPreferences) => {
+  const handlePreferenceChange = useCallback((viewMode) => {
     const nextPreferences = {
       ...homePreferences,
-      ...partialPreferences,
+      viewMode,
     };
     setHomePreferences(nextPreferences);
     persistHomeContext(navigation, nextPreferences);
@@ -563,164 +472,110 @@ export default function HomeShell() {
       };
     }
     return {
-        title: "No canvases yet",
-        description: "Create your first canvas to populate All files.",
+      title: "No canvases yet",
+      description: "Create your first canvas to populate All files.",
     };
   }
 
   const emptyState = describeEmptyState();
 
   return (
-    <main ref={shellRef} className={`home-shell home-shell--workspace-nav ${sidebarCollapsed ? "home-shell--sidebar-collapsed" : ""}`}>
-      <HomeCubeTrail containerRef={shellRef} />
-
-      <aside className={`home-sidebar home-sidebar--workspace-nav ${sidebarCollapsed ? "home-sidebar--collapsed" : ""}`}>
-        <div className="home-sidebar__topbar">
-          <div className="home-sidebar__brand">
-            <span className="home-sidebar__topbar-title">{homeData.workspace?.name || folderNameFromPath(folderPath) || "Workspace"}</span>
-            <span className="home-beta-badge">Beta 2</span>
+    <main ref={shellRef} className="home-shell">
+      <aside className="home-sidebar">
+        <div className="brand-lockup">
+          <div className="brand-status">NEW ADMIN DETECTED:</div>
+          <div className="brand-card">
+            <div className="brand-card-bar" />
+            <div className="brand-card-main">
+              <div className="brand-user">KILL3R_US3R_2K22</div>
+              <div className="brand-ip">IP 124.121.57.522</div>
+            </div>
           </div>
-          <AppButton
-            tone="surface"
-            className="home-button home-button--icon home-sidebar__collapse-btn"
-            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
-            onClick={() => setSidebarCollapsed((current) => !current)}
-          >
-            <IconSidebarToggle />
-          </AppButton>
+          <div className="brand-footer">
+            <div className="brand-footer-stripes" />
+            <div className="brand-footer-text">//// VESPA PROJECT ////</div>
+            <div className="brand-footer-stripes" />
+          </div>
         </div>
 
-        <div className="home-sidebar__search">
-          <span className="home-sidebar__search-icon"><IconSearch /></span>
-          <AppInput
+        <div className="sidebar-section">
+          <div className="eyebrow">Search</div>
+          <input
+            className="workspace-search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search folders, canvases, files"
-            className="home-sidebar__search-input"
           />
         </div>
 
-        <div className="home-sidebar__sections">
+        <div className="sidebar-section">
           {["home", "recents", "starred"].map((section) => (
             <button
               key={section}
               type="button"
-              className={`home-sidebar-section ${navigation.selectedSection === section ? "home-sidebar-section--active" : ""}`}
+              className={`sidebar-link${navigation.selectedSection === section ? " is-active" : ""}`}
               onClick={() => void handleSectionChange(section)}
-              title={sectionLabel(section)}
             >
-              <span className="home-sidebar-section__icon">{sectionIcon(section)}</span>
-                <span className="home-sidebar-section__label">{sectionLabel(section)}</span>
-                <span className="home-sidebar-section__count">
-                  {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
-                </span>
-              </button>
-            ))}
-          </div>
+              <span>{section === "home" ? "Home" : sectionLabel(section)}</span>
+              <span className="workspace-badge">
+                {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
+              </span>
+            </button>
+          ))}
+        </div>
 
-        {!hasWorkspace ? (
-          <div className="home-sidebar__blank">
-            <div className="home-sidebar__blank-title">{activeDome?.path ? "Connecting to workspace" : "Open a workspace"}</div>
-            <p className="home-sidebar__blank-copy">
-              {activeDome?.path
-                ? "AirPaste is syncing the selected workspace into the workspace shell."
-                : "Choose an existing folder or create a new workspace."}
-            </p>
-            <div className="home-sidebar__blank-actions">
-              <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
-                <AppScrambleText>{activeDome?.id ? "Retry Workspace" : "Open Folder"}</AppScrambleText>
-              </AppButton>
-            </div>
+        <div className="sidebar-section is-bottom">
+          <div>
+            <h3 className="brand-wordmark">AIR</h3>
+            <p className="sidebar-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
           </div>
-        ) : <div className="home-sidebar__spacer" aria-hidden="true" />}
-
-        <div className="home-sidebar__footer home-sidebar__footer--workspace-nav">
-          <div className="home-workspace-info">
-            <span className="home-workspace-name">{homeData.workspace?.name || folderNameFromPath(folderPath) || "No Workspace Open"}</span>
-            <span className="home-workspace-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</span>
-          </div>
-          <div className="home-sidebar__footer-actions">
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}>
-              {sidebarCollapsed ? <IconMore /> : <AppScrambleText>Manage Workspaces</AppScrambleText>}
-            </AppButton>
-          </div>
+          <button type="button" className="ui-button" onClick={() => setManageDomesOpen(true)}>
+            Manage Workspaces
+          </button>
         </div>
       </aside>
 
-      <section className="home-content home-content--workspace-nav">
-        <header className="home-toolbar home-toolbar--workspace-nav">
-          <div className="home-toolbar__controls">
-            <div className="home-toolbar__control-group">
-              <span className="home-toolbar__control-label">View</span>
-              <div className="home-view-toggle">
-                <button
-                  type="button"
-                  className={`home-view-toggle__button ${homePreferences.viewMode === "grid" ? "home-view-toggle__button--active" : ""}`}
-                  onClick={() => handlePreferenceChange({ viewMode: "grid" })}
-                  aria-label="Show grid view"
-                  title="Grid view"
-                >
-                  <IconGrid />
-                </button>
-                <button
-                  type="button"
-                  className={`home-view-toggle__button ${homePreferences.viewMode === "list" ? "home-view-toggle__button--active" : ""}`}
-                  onClick={() => handlePreferenceChange({ viewMode: "list" })}
-                  aria-label="Show list view"
-                  title="List view"
-                >
-                  <IconList />
-                </button>
-              </div>
-            </div>
-
-            <div className="home-toolbar__action-group">
-              <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => openCreateDialog("folder", "New Folder")} disabled={!hasWorkspace}>
-                <IconPlus />
-                <AppScrambleText>New Folder</AppScrambleText>
-              </AppButton>
-              <AppButton tone="accent" className="home-button" onClick={() => openCreateDialog("canvas", "Canvas")} disabled={!hasWorkspace}><AppScrambleText>New Canvas</AppScrambleText></AppButton>
-              {showDeveloperQaActions ? (
-                <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void openTestingTilesCanvas()} disabled={folderLoading}>
-                  <AppScrambleText>Testing Tiles</AppScrambleText>
-                </AppButton>
-              ) : null}
-              <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)} disabled={!hasWorkspace}>
-                <IconUpload />
-                <AppScrambleText>Import files</AppScrambleText>
-              </AppButton>
-              <AppDropdownMenu>
-                <AppDropdownMenuTrigger asChild>
-                  <AppButton tone="surface" className="home-button home-button--secondary home-toolbar__more">
-                    <IconMore />
-                    <AppScrambleText>More</AppScrambleText>
-                  </AppButton>
-                </AppDropdownMenuTrigger>
-                <AppDropdownMenuContent align="end" sideOffset={6}>
-                  <AppDropdownMenuItem onSelect={() => void refreshHomeData(folderPath, navigation.currentFolderPath)} disabled={!folderPath || folderLoading}>
-                    Refresh
-                  </AppDropdownMenuItem>
-                </AppDropdownMenuContent>
-              </AppDropdownMenu>
+      <section className="workspace-main">
+        <div className="home-toolbar-shell">
+          <div className="toolbar-cluster">
+            <div className="eyebrow is-clean">View</div>
+            <div className="toolbar-view-toggle">
+              <button
+                type="button"
+                className={`toolbar-view-button${homePreferences.viewMode === "grid" ? " is-active" : ""}`}
+                onClick={() => handlePreferenceChange("grid")}
+              >
+                Grid
+              </button>
+              <button
+                type="button"
+                className={`toolbar-view-button${homePreferences.viewMode === "list" ? " is-active" : ""}`}
+                onClick={() => handlePreferenceChange("list")}
+              >
+                List
+              </button>
             </div>
           </div>
-        </header>
+          <div className="toolbar-cluster">
+            <button type="button" className="ui-button" disabled={!hasWorkspace} onClick={() => openCreateDialog("folder", "New Folder")}>New Folder</button>
+            <button type="button" className="ui-button is-primary" disabled={!hasWorkspace} onClick={() => openCreateDialog("canvas", "Canvas")}>Create Canvas</button>
+            {showDeveloperQaActions ? (
+              <button type="button" className="ui-button" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</button>
+            ) : null}
+            <button type="button" className="ui-button" disabled={!hasWorkspace} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>Import Files</button>
+            <button type="button" className="ui-button" disabled={!folderPath || folderLoading} onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}>More</button>
+          </div>
+        </div>
 
-        <div ref={bodyRef} className="home-content__body home-content__body--workspace-nav" onScroll={handleBodyScroll}>
+        <div ref={bodyRef} className="workspace-main-content" onScroll={handleBodyScroll}>
           {!hasWorkspace ? (
-            <section className="home-blank-panel">
-              <p className="home-blank-panel__eyebrow">Workspace Offline</p>
-              <h2 className="home-blank-panel__title">{activeDome?.name || "No Workspace Loaded"}</h2>
-              <p className="home-blank-panel__copy">
-                Open a folder-backed workspace to browse nested folders, canvases, and imported files.
-              </p>
-              <div className="home-blank-panel__actions">
-                <AppButton tone="accent" className="home-button" onClick={() => void (activeDome?.id ? switchDome(activeDome.id) : openExistingWorkspace())} disabled={folderLoading}>
-                  <AppScrambleText>{activeDome?.id ? "Reconnect Workspace" : "Open Folder"}</AppScrambleText>
-                </AppButton>
-                <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(true)}><AppScrambleText>Manage Workspaces</AppScrambleText></AppButton>
-              </div>
-            </section>
+            <BrowserEmptyState
+              title={activeDome?.name || "No Workspace Loaded"}
+              description="Open a folder-backed workspace to browse nested folders, canvases, and imported files."
+              onNewCanvas={() => openCreateDialog("canvas", "Canvas")}
+              onNewFolder={() => openCreateDialog("folder", "New Folder")}
+              onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
+            />
           ) : browserItems.length === 0 ? (
             <BrowserEmptyState
               title={emptyState.title}
@@ -731,24 +586,55 @@ export default function HomeShell() {
             />
           ) : (
             <>
-              <div className="home-browser-summary">
-                <span className="home-browser-summary__label">{sectionLabel(navigation.selectedSection)}</span>
-                <span className="home-browser-summary__value">{browserItems.length} items</span>
-              </div>
-              <div className={`home-browser home-browser--${homePreferences.viewMode}`}>
-                {browserItems.map((item) => (
-                  <BrowserEntry
-                    key={item.filePath ?? item.path}
-                    item={item}
-                    viewMode={homePreferences.viewMode}
-                    isActive={item.path === activeItemPath}
-                    onOpen={(entry) => void openHomeItem(entry)}
-                    onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
-                    onDelete={(entry) => setConfirmDialog({ target: entry })}
-                    onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
-                  />
-                ))}
-              </div>
+              <section className="browser-panel">
+                <div className="browser-panel-header">
+                  <h3 className="panel-title">{sectionLabel(navigation.selectedSection)}</h3>
+                  <div className="eyebrow is-clean">{browserItems.length} Items</div>
+                </div>
+                <div className={`home-browser-${homePreferences.viewMode}`}>
+                  {browserItems.map((item) => (
+                    <BrowserCard
+                      key={itemKey(item)}
+                      item={item}
+                      viewMode={homePreferences.viewMode}
+                      isActive={item.path === activeItemPath}
+                      menuOpen={openMenuKey === itemKey(item)}
+                      onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
+                      onMenuClose={() => setOpenMenuKey("")}
+                      onOpen={(entry) => void openHomeItem(entry)}
+                      onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                      onDelete={(entry) => setConfirmDialog({ target: entry })}
+                      onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              {recentBrowserItems.length > 0 ? (
+                <section className="browser-panel">
+                  <div className="browser-panel-header">
+                    <h3 className="panel-title">Recent Canvases</h3>
+                    <div className="eyebrow is-clean">List Browser</div>
+                  </div>
+                  <div className="home-browser-list">
+                    {recentBrowserItems.map((item, index) => (
+                      <BrowserCard
+                        key={`recent-${itemKey(item)}`}
+                        item={item}
+                        viewMode="list"
+                        isActive={index === 0}
+                        menuOpen={openMenuKey === `recent-${itemKey(item)}`}
+                        onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
+                        onMenuClose={() => setOpenMenuKey("")}
+                        onOpen={(entry) => void openHomeItem(entry)}
+                        onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                        onDelete={(entry) => setConfirmDialog({ target: entry })}
+                        onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </>
           )}
         </div>
@@ -762,10 +648,8 @@ export default function HomeShell() {
             : textDialog?.type === "canvas"
               ? "Create canvas"
               : textDialog?.type === "folder"
-                  ? "Create folder"
-                  : textDialog?.type === "create-dome"
-                    ? "Create Workspace"
-                    : ""
+                ? "Create folder"
+                : "Create Workspace"
         }
         description={
           textDialog?.type === "rename"
@@ -788,6 +672,7 @@ export default function HomeShell() {
       />
 
       <ConfirmDialog
+        open={Boolean(confirmDialog)}
         title={confirmDialog ? `Delete ${confirmDialog.target.name}?` : ""}
         description="This cannot be undone."
         disabled={folderLoading}
@@ -795,41 +680,19 @@ export default function HomeShell() {
         onConfirm={() => void submitDelete()}
       />
 
-      <AppDialog open={manageDomesOpen} onOpenChange={setManageDomesOpen}>
-        <AppDialogContent>
-          <AppDialogHeader>
-            <AppDialogTitle>Manage Workspaces</AppDialogTitle>
-            <AppDialogDescription>Switch, reveal, remove, or create workspaces.</AppDialogDescription>
-          </AppDialogHeader>
-          <div className="space-y-3 max-h-[360px] overflow-auto">
-            {domes.length === 0 ? (
-              <div className="text-sm text-ap-text-secondary">No workspaces yet.</div>
-            ) : (
-              domes.map((dome) => (
-                <div key={dome.id} className="border border-ap-border-subtle rounded-ap-md p-3">
-                  <div className="text-sm font-medium text-ap-text-primary">{dome.name}{dome.id === activeDome?.id ? " (active)" : ""}</div>
-                  <div className="text-xs text-ap-text-secondary break-all">
-                    {dome.path}
-                    {dome.exists === false ? " · Missing" : ""}
-                    {dome.valid === false ? " · Needs initialization" : ""}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void switchDome(dome.id)} disabled={folderLoading}><AppScrambleText>Open</AppScrambleText></AppButton>
-                    <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void revealDome(dome.path)}><AppScrambleText>Reveal</AppScrambleText></AppButton>
-                    <AppButton tone="danger" className="home-button" onClick={() => void removeDome(dome.id)}><AppScrambleText>Remove</AppScrambleText></AppButton>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <AppDialogFooter>
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => setManageDomesOpen(false)}><AppScrambleText>Close</AppScrambleText></AppButton>
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => void refreshDomes()}><AppScrambleText>Refresh</AppScrambleText></AppButton>
-            <AppButton tone="surface" className="home-button home-button--secondary" onClick={() => openCreateDialog("create-dome", "New Workspace")}><AppScrambleText>Create New</AppScrambleText></AppButton>
-            <AppButton tone="accent" className="home-button" onClick={() => void openExistingWorkspace()}><AppScrambleText>Open Folder</AppScrambleText></AppButton>
-          </AppDialogFooter>
-        </AppDialogContent>
-      </AppDialog>
+      <ManageWorkspacesDialog
+        open={manageDomesOpen}
+        domes={domes}
+        activeDomeId={activeDome?.id}
+        folderLoading={folderLoading}
+        onClose={() => setManageDomesOpen(false)}
+        onRefresh={() => void refreshDomes()}
+        onCreateNew={() => openCreateDialog("create-dome", "New Workspace")}
+        onOpenFolder={() => void openExistingWorkspace()}
+        onOpenDome={(id) => void switchDome(id)}
+        onRevealDome={(path) => void revealDome(path)}
+        onRemoveDome={(id) => void removeDome(id)}
+      />
     </main>
   );
 }

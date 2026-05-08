@@ -239,13 +239,15 @@ export function TopTabBar({ usesCustomTitlebar }) {
 
   return (
     <div
-      className="titlebar-root title-bar active"
+      className="titlebar-root"
       onDoubleClick={() => {
         desktop.window?.maximize?.();
       }}
     >
       <div className="titlebar-left">
-        <div className="titlebar-caption title-bar-text">AirPaste</div>
+        <div className="titlebar-brand">
+          <div className="titlebar-caption">AirPaste</div>
+        </div>
         <div className="titlebar-tabs">
           {tabs.map((tab) => (
             <div

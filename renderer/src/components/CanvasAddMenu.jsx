@@ -17,10 +17,7 @@ function assetUrl(relativePath) {
 
 export default function CanvasAddMenu({
   commands,
-  backgroundSkins = [],
-  activeBackgroundSkinId = "",
   disabled = false,
-  onSelectBackground,
 }) {
   const rootRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -81,52 +78,6 @@ export default function CanvasAddMenu({
                 <span className="canvas-start-menu__item-label">{item.label}</span>
               </button>
             ))}
-
-            <div className="canvas-start-menu__separator" aria-hidden="true" />
-
-            <div className="canvas-start-menu__submenu">
-              <button
-                type="button"
-                className="canvas-start-menu__item canvas-start-menu__item--submenu"
-                role="menuitem"
-                disabled={disabled}
-              >
-                <span className="canvas-start-menu__item-icon" aria-hidden="true">
-                  <MenuIcon icon="background" />
-                </span>
-                <span className="canvas-start-menu__item-label">Background</span>
-                <span className="canvas-start-menu__item-arrow" aria-hidden="true">▶</span>
-              </button>
-
-              <div className="canvas-start-menu__submenu-panel" role="menu" aria-label="Backgrounds">
-                {backgroundSkins.map((skin) => (
-                  <button
-                    key={skin.id}
-                    type="button"
-                    className={`canvas-start-menu__item canvas-start-menu__item--background${activeBackgroundSkinId === skin.id ? " canvas-start-menu__item--active" : ""}`}
-                    role="menuitem"
-                    onClick={() => {
-                      onSelectBackground?.(skin.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <span
-                      className="canvas-start-menu__background-swatch"
-                      aria-hidden="true"
-                      style={{
-                        backgroundImage: skin.kind === "image"
-                          ? `url("${assetUrl(skin.assetPath)}")`
-                          : "radial-gradient(circle, #3d3d3d 1px, transparent 1px)",
-                        backgroundSize: skin.kind === "image"
-                          ? skin.backgroundSize
-                          : "8px 8px",
-                      }}
-                    />
-                    <span className="canvas-start-menu__item-label">{skin.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       ) : null}
@@ -196,16 +147,6 @@ function MenuIcon({ icon }) {
 
   if (icon === "sticky") {
     return <img className="canvas-start-menu__item-icon-image" src={assetUrl("icons/sticky_note_2.png")} alt="" />;
-  }
-
-  if (icon === "background") {
-    return (
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <rect x="1.5" y="1.5" width="13" height="13" fill="#ffffff" stroke="#111111" strokeWidth="1" />
-        <circle cx="4.8" cy="4.8" r="1.2" fill="#0078d7" />
-        <path d="m3 12 3.2-2.8 2.4 1.8 2.2-2L13 12" stroke="#247324" strokeWidth="1.1" />
-      </svg>
-    );
   }
 
   if (icon === "checklist") {

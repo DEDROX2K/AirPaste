@@ -134,6 +134,7 @@ const PREVIEW_GENERIC_TITLES = Object.freeze([
 ]);
 
 let mainWindow = null;
+let activeWindowResizeSession = null;
 const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
@@ -2507,8 +2508,14 @@ async function createWindow() {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: "#1e1e1e",
+    resizable: true,
+    movable: true,
+    backgroundColor: "#00000000",
     frame: false,
+    transparent: true,
+    thickFrame: false,
+    hasShadow: false,
+    roundedCorners: false,
     titleBarStyle: "hidden",
     show: false,
     title: "AirPaste",
@@ -2912,6 +2919,77 @@ ipcMain.on("window:maximize", () => {
   }
 });
 ipcMain.on("window:close", () => mainWindow?.close());
+ipcMain.on("window:resizeStart", (_event, payload = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMaximized()) {
+    activeWindowResizeSession = null;
+    return;
+  }
+
+  const [minWidth = 320, minHeight = 240] = mainWindow.getMinimumSize?.() ?? [320, 240];
+  activeWindowResizeSession = {
+    direction: String(payload.direction || ""),
+    startBounds: mainWindow.getBounds(),
+    minWidth: Math.max(320, minWidth),
+    minHeight: Math.max(240, minHeight),
+  };
+});
+
+ipcMain.on("window:resizeMove", (_event, payload = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed() || !activeWindowResizeSession) {
+    return;
+  }
+
+  if (mainWindow.isMaximized()) {
+    activeWindowResizeSession = null;
+    return;
+  }
+
+  const {
+    direction,
+    startBounds,
+    minWidth,
+    minHeight,
+  } = activeWindowResizeSession;
+
+  const deltaX = Number(payload.deltaX) || 0;
+  const deltaY = Number(payload.deltaY) || 0;
+
+  let nextX = startBounds.x;
+  let nextY = startBounds.y;
+  let nextWidth = startBounds.width;
+  let nextHeight = startBounds.height;
+
+  if (direction.includes("e")) {
+    nextWidth = Math.max(minWidth, startBounds.width + deltaX);
+  }
+
+  if (direction.includes("s")) {
+    nextHeight = Math.max(minHeight, startBounds.height + deltaY);
+  }
+
+  if (direction.includes("w")) {
+    const proposedWidth = startBounds.width - deltaX;
+    nextWidth = Math.max(minWidth, proposedWidth);
+    nextX = startBounds.x + (startBounds.width - nextWidth);
+  }
+
+  if (direction.includes("n")) {
+    const proposedHeight = startBounds.height - deltaY;
+    nextHeight = Math.max(minHeight, proposedHeight);
+    nextY = startBounds.y + (startBounds.height - nextHeight);
+  }
+
+  mainWindow.setBounds({
+    x: Math.round(nextX),
+    y: Math.round(nextY),
+    width: Math.round(nextWidth),
+    height: Math.round(nextHeight),
+  });
+});
+
+ipcMain.on("window:resizeEnd", () => {
+  activeWindowResizeSession = null;
+});
 
 
 app.whenReady().then(async () => {

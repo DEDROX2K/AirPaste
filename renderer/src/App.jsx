@@ -14,6 +14,7 @@ import { desktop } from "./lib/desktop";
 
 const BOOT_SPLASH_IMAGE_SRC = encodeURI("/Splash screen/Keyboard keycap with _airpaste_ text.png");
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
+const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
 
 function BootSplash() {
   return (
@@ -28,6 +29,51 @@ function BootSplash() {
         <span className="boot-splash__message">Restoring your workspace</span>
       </div>
     </main>
+  );
+}
+
+function WindowResizeHandles() {
+  function beginResize(direction, event) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    desktop.window.resizeStart?.(direction);
+
+    const handlePointerMove = (moveEvent) => {
+      desktop.window.resizeMove?.(moveEvent.clientX - startClientX, moveEvent.clientY - startClientY);
+    };
+
+    const finishResize = () => {
+      desktop.window.resizeEnd?.();
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishResize);
+      window.removeEventListener("pointercancel", finishResize);
+      window.removeEventListener("blur", finishResize);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishResize);
+    window.addEventListener("pointercancel", finishResize);
+    window.addEventListener("blur", finishResize);
+  }
+
+  return (
+    <div className="window-resize-handles" aria-hidden="true">
+      {RESIZE_HANDLE_DIRECTIONS.map((direction) => (
+        <div
+          key={direction}
+          className={`window-resize-handle window-resize-handle--${direction}`}
+          onPointerDown={(event) => beginResize(direction, event)}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -82,10 +128,11 @@ export default function App() {
 
   return (
     <div className={`app-shell app-shell--with-tabs ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""}`}>
-      <div className="app-window window glass active">
+      {usesCustomTitlebar ? <WindowResizeHandles /> : null}
+      <div className="app-window">
         <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
-        
-        <div className="app-shell__view-container window-body">
+
+        <div className="app-shell__view-container">
           {currentEditor.kind === "canvas" ? (
             <div className="app-shell__workspace-layout">
               <LeftPagesPanel />

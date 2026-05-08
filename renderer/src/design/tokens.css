@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap");
+
 /**
  * AirPaste Design System — tokens.css
  *
@@ -55,9 +57,9 @@
   --ap-info-dark:     #0369A1;
 
   /* ─── Typography: Families ──────────────────────────────────── */
-  --ap-font-display:  "Lucida Console", "Courier New", monospace;
-  --ap-font-body:     Tahoma, "Segoe UI", "MS Sans Serif", system-ui, sans-serif;
-  --ap-font-mono:     "Lucida Console", Consolas, "Courier New", monospace;
+  --ap-font-display:  "Silkscreen", "Lucida Console", "Courier New", monospace;
+  --ap-font-body:     "VT323", Tahoma, "Segoe UI", "MS Sans Serif", monospace;
+  --ap-font-mono:     "VT323", "Lucida Console", Consolas, "Courier New", monospace;
 
   /* ─── Typography: Scale ─────────────────────────────────────── */
   --ap-text-2xs:   0.625rem;   /* 10px */

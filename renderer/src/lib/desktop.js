@@ -96,6 +96,9 @@ export const desktop = {
     minimize: () => electronBridge.minimize?.(),
     maximize: () => electronBridge.maximize?.(),
     close: () => electronBridge.close?.(),
+    resizeStart: (direction) => electronBridge.resizeStart?.(direction),
+    resizeMove: (deltaX, deltaY) => electronBridge.resizeMove?.(deltaX, deltaY),
+    resizeEnd: () => electronBridge.resizeEnd?.(),
     usesCustomTitlebar: electronBridge.usesCustomTitlebar === true,
   },
 };

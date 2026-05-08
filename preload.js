@@ -75,5 +75,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   minimize: () => ipcRenderer.send("window:minimize"),
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
+  resizeStart: (direction) => ipcRenderer.send("window:resizeStart", { direction }),
+  resizeMove: (deltaX, deltaY) => ipcRenderer.send("window:resizeMove", { deltaX, deltaY }),
+  resizeEnd: () => ipcRenderer.send("window:resizeEnd"),
   usesCustomTitlebar: true,
 });

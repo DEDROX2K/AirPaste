@@ -65,54 +65,6 @@ import {
 } from "../systems/canvas/tileLod";
 
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
-const CANVAS_BACKGROUND_SKINS = [
-  {
-    id: "dots",
-    label: "Dots",
-    kind: "dots",
-  },
-  {
-    id: "fabric",
-    label: "Fabric",
-    kind: "image",
-    assetPath: "bgimg/Fabric004_4K_Colorcopie.jpeg",
-    backgroundScale: 26,
-    backgroundSize: "560px auto",
-  },
-  {
-    id: "geo-light",
-    label: "Geo Light",
-    kind: "image",
-    assetPath: "bgimg/pngtree-vector-seamless-pattern-modern-stylish-texture-repeating-geometric-background-png-image_3595804.jpg",
-    backgroundScale: 15,
-    backgroundSize: "320px auto",
-  },
-  {
-    id: "pattern-36",
-    label: "Pattern 36",
-    kind: "image",
-    assetPath: "bgimg/36.png",
-    backgroundScale: 13,
-    backgroundSize: "280px auto",
-  },
-  {
-    id: "pattern-41",
-    label: "Pattern 41",
-    kind: "image",
-    assetPath: "bgimg/41.png",
-    backgroundScale: 13,
-    backgroundSize: "280px auto",
-  },
-  {
-    id: "pattern-msedge",
-    label: "Pattern Edge",
-    kind: "image",
-    assetPath: "bgimg/msedge_OPfrmO0gAr.png",
-    backgroundScale: 13,
-    backgroundSize: "280px auto",
-  },
-];
-const DEFAULT_CANVAS_BACKGROUND_SKIN_ID = CANVAS_BACKGROUND_SKINS[0].id;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -121,12 +73,6 @@ const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
 
 function assetUrl(relativePath) {
   return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
-}
-
-function normalizeCanvasBackgroundSkinId(value) {
-  return CANVAS_BACKGROUND_SKINS.some((skin) => skin.id === value)
-    ? value
-    : DEFAULT_CANVAS_BACKGROUND_SKIN_ID;
 }
 
 function getStickerCanvasHoverState(canvasElement, clientX, clientY) {
@@ -869,7 +815,6 @@ function CanvasPerformanceOverlay({
 
 export default function CanvasWorkspaceView() {
   const [snapSettings, setSnapSettings] = useState(DEFAULT_CANVAS_SNAP_SETTINGS);
-  const [canvasBackgroundSkinId, setCanvasBackgroundSkinId] = useState(DEFAULT_CANVAS_BACKGROUND_SKIN_ID);
   const previousBoardSnapshotRef = useRef(null);
   const tileMetaCacheRef = useRef(new Map());
   const tileRenderHintCacheRef = useRef(new Map());
@@ -1261,14 +1206,6 @@ export default function CanvasWorkspaceView() {
   useEffect(() => {
     setSnapSettings(normalizeCanvasSnapSettings(homeData?.uiState));
   }, [homeData?.uiState]);
-
-  useEffect(() => {
-    setCanvasBackgroundSkinId(normalizeCanvasBackgroundSkinId(homeData?.uiState?.canvasBackgroundSkin));
-  }, [homeData?.uiState]);
-
-  const selectedCanvasBackgroundSkin = useMemo(() => (
-    CANVAS_BACKGROUND_SKINS.find((skin) => skin.id === canvasBackgroundSkinId) ?? CANVAS_BACKGROUND_SKINS[0]
-  ), [canvasBackgroundSkinId]);
 
   const buildCanvasClipboardPayload = useCallback((mode) => {
     if (interactions.selectedTileIds.length === 0) {
@@ -1687,7 +1624,6 @@ export default function CanvasWorkspaceView() {
   }, [workspaceLodLevel]);
 
   const useSceneSurface = sceneSurfaceEnabled && workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR;
-  const isImageBackgroundSkin = selectedCanvasBackgroundSkin.kind === "image";
   const stableTileMetaById = useMemo(() => {
     const previousCache = tileMetaCacheRef.current;
     const nextCache = new Map();
@@ -2246,16 +2182,6 @@ export default function CanvasWorkspaceView() {
     });
   }, [log, saveHomeUiState, toast]);
 
-  const updateCanvasBackgroundSkin = useCallback((nextSkinId) => {
-    const normalizedSkinId = normalizeCanvasBackgroundSkinId(nextSkinId);
-    setCanvasBackgroundSkinId(normalizedSkinId);
-    void saveHomeUiState({ canvasBackgroundSkin: normalizedSkinId }).catch((error) => {
-      const message = error?.message || "Unable to save the canvas background skin.";
-      log("error", "Canvas background skin save failed", message);
-      toast("error", message);
-    });
-  }, [log, saveHomeUiState, toast]);
-
   const radialMenu = interactions.contextMenu;
   const recoverablePreviewTiles = useMemo(
     () => workspace.cards.filter((card) => shouldRecoverLinkPreviewCard(card)),
@@ -2448,26 +2374,14 @@ export default function CanvasWorkspaceView() {
   if (isGridMode) {
     return (
       <main className="canvas-stage canvas-stage--grid">
-        {createPortal(
-          <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
-            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          </div>,
-          document.getElementById("titlebar-center-slot") || document.body
-        )}
-        {createPortal(
-          <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
-            <GridViewFilterToggle value={gridTileFilter} onChange={setGridTileFilter} />
-          </div>,
-          document.getElementById("titlebar-right-slot") || document.body
-        )}
-        <div className="canvas-stage__fab canvas-stage__fab--start">
+
+        <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
+            <GridViewFilterToggle value={gridTileFilter} onChange={setGridTileFilter} />
+            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
             <CanvasAddMenu
               commands={commands}
-              backgroundSkins={CANVAS_BACKGROUND_SKINS}
-              activeBackgroundSkinId={selectedCanvasBackgroundSkin.id}
               disabled={!folderPath || folderLoading}
-              onSelectBackground={updateCanvasBackgroundSkin}
             />
           </div>
         </div>
@@ -2487,12 +2401,7 @@ export default function CanvasWorkspaceView() {
 
   return (
     <main className="canvas-stage">
-      {createPortal(
-        <div className="canvas-toolbar-shell canvas-toolbar-shell--center">
-          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-        </div>,
-        document.getElementById("titlebar-center-slot") || document.body
-      )}
+
       {/* ── Right Tools Portal ── */}
       {createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
@@ -2510,14 +2419,12 @@ export default function CanvasWorkspaceView() {
         document.getElementById("titlebar-right-slot") || document.body
       )}
 
-      <div className="canvas-stage__fab canvas-stage__fab--start">
+      <div className="canvas-stage__fab">
         <div className="canvas-win-strip">
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           <CanvasAddMenu
             commands={commands}
-            backgroundSkins={CANVAS_BACKGROUND_SKINS}
-            activeBackgroundSkinId={selectedCanvasBackgroundSkin.id}
             disabled={!folderPath || folderLoading}
-            onSelectBackground={updateCanvasBackgroundSkin}
           />
           <DrawingToolControls
             activeTool={selectedCanvasToolMode}
@@ -2541,20 +2448,6 @@ export default function CanvasWorkspaceView() {
         ref={canvas.containerRef}
         id="canvas-board"
         className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
-        style={{
-          "--canvas-grid-background-image": isImageBackgroundSkin
-            ? "none"
-            : "radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)",
-          "--canvas-grid-background-size": isImageBackgroundSkin
-            ? "0 0"
-            : "var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)",
-          "--canvas-grid-background-scale": String(selectedCanvasBackgroundSkin.backgroundScale ?? 1),
-          "--canvas-background-plane-image": isImageBackgroundSkin
-            ? `url("${assetUrl(selectedCanvasBackgroundSkin.assetPath)}")`
-            : "none",
-          "--canvas-background-plane-size": selectedCanvasBackgroundSkin.backgroundSize
-            ?? "calc(32px * var(--canvas-grid-background-scale, 10)) auto",
-        }}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
@@ -2631,9 +2524,6 @@ export default function CanvasWorkspaceView() {
               ref={canvas.contentRef}
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
             >
-              {isImageBackgroundSkin ? (
-                <div className="canvas__background-plane" aria-hidden="true" />
-              ) : null}
               {activeRenderTiles.map((card) => (
                 <Card
                   key={card.id}

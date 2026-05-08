@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AirPaste Live Home UI</title>
+    <link rel="stylesheet" href="../../renderer/src/components/HomeShellPrototype.css" />
+    <style>
+      body {
+        margin: 0;
+      }
+
+      .prototype-shell {
+        min-height: 100vh;
+        padding: 24px;
+        background: var(--ap-proto-bg-desktop);
+      }
+
+      .prototype-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .prototype-note {
+        color: var(--ap-proto-bg-white);
+        font-family: var(--ap-proto-font-body);
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype-page">
+      <div class="prototype-grid">
+        <div class="prototype-intro">
+          This page uses <code>renderer/src/components/HomeShellPrototype.css</code>.
+          Edit that file to update both this page and the app home screen.
+        </div>
+
+        <main class="home-shell">
+          <aside class="home-sidebar">
+            <div class="brand-lockup">
+              <div class="brand-wordmark">AIR</div>
+              <div class="beta-badge">BETA 2</div>
+            </div>
+
+            <div class="sidebar-section">
+              <label class="eyebrow" for="workspace-search">Search</label>
+              <input
+                id="workspace-search"
+                class="workspace-search"
+                type="text"
+                placeholder="Search folders, canvases, files"
+              />
+            </div>
+
+            <div class="sidebar-section">
+              <button class="sidebar-link is-active" type="button">
+                <span>Home</span>
+                <span class="workspace-badge">5</span>
+              </button>
+              <button class="sidebar-link" type="button">
+                <span>Recent</span>
+                <span class="workspace-badge">5</span>
+              </button>
+              <button class="sidebar-link" type="button">
+                <span>Starred</span>
+                <span class="workspace-badge">0</span>
+              </button>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: auto;">
+              <div>
+                <h3 class="brand-wordmark">AIR</h3>
+                <p class="muted-copy" style="margin-top: 8px; line-height: 1.2;">C:\Users\Aircards 2D Team\Documents\air</p>
+              </div>
+              <button class="ui-button" type="button">Manage Workspaces</button>
+            </div>
+          </aside>
+
+          <section class="workspace-main">
+            <div class="home-toolbar-shell">
+              <div class="toolbar-cluster">
+                <div class="eyebrow">View</div>
+                <div class="toolbar-view-toggle">
+                  <button class="toolbar-view-button is-active" type="button">Grid</button>
+                  <button class="toolbar-view-button" type="button">List</button>
+                </div>
+              </div>
+              <div class="toolbar-cluster">
+                <button class="ui-button" type="button">New Folder</button>
+                <button class="ui-button is-primary" type="button">Create Canvas</button>
+                <button class="ui-button" type="button">Import Files</button>
+                <button class="ui-button" type="button">More</button>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 32px; min-height: 0; overflow: auto;">
+              <section class="browser-panel">
+                <div class="browser-panel-header">
+                  <h3 class="panel-title">All Files</h3>
+                  <div class="eyebrow">5 Items</div>
+                </div>
+                <div class="home-browser-grid">
+                  <article class="browser-card">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 12px;" type="button">
+                      <div class="browser-card-thumb"></div>
+                      <div class="browser-card-copy">
+                        <h4 class="browser-card-title">Canvas</h4>
+                        <p class="muted-copy">Edited 9 minutes ago</p>
+                      </div>
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <button class="ui-button" style="flex: 1;" type="button">Open</button>
+                      <button class="mini-button" type="button">...</button>
+                    </div>
+                  </article>
+
+                  <article class="browser-card">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 12px;" type="button">
+                      <div class="browser-card-thumb"></div>
+                      <div class="browser-card-copy">
+                        <h4 class="browser-card-title">AirPaste Widgets</h4>
+                        <p class="muted-copy">Edited 19 hours ago</p>
+                      </div>
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <button class="ui-button" style="flex: 1;" type="button">Open</button>
+                      <button class="mini-button" type="button">...</button>
+                    </div>
+                  </article>
+
+                  <article class="browser-card">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 12px;" type="button">
+                      <div class="browser-card-thumb"></div>
+                      <div class="browser-card-copy">
+                        <h4 class="browser-card-title">Testing Tiles</h4>
+                        <p class="muted-copy">Edited 20 hours ago</p>
+                      </div>
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <button class="ui-button" style="flex: 1;" type="button">Open</button>
+                      <button class="mini-button" type="button">...</button>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="browser-panel">
+                <div class="browser-panel-header">
+                  <h3 class="panel-title">Recent Canvases</h3>
+                  <div class="eyebrow">List Browser</div>
+                </div>
+                <div class="home-browser-list">
+                  <div class="list-row is-selected">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer;" type="button">
+                      <div>
+                        <div class="list-row-title">Canvas.airpaste.json</div>
+                        <div class="muted-copy">Main Canvas · 5 May</div>
+                      </div>
+                    </button>
+                    <button class="mini-button" type="button">...</button>
+                  </div>
+
+                  <div class="list-row">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer;" type="button">
+                      <div>
+                        <div class="list-row-title">Dwell.airpaste.json</div>
+                        <div class="muted-copy">Links forever saved</div>
+                      </div>
+                    </button>
+                    <button class="mini-button" type="button">...</button>
+                  </div>
+
+                  <div class="list-row">
+                    <button style="padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer;" type="button">
+                      <div>
+                        <div class="list-row-title">Widgets.airpaste.json</div>
+                        <div class="muted-copy">AirPaste widgets</div>
+                      </div>
+                    </button>
+                    <button class="mini-button" type="button">...</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

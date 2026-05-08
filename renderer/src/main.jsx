@@ -6,7 +6,6 @@ import { LogProvider } from "./context/LogProvider";
 import { TabProvider } from "./context/TabProvider";
 import { ToastProvider } from "./context/ToastProvider";
 import "./index.css";
-import "7.css/dist/gui/window.css";
 import "./design/index.css";
 import "./styles.css";
 
