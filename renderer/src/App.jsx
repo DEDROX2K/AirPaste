@@ -81,6 +81,7 @@ export default function App() {
   useTheme();
 
   const usesCustomTitlebar = desktop.window.usesCustomTitlebar;
+  const usesCustomWindowResize = desktop.window.usesCustomWindowResize;
   const {
     booting,
     currentEditor,
@@ -128,7 +129,7 @@ export default function App() {
 
   return (
     <div className={`app-shell app-shell--with-tabs ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""}`}>
-      {usesCustomTitlebar ? <WindowResizeHandles /> : null}
+      {usesCustomTitlebar && usesCustomWindowResize ? <WindowResizeHandles /> : null}
       <div className="app-window">
         <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
 

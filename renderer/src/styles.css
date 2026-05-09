@@ -7014,7 +7014,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 /* Home redesign v2: professional light workspace */
 .home-shell--workspace-nav {
-  grid-template-columns: 284px minmax(0, 1fr);
+  grid-template-columns: clamp(220px, 22vw, 284px) minmax(0, 1fr);
   background: linear-gradient(180deg, #f7f9fc 0%, #f2f5fa 100%);
 }
 
@@ -7402,7 +7402,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 @media (max-width: 1280px) {
   .home-shell--workspace-nav {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: clamp(208px, 28vw, 260px) minmax(0, 1fr);
   }
 }
 
@@ -9658,7 +9658,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .home-shell--workspace-nav {
-  grid-template-columns: 286px minmax(0, 1fr);
+  grid-template-columns: clamp(220px, 22vw, 286px) minmax(0, 1fr);
   background: var(--ap-home-shell-bg);
 }
 
@@ -10127,7 +10127,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 @media (max-width: 1100px) {
   .home-shell--workspace-nav {
-    grid-template-columns: 252px minmax(0, 1fr);
+    grid-template-columns: clamp(208px, 30vw, 252px) minmax(0, 1fr);
   }
 
   .home-toolbar__controls {
@@ -10336,10 +10336,6 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 22%),
     var(--ap-retro-scanline),
     linear-gradient(180deg, #bfc9d2 0%, #9caab7 100%);
-}
-
-.app-shell__view-container {
-  padding: 0 8px 8px;
 }
 
 .app-shell__workspace-layout,
@@ -11469,16 +11465,6 @@ body {
   background: #c8c8c8 !important;
 }
 
-#canvas-board {
-  background:
-    radial-gradient(circle, rgba(88, 88, 88, 0.55) 1.2px, transparent 1.2px),
-    #d4d4d4 !important;
-  background-size: 28px 28px, auto !important;
-  background-repeat: repeat !important;
-  border: 2px solid #000 !important;
-  box-shadow: inset 0 0 0 2px #ffffff;
-}
-
 #canvas-board::before,
 #canvas-board::after {
   display: none !important;
@@ -11486,8 +11472,8 @@ body {
 
 .canvas-stage [style*="--canvas-grid-background-image"],
 .canvas-stage [style*="--canvas-grid-background-size"] {
-  --canvas-grid-background-image: radial-gradient(circle, rgba(88, 88, 88, 0.55) 1.2px, transparent 1.2px) !important;
-  --canvas-grid-background-size: 28px 28px !important;
+  --canvas-grid-background-image: none !important;
+  --canvas-grid-background-size: initial !important;
 }
 
 .canvas-stage__fab,
@@ -11670,11 +11656,7 @@ body {
 }
 
 #canvas-board {
-  background:
-    radial-gradient(circle, rgba(96, 96, 96, 0.7) 1.1px, transparent 1.1px),
-    #d4d4d4 !important;
-  background-size: 28px 28px, auto !important;
-  background-repeat: repeat !important;
+  background: #ffffff !important;
 }
 
 .canvas__grid {
@@ -11717,4 +11699,34 @@ body {
   background: #000 !important;
   color: #fff !important;
   box-shadow: none !important;
+}
+
+/* Final canvas board reset: keep the board plain and let the real grid layer drive the dots. */
+.canvas-stage {
+  background: #d4d4d4 !important;
+}
+
+#canvas-board {
+  border: none !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+#canvas-board::before,
+#canvas-board::after {
+  display: none !important;
+}
+
+.canvas__grid {
+  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)) !important;
+  background-size: var(--canvas-grid-background-size, var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)) !important;
+  background-repeat: repeat !important;
+  background-position: var(--canvas-grid-offset-x, 0) var(--canvas-grid-offset-y, 0) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.canvas__background-plane {
+  display: none !important;
 }

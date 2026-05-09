@@ -100,5 +100,6 @@ export const desktop = {
     resizeMove: (deltaX, deltaY) => electronBridge.resizeMove?.(deltaX, deltaY),
     resizeEnd: () => electronBridge.resizeEnd?.(),
     usesCustomTitlebar: electronBridge.usesCustomTitlebar === true,
+    usesCustomWindowResize: electronBridge.usesCustomWindowResize === true,
   },
 };
