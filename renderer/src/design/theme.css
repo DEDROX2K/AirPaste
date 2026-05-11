@@ -9,14 +9,14 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --ap-bg-page: #9aa7b5;
+  --ap-bg-page: #ebebeb;
   --ap-bg-base: #c3c7cb;
   --ap-bg-sunken: #9fa4aa;
 
   --ap-surface-default: #c0c0c0;
   --ap-surface-raised: #d4d0c8;
   --ap-surface-overlay: #d4d0c8;
-  --ap-surface-overlay-bg: rgba(212, 208, 200, 0.98);
+  --ap-surface-overlay-bg: #d4d0c8fa;
   --ap-surface-modal: #d4d0c8;
   --ap-surface-inset: #ffffff;
 

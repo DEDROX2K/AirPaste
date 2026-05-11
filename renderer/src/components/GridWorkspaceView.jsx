@@ -138,6 +138,7 @@ function buildMiniMapBounds(positions, totalHeight, viewportWidth) {
 function GridMiniMap({ positions, scrollContainerRef, totalHeight, visible }) {
   const panelRef = useRef(null);
   const draggingRef = useRef(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [scrollState, setScrollState] = useState({
     scrollLeft: 0,
     scrollTop: 0,
@@ -296,6 +297,16 @@ function GridMiniMap({ positions, scrollContainerRef, totalHeight, visible }) {
 
   return (
     <div className="canvas-minimap" aria-hidden="true">
+      <button
+        type="button"
+        className={`canvas-minimap__toggle${isOpen ? " is-active" : ""}`}
+        onClick={() => setIsOpen((current) => !current)}
+        aria-label={isOpen ? "Hide minimap" : "Show minimap"}
+        title={isOpen ? "Hide minimap" : "Show minimap"}
+      >
+        Map
+      </button>
+      {isOpen ? (
       <div
         ref={panelRef}
         className="canvas-minimap__panel"
@@ -334,6 +345,7 @@ function GridMiniMap({ positions, scrollContainerRef, totalHeight, visible }) {
           />
         </svg>
       </div>
+      ) : null}
     </div>
   );
 }

@@ -3,14 +3,15 @@
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
-  padding: 4px 6px;
+  gap: 16px;
+  min-height: 56px;
+  padding: 8px 12px 10px;
   border-bottom: 2px solid #000;
   background: #ffffff;
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: drag;
+  overflow: visible;
 }
 
 .titlebar-left,
@@ -22,8 +23,8 @@
 
 .titlebar-left {
   flex: 1;
-  gap: 12px;
-  overflow: hidden;
+  gap: 16px;
+  overflow: visible;
 }
 
 .titlebar-right {
@@ -97,16 +98,25 @@
 .titlebar-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   flex: 1;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  padding: 4px 4px 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.titlebar-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .titlebar-tab-shell {
   display: flex;
   flex-shrink: 0;
   min-width: 0;
+  padding-block: 4px;
 }
 
 .titlebar-tab-shell--dragging {
@@ -117,8 +127,8 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 28px;
-  padding: 6px 12px;
+  min-height: 30px;
+  padding: 5px 12px;
   border: 2px solid #000;
   background: #f4f4f4;
   /* off-white for unselected */
@@ -130,17 +140,7 @@
   line-height: 1;
   text-transform: uppercase;
   box-shadow: 4px 4px 0 #000;
-  transition: transform 0.2s ease-out, filter 0.2s ease-out;
-}
-
-.titlebar-tab:hover {
-  transform: translate(0, -4px);
-  box-shadow: 4px 8px 0 #000;
-}
-
-.titlebar-tab:active {
-  transform: translate(0, 0);
-  box-shadow: 0 0 0 #000;
+  transition: transform 0.16s ease-out, filter 0.16s ease-out;
 }
 
 .titlebar-tab--active {
@@ -153,6 +153,7 @@
   min-width: 40px;
   justify-content: center;
   padding: 0;
+  margin-right: 4px;
 }
 
 .titlebar-tab--file {
@@ -238,8 +239,8 @@
 #titlebar-right-slot button,
 #titlebar-right-slot .zoom-menu__trigger,
 #titlebar-center-slot button {
-  min-height: 28px !important;
-  padding: 4px 10px !important;
+  min-height: 26px !important;
+  padding: 3px 9px !important;
   border: 2px solid #000 !important;
   border-radius: 0 !important;
   background: #fff !important;
@@ -266,10 +267,10 @@
   justify-content: center;
   width: 26px;
   min-width: 26px;
-  height: 26px;
-  min-height: 26px;
+  height: 24px;
+  min-height: 24px;
   padding: 0;
-  margin: 4px;
+  margin: 2px;
 
   /* Match .ui-button */
   background-color: var(--bg-white, #fff);
@@ -281,19 +282,7 @@
   box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
   filter: drop-shadow(0 0 0 #000);
   color: var(--bg-black, #000);
-  transition: transform 0.2s ease-out, filter 0.2s ease-out;
-}
-
-.titlebar-btn:hover {
-  transform: translate(0, -4px);
-  filter: drop-shadow(4px 8px 0 #000);
-  z-index: 10;
-}
-
-.titlebar-btn:active {
-  transform: translate(0, 0);
-  filter: drop-shadow(0 0 0 #000);
-  transition: transform 0.05s ease-out, filter 0.05s ease-out;
+  transition: transform 0.16s ease-out, filter 0.16s ease-out;
 }
 
 .titlebar-btn.is-close {
@@ -343,13 +332,14 @@
     gap: 6px;
   }
 
-  .titlebar-beta {
+  .titlebar-beta,
+  #titlebar-center-slot {
     display: none;
   }
 
   .titlebar-tab--file {
-    min-width: 96px;
-    max-width: 160px;
+    min-width: 88px;
+    max-width: 148px;
   }
 
   .titlebar-caption::before,
@@ -360,30 +350,19 @@
 
 @media (max-width: 860px) {
   .titlebar-root {
-    flex-wrap: wrap;
     gap: 10px;
   }
 
   .titlebar-left {
-    width: 100%;
-    flex-wrap: wrap;
+    min-width: 0;
   }
 
   .titlebar-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  #titlebar-center-slot {
-    position: static;
-    transform: none;
-    width: 100%;
-    justify-content: flex-start;
-    pointer-events: auto;
+    margin-left: 0;
   }
 
   .titlebar-tab--file {
-    min-width: 88px;
-    max-width: 132px;
+    min-width: 80px;
+    max-width: 120px;
   }
 }

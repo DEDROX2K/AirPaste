@@ -2,8 +2,10 @@ import { useCallback, useMemo } from "react";
 import {
   addTileToRack,
   canRefreshLinkPreviewCard,
+  createFileCard,
   createLinkPreviewRefreshPatch,
   createLinkCard,
+  FILE_CARD_TYPE,
   getWorkspaceActivePage,
   getRackByTileId,
   isUrl,
@@ -92,6 +94,28 @@ function normalizeExternalUrl(value) {
   } catch {
     return "";
   }
+}
+
+function getPathFileName(value) {
+  const normalized = String(value ?? "").replaceAll("\\", "/").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const segments = normalized.split("/");
+  return segments[segments.length - 1] || "";
+}
+
+function getFileExtensionLabel(fileName, fallbackExtension = "") {
+  const normalizedFallback = String(fallbackExtension ?? "").trim().replace(/^\.+/, "").toLowerCase();
+  const normalizedName = String(fileName ?? "").trim();
+  const lastDotIndex = normalizedName.lastIndexOf(".");
+
+  if (lastDotIndex >= 0 && lastDotIndex < normalizedName.length - 1) {
+    return normalizedName.slice(lastDotIndex + 1).toLowerCase();
+  }
+
+  return normalizedFallback;
 }
 
 async function readClipboardImage(clipboardData) {
@@ -670,6 +694,23 @@ export function useCanvasCommands({
   }, [refreshTilePreview]);
 
   const openTileLink = useCallback(async (tile) => {
+    if (tile?.type === FILE_CARD_TYPE) {
+      const relativePath = tile.file?.relativePath ?? "";
+
+      if (!folderPath || !relativePath) {
+        throw new Error("Invalid file");
+      }
+
+      const item = await desktop.workspace.getItemForFilePath(folderPath, relativePath);
+
+      if (!item?.filePath) {
+        throw new Error("File no longer exists");
+      }
+
+      await desktop.workspace.openFile(item.filePath);
+      return;
+    }
+
     if (!tile?.url) {
       return;
     }
@@ -681,7 +722,7 @@ export function useCanvasCommands({
     }
 
     await desktop.shell.openExternal(externalUrl);
-  }, []);
+  }, [folderPath]);
 
   const pasteFromClipboard = useCallback(async (event) => {
     if (!folderPath) {
@@ -794,6 +835,7 @@ export function useCanvasCommands({
       toast("warn", "Open a folder first.");
       return {
         createdImageCount: 0,
+        createdFileCount: 0,
         createdBookmarkCount: 0,
         rejectedItems: resolvedDrop?.rejectedItems ?? [],
       };
@@ -805,6 +847,7 @@ export function useCanvasCommands({
       toast("error", message);
       return {
         createdImageCount: 0,
+        createdFileCount: 0,
         createdBookmarkCount: 0,
         rejectedItems: resolvedDrop?.rejectedItems ?? [],
       };
@@ -816,6 +859,7 @@ export function useCanvasCommands({
     const createdCards = [];
     const previewQueue = [];
     let createdImageCount = 0;
+    let createdFileCount = 0;
     let createdBookmarkCount = 0;
 
     for (let index = 0; index < acceptedItems.length; index += 1) {
@@ -860,6 +904,42 @@ export function useCanvasCommands({
         continue;
       }
 
+      if (entry.intent === "import-file") {
+        try {
+          const importedFiles = await desktop.workspace.importFiles(folderPath, [entry.item.sourcePath], "");
+          const importedFile = Array.isArray(importedFiles) ? importedFiles[0] : null;
+          const relativePath = importedFile?.path ?? "";
+          const fileName = getPathFileName(importedFile?.filePath || relativePath || entry.item.name) || entry.item.name;
+          const extension = getFileExtensionLabel(fileName, entry.item.extension);
+
+          if (!relativePath) {
+            throw new Error(`Unable to import "${entry.item.name}".`);
+          }
+
+          createdCards.push(createFileCard(workspace.cards.concat(createdCards), workspace.viewport, preferredCenter, {
+            title: fileName,
+            file: {
+              relativePath,
+              fileName,
+              extension,
+              mimeType: entry.item.mimeType,
+              sizeBytes: entry.item.sizeBytes,
+            },
+          }));
+          createdFileCount += 1;
+        } catch (importError) {
+          const detail = importError?.message || `Unable to import "${entry.item.name}".`;
+          rejectedItems.push({
+            item: entry.item,
+            reason: "file-import-failed",
+            detail,
+          });
+          log("error", "File import failed", detail);
+        }
+
+        continue;
+      }
+
       if (entry.intent === "create-bookmark") {
         const tile = createLinkCard(workspace.cards.concat(createdCards), workspace.viewport, entry.item.url, preferredCenter, {
           contentKind: LINK_CONTENT_KIND_BOOKMARK,
@@ -880,11 +960,12 @@ export function useCanvasCommands({
       });
     }
 
-    const successMessage = formatDropSuccessMessage(createdImageCount, createdBookmarkCount);
+    const successMessage = formatDropSuccessMessage(createdImageCount, createdFileCount, createdBookmarkCount);
 
     if (successMessage) {
       log("success", "Drop import completed", {
         createdImageCount,
+        createdFileCount,
         createdBookmarkCount,
       });
       toast("success", successMessage);
@@ -894,11 +975,12 @@ export function useCanvasCommands({
 
     if (rejectionMessage) {
       log("warn", "Drop import completed with rejections", rejectionMessage);
-      toast(createdImageCount + createdBookmarkCount > 0 ? "warn" : "error", rejectionMessage);
+      toast(createdImageCount + createdFileCount + createdBookmarkCount > 0 ? "warn" : "error", rejectionMessage);
     }
 
     return {
       createdImageCount,
+      createdFileCount,
       createdBookmarkCount,
       rejectedItems,
     };

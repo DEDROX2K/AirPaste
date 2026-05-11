@@ -1,4 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+
+@font-face {
+  font-family: "AirPasteHeader";
+  src: url("/fonts/ppneuebit-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
 
 /**
  * AirPaste Design System — tokens.css
@@ -57,7 +65,7 @@
   --ap-info-dark:     #0369A1;
 
   /* ─── Typography: Families ──────────────────────────────────── */
-  --ap-font-display:  "Silkscreen", "Lucida Console", "Courier New", monospace;
+  --ap-font-display:  "AirPasteHeader", "Lucida Console", "Courier New", monospace;
   --ap-font-body:     "VT323", Tahoma, "Segoe UI", "MS Sans Serif", monospace;
   --ap-font-mono:     "VT323", "Lucida Console", Consolas, "Courier New", monospace;
 

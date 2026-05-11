@@ -51,6 +51,7 @@ function clamp(value, min, max) {
 export default function CanvasMiniMap({ canvas, tiles, hidden = false }) {
   const panelRef = useRef(null);
   const draggingRef = useRef(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [viewport, setViewport] = useState(() => canvas.getViewportSnapshot());
   const [containerRect, setContainerRect] = useState(() => canvas.getContainerRectSnapshot());
 
@@ -198,6 +199,16 @@ export default function CanvasMiniMap({ canvas, tiles, hidden = false }) {
 
   return (
     <div className="canvas-minimap" aria-hidden="true">
+      <button
+        type="button"
+        className={`canvas-minimap__toggle${isOpen ? " is-active" : ""}`}
+        onClick={() => setIsOpen((current) => !current)}
+        aria-label={isOpen ? "Hide minimap" : "Show minimap"}
+        title={isOpen ? "Hide minimap" : "Show minimap"}
+      >
+        Map
+      </button>
+      {isOpen ? (
       <div
         ref={panelRef}
         className="canvas-minimap__panel"
@@ -236,6 +247,7 @@ export default function CanvasMiniMap({ canvas, tiles, hidden = false }) {
           />
         </svg>
       </div>
+      ) : null}
     </div>
   );
 }

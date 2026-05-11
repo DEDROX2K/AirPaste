@@ -245,9 +245,6 @@ export function TopTabBar({ usesCustomTitlebar }) {
       }}
     >
       <div className="titlebar-left">
-        <div className="titlebar-brand">
-          <div className="titlebar-caption">AirPaste</div>
-        </div>
         <div className="titlebar-tabs">
           {tabs.map((tab) => (
             <div
@@ -273,7 +270,11 @@ export function TopTabBar({ usesCustomTitlebar }) {
         </div>
       </div>
 
-      <div id="titlebar-center-slot" />
+      <div id="titlebar-center-slot">
+        <div className="titlebar-brand">
+          <div className="titlebar-caption">AirPaste</div>
+        </div>
+      </div>
 
       <div className="titlebar-right">
         <div id="titlebar-right-slot" />

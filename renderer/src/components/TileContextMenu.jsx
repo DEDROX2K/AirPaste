@@ -40,17 +40,19 @@ function ContextMenuItem({ action, isPending, onSelect }) {
     : (action.activeLabel || "");
 
   const className = [
-    "tile-context-menu__item",
-    action.kind === "toggle" ? "tile-context-menu__item--toggle" : "",
-    action.tone === "danger" ? "tile-context-menu__item--danger" : "",
-    action.isDisabled ? "tile-context-menu__item--disabled" : "",
-    isPending ? "tile-context-menu__item--pending" : "",
+    "dropdown-item",
+    "tile-context-menu__action",
+    action.kind === "toggle" ? "tile-context-menu__action--toggle" : "",
+    action.tone === "danger" ? "tile-context-menu__action--danger" : "",
+    action.isDisabled ? "tile-context-menu__action--disabled" : "",
+    isPending ? "tile-context-menu__action--pending" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <AppButton tone="unstyled"
+    <AppButton
+      tone={action.tone === "danger" ? "danger" : "surface"}
       className={className}
       type="button"
       role={action.kind === "toggle" ? "menuitemcheckbox" : "menuitem"}
@@ -62,10 +64,10 @@ function ContextMenuItem({ action, isPending, onSelect }) {
         void onSelect(action);
       }}
     >
-      <span className="tile-context-menu__item-copy">
-        <span className="tile-context-menu__item-label">{action.label}</span>
+      <span className="tile-context-menu__action-copy">
+        <span className="tile-context-menu__action-label">{action.label}</span>
       </span>
-      <span className="tile-context-menu__item-shortcut" aria-hidden="true">
+      <span className="tile-context-menu__action-shortcut" aria-hidden="true">
         {shortcutText}
       </span>
     </AppButton>
@@ -76,7 +78,7 @@ function ContextMenuList({ actions, pendingActionId, onSelect }) {
   const sections = useMemo(() => buildMenuSections(actions), [actions]);
 
   return (
-    <div className="tile-context-menu__sections">
+    <div className="menu-list tile-context-menu__sections">
       {sections.map((section, index) => (
         <div key={section.id} className="tile-context-menu__section" role="group">
           {index > 0 ? <ContextMenuDivider /> : null}
@@ -147,7 +149,7 @@ export default function TileContextMenu({ menu, actions = [], onClose }) {
     >
       <div
         ref={menuRef}
-        className="tile-context-menu"
+        className="menu-card home-entry-menu tile-context-menu"
         role="menu"
         aria-label={menu.kind === "canvas" ? "Canvas actions" : "Tile actions"}
         style={{

@@ -1,10 +1,9 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { Button } from "../button"
 import "./AppPrimitives.css"
 
 const AppButton = React.forwardRef(
-  ({ className, tone = "default", block = false, variant, ...props }, ref) => {
+  ({ className, tone = "default", block = false, variant, size, ...props }, ref) => {
     if (tone === "unstyled") {
       return (
         <button
@@ -15,6 +14,14 @@ const AppButton = React.forwardRef(
       )
     }
 
+    const sizeClassName = size === "sm"
+      ? "ap-ui-button--sm"
+      : size === "lg"
+        ? "ap-ui-button--lg"
+        : size === "icon"
+          ? "ap-ui-button--icon"
+          : "";
+
     if (tone === "surface") {
       return (
         <button
@@ -22,6 +29,7 @@ const AppButton = React.forwardRef(
           className={cn(
             "ap-ui-button ap-ui-button--surface ap-type-label",
             block ? "ap-ui-button--block" : "",
+            sizeClassName,
             className,
           )}
           {...props}
@@ -36,6 +44,7 @@ const AppButton = React.forwardRef(
           className={cn(
             "ap-ui-button ap-ui-button--accent ap-type-label",
             block ? "ap-ui-button--block" : "",
+            sizeClassName,
             className,
           )}
           {...props}
@@ -50,6 +59,7 @@ const AppButton = React.forwardRef(
           className={cn(
             "ap-ui-button ap-ui-button--danger ap-type-label",
             block ? "ap-ui-button--block" : "",
+            sizeClassName,
             className,
           )}
           {...props}
@@ -57,11 +67,24 @@ const AppButton = React.forwardRef(
       )
     }
 
+    const variantClassName = variant === "destructive"
+      ? "ap-ui-button--danger"
+      : variant === "secondary" || variant === "outline"
+        ? "ap-ui-button--surface"
+        : variant === "ghost" || variant === "link"
+          ? "ap-ui-button--ghost"
+          : "";
+
     return (
-      <Button
+      <button
         ref={ref}
-        variant={variant}
-        className={cn("rounded-ap-md transition-all duration-ap-fast ease-ap-smooth", className)}
+        className={cn(
+          "ap-ui-button ap-type-label",
+          variantClassName,
+          block ? "ap-ui-button--block" : "",
+          sizeClassName,
+          className,
+        )}
         {...props}
       />
     )

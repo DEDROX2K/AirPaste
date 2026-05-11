@@ -2,79 +2,100 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--ap-space-2);
+  gap: 8px;
   width: fit-content;
-  min-height: 36px;
-  padding-inline: var(--ap-space-4);
-  padding-block: var(--ap-space-2);
-  border: 2px solid #000000;
-  border-radius: 0;
-  background: #ffffff;
-  color: #000000;
-  font-family: var(--ap-font-display);
+  min-height: 32px;
+  padding-inline: 16px;
+  padding-block: 8px;
+  border: none !important;
+  border-radius: 0 !important;
+  background-color: var(--bg-white, #ffffff);
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  color: var(--bg-black, #000000);
+  box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
+  filter: drop-shadow(0 0 0 #000);
+  font-family: var(--font-retro, var(--ap-font-display));
   font-size: 12px;
   line-height: 1;
   text-transform: uppercase;
-  box-shadow: 4px 4px 0 #000000;
   cursor: pointer;
-  transition: transform var(--ap-transition-fast), box-shadow var(--ap-transition-fast), background-color var(--ap-transition-fast), color var(--ap-transition-fast);
+  image-rendering: pixelated;
+  transition: transform 0.2s ease-out, filter 0.2s ease-out, background-color 0.2s ease-out, color 0.2s ease-out;
 }
 
 .ap-ui-button:hover:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translate(0, -4px);
+  filter: drop-shadow(4px 8px 0 #000);
+  background-color: var(--bg-off-white, #f2f2f2);
 }
 
 .ap-ui-button:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0 #000000;
+  transform: translate(0, 0);
+  filter: drop-shadow(0 0 0 #000);
+  transition: transform 0.05s ease-out, filter 0.05s ease-out;
 }
 
 .ap-ui-button:focus-visible {
-  outline: 2px dotted #000000;
+  outline: 2px solid var(--bg-black, #000);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--bg-active, #000);
 }
 
 .ap-ui-button:disabled {
   cursor: not-allowed;
-  opacity: var(--ap-opacity-disabled);
+  opacity: 0.5;
+  filter: grayscale(1);
 }
 
 .ap-ui-button--block {
   width: 100%;
 }
 
+.ap-ui-button--sm {
+  min-height: 28px;
+  padding-inline: 12px;
+  padding-block: 6px;
+}
+
+.ap-ui-button--lg {
+  min-height: 40px;
+  padding-inline: 20px;
+  padding-block: 10px;
+}
+
+.ap-ui-button--icon {
+  width: 32px;
+  min-width: 32px;
+  padding-inline: 0;
+  justify-content: center;
+}
+
 .ap-ui-button--surface {
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: var(--ap-space-4);
-  min-height: 38px;
-  padding-inline: var(--ap-space-4);
-  padding-block: var(--ap-space-2\.5);
-  border-radius: 0;
-  background: #ffffff;
+  background-color: var(--bg-white, #ffffff);
   text-align: left;
 }
 
 .ap-ui-button--accent {
-  border-color: #000000;
-  background: #000000;
-  color: #ffffff;
+  background-color: var(--bg-active, #000000);
+  color: var(--bg-white, #ffffff);
 }
 
 .ap-ui-button--accent:hover:not(:disabled) {
-  background: #000000;
+  background-color: var(--bg-active, #000000);
 }
 
 .ap-ui-button--accent:active:not(:disabled) {
-  background: #000000;
+  background-color: var(--bg-active, #000000);
 }
 
 .ap-ui-button--danger {
-  border-color: #000000;
   background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
-    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
-  color: #ffffff;
+    var(--shine-gradient, none),
+    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
+  color: var(--bg-white, #ffffff);
   text-shadow:
     1px 1px 0 #000,
     -1px -1px 0 #000,
@@ -84,95 +105,133 @@
 
 .ap-ui-button--danger:hover:not(:disabled) {
   background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
-    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
+    var(--shine-gradient, none),
+    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
 }
 
 .ap-ui-button--danger:active:not(:disabled) {
   background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.3) 46% 54%, transparent 54% 100%),
-    repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
+    var(--shine-gradient, none),
+    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
+}
+
+.ap-ui-button--ghost {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: inset 0 0 0 2px #000;
+}
+
+.ap-ui-button--ghost:hover:not(:disabled) {
+  background-color: var(--bg-off-white, #f2f2f2);
 }
 
 .ap-ui-surface {
-  border: 2px solid #000000;
-  border-radius: 0;
-  background: #b3cc8e;
-  color: #000000;
-  box-shadow: 6px 6px 0 #000000;
+  position: relative;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--bg-black, #000000);
+  box-shadow: none !important;
+  z-index: 1;
   transition:
-    border-color var(--ap-transition-fast),
-    background-color var(--ap-transition-fast),
-    box-shadow var(--ap-transition-fast);
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.ap-ui-surface::before,
+.ap-ui-surface::after {
+  content: "";
+  position: absolute;
+}
+
+.ap-ui-surface::before {
+  inset: 0;
+  background-color: var(--bg-window, #b3cc8e);
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
+  z-index: -1;
+}
+
+.ap-ui-surface::after {
+  inset: -4px;
+  background: var(--checker-shadow, repeating-conic-gradient(#000 0% 25%, transparent 0% 50%) 50% / 8px 8px);
+  clip-path: var(--shadow-clip, polygon(100% 0, 100% 100%, 0 100%, 0 calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) 0));
+  z-index: -2;
 }
 
 .ap-ui-surface--elevated {
-  box-shadow: 8px 8px 0 #000000;
+  transform: translate(0, -2px);
 }
 
 .ap-ui-surface--interactive:hover {
-  border-color: #000000;
-  box-shadow: 8px 10px 0 #000000;
+  transform: translate(0, -4px);
 }
 
 .ap-ui-input {
   width: 100%;
   min-height: 38px;
-  padding-inline: var(--ap-space-3);
-  padding-block: var(--ap-space-2);
-  border: 2px solid #000000;
+  padding-inline: 8px;
+  padding-block: 8px;
+  border: none !important;
   border-radius: 0;
-  background: #ffffff;
-  color: #000000;
-  font-family: var(--ap-font-body);
+  background-color: var(--bg-white, #ffffff);
+  background-image: var(--shine-gradient, none);
+  color: var(--bg-black, #000000);
+  font-family: var(--font-body, var(--ap-font-body));
   font-size: 18px;
   line-height: 1;
-  box-shadow: 4px 4px 0 #000000;
+  box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
   transition:
-    background-color var(--ap-transition-fast),
-    border-color var(--ap-transition-fast),
-    box-shadow var(--ap-transition-fast),
-    outline-color var(--ap-transition-fast);
+    background-color 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    outline-color 0.2s ease-out;
 }
 
 .ap-ui-input::placeholder {
-  color: #4a4a4a;
+  color: rgba(0, 0, 0, 0.4);
 }
 
 .ap-ui-input:hover:not(:disabled) {
-  background: #ffffff;
+  background-color: var(--bg-off-white, #f2f2f2);
 }
 
 .ap-ui-input:focus-visible {
-  outline: 2px dotted #000000;
+  outline: 2px solid var(--bg-black, #000);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--bg-active, #000);
 }
 
 .ap-ui-input:disabled {
   cursor: not-allowed;
-  opacity: var(--ap-opacity-disabled);
+  opacity: 0.5;
+  filter: grayscale(1);
 }
 
 .ap-ui-card-header,
 .ap-ui-card-content,
 .ap-ui-card-footer {
-  padding-inline: var(--ap-space-5);
+  position: relative;
+  z-index: 2;
+  padding-inline: 20px;
 }
 
 .ap-ui-card-header {
   display: flex;
   flex-direction: column;
-  gap: var(--ap-space-1);
-  padding-block: var(--ap-space-5) var(--ap-space-3);
+  gap: 8px;
+  padding-block: 20px 12px;
 }
 
 .ap-ui-card-content {
-  padding-block: var(--ap-space-3) var(--ap-space-5);
+  padding-block: 12px 20px;
 }
 
 .ap-ui-card-footer {
   display: flex;
   align-items: center;
-  gap: var(--ap-space-3);
-  padding-block: var(--ap-space-0) var(--ap-space-5);
+  gap: 12px;
+  padding-block: 0 20px;
 }

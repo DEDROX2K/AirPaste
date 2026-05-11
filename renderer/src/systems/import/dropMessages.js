@@ -13,11 +13,15 @@ export function formatDropRejectionMessage(rejectedItems, maxDetails = 3) {
   return `Some dropped items were rejected. ${details.join(" ")}${suffix}`.trim();
 }
 
-export function formatDropSuccessMessage(createdImageCount, createdBookmarkCount) {
+export function formatDropSuccessMessage(createdImageCount, createdFileCount, createdBookmarkCount) {
   const parts = [];
 
   if (createdImageCount > 0) {
     parts.push(`${createdImageCount} image tile${createdImageCount === 1 ? "" : "s"} imported`);
+  }
+
+  if (createdFileCount > 0) {
+    parts.push(`${createdFileCount} file tile${createdFileCount === 1 ? "" : "s"} imported`);
   }
 
   if (createdBookmarkCount > 0) {

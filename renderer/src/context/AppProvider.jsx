@@ -112,6 +112,7 @@ function areCardsEqual(a, b) {
 
   return areObjectsEqual(a, b)
     && areObjectsEqual(a.asset, b.asset)
+    && areObjectsEqual(a.file, b.file)
     && areObjectsEqual(a.layout?.globe, b.layout?.globe);
 }
 

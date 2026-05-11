@@ -4,6 +4,7 @@ import ChecklistTile from "./ChecklistTile";
 import CodeSnippetTile from "./CodeSnippetTile";
 import CounterTile from "./CounterTile";
 import DeadlineTile from "./DeadlineTile";
+import FileTile from "./FileTile";
 import LinkTile from "./LinkTile";
 import NoteTile from "./NoteTile";
 import ProgressTile from "./ProgressTile";
@@ -13,6 +14,9 @@ import TextBoxTile from "./TextBoxTile";
 import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
+  [TILE_TYPES.FILE]: {
+    Component: FileTile,
+  },
   [TILE_TYPES.LINK]: {
     Component: LinkTile,
   },

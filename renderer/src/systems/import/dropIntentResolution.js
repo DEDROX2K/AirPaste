@@ -3,8 +3,6 @@ import {
   formatBytes,
   isSupportedDroppedImageFile,
   isValidDroppedUrl,
-  SUPPORTED_DROP_IMAGE_EXTENSIONS,
-  SUPPORTED_DROP_IMAGE_MIME_TYPES,
 } from "./dropImportConfig";
 
 function createRejectedItem(item, reason, detail) {
@@ -54,20 +52,11 @@ export function resolveDropIntents(normalizedDrop) {
 
   items.forEach((item) => {
     if (item.payloadKind === "file") {
-      if (!isSupportedDroppedImageFile(item)) {
+      if (item.sizeBytes > DROP_IMPORT_LIMITS.maxBytesPerFile) {
         rejectedItems.push(createRejectedItem(
           item,
-          "unsupported-file-type",
-          `"${item.name}" (${item.mimeType || "unknown type"}, ${formatBytes(item.sizeBytes)}) is not supported. Supported image MIME types: ${SUPPORTED_DROP_IMAGE_MIME_TYPES.join(", ")}. Supported extensions: ${SUPPORTED_DROP_IMAGE_EXTENSIONS.join(", ")}.`,
-        ));
-        return;
-      }
-
-      if (item.sizeBytes > DROP_IMPORT_LIMITS.maxBytesPerImage) {
-        rejectedItems.push(createRejectedItem(
-          item,
-          "image-size-limit",
-          `"${item.name}" (${item.mimeType || "unknown type"}, ${formatBytes(item.sizeBytes)}) exceeds the ${formatBytes(DROP_IMPORT_LIMITS.maxBytesPerImage)} per-image limit.`,
+          "file-size-limit",
+          `"${item.name}" (${item.mimeType || "unknown type"}, ${formatBytes(item.sizeBytes)}) exceeds the ${formatBytes(DROP_IMPORT_LIMITS.maxBytesPerFile)} per-file limit.`,
         ));
         return;
       }
@@ -82,7 +71,7 @@ export function resolveDropIntents(normalizedDrop) {
       }
 
       acceptedItems.push({
-        intent: "import-image",
+        intent: isSupportedDroppedImageFile(item) ? "import-image" : "import-file",
         item,
       });
       return;

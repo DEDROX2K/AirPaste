@@ -331,8 +331,8 @@ function LinkTile({
   const isYouTubeVideoSource = card.sourceType === "youtube" || card.sourceType === "youtube-shorts";
   const isYouTubeVideoUrl = isYouTubeUrl(card.url);
   const isYouTubeLink = isYouTubeVideoSource || isYouTubeVideoUrl;
-  const isPlainVideoLink = isVideoCard && isYouTubeLink;
   const isTwitterLikeLink = isTwitterLikeSource(card);
+  const isSimplifiedVideoLink = isVideoCard && (isYouTubeLink || isTwitterLikeLink);
   const videoAspectRatio = useMemo(
     () => resolveVideoAspectRatio(card, loadedVideoAspectRatio),
     [card, loadedVideoAspectRatio],
@@ -386,8 +386,8 @@ function LinkTile({
     isStickerTile ? "card__surface-frame--sticker" : "",
     isMusicCard ? "card__surface-frame--music" : "",
     isAsciiFallbackActive ? "card__surface-frame--paper-fallback" : "",
-    isVideoCard && !isPlainVideoLink ? "card__surface-frame--video" : "",
-    isVideoCard && !isPlainVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
+    isVideoCard && !isSimplifiedVideoLink ? "card__surface-frame--video" : "",
+    isVideoCard && !isSimplifiedVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
   ]
     .filter(Boolean)
@@ -540,7 +540,7 @@ function LinkTile({
           </button>
         </div>
       )}
-      {isVideoCard && !isPlainVideoLink ? (
+      {isVideoCard && !isSimplifiedVideoLink ? (
         <div className={`card__video card__video--${videoRecipe.key}`}>
           <div className="card__video-media-region">
             <div
@@ -640,9 +640,9 @@ function LinkTile({
         </div>
       ) : shouldRenderImage && !isStickerTile ? (
         <TileImageReveal
-          className={`card__image${isPlainVideoLink ? " card__image--natural" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
-          wrapperClassName={isPlainVideoLink ? "card__image-reveal--natural" : ""}
-          src={isPlainVideoLink ? activeVideoImageSrc : mediaSrc}
+          className={`card__image${isSimplifiedVideoLink ? " card__image--natural" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
+          wrapperClassName={isSimplifiedVideoLink ? "card__image-reveal--natural" : ""}
+          src={isSimplifiedVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
           onError={() => {
@@ -732,7 +732,7 @@ function LinkTile({
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isPlainVideoLink ? " card__surface--video" : ""}${isPlainVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
+              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
               title={linkTitle}
               aria-label={linkTitle}
             >

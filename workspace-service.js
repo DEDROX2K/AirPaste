@@ -525,6 +525,8 @@ function mapScannedItemForResponse(root, item, state) {
     thumbnail: null,
     thumbnailPath: null,
     excerpt: item.excerpt ?? "",
+    pageCount: Number.isFinite(item.pageCount) ? item.pageCount : 0,
+    tileCount: Number.isFinite(item.tileCount) ? item.tileCount : 0,
   };
 }
 
@@ -583,6 +585,11 @@ async function scanWorkspace(folderPath) {
           raw = {};
         }
 
+        const pages = normalizeCanvasPages(raw);
+        const tileCount = pages.reduce((total, page) => (
+          total + (Array.isArray(page?.cards) ? page.cards.length : 0)
+        ), 0);
+
         items.push({
           id: firstString(raw.id, legacyDocumentId(relPath)),
           path: relPath,
@@ -590,6 +597,8 @@ async function scanWorkspace(folderPath) {
           name: firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas"),
           updatedAt: stat.mtime.toISOString(),
           excerpt: "",
+          pageCount: pages.length,
+          tileCount,
         });
         continue;
       }

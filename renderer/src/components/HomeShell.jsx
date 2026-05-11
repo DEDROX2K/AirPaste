@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAppContext } from "../context/useAppContext";
 import {
-  basenameFromRelativePath,
   buildHomeRouteState,
   filterItemsByPreference,
   formatRelativeTime,
@@ -9,14 +9,13 @@ import {
   normalizeHomePreferences,
   sortEntriesByPreference,
 } from "../lib/home";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
+import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
 import "./HomeShellPrototype.css";
 
-const ASSET_BASE_URL = import.meta.env.BASE_URL;
-
-function assetUrl(relativePath) {
-  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
-}
+const HOME_MENU_GAP = 8;
+const HOME_MENU_MIN_WIDTH = 176;
 
 function typeLabel(type) {
   if (type === "folder") return "Folder";
@@ -55,21 +54,75 @@ function itemKey(item) {
   return item.id || item.filePath || item.path || item.name;
 }
 
-function BrowserEntryMenu({ item, onRename, onDelete, onToggleStar, onClose }) {
-  return (
-    <div className="menu-card is-dropdown" role="menu">
+function getHomeMenuPosition(anchorRect, menuWidth, menuHeight) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const openUpward = anchorRect.bottom + HOME_MENU_GAP + menuHeight > viewportHeight - HOME_MENU_GAP
+    && anchorRect.top - HOME_MENU_GAP - menuHeight >= HOME_MENU_GAP;
+
+  const preferredX = anchorRect.right - menuWidth;
+  const preferredY = openUpward
+    ? anchorRect.top - HOME_MENU_GAP - menuHeight
+    : anchorRect.bottom + HOME_MENU_GAP;
+
+  return {
+    x: Math.min(
+      Math.max(HOME_MENU_GAP, preferredX),
+      Math.max(HOME_MENU_GAP, viewportWidth - menuWidth - HOME_MENU_GAP),
+    ),
+    y: Math.min(
+      Math.max(HOME_MENU_GAP, preferredY),
+      Math.max(HOME_MENU_GAP, viewportHeight - menuHeight - HOME_MENU_GAP),
+    ),
+  };
+}
+
+function BrowserEntryMenu({ item, anchorRect, onRename, onDelete, onToggleStar, onClose }) {
+  const portalRoot = typeof document !== "undefined" ? document.body : null;
+  const menuRef = useRef(null);
+  const [position, setPosition] = useState(() => ({
+    x: Math.max(HOME_MENU_GAP, (anchorRect?.right ?? HOME_MENU_GAP) - HOME_MENU_MIN_WIDTH),
+    y: Math.max(HOME_MENU_GAP, (anchorRect?.bottom ?? HOME_MENU_GAP) + HOME_MENU_GAP),
+  }));
+
+  useLayoutEffect(() => {
+    if (!anchorRect || !menuRef.current) {
+      return;
+    }
+
+    const rect = menuRef.current.getBoundingClientRect();
+    setPosition(getHomeMenuPosition(anchorRect, Math.max(HOME_MENU_MIN_WIDTH, rect.width), rect.height));
+  }, [anchorRect, item?.starred]);
+
+  if (!portalRoot || !anchorRect) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="menu-card is-dropdown home-entry-menu"
+      role="menu"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        minWidth: `${HOME_MENU_MIN_WIDTH}px`,
+      }}
+    >
       <div className="menu-list">
-        <button type="button" className="dropdown-item" onClick={() => { onToggleStar(item); onClose(); }}>
+        <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onToggleStar(item); onClose(); }}>
           {item.starred ? "Remove star" : "Add star"}
-        </button>
-        <button type="button" className="dropdown-item" onClick={() => { onRename(item); onClose(); }}>
+        </AppButton>
+        <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onRename(item); onClose(); }}>
           Rename
-        </button>
-        <button type="button" className="dropdown-item ui-button is-danger" onClick={() => { onDelete(item); onClose(); }}>
+        </AppButton>
+        <AppButton type="button" tone="danger" className="dropdown-item browser-entry-menu__action browser-entry-menu__action--danger" onClick={() => { onDelete(item); onClose(); }}>
           Delete
-        </button>
+        </AppButton>
       </div>
-    </div>
+    </div>,
+    portalRoot,
   );
 }
 
@@ -77,24 +130,37 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
   const primaryMeta = item.type !== "folder"
     ? `Edited ${formatRelativeTime(item.updatedAt)}`
     : (item.path || "Workspace root");
-  const secondaryMeta = item.type !== "folder" && item.path
-    ? basenameFromRelativePath(item.path)
-    : "";
+  const menuButtonRef = useRef(null);
+  const stats = [
+    { label: "Tiles", value: Number.isFinite(item.tileCount) ? item.tileCount : 0 },
+    { label: "Pages", value: Number.isFinite(item.pageCount) ? item.pageCount : 0 },
+  ];
+  const anchorRect = menuButtonRef.current?.getBoundingClientRect() ?? null;
 
   if (viewMode === "list") {
     return (
       <div className={`list-row${isActive ? " is-selected" : ""}`}>
         <button type="button" className="list-row-button" onClick={() => onOpen(item)}>
-          <div>
+          <div className="list-row-copy">
             <div className="list-row-title">{item.name}</div>
-            <div className="muted-copy">{secondaryMeta || primaryMeta}</div>
           </div>
         </button>
-        <div className="menu-shell">
-          <button type="button" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</button>
+        <div className="list-row-actions">
+          <div className="list-row-stats" aria-label={`${item.name} stats`}>
+            {stats.map((stat) => (
+              <div key={stat.label} className="list-row-stat">
+                <span className="list-row-stat__value">{stat.value}</span>
+                <span className="list-row-stat__label">{stat.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
+            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
+          </div>
           {menuOpen ? (
             <BrowserEntryMenu
               item={item}
+              anchorRect={anchorRect}
               onRename={onRename}
               onDelete={onDelete}
               onToggleStar={onToggleStar}
@@ -107,47 +173,99 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
   }
 
   return (
-    <article className={`browser-card${isActive ? " is-selected" : ""}`}>
+    <article className={`browser-card${isActive ? " is-selected" : ""}${menuOpen ? " is-menu-open" : ""}`}>
       <button type="button" className="browser-card-button" onClick={() => onOpen(item)}>
-        <div className="browser-card-thumb">
-          {item.type === "canvas" ? <img className="browser-card-thumb-img" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" /> : null}
-        </div>
+        <div className="browser-card-thumb" />
         <div className="browser-card-copy">
           <h4 className="browser-card-title">{item.name}</h4>
           <p className="muted-copy">{primaryMeta}</p>
         </div>
       </button>
       <div className="browser-card-actions">
-        <button type="button" className="ui-button is-flex" onClick={() => onOpen(item)}>Open</button>
-        <div className="menu-shell">
-          <button type="button" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</button>
-          {menuOpen ? (
-            <BrowserEntryMenu
-              item={item}
-              onRename={onRename}
-              onDelete={onDelete}
-              onToggleStar={onToggleStar}
-              onClose={onMenuClose}
-            />
-          ) : null}
+        <AppButton type="button" tone="surface" className="home-card-action is-flex" onClick={() => onOpen(item)}>Open</AppButton>
+        <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
+          <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
         </div>
+        {menuOpen ? (
+          <BrowserEntryMenu
+            item={item}
+            anchorRect={anchorRect}
+            onRename={onRename}
+            onDelete={onDelete}
+            onToggleStar={onToggleStar}
+            onClose={onMenuClose}
+          />
+        ) : null}
       </div>
     </article>
   );
 }
 
-function BrowserEmptyState({ title, description, onNewCanvas, onNewFolder, onImportFiles }) {
+function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
   return (
     <section className="empty-card">
       <div className="eyebrow">Workspace</div>
       <h2 className="dialog-title">{title}</h2>
       <p className="muted-copy">{description}</p>
       <div className="dome-actions">
-        <button type="button" className="ui-button is-primary" onClick={onNewCanvas}>Create Canvas</button>
-        <button type="button" className="ui-button" onClick={onNewFolder}>New Folder</button>
-        <button type="button" className="ui-button" onClick={onImportFiles}>Import Files</button>
+        <AppButton type="button" tone="accent" onClick={onNewCanvas}>Create Canvas</AppButton>
+        <AppButton type="button" tone="surface" onClick={onImportFiles}>Import Files</AppButton>
       </div>
     </section>
+  );
+}
+
+function HomeSidebarContent({
+  searchQuery,
+  onSearchChange,
+  navigation,
+  allCanvasItems,
+  recentCanvasItems,
+  homeData,
+  folderPath,
+  activeDome,
+  onSectionChange,
+  onManageWorkspaces,
+}) {
+  return (
+    <>
+      <div className="sidebar-section">
+        <div className="eyebrow">Search</div>
+        <input
+          className="workspace-search"
+          value={searchQuery}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search folders, canvases, files"
+        />
+      </div>
+
+      <div className="sidebar-section">
+        {["home", "recents", "starred"].map((section) => (
+          <AppButton
+            key={section}
+            type="button"
+            tone="surface"
+            className={`sidebar-link${navigation.selectedSection === section ? " is-active" : ""}`}
+            onClick={() => void onSectionChange(section)}
+          >
+            <span>{section === "home" ? "Home" : sectionLabel(section)}</span>
+            <span className="workspace-badge">
+              {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
+            </span>
+          </AppButton>
+        ))}
+      </div>
+
+      <div className="sidebar-section is-bottom">
+        <div>
+          <h3 className="brand-wordmark">AIR</h3>
+          <p className="sidebar-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
+        </div>
+        <AppButton type="button" tone="surface" className="home-sidebar-action" onClick={onManageWorkspaces}>
+          Manage Workspaces
+        </AppButton>
+      </div>
+    </>
   );
 }
 
@@ -176,8 +294,8 @@ function TextPromptDialog({ open, title, description, confirmLabel, value, disab
           />
         </div>
         <div className="dialog-actions is-padded">
-          <button type="button" className="ui-button" onClick={onCancel}>Cancel</button>
-          <button type="button" className="ui-button is-primary" disabled={disabled} onClick={onConfirm}>{confirmLabel}</button>
+          <AppButton type="button" tone="surface" onClick={onCancel}>Cancel</AppButton>
+          <AppButton type="button" tone="accent" disabled={disabled} onClick={onConfirm}>{confirmLabel}</AppButton>
         </div>
       </div>
     </div>
@@ -197,8 +315,8 @@ function ConfirmDialog({ open, title, description, disabled, onCancel, onConfirm
           <p className="muted-copy">{description}</p>
         </div>
         <div className="dialog-actions is-padded">
-          <button type="button" className="ui-button" onClick={onCancel}>Cancel</button>
-          <button type="button" className="ui-button is-danger" disabled={disabled} onClick={onConfirm}>Delete</button>
+          <AppButton type="button" tone="surface" onClick={onCancel}>Cancel</AppButton>
+          <AppButton type="button" tone="danger" disabled={disabled} onClick={onConfirm}>Delete</AppButton>
         </div>
       </div>
     </div>
@@ -231,9 +349,9 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
                     </div>
                   </div>
                   <div className="dome-actions">
-                    <button type="button" className="ui-button" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</button>
-                    <button type="button" className="ui-button" onClick={() => onRevealDome(dome.path)}>Reveal</button>
-                    <button type="button" className="ui-button is-danger" onClick={() => onRemoveDome(dome.id)}>Remove</button>
+                    <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</AppButton>
+                    <AppButton type="button" tone="surface" onClick={() => onRevealDome(dome.path)}>Reveal</AppButton>
+                    <AppButton type="button" tone="danger" onClick={() => onRemoveDome(dome.id)}>Remove</AppButton>
                   </div>
                 </div>
               ))
@@ -241,10 +359,10 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
           </div>
         </div>
         <div className="dialog-actions is-padded">
-          <button type="button" className="ui-button" onClick={onClose}>Close</button>
-          <button type="button" className="ui-button" onClick={onRefresh}>Refresh</button>
-          <button type="button" className="ui-button" onClick={onCreateNew}>Create New</button>
-          <button type="button" className="ui-button is-primary" onClick={onOpenFolder}>Open Folder</button>
+          <AppButton type="button" tone="surface" onClick={onClose}>Close</AppButton>
+          <AppButton type="button" tone="surface" onClick={onRefresh}>Refresh</AppButton>
+          <AppButton type="button" tone="surface" onClick={onCreateNew}>Create New</AppButton>
+          <AppButton type="button" tone="accent" onClick={onOpenFolder}>Open Folder</AppButton>
         </div>
       </div>
     </div>
@@ -257,6 +375,8 @@ export default function HomeShell() {
   const scrollSaveTimeoutRef = useRef(null);
   const autoSyncRef = useRef("");
   const restoredScrollKeyRef = useRef("");
+  const browserViewMode = "list";
+  const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
   const {
     activeDome,
     createCanvasEntry,
@@ -288,6 +408,7 @@ export default function HomeShell() {
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuKey, setOpenMenuKey] = useState("");
+  const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
 
   useEffect(() => {
@@ -298,8 +419,14 @@ export default function HomeShell() {
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
 
   useEffect(() => {
+    if (!isNarrowDesktop) {
+      setSidebarDrawerOpen(false);
+    }
+  }, [isNarrowDesktop]);
+
+  useEffect(() => {
     const handlePointerDown = (event) => {
-      if (!event.target.closest(".menu-shell")) {
+      if (!event.target.closest(".menu-shell") && !event.target.closest(".home-entry-menu")) {
         setOpenMenuKey("");
       }
     };
@@ -307,6 +434,16 @@ export default function HomeShell() {
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!openMenuKey) {
+      return undefined;
+    }
+
+    const handleViewportChange = () => setOpenMenuKey("");
+    window.addEventListener("resize", handleViewportChange);
+    return () => window.removeEventListener("resize", handleViewportChange);
+  }, [openMenuKey]);
 
   useEffect(() => {
     if (!bodyRef.current) return;
@@ -345,20 +482,27 @@ export default function HomeShell() {
 
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
+    const persistedPreferences = {
+      ...nextPreferences,
+      viewMode: browserViewMode,
+    };
     void saveHomeUiState({
       ...buildHomeRouteState(nextNavigation, nextScrollTop),
-      homeView: nextPreferences.viewMode,
-      sortBy: nextPreferences.sortBy,
-      filter: nextPreferences.filter,
+      homeView: browserViewMode,
+      sortBy: persistedPreferences.sortBy,
+      filter: persistedPreferences.filter,
       selectedSection: nextNavigation.selectedSection,
       ...extraState,
     });
-  }, [homePreferences, saveHomeUiState]);
+  }, [browserViewMode, homePreferences, saveHomeUiState]);
 
   const handleBodyScroll = useCallback(() => {
+    if (openMenuKey) {
+      setOpenMenuKey("");
+    }
     window.clearTimeout(scrollSaveTimeoutRef.current);
     scrollSaveTimeoutRef.current = window.setTimeout(() => persistHomeContext(navigation, homePreferences), 160);
-  }, [homePreferences, navigation, persistHomeContext]);
+  }, [homePreferences, navigation, openMenuKey, persistHomeContext]);
 
   const allCanvasItems = useMemo(
     () => homeData.allFiles.filter((item) => item.type === "canvas"),
@@ -399,12 +543,10 @@ export default function HomeShell() {
     [homePreferences, searchQuery, sectionItems],
   );
 
-  const recentBrowserItems = useMemo(
-    () => recentCanvasItems.slice(0, 3),
-    [recentCanvasItems],
-  );
-
   const handleSectionChange = useCallback(async (selectedSection) => {
+    if (isNarrowDesktop) {
+      setSidebarDrawerOpen(false);
+    }
     const nextNavigation = {
       ...navigation,
       selectedSection,
@@ -415,16 +557,7 @@ export default function HomeShell() {
     if (folderPath) {
       await refreshHomeData(folderPath, nextNavigation.currentFolderPath);
     }
-  }, [folderPath, homePreferences, navigation, persistHomeContext, refreshHomeData]);
-
-  const handlePreferenceChange = useCallback((viewMode) => {
-    const nextPreferences = {
-      ...homePreferences,
-      viewMode,
-    };
-    setHomePreferences(nextPreferences);
-    persistHomeContext(navigation, nextPreferences);
-  }, [homePreferences, navigation, persistHomeContext]);
+  }, [folderPath, homePreferences, isNarrowDesktop, navigation, persistHomeContext, refreshHomeData]);
 
   async function submitCreate(type) {
     const name = textDialog?.value?.trim();
@@ -450,6 +583,15 @@ export default function HomeShell() {
 
   function openCreateDialog(type, value) {
     setTextDialog({ type, value });
+  }
+
+  async function handleOpenEntry(entry) {
+    if (isNarrowDesktop) {
+      setSidebarDrawerOpen(false);
+    }
+
+    await openHomeItem(entry);
+    persistHomeContext(navigation, homePreferences, null, { lastOpenedItemPath: entry.path });
   }
 
   function describeEmptyState() {
@@ -481,89 +623,39 @@ export default function HomeShell() {
 
   return (
     <main ref={shellRef} className="home-shell">
-      <aside className="home-sidebar">
-        <div className="brand-lockup">
-          <div className="brand-status">NEW ADMIN DETECTED:</div>
-          <div className="brand-card">
-            <div className="brand-card-bar" />
-            <div className="brand-card-main">
-              <div className="brand-user">KILL3R_US3R_2K22</div>
-              <div className="brand-ip">IP 124.121.57.522</div>
-            </div>
-          </div>
-          <div className="brand-footer">
-            <div className="brand-footer-stripes" />
-            <div className="brand-footer-text">//// VESPA PROJECT ////</div>
-            <div className="brand-footer-stripes" />
-          </div>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="eyebrow">Search</div>
-          <input
-            className="workspace-search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search folders, canvases, files"
+      {!isNarrowDesktop ? (
+        <aside className="home-sidebar">
+          <HomeSidebarContent
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            navigation={navigation}
+            allCanvasItems={allCanvasItems}
+            recentCanvasItems={recentCanvasItems}
+            homeData={homeData}
+            folderPath={folderPath}
+            activeDome={activeDome}
+            onSectionChange={handleSectionChange}
+            onManageWorkspaces={() => setManageDomesOpen(true)}
           />
-        </div>
-
-        <div className="sidebar-section">
-          {["home", "recents", "starred"].map((section) => (
-            <button
-              key={section}
-              type="button"
-              className={`sidebar-link${navigation.selectedSection === section ? " is-active" : ""}`}
-              onClick={() => void handleSectionChange(section)}
-            >
-              <span>{section === "home" ? "Home" : sectionLabel(section)}</span>
-              <span className="workspace-badge">
-                {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="sidebar-section is-bottom">
-          <div>
-            <h3 className="brand-wordmark">AIR</h3>
-            <p className="sidebar-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
-          </div>
-          <button type="button" className="ui-button" onClick={() => setManageDomesOpen(true)}>
-            Manage Workspaces
-          </button>
-        </div>
-      </aside>
+        </aside>
+      ) : null}
 
       <section className="workspace-main">
         <div className="home-toolbar-shell">
-          <div className="toolbar-cluster">
-            <div className="eyebrow is-clean">View</div>
-            <div className="toolbar-view-toggle">
-              <button
-                type="button"
-                className={`toolbar-view-button${homePreferences.viewMode === "grid" ? " is-active" : ""}`}
-                onClick={() => handlePreferenceChange("grid")}
-              >
-                Grid
-              </button>
-              <button
-                type="button"
-                className={`toolbar-view-button${homePreferences.viewMode === "list" ? " is-active" : ""}`}
-                onClick={() => handlePreferenceChange("list")}
-              >
-                List
-              </button>
-            </div>
-          </div>
-          <div className="toolbar-cluster">
-            <button type="button" className="ui-button" disabled={!hasWorkspace} onClick={() => openCreateDialog("folder", "New Folder")}>New Folder</button>
-            <button type="button" className="ui-button is-primary" disabled={!hasWorkspace} onClick={() => openCreateDialog("canvas", "Canvas")}>Create Canvas</button>
-            {showDeveloperQaActions ? (
-              <button type="button" className="ui-button" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</button>
+          <div className="toolbar-cluster toolbar-cluster--primary">
+            {isNarrowDesktop ? (
+              <AppButton type="button" tone="surface" className="home-sidebar-trigger" onClick={() => setSidebarDrawerOpen(true)}>
+                Menu
+              </AppButton>
             ) : null}
-            <button type="button" className="ui-button" disabled={!hasWorkspace} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>Import Files</button>
-            <button type="button" className="ui-button" disabled={!folderPath || folderLoading} onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}>More</button>
+            <AppButton type="button" tone="accent" disabled={!hasWorkspace} onClick={() => openCreateDialog("canvas", "Canvas")}>Create Canvas</AppButton>
+          </div>
+          <div className="toolbar-cluster toolbar-cluster--secondary">
+            {showDeveloperQaActions ? (
+              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</AppButton>
+            ) : null}
+            <AppButton type="button" tone="surface" disabled={!hasWorkspace} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>Import Files</AppButton>
+            <AppButton type="button" tone="surface" disabled={!folderPath || folderLoading} onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}>More</AppButton>
           </div>
         </div>
 
@@ -573,7 +665,6 @@ export default function HomeShell() {
               title={activeDome?.name || "No Workspace Loaded"}
               description="Open a folder-backed workspace to browse nested folders, canvases, and imported files."
               onNewCanvas={() => openCreateDialog("canvas", "Canvas")}
-              onNewFolder={() => openCreateDialog("folder", "New Folder")}
               onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
             />
           ) : browserItems.length === 0 ? (
@@ -581,7 +672,6 @@ export default function HomeShell() {
               title={emptyState.title}
               description={emptyState.description}
               onNewCanvas={() => openCreateDialog("canvas", "Canvas")}
-              onNewFolder={() => openCreateDialog("folder", "New Folder")}
               onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
             />
           ) : (
@@ -591,17 +681,17 @@ export default function HomeShell() {
                   <h3 className="panel-title">{sectionLabel(navigation.selectedSection)}</h3>
                   <div className="eyebrow is-clean">{browserItems.length} Items</div>
                 </div>
-                <div className={`home-browser-${homePreferences.viewMode}`}>
+                <div className={`home-browser-${browserViewMode}`}>
                   {browserItems.map((item) => (
                     <BrowserCard
                       key={itemKey(item)}
                       item={item}
-                      viewMode={homePreferences.viewMode}
+                      viewMode={browserViewMode}
                       isActive={item.path === activeItemPath}
                       menuOpen={openMenuKey === itemKey(item)}
                       onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
                       onMenuClose={() => setOpenMenuKey("")}
-                      onOpen={(entry) => void openHomeItem(entry)}
+                      onOpen={(entry) => void handleOpenEntry(entry)}
                       onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
                       onDelete={(entry) => setConfirmDialog({ target: entry })}
                       onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
@@ -609,36 +699,32 @@ export default function HomeShell() {
                   ))}
                 </div>
               </section>
-
-              {recentBrowserItems.length > 0 ? (
-                <section className="browser-panel">
-                  <div className="browser-panel-header">
-                    <h3 className="panel-title">Recent Canvases</h3>
-                    <div className="eyebrow is-clean">List Browser</div>
-                  </div>
-                  <div className="home-browser-list">
-                    {recentBrowserItems.map((item, index) => (
-                      <BrowserCard
-                        key={`recent-${itemKey(item)}`}
-                        item={item}
-                        viewMode="list"
-                        isActive={index === 0}
-                        menuOpen={openMenuKey === `recent-${itemKey(item)}`}
-                        onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
-                        onMenuClose={() => setOpenMenuKey("")}
-                        onOpen={(entry) => void openHomeItem(entry)}
-                        onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
-                        onDelete={(entry) => setConfirmDialog({ target: entry })}
-                        onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
             </>
           )}
         </div>
       </section>
+
+      {isNarrowDesktop ? (
+        <AppSheet open={sidebarDrawerOpen} onOpenChange={setSidebarDrawerOpen}>
+          <AppSheetContent side="left" className="home-sidebar home-sidebar--drawer">
+            <HomeSidebarContent
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              navigation={navigation}
+              allCanvasItems={allCanvasItems}
+              recentCanvasItems={recentCanvasItems}
+              homeData={homeData}
+              folderPath={folderPath}
+              activeDome={activeDome}
+              onSectionChange={handleSectionChange}
+              onManageWorkspaces={() => {
+                setSidebarDrawerOpen(false);
+                setManageDomesOpen(true);
+              }}
+            />
+          </AppSheetContent>
+        </AppSheet>
+      ) : null}
 
       <TextPromptDialog
         open={Boolean(textDialog)}

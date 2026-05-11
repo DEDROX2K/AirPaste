@@ -6,7 +6,7 @@ function normalizeDroppedFile(fileEntry, index) {
     id: `drop-file-${index}`,
     payloadKind: "file",
     sourceKind: "local-file",
-    name: typeof file?.name === "string" ? file.name : `image-${index + 1}`,
+    name: typeof file?.name === "string" ? file.name : `file-${index + 1}`,
     mimeType: typeof file?.type === "string" ? file.type.toLowerCase() : "",
     extension: getFileExtension(file?.name),
     sizeBytes: Number.isFinite(file?.size) ? Math.max(0, file.size) : 0,

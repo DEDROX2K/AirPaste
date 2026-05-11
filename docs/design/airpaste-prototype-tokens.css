@@ -1,6 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+@font-face {
+  font-family: "AirPasteHeader";
+  src: url("/fonts/ppneuebit-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
-  --ap-proto-font-retro: 'Silkscreen', monospace;
-  --ap-proto-font-body: 'VT323', monospace;
+  --ap-proto-font-retro: "AirPasteHeader", monospace;
+  --ap-proto-font-body: "VT323", monospace;
 
   --ap-proto-bg-desktop: #5f6671;
   --ap-proto-bg-window: #d4d4d4;

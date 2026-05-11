@@ -6,6 +6,7 @@ import { LogProvider } from "./context/LogProvider";
 import { TabProvider } from "./context/TabProvider";
 import { ToastProvider } from "./context/ToastProvider";
 import "./index.css";
+import "../../docs/design/airpaste-design-system.css";
 import "./design/index.css";
 import "./styles.css";
 

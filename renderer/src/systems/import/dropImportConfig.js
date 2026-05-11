@@ -1,7 +1,7 @@
 export const DROP_IMPORT_LIMITS = Object.freeze({
   maxItemsPerDrop: 32,
-  maxBytesPerImage: 32 * 1024 * 1024,
-  maxTotalBytesPerDrop: 128 * 1024 * 1024,
+  maxBytesPerFile: 200 * 1024 * 1024,
+  maxTotalBytesPerDrop: 200 * 1024 * 1024,
 });
 
 export const SUPPORTED_DROP_IMAGE_MIME_TYPES = Object.freeze([

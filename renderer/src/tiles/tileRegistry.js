@@ -4,6 +4,7 @@ import ChecklistTile from "../components/tiles/ChecklistTile";
 import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
 import CounterTile from "../components/tiles/CounterTile";
 import DeadlineTile from "../components/tiles/DeadlineTile";
+import FileTile from "../components/tiles/FileTile";
 import LinkTile from "../components/tiles/LinkTile";
 import NoteTile from "../components/tiles/NoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
@@ -28,6 +29,23 @@ const Model3DTile = createPlaceholderTile("3D Model");
 const PhysicsItemTile = createPlaceholderTile("Physics Item");
 
 const tileRegistry = {
+  [TILE_TYPES.FILE]: {
+    type: TILE_TYPES.FILE,
+    displayName: "File Tile",
+    status: "stable",
+    component: FileTile,
+    defaultSize: { width: 344, height: 436 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: false,
+      editable: false,
+      container: false,
+      navigation: true,
+      physics: false,
+      lazy: false,
+    },
+  },
   [TILE_TYPES.LINK]: {
     type: TILE_TYPES.LINK,
     displayName: "Link Tile",

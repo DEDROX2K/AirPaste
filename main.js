@@ -56,6 +56,7 @@ const MUSIC_HOSTS = Object.freeze([
 const NOTE_FOLDER_CARD_TYPE = "note-folder";
 const FOLDER_CARD_TYPE = "folder";
 const RACK_CARD_TYPE = "rack";
+const FILE_CARD_TYPE = "file";
 const AMAZON_PRODUCT_CARD_TYPE = "amazon-product";
 const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
@@ -262,6 +263,10 @@ function normalizeExternalUrl(value) {
 }
 
 function defaultCardSize(type) {
+  if (type === FILE_CARD_TYPE) {
+    return { width: 344, height: 436 };
+  }
+
   if (type === "link") {
     return { width: 340, height: 280 };
   }
@@ -298,6 +303,10 @@ function firstString(...values) {
 }
 
 function getCardType(card) {
+  if (card?.type === FILE_CARD_TYPE) {
+    return FILE_CARD_TYPE;
+  }
+
   if (card?.type === "link") {
     return "link";
   }
@@ -358,6 +367,37 @@ function normalizeLinkAsset(asset) {
   };
 }
 
+function normalizeFileExtension(value) {
+  return typeof value === "string" ? value.trim().replace(/^\.+/, "").toLowerCase() : "";
+}
+
+function normalizeFileAttachment(file) {
+  if (!file || typeof file !== "object") {
+    return null;
+  }
+
+  const relativePath = typeof file.relativePath === "string" ? file.relativePath.trim() : "";
+
+  if (!relativePath) {
+    return null;
+  }
+
+  const fileName = typeof file.fileName === "string" ? file.fileName.trim() : "";
+  const extension = normalizeFileExtension(
+    typeof file.extension === "string" && file.extension.trim().length > 0
+      ? file.extension
+      : fileName.split(".").pop(),
+  );
+
+  return {
+    relativePath,
+    fileName,
+    extension,
+    mimeType: typeof file.mimeType === "string" ? file.mimeType : "",
+    sizeBytes: Number.isFinite(file.sizeBytes) ? Math.max(0, file.sizeBytes) : 0,
+  };
+}
+
 function normalizePreviewDiagnostics(previewDiagnostics) {
   if (!previewDiagnostics || typeof previewDiagnostics !== "object" || Array.isArray(previewDiagnostics)) {
     return null;
@@ -414,6 +454,7 @@ function normalizeCard(card, index = 0) {
   const type = getCardType(card);
   const isLinkLikeCard = isLinkLikeCardType(type);
   const linkAsset = type === "link" ? normalizeLinkAsset(card?.asset) : null;
+  const file = type === FILE_CARD_TYPE ? normalizeFileAttachment(card?.file) : null;
   const contentKind = isLinkLikeCard
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
@@ -453,6 +494,8 @@ function normalizeCard(card, index = 0) {
     contentKind,
     title: isLinkLikeCard
       ? String(card?.title ?? "")
+      : type === FILE_CARD_TYPE
+        ? firstString(card?.title, file?.fileName, "Untitled file")
       : type === RACK_CARD_TYPE
         ? firstString(card?.title, "Rack")
         : type === FOLDER_CARD_TYPE
@@ -489,6 +532,7 @@ function normalizeCard(card, index = 0) {
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
     asset: type === "link" ? linkAsset : null,
+    file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
     productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",

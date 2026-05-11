@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   AppButton,
+  AppSheet,
+  AppSheetContent,
   AppTooltip,
   AppTooltipContent,
   AppTooltipProvider,
@@ -39,6 +41,16 @@ function IconCanvas() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="4" y="4" width="16" height="16" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 9.5h8M8 14.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPanel() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.5" y="4" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M13 8h4M13 12h4M13 16h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -85,6 +97,9 @@ function PageListItem({
       aria-label={page.name}
       title={collapsed ? page.name : undefined}
     >
+      <span className="left-pages-panel__item-icon" aria-hidden="true">
+        <IconCanvas />
+      </span>
       <span className="left-pages-panel__item-copy">
         {isEditing ? (
           <input
@@ -138,7 +153,114 @@ function PageListItem({
   );
 }
 
-export default function LeftPagesPanel() {
+function PagesPanelContent({
+  collapsed,
+  pages,
+  activePageId,
+  editingPageId,
+  draftName,
+  draggedPageId,
+  dropIndicator,
+  onCreatePage,
+  onToggleCollapsed,
+  onSelectPage,
+  onStartRename,
+  onDraftNameChange,
+  onCommitRename,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDrop,
+}) {
+  return (
+    <>
+      <div className="left-pages-panel__header">
+        {!collapsed ? <h2 className="left-pages-panel__title">Pages</h2> : <span className="left-pages-panel__title-spacer" aria-hidden="true" />}
+
+        <div className="left-pages-panel__header-actions">
+          {onCreatePage ? (
+            <AppTooltip>
+              <AppTooltipTrigger asChild>
+                <AppButton
+                  type="button"
+                  tone="unstyled"
+                  className="left-pages-panel__icon-button"
+                  onClick={onCreatePage}
+                  aria-label="Create page"
+                  title="Create page"
+                >
+                  <IconAdd />
+                </AppButton>
+              </AppTooltipTrigger>
+              {collapsed ? <AppTooltipContent side="right">Create page</AppTooltipContent> : null}
+            </AppTooltip>
+          ) : null}
+
+          {onToggleCollapsed ? (
+            <AppTooltip>
+              <AppTooltipTrigger asChild>
+                <AppButton
+                  type="button"
+                  tone="unstyled"
+                  className="left-pages-panel__icon-button"
+                  onClick={onToggleCollapsed}
+                  aria-label={collapsed ? "Expand pages panel" : "Collapse pages panel"}
+                  title={collapsed ? "Expand pages panel" : "Collapse pages panel"}
+                >
+                  <IconSidebarToggle collapsed={collapsed} />
+                </AppButton>
+              </AppTooltipTrigger>
+              {collapsed ? (
+                <AppTooltipContent side="right">Expand pages panel</AppTooltipContent>
+              ) : null}
+            </AppTooltip>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="left-pages-panel__body">
+        {pages.length > 0 ? (
+          <nav className="left-pages-panel__list" aria-label="Canvas pages">
+            {pages.map((page) => (
+              <PageListItem
+                key={page.id}
+                page={page}
+                collapsed={collapsed}
+                isActive={page.id === activePageId}
+                isEditing={editingPageId === page.id}
+                isDragged={draggedPageId === page.id}
+                dropIndicatorPosition={dropIndicator?.pageId === page.id && draggedPageId !== page.id ? dropIndicator.position : null}
+                draftName={editingPageId === page.id ? draftName : page.name}
+                onSelect={() => onSelectPage(page.id)}
+                onStartRename={() => onStartRename(page)}
+                onDraftNameChange={onDraftNameChange}
+                onCommitRename={onCommitRename}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragEnd={onDragEnd}
+                onDrop={onDrop}
+              />
+            ))}
+          </nav>
+        ) : (
+          <div className="left-pages-panel__empty" aria-live="polite">
+            <span className="left-pages-panel__empty-icon" aria-hidden="true">
+              <IconCanvas />
+            </span>
+            {!collapsed ? (
+              <>
+                <p className="left-pages-panel__empty-title">No pages yet</p>
+                <p className="left-pages-panel__empty-copy">Create a page to start organizing this canvas document.</p>
+              </>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function LeftPagesPanel({ isNarrowDesktop = false }) {
   const {
     workspace,
     createCanvasPage,
@@ -151,6 +273,7 @@ export default function LeftPagesPanel() {
   const [draftName, setDraftName] = useState("");
   const [draggedPageId, setDraggedPageId] = useState(null);
   const [dropIndicator, setDropIndicator] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -169,12 +292,16 @@ export default function LeftPagesPanel() {
       return;
     }
 
+    if (isNarrowDesktop) {
+      return;
+    }
+
     try {
       window.localStorage.setItem(PANEL_COLLAPSED_STORAGE_KEY, String(collapsed));
     } catch {
       // Ignore persistence failures.
     }
-  }, [collapsed]);
+  }, [collapsed, isNarrowDesktop]);
 
   const pages = useMemo(() => workspace?.pages ?? [], [workspace?.pages]);
   const activePageId = workspace?.activePageId ?? null;
@@ -190,6 +317,22 @@ export default function LeftPagesPanel() {
       setDraftName("");
     }
   }, [editingPageId, pages]);
+
+  useEffect(() => {
+    if (!isNarrowDesktop) {
+      setDrawerOpen(false);
+      return;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setDrawerOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isNarrowDesktop]);
 
   function handleCreatePage() {
     if (!createCanvasPage) {
@@ -217,6 +360,19 @@ export default function LeftPagesPanel() {
 
     setEditingPageId(null);
     setDraftName("");
+  }
+
+  function handleToggleCollapsed() {
+    if (isNarrowDesktop) {
+      setDrawerOpen((current) => !current);
+      return;
+    }
+
+    if (editingPageId) {
+      handleCommitRename(true);
+    }
+
+    setCollapsed((current) => !current);
   }
 
   function handleDragStart(event, pageId) {
@@ -280,23 +436,46 @@ export default function LeftPagesPanel() {
     handleDragEnd();
   }
 
-  return (
-    <AppTooltipProvider delayDuration={120}>
-      <aside
-        className={`left-pages-panel${collapsed ? " left-pages-panel--collapsed" : ""}`}
-        aria-label="Pages"
-      >
-        <div className="left-pages-panel__header">
-          {!collapsed ? <h2 className="left-pages-panel__title">Pages</h2> : <span className="left-pages-panel__title-spacer" aria-hidden="true" />}
+  function handleSelectPage(pageId) {
+    if (editingPageId && editingPageId !== pageId) {
+      handleCommitRename(false);
+    }
 
-          <div className="left-pages-panel__header-actions">
+    setActiveCanvasPage?.(pageId);
+
+    if (isNarrowDesktop) {
+      setDrawerOpen(false);
+    }
+  }
+
+  if (isNarrowDesktop) {
+    return (
+      <AppTooltipProvider delayDuration={120}>
+        <>
+          <aside className="left-pages-rail" aria-label="Pages panel controls">
+            <AppTooltip>
+              <AppTooltipTrigger asChild>
+                <AppButton
+                  type="button"
+                  tone="unstyled"
+                  className="left-pages-panel__icon-button left-pages-rail__button"
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label="Open pages panel"
+                  title="Open pages panel"
+                >
+                  <IconPanel />
+                </AppButton>
+              </AppTooltipTrigger>
+              <AppTooltipContent side="right">Pages</AppTooltipContent>
+            </AppTooltip>
+
             {createCanvasPage ? (
               <AppTooltip>
                 <AppTooltipTrigger asChild>
                   <AppButton
                     type="button"
                     tone="unstyled"
-                    className="left-pages-panel__icon-button"
+                    className="left-pages-panel__icon-button left-pages-rail__button"
                     onClick={handleCreatePage}
                     aria-label="Create page"
                     title="Create page"
@@ -304,73 +483,64 @@ export default function LeftPagesPanel() {
                     <IconAdd />
                   </AppButton>
                 </AppTooltipTrigger>
-                {collapsed ? <AppTooltipContent side="right">Create page</AppTooltipContent> : null}
+                <AppTooltipContent side="right">Create page</AppTooltipContent>
               </AppTooltip>
             ) : null}
+          </aside>
 
-            <AppTooltip>
-              <AppTooltipTrigger asChild>
-                <AppButton
-                  type="button"
-                  tone="unstyled"
-                  className="left-pages-panel__icon-button"
-                  onClick={() => setCollapsed((current) => !current)}
-                  aria-label={collapsed ? "Expand pages panel" : "Collapse pages panel"}
-                  title={collapsed ? "Expand pages panel" : "Collapse pages panel"}
-                >
-                  <IconSidebarToggle collapsed={collapsed} />
-                </AppButton>
-              </AppTooltipTrigger>
-              {collapsed ? (
-                <AppTooltipContent side="right">Expand pages panel</AppTooltipContent>
-              ) : null}
-            </AppTooltip>
-          </div>
-        </div>
+          <AppSheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <AppSheetContent side="left" className="left-pages-panel left-pages-panel--drawer">
+              <PagesPanelContent
+                collapsed={false}
+                pages={pages}
+                activePageId={activePageId}
+                editingPageId={editingPageId}
+                draftName={draftName}
+                draggedPageId={draggedPageId}
+                dropIndicator={dropIndicator}
+                onCreatePage={createCanvasPage ? handleCreatePage : null}
+                onToggleCollapsed={() => setDrawerOpen(false)}
+                onSelectPage={handleSelectPage}
+                onStartRename={handleStartRename}
+                onDraftNameChange={setDraftName}
+                onCommitRename={handleCommitRename}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDrop={handleDrop}
+              />
+            </AppSheetContent>
+          </AppSheet>
+        </>
+      </AppTooltipProvider>
+    );
+  }
 
-        <div className="left-pages-panel__body">
-          {pages.length > 0 ? (
-            <nav className="left-pages-panel__list" aria-label="Canvas pages">
-              {pages.map((page) => (
-                <PageListItem
-                  key={page.id}
-                  page={page}
-                  collapsed={collapsed}
-                  isActive={page.id === activePageId}
-                  isEditing={editingPageId === page.id}
-                  isDragged={draggedPageId === page.id}
-                  dropIndicatorPosition={dropIndicator?.pageId === page.id && draggedPageId !== page.id ? dropIndicator.position : null}
-                  draftName={editingPageId === page.id ? draftName : page.name}
-                  onSelect={() => {
-                    if (editingPageId && editingPageId !== page.id) {
-                      handleCommitRename(false);
-                    }
-                    setActiveCanvasPage?.(page.id);
-                  }}
-                  onStartRename={() => handleStartRename(page)}
-                  onDraftNameChange={setDraftName}
-                  onCommitRename={handleCommitRename}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                  onDrop={handleDrop}
-                />
-              ))}
-            </nav>
-          ) : (
-            <div className="left-pages-panel__empty" aria-live="polite">
-              <span className="left-pages-panel__empty-icon" aria-hidden="true">
-                <IconCanvas />
-              </span>
-              {!collapsed ? (
-                <>
-                  <p className="left-pages-panel__empty-title">No pages yet</p>
-                  <p className="left-pages-panel__empty-copy">Create a page to start organizing this canvas document.</p>
-                </>
-              ) : null}
-            </div>
-          )}
-        </div>
+  return (
+    <AppTooltipProvider delayDuration={120}>
+      <aside
+        className={`left-pages-panel${collapsed ? " left-pages-panel--collapsed" : ""}`}
+        aria-label="Pages"
+      >
+        <PagesPanelContent
+          collapsed={collapsed}
+          pages={pages}
+          activePageId={activePageId}
+          editingPageId={editingPageId}
+          draftName={draftName}
+          draggedPageId={draggedPageId}
+          dropIndicator={dropIndicator}
+          onCreatePage={createCanvasPage ? handleCreatePage : null}
+          onToggleCollapsed={handleToggleCollapsed}
+          onSelectPage={handleSelectPage}
+          onStartRename={handleStartRename}
+          onDraftNameChange={setDraftName}
+          onCommitRename={handleCommitRename}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDrop={handleDrop}
+        />
       </aside>
     </AppTooltipProvider>
   );

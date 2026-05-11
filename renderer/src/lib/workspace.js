@@ -18,6 +18,7 @@ import {
 } from "./textBoxStyle";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
+export const FILE_CARD_TYPE = TILE_TYPES.FILE;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
 export const CALENDAR_CARD_TYPE = TILE_TYPES.CALENDAR;
 export const CHECKLIST_CARD_TYPE = TILE_TYPES.CHECKLIST;
@@ -30,7 +31,7 @@ export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const TEXT_BOX_CARD_TYPE = TILE_TYPES.TEXT_BOX;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 16;
+export const WORKSPACE_SCHEMA_VERSION = 17;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -53,6 +54,11 @@ const DEFAULT_VIEWPORT = Object.freeze({
 const LINK_CARD_SIZE = Object.freeze({
   width: 340,
   height: 280,
+});
+
+const FILE_CARD_SIZE = Object.freeze({
+  width: 344,
+  height: 436,
 });
 
 const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
@@ -119,6 +125,7 @@ const RACK_CARD_SIZE = Object.freeze({
 });
 
 const RACK_DEFAULT_TITLE = "Rack";
+const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const CHECKLIST_DEFAULT_TITLE = "Checklist";
 const CALENDAR_DEFAULT_TITLE = "Calendar";
@@ -205,6 +212,10 @@ function firstString(...values) {
 }
 
 function getCardType(card) {
+  if (card?.type === FILE_CARD_TYPE) {
+    return FILE_CARD_TYPE;
+  }
+
   if (card?.type === TILE_TYPES.LINK) {
     return TILE_TYPES.LINK;
   }
@@ -286,6 +297,37 @@ function normalizeLinkAsset(asset) {
     sizeBytes: Number.isFinite(asset.sizeBytes) ? Math.max(0, asset.sizeBytes) : 0,
     width: Number.isFinite(asset.width) ? Math.max(0, asset.width) : 0,
     height: Number.isFinite(asset.height) ? Math.max(0, asset.height) : 0,
+  };
+}
+
+function normalizeFileExtension(value) {
+  return typeof value === "string" ? value.trim().replace(/^\.+/, "").toLowerCase() : "";
+}
+
+function normalizeFileAttachment(file) {
+  if (!file || typeof file !== "object") {
+    return null;
+  }
+
+  const relativePath = typeof file.relativePath === "string" ? file.relativePath.trim() : "";
+
+  if (!relativePath) {
+    return null;
+  }
+
+  const fileName = typeof file.fileName === "string" ? file.fileName.trim() : "";
+  const extension = normalizeFileExtension(
+    typeof file.extension === "string" && file.extension.trim().length > 0
+      ? file.extension
+      : fileName.split(".").pop(),
+  );
+
+  return {
+    relativePath,
+    fileName,
+    extension,
+    mimeType: typeof file.mimeType === "string" ? file.mimeType : "",
+    sizeBytes: Number.isFinite(file.sizeBytes) ? Math.max(0, file.sizeBytes) : 0,
   };
 }
 
@@ -529,6 +571,10 @@ function normalizeLegacyFolderChildLayouts(childIds, childLayouts) {
 }
 
 function getCardSize(type) {
+  if (type === FILE_CARD_TYPE) {
+    return FILE_CARD_SIZE;
+  }
+
   if (type === TILE_TYPES.LINK) {
     return LINK_CARD_SIZE;
   }
@@ -1012,6 +1058,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
 
   const isLinkLikeCard = isLinkLikeType(type);
   const linkAsset = type === TILE_TYPES.LINK ? normalizeLinkAsset(card?.asset) : null;
+  const file = type === FILE_CARD_TYPE ? normalizeFileAttachment(card?.file) : null;
   const contentKind = isLinkLikeCard
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
@@ -1068,6 +1115,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
     contentKind,
     title: isLinkLikeCard
       ? String(card?.title ?? "")
+      : type === FILE_CARD_TYPE
+        ? firstString(card?.title, file?.fileName, FILE_DEFAULT_TITLE)
       : type === CALENDAR_CARD_TYPE
         ? firstString(card?.title, CALENDAR_DEFAULT_TITLE)
       : type === CHECKLIST_CARD_TYPE
@@ -1143,6 +1192,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
+    file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
     productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",
@@ -1678,6 +1728,25 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
   });
 }
 
+export function createFileCard(cards, viewport, preferredCenter = null, options = {}) {
+  const position = getNextCardPosition(cards, viewport, FILE_CARD_TYPE, preferredCenter);
+  const timestamp = nowIso();
+  const file = normalizeFileAttachment(options?.file);
+
+  return normalizeCard({
+    id: crypto.randomUUID(),
+    type: FILE_CARD_TYPE,
+    title: firstString(options?.title, file?.fileName, FILE_DEFAULT_TITLE),
+    file,
+    x: position.x,
+    y: position.y,
+    width: Number.isFinite(options?.width) ? options.width : position.width,
+    height: Number.isFinite(options?.height) ? options.height : position.height,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
   const type = options?.type === AMAZON_PRODUCT_CARD_TYPE ? AMAZON_PRODUCT_CARD_TYPE : TILE_TYPES.LINK;
   const position = getNextCardPosition(cards, viewport, type, preferredCenter);
@@ -2054,6 +2123,22 @@ export function isEditableElement(element) {
 }
 
 export function formatCardSubtitle(card) {
+  if (card.type === FILE_CARD_TYPE) {
+    const extension = normalizeFileExtension(card.file?.extension);
+    const extensionLabel = extension ? `.${extension}` : ".file";
+    const sizeBytes = Number.isFinite(card.file?.sizeBytes) ? card.file.sizeBytes : 0;
+
+    if (sizeBytes > 0) {
+      const megabytes = sizeBytes / (1024 * 1024);
+      const sizeLabel = megabytes >= 1
+        ? `${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB`
+        : `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
+      return `${extensionLabel} · ${sizeLabel}`;
+    }
+
+    return extensionLabel;
+  }
+
   if (card.type === RACK_CARD_TYPE) {
     const tileCount = card.tileIds.length;
     return `${tileCount} ${tileCount === 1 ? "tile" : "tiles"} on rack`;

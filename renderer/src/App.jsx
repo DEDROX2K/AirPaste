@@ -10,6 +10,7 @@ import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import { desktop } from "./lib/desktop";
 
 const BOOT_SPLASH_IMAGE_SRC = encodeURI("/Splash screen/Keyboard keycap with _airpaste_ text.png");
@@ -79,6 +80,7 @@ function WindowResizeHandles() {
 
 export default function App() {
   useTheme();
+  const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
 
   const usesCustomTitlebar = desktop.window.usesCustomTitlebar;
   const usesCustomWindowResize = desktop.window.usesCustomWindowResize;
@@ -135,8 +137,8 @@ export default function App() {
 
         <div className="app-shell__view-container">
           {currentEditor.kind === "canvas" ? (
-            <div className="app-shell__workspace-layout">
-              <LeftPagesPanel />
+            <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
+              <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
               <CanvasWorkspaceView />
             </div>
           ) : null}

@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
+import CanvasCalculator from "./CanvasCalculator";
+import CanvasDock from "./CanvasDock";
 import CanvasMiniMap from "./CanvasMiniMap";
+import CanvasStopwatch from "./CanvasStopwatch";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
@@ -627,6 +630,10 @@ function CanvasPerformanceOverlay({
   previewTierCounts,
 }) {
   const { toast } = useToast();
+  const overlayRef = useRef(null);
+  const [position, setPosition] = useState({ x: null, y: null });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStateRef = useRef(null);
   const [snapshot, setSnapshot] = useState({
     fps: 0,
     frameMs: 0,
@@ -700,6 +707,46 @@ function CanvasPerformanceOverlay({
     };
   }, []);
 
+  useEffect(() => {
+    function clampOverlayPosition(nextX, nextY) {
+      const overlayRect = overlayRef.current?.getBoundingClientRect();
+      const overlayWidth = overlayRect?.width ?? 208;
+      const overlayHeight = overlayRect?.height ?? 220;
+      const maxX = Math.max(8, window.innerWidth - overlayWidth - 8);
+      const maxY = Math.max(8, window.innerHeight - overlayHeight - 8);
+
+      return {
+        x: Math.min(Math.max(8, nextX), maxX),
+        y: Math.min(Math.max(8, nextY), maxY),
+      };
+    }
+
+    function handlePointerMove(event) {
+      if (!dragStateRef.current) {
+        return;
+      }
+
+      const nextX = event.clientX - dragStateRef.current.offsetX;
+      const nextY = event.clientY - dragStateRef.current.offsetY;
+      setPosition(clampOverlayPosition(nextX, nextY));
+    }
+
+    function handlePointerUp() {
+      dragStateRef.current = null;
+      setIsDragging(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, []);
+
   const fpsCap = Math.max(60, Math.ceil(Math.max(60, ...snapshot.fpsHistory) / 10) * 10);
   const frameMsCap = Math.max(20, Math.ceil(Math.max(20, ...snapshot.frameMsHistory) / 5) * 5);
   const fpsPoints = createChartPoints(snapshot.fpsHistory, fpsCap);
@@ -755,9 +802,47 @@ function CanvasPerformanceOverlay({
     }
   }, [perfSummaryText, toast]);
 
+  const handleDragStart = useCallback((event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    if (event.target instanceof Element && event.target.closest("button")) {
+      return;
+    }
+
+    const overlayRect = overlayRef.current?.getBoundingClientRect();
+    if (!overlayRect) {
+      return;
+    }
+
+    event.preventDefault();
+    dragStateRef.current = {
+      offsetX: event.clientX - overlayRect.left,
+      offsetY: event.clientY - overlayRect.top,
+    };
+    setIsDragging(true);
+    setPosition({
+      x: overlayRect.left,
+      y: overlayRect.top,
+    });
+  }, []);
+
   return (
-    <div className="canvas-perf-overlay" aria-live="off">
-      <div className="canvas-perf-overlay__header">
+    <div
+      ref={overlayRef}
+      className={`canvas-perf-overlay${isDragging ? " canvas-perf-overlay--dragging" : ""}`}
+      aria-live="off"
+      style={{
+        left: position.x == null ? undefined : `${position.x}px`,
+        top: position.y == null ? undefined : `${position.y}px`,
+        right: position.x == null ? "16px" : "auto",
+      }}
+    >
+      <div
+        className="canvas-perf-overlay__header"
+        onPointerDown={handleDragStart}
+      >
         <span>PERF</span>
         <div className="canvas-perf-overlay__header-actions">
           <span>{isCanvasMoving ? "moving" : "idle"}</span>
@@ -867,6 +952,8 @@ export default function CanvasWorkspaceView() {
   const [stickerDragState, setStickerDragState] = useState(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isStopwatchOpen, setIsStopwatchOpen] = useState(false);
   const textBoxEditRequestIdRef = useRef(0);
   const stickerDragStateRef = useRef(null);
   const stickerPlacementStatesRef = useRef([]);
@@ -2182,6 +2269,16 @@ export default function CanvasWorkspaceView() {
     });
   }, [log, saveHomeUiState, toast]);
 
+  const toggleCalculator = useCallback(() => {
+    setIsStopwatchOpen(false);
+    setIsCalculatorOpen((currentValue) => !currentValue);
+  }, []);
+
+  const toggleStopwatch = useCallback(() => {
+    setIsCalculatorOpen(false);
+    setIsStopwatchOpen((currentValue) => !currentValue);
+  }, []);
+
   const radialMenu = interactions.contextMenu;
   const recoverablePreviewTiles = useMemo(
     () => workspace.cards.filter((card) => shouldRecoverLinkPreviewCard(card)),
@@ -2419,26 +2516,35 @@ export default function CanvasWorkspaceView() {
         document.getElementById("titlebar-right-slot") || document.body
       )}
 
-      <div className="canvas-stage__fab">
-        <div className="canvas-win-strip">
-          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          <CanvasAddMenu
+      {createPortal(
+        <div className="canvas-stage__fab">
+          <div className="canvas-win-strip">
+            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+            <DrawingToolControls
+              activeTool={selectedCanvasToolMode}
+              iconOnly
+              onToolChange={setCanvasToolMode}
+            />
+          </div>
+          <CanvasDock
             commands={commands}
             disabled={!folderPath || folderLoading}
+            isCalculatorOpen={isCalculatorOpen}
+            isStopwatchOpen={isStopwatchOpen}
+            onToggleCalculator={toggleCalculator}
+            onToggleStopwatch={toggleStopwatch}
           />
-          <DrawingToolControls
-            activeTool={selectedCanvasToolMode}
-            iconOnly
-            onToolChange={setCanvasToolMode}
-          />
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
       {selectedTextBoxTile ? (
         <TextFormattingToolbar
           card={selectedTextBoxTile}
           onPatchStyle={patchSelectedTextBoxStyle}
         />
       ) : null}
+      <CanvasStopwatch isOpen={isStopwatchOpen} />
+      <CanvasCalculator isOpen={isCalculatorOpen} />
 
       {/* ── Top bar ── */}
       <WorkspaceTopbarTrail />
