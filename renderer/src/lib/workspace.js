@@ -451,6 +451,7 @@ function normalizeTextBoxPayload(card) {
     placeholder: card?.placeholder === true,
     appearance,
     placeholderText,
+    autoWidth: appearance === "sticky" ? false : card?.autoWidth !== false,
   };
 }
 
@@ -1149,6 +1150,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     placeholder: type === TEXT_BOX_CARD_TYPE ? textBox.placeholder : false,
     appearance: type === TEXT_BOX_CARD_TYPE ? textBox.appearance : "plain",
     placeholderText: type === TEXT_BOX_CARD_TYPE ? textBox.placeholderText : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    autoWidth: type === TEXT_BOX_CARD_TYPE ? textBox.autoWidth : false,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1697,9 +1699,18 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
   const position = getNextCardPosition(cards, viewport, TEXT_BOX_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
   const appearance = TEXT_BOX_APPEARANCES.has(options?.appearance) ? options.appearance : "plain";
+  const autoWidth = appearance === "sticky" ? false : options?.autoWidth !== false;
   const defaultSize = appearance === "sticky" ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
-  const width = Number.isFinite(options?.width) ? options.width : defaultSize.width;
-  const height = Number.isFinite(options?.height) ? options.height : defaultSize.height;
+  const width = Number.isFinite(options?.width)
+    ? options.width
+    : autoWidth
+      ? TEXT_BOX_MIN_WIDTH
+      : defaultSize.width;
+  const height = Number.isFinite(options?.height)
+    ? options.height
+    : autoWidth
+      ? TEXT_BOX_MIN_HEIGHT
+      : defaultSize.height;
   const x = Number.isFinite(preferredCenter?.x)
     ? Math.round(preferredCenter.x - width / 2)
     : position.x;
@@ -1719,6 +1730,7 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
       : appearance === "sticky"
         ? "Add text"
         : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    autoWidth,
     x,
     y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),

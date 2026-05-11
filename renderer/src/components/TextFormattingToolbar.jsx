@@ -30,6 +30,8 @@ export default function TextFormattingToolbar({
 }) {
   const style = card?.style ?? {};
   const currentFontWeight = Number(style.fontWeight) || 500;
+  const lineHeight = Number(style.lineHeight) || 1.15;
+  const letterSpacing = Number(style.letterSpacing) || 0;
 
   return (
     <div className="canvas-text-toolbar-shell" role="presentation" data-text-toolbar-root="true">
@@ -76,6 +78,34 @@ export default function TextFormattingToolbar({
             value={style.fontSize ?? 48}
             aria-label="Font size"
             onChange={(event) => onPatchStyle({ fontSize: Number(event.target.value) || 48 })}
+          />
+        </label>
+
+        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--metric">
+          <span className="text-formatting-toolbar__label">Line</span>
+          <input
+            className="text-formatting-toolbar__number text-formatting-toolbar__number--metric"
+            type="number"
+            min="0.9"
+            max="2.4"
+            step="0.05"
+            value={lineHeight}
+            aria-label="Line height"
+            onChange={(event) => onPatchStyle({ lineHeight: Number(event.target.value) || 1.15 })}
+          />
+        </label>
+
+        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--metric">
+          <span className="text-formatting-toolbar__label">Track</span>
+          <input
+            className="text-formatting-toolbar__number text-formatting-toolbar__number--metric"
+            type="number"
+            min="-4"
+            max="24"
+            step="0.25"
+            value={letterSpacing}
+            aria-label="Letter spacing"
+            onChange={(event) => onPatchStyle({ letterSpacing: Number(event.target.value) || 0 })}
           />
         </label>
 

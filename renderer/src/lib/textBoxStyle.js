@@ -1,4 +1,4 @@
-export const TEXT_BOX_DEFAULT_TEXT = "Double click to edit";
+export const TEXT_BOX_DEFAULT_TEXT = "Add text";
 export const TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT = TEXT_BOX_DEFAULT_TEXT;
 export const TEXT_BOX_DEFAULT_STYLE = Object.freeze({
   preset: "simple",
@@ -17,7 +17,7 @@ export const TEXT_BOX_PRESET_OPTIONS = Object.freeze([
   {
     id: "simple",
     label: "Simple",
-    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
+    fontFamily: 'var(--ap-font-body)',
   },
   {
     id: "bookish",

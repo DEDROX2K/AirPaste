@@ -1923,6 +1923,10 @@ a {
   margin-left: auto;
 }
 
+.text-formatting-toolbar__field--metric {
+  gap: 6px;
+}
+
 .text-formatting-toolbar__label {
   color: rgba(88, 81, 73, 0.82);
   font-size: 11px;
@@ -1955,6 +1959,10 @@ a {
 
 .text-formatting-toolbar__number {
   width: 72px;
+}
+
+.text-formatting-toolbar__number--metric {
+  width: 64px;
 }
 
 .text-formatting-toolbar__group {
@@ -8405,8 +8413,15 @@ intentional so the top edge reads much shorter than the bottom edge. */
   cursor: text;
 }
 
+.card__text-box-display--auto-width {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .card__text-box-display--sticky {
   min-height: 100%;
+  font-family: var(--ap-font-body) !important;
 }
 
 .card__text-box-display--placeholder {
@@ -8421,8 +8436,16 @@ intentional so the top edge reads much shorter than the bottom edge. */
   caret-color: currentColor;
 }
 
+.card__text-box-editor--auto-width {
+  white-space: pre;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .card__text-box-editor--sticky {
   min-height: 100%;
+  font-family: var(--ap-font-body) !important;
 }
 
 .card__text-box-measure {
@@ -8439,37 +8462,119 @@ intentional so the top edge reads much shorter than the bottom edge. */
   inset: 16px 14px auto 14px;
 }
 
+.card__sticky-note-display,
+.card__sticky-note-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.card__sticky-note-measure {
+  position: absolute;
+  inset: 16px 14px auto 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  min-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.card__sticky-note-title,
+.card__sticky-note-title-input {
+  font-family: var(--ap-font-sticky-title) !important;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 0.94;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #050505;
+}
+
+.card__sticky-note-body,
+.card__sticky-note-body-input {
+  font-family: var(--ap-font-sticky-body) !important;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--sticky-note-body-color, #8d7331);
+  text-align: var(--sticky-note-text-align, left);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.card__sticky-note-display--placeholder .card__sticky-note-title,
+.card__sticky-note-display--placeholder .card__sticky-note-body {
+  opacity: 0.82;
+}
+
+.card__sticky-note-title-input,
+.card__sticky-note-body-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  resize: none;
+  box-shadow: none;
+}
+
+.card__sticky-note-title-input::placeholder,
+.card__sticky-note-body-input::placeholder {
+  color: rgba(48, 39, 8, 0.58);
+}
+
+.card__sticky-note-title-input {
+  text-align: left;
+}
+
+.card__sticky-note-body-input {
+  flex: 1 1 auto;
+  min-height: 1.2em;
+  overflow: hidden;
+}
+
 .card__text-box-resize-handle {
   position: absolute;
-  right: -7px;
-  bottom: -7px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   z-index: 2;
-  border: 1px solid rgba(93, 86, 78, 0.52);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.98);
+  border: 2px solid #2f9bff;
+  border-radius: 4px;
+  background: #ffffff;
   cursor: ew-resize;
   box-shadow: none;
   touch-action: none;
+  transform: translate(-50%, -50%);
 }
 
-.card__text-box-resize-handle::before,
-.card__text-box-resize-handle::after {
-  content: "";
-  position: absolute;
-  top: 4px;
-  width: 1px;
-  height: 7px;
-  background: rgba(93, 86, 78, 0.72);
+.card__text-box-resize-handle--top-left {
+  top: 0;
+  left: 0;
+  cursor: ew-resize;
 }
 
-.card__text-box-resize-handle::before {
-  left: 6px;
+.card__text-box-resize-handle--bottom-left {
+  top: 100%;
+  left: 0;
+  cursor: ew-resize;
 }
 
-.card__text-box-resize-handle::after {
-  left: 9px;
+.card__text-box-resize-handle--top-right {
+  top: 0;
+  left: 100%;
+  cursor: ew-resize;
+}
+
+.card__text-box-resize-handle--bottom-right {
+  top: 100%;
+  left: 100%;
+  cursor: ew-resize;
 }
 
 .card__surface--note {

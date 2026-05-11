@@ -27,7 +27,8 @@ function isSelectionModifierPressed(event) {
 
 function isCanvasBackgroundTarget(event) {
   return event.target === event.currentTarget
-    || event.target.classList?.contains("canvas__content");
+    || event.target.classList?.contains("canvas__content")
+    || event.target.classList?.contains("canvas__grid");
 }
 
 export function useCanvasInteractionSystem({

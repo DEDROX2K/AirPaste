@@ -14,8 +14,15 @@ const MIN_TEXT_BOX_WIDTH = 140;
 const MAX_TEXT_BOX_WIDTH = 1600;
 const MIN_TEXT_BOX_HEIGHT = 52;
 const TEXT_BOX_VERTICAL_PADDING = 8;
+const TEXT_BOX_HORIZONTAL_PADDING = 2;
 const TEXT_BOX_HEIGHT_EPSILON = 1;
 const TEXT_BOX_WIDTH_EPSILON = 0.5;
+const TEXT_BOX_RESIZE_HANDLES = [
+  { key: "top-left", side: "left" },
+  { key: "bottom-left", side: "left" },
+  { key: "top-right", side: "right" },
+  { key: "bottom-right", side: "right" },
+];
 
 function clamp(value, minValue, maxValue) {
   return Math.max(minValue, Math.min(maxValue, value));
@@ -29,6 +36,17 @@ function getMeasuredTextBoxHeight(measureElement) {
   return Math.max(
     MIN_TEXT_BOX_HEIGHT,
     Math.ceil(measureElement.getBoundingClientRect().height + (TEXT_BOX_VERTICAL_PADDING * 2)),
+  );
+}
+
+function getMeasuredTextBoxWidth(measureElement) {
+  if (!measureElement) {
+    return MIN_TEXT_BOX_WIDTH;
+  }
+
+  return Math.max(
+    MIN_TEXT_BOX_WIDTH,
+    Math.ceil(measureElement.scrollWidth + (TEXT_BOX_HORIZONTAL_PADDING * 2)),
   );
 }
 
@@ -79,8 +97,10 @@ function TextBoxTile({
   const editRequestIdRef = useRef(null);
   const resizeStateRef = useRef(null);
   const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [card.style]);
+  const isPlainTextLayer = appearance !== "sticky";
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const isTextToolActive = canvasToolMode === DRAWING_TOOL_MODE_TEXT;
+  const isAutoWidth = isPlainTextLayer && card.autoWidth !== false;
   const isPlaceholderText = card.placeholder === true && !isEditing;
   const displayText = isPlaceholderText ? placeholderText : (card.text ?? "");
   const measuredText = isEditing ? draftText : displayText;
@@ -145,16 +165,30 @@ function TextBoxTile({
   }, [draftText, normalizedStyle, card.width]);
 
   useLayoutEffect(() => {
-    if (isEditing) {
+    if (!measureRef.current || (appearance === "sticky" && isEditing)) {
       return;
     }
 
-    if (!measureRef.current) {
-      return;
+    const nextPatch = {};
+    const nextHeight = getMeasuredTextBoxHeight(measureRef.current);
+    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
+
+    if (Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON) {
+      nextPatch.height = nextHeight;
     }
 
-    growTextBoxHeight(getMeasuredTextBoxHeight(measureRef.current));
-  }, [card.height, card.id, card.width, growTextBoxHeight, isEditing, measuredText, normalizedStyle]);
+    if (isAutoWidth) {
+      const nextWidth = clamp(getMeasuredTextBoxWidth(measureRef.current), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
+
+      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
+        nextPatch.width = nextWidth;
+      }
+    }
+
+    if (Object.keys(nextPatch).length > 0) {
+      updateExistingCard(card.id, nextPatch);
+    }
+  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, measuredText, normalizedStyle, updateExistingCard]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -245,7 +279,7 @@ function TextBoxTile({
     }
   };
 
-  const handleResizePointerDown = (event) => {
+  const handleResizePointerDown = (side, event) => {
     if (!tileMeta?.isSelected || isEditing) {
       return;
     }
@@ -255,8 +289,10 @@ function TextBoxTile({
 
     const zoom = Math.max(0.2, viewportZoom ?? 1);
     resizeStateRef.current = {
+      side,
       pointerId: event.pointerId,
       startClientX: event.clientX,
+      startX: card.x,
       startWidth: card.width,
     };
     setCanvasInteractionState?.(true);
@@ -270,14 +306,19 @@ function TextBoxTile({
       }
 
       const deltaX = (moveEvent.clientX - resizeState.startClientX) / zoom;
-      const nextWidth = clamp(
-        Math.round(resizeState.startWidth + deltaX),
-        MIN_TEXT_BOX_WIDTH,
-        MAX_TEXT_BOX_WIDTH,
-      );
+      const widthDelta = resizeState.side === "left" ? -deltaX : deltaX;
+      const nextWidth = clamp(Math.round(resizeState.startWidth + widthDelta), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
+      const nextX = resizeState.side === "left"
+        ? Math.round(resizeState.startX + (resizeState.startWidth - nextWidth))
+        : resizeState.startX;
 
-      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
-        updateExistingCard(card.id, { width: nextWidth });
+      if (
+        Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON
+        || (resizeState.side === "left" && nextX !== card.x)
+      ) {
+        updateExistingCard(card.id, resizeState.side === "left"
+          ? { x: nextX, width: nextWidth, autoWidth: false }
+          : { width: nextWidth, autoWidth: false });
       }
     };
 
@@ -319,7 +360,7 @@ function TextBoxTile({
             {isEditing ? (
               <textarea
                 ref={textareaRef}
-                className={`card__text-box-editor${appearance === "sticky" ? " card__text-box-editor--sticky" : ""}`}
+                className={`card__text-box-editor${appearance === "sticky" ? " card__text-box-editor--sticky" : ""}${isAutoWidth ? " card__text-box-editor--auto-width" : ""}`}
                 value={draftText}
                 aria-label="Canvas text box editor"
                 spellCheck={false}
@@ -332,12 +373,14 @@ function TextBoxTile({
                 onChange={(event) => {
                   setDraftText(event.target.value);
                   syncEditorHeight(event.target);
-                  growTextBoxHeight(Math.max(MIN_TEXT_BOX_HEIGHT, event.target.scrollHeight + TEXT_BOX_VERTICAL_PADDING));
+                  if (!isPlainTextLayer) {
+                    growTextBoxHeight(Math.max(MIN_TEXT_BOX_HEIGHT, event.target.scrollHeight + TEXT_BOX_VERTICAL_PADDING));
+                  }
                 }}
               />
             ) : (
               <div
-                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}${appearance === "sticky" ? " card__text-box-display--sticky" : ""}`}
+                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}${appearance === "sticky" ? " card__text-box-display--sticky" : ""}${isAutoWidth ? " card__text-box-display--auto-width" : ""}`}
                 style={textStyle}
               >
                 {displayText}
@@ -352,13 +395,16 @@ function TextBoxTile({
               {measuredText}
             </div>
           </section>
-          {tileMeta?.isSelected && !isEditing ? (
-            <button
-              type="button"
-              className="card__text-box-resize-handle"
-              aria-label="Resize text box width"
-              onPointerDown={handleResizePointerDown}
-            />
+          {tileMeta?.isSelected && !isEditing && isPlainTextLayer ? (
+            TEXT_BOX_RESIZE_HANDLES.map((handle) => (
+              <button
+                key={handle.key}
+                type="button"
+                className={`card__text-box-resize-handle card__text-box-resize-handle--${handle.key}`}
+                aria-label={`Resize text box from ${handle.key}`}
+                onPointerDown={(event) => handleResizePointerDown(handle.side, event)}
+              />
+            ))
           ) : null}
         </div>
       </div>

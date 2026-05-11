@@ -1517,6 +1517,9 @@ export default function CanvasWorkspaceView() {
     const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
     return selectedTile?.type === TEXT_BOX_CARD_TYPE ? selectedTile : null;
   }, [interactions.selectedTileIds, tileById]);
+  const selectedPlainTextBoxTile = useMemo(() => (
+    selectedTextBoxTile?.appearance === "sticky" ? null : selectedTextBoxTile
+  ), [selectedTextBoxTile]);
   const requestTextBoxEdit = useCallback((tileId, options = {}) => {
     textBoxEditRequestIdRef.current += 1;
     setTextBoxEditorState({
@@ -1545,30 +1548,32 @@ export default function CanvasWorkspaceView() {
     }
   }, [canvas]);
   const patchSelectedTextBoxStyle = useCallback((stylePatch) => {
-    if (!selectedTextBoxTile) {
+    if (!selectedPlainTextBoxTile) {
       return;
     }
 
-    updateExistingCard(selectedTextBoxTile.id, {
+    updateExistingCard(selectedPlainTextBoxTile.id, {
       style: normalizeTextBoxStyle({
-        ...(selectedTextBoxTile.style ?? {}),
+        ...(selectedPlainTextBoxTile.style ?? {}),
         ...stylePatch,
       }),
     });
-  }, [selectedTextBoxTile, updateExistingCard]);
+  }, [selectedPlainTextBoxTile, updateExistingCard]);
   const beginTextBoxCreation = useCallback((worldPoint) => {
     const textBox = commands.createTextBox(worldPoint, {
-      text: "",
+      text: "Add text",
+      placeholder: true,
+      placeholderText: "Add text",
       style: {
         preset: "simple",
-        fontSize: 48,
+        fontSize: 32,
         fontWeight: 500,
         italic: false,
         underline: false,
         strike: false,
         align: "left",
-        color: "#1f1f1f",
-        lineHeight: 1.15,
+        color: "#262626",
+        lineHeight: 1.08,
         letterSpacing: 0,
       },
     });
@@ -1909,6 +1914,15 @@ export default function CanvasWorkspaceView() {
   }, [interactions]);
 
   const handleSceneBackgroundPointerDown = useCallback((event) => {
+    if (textBoxEditorState?.tileId && event.button === 0) {
+      return;
+    }
+
+    if (selectedPlainTextBoxTile && isTextToolActive && event.button === 0) {
+      interactions.handleCanvasPointerDown(event);
+      return;
+    }
+
     if (isTextToolActive && event.button === 0) {
       const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
 
@@ -1920,7 +1934,7 @@ export default function CanvasWorkspaceView() {
     }
 
     interactions.handleCanvasPointerDown(event);
-  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive]);
+  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive, selectedPlainTextBoxTile, textBoxEditorState?.tileId]);
 
   useEffect(() => {
     if (
@@ -2029,7 +2043,7 @@ export default function CanvasWorkspaceView() {
       }
 
       if (
-        selectedTextBoxTile
+        selectedPlainTextBoxTile
         && canvasToolShortcutContext
         && activeElementIsCanvas
         && !event.ctrlKey
@@ -2043,13 +2057,13 @@ export default function CanvasWorkspaceView() {
       ) {
         if (event.key === "Enter") {
           event.preventDefault();
-          requestTextBoxEdit(selectedTextBoxTile.id, { selectAll: false });
+          requestTextBoxEdit(selectedPlainTextBoxTile.id, { selectAll: false });
           return;
         }
 
         if (isPrintableTextKey(event) && !["v", "h", "t", "s"].includes(activeKey)) {
           event.preventDefault();
-          requestTextBoxEdit(selectedTextBoxTile.id, {
+          requestTextBoxEdit(selectedPlainTextBoxTile.id, {
             replacementText: event.key,
             selectAll: false,
           });
@@ -2159,7 +2173,7 @@ export default function CanvasWorkspaceView() {
     pasteCanvasSelection,
     requestTextBoxEdit,
     redoWorkspaceChange,
-    selectedTextBoxTile,
+    selectedPlainTextBoxTile,
     undoWorkspaceChange,
     zoomToFitAll,
   ]);
@@ -2537,9 +2551,9 @@ export default function CanvasWorkspaceView() {
         </div>,
         document.body
       )}
-      {selectedTextBoxTile ? (
+      {selectedPlainTextBoxTile ? (
         <TextFormattingToolbar
-          card={selectedTextBoxTile}
+          card={selectedPlainTextBoxTile}
           onPatchStyle={patchSelectedTextBoxStyle}
         />
       ) : null}
@@ -2570,7 +2584,17 @@ export default function CanvasWorkspaceView() {
           }
 
           const isCanvasBackground = event.target === event.currentTarget
-            || event.target.classList?.contains("canvas__content");
+            || event.target.classList?.contains("canvas__content")
+            || event.target.classList?.contains("canvas__grid");
+
+          if (textBoxEditorState?.tileId && isCanvasBackground && event.button === 0) {
+            return;
+          }
+
+          if (selectedPlainTextBoxTile && isTextToolActive && isCanvasBackground && event.button === 0) {
+            interactions.handleCanvasPointerDown(event);
+            return;
+          }
 
           if (isTextToolActive && isCanvasBackground && event.button === 0) {
             const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
