@@ -11,6 +11,7 @@ import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
+import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
@@ -624,6 +625,8 @@ function CanvasPerformanceOverlay({
   renderedTileCount,
   totalTileCount,
   activeDragLayers,
+  promotedDomTileCount,
+  activeEmbedTileCount,
   isCanvasMoving,
   workspaceLodLevel,
   lodLevelCounts,
@@ -767,6 +770,8 @@ function CanvasPerformanceOverlay({
     `Visible: ${visibleTileCount}/${totalTileCount}`,
     `Rendered: ${renderedTileCount}`,
     `Drag layers: ${activeDragLayers}`,
+    `DOM islands: ${promotedDomTileCount}`,
+    `Live embeds: ${activeEmbedTileCount}`,
     `Pointer avg: ${roundMetric(snapshot.pointerAvgMs)} ms`,
     `Pointer max: ${roundMetric(snapshot.pointerMaxMs)} ms`,
     `Renders: ${snapshot.boardRenderCount}`,
@@ -784,7 +789,9 @@ function CanvasPerformanceOverlay({
     `State: ${isCanvasMoving ? "moving" : "idle"}`,
   ].join("\n"), [
     activeDragLayers,
+    activeEmbedTileCount,
     isCanvasMoving,
+    promotedDomTileCount,
     snapshot.boardRenderCount,
     snapshot.boardMovingRenderCount,
     snapshot.droppedFrames,
@@ -917,6 +924,14 @@ function CanvasPerformanceOverlay({
           <span className="canvas-perf-overlay__value">{renderedTileCount}</span>
         </div>
         <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">DOM islands</span>
+          <span className="canvas-perf-overlay__value">{promotedDomTileCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Live embeds</span>
+          <span className="canvas-perf-overlay__value">{activeEmbedTileCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
           <span className="canvas-perf-overlay__label">Move renders</span>
           <span className="canvas-perf-overlay__value">{snapshot.boardMovingRenderCount}</span>
         </div>
@@ -1002,6 +1017,7 @@ export default function CanvasWorkspaceView() {
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isStopwatchOpen, setIsStopwatchOpen] = useState(false);
+  const [canvasViewportSize, setCanvasViewportSize] = useState({ width: 0, height: 0 });
   const textBoxEditRequestIdRef = useRef(0);
   const stickerDragStateRef = useRef(null);
   const stickerPlacementStatesRef = useRef([]);
@@ -1023,6 +1039,33 @@ export default function CanvasWorkspaceView() {
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
+  useEffect(() => {
+    const container = canvas.containerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    const updateCanvasViewportSize = () => {
+      setCanvasViewportSize({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
+    };
+
+    updateCanvasViewportSize();
+
+    let observer = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateCanvasViewportSize);
+      observer.observe(container);
+    }
+
+    window.addEventListener("resize", updateCanvasViewportSize);
+    return () => {
+      observer?.disconnect?.();
+      window.removeEventListener("resize", updateCanvasViewportSize);
+    };
+  }, [canvas]);
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
@@ -1734,12 +1777,18 @@ export default function CanvasWorkspaceView() {
     ...interactions.selectedTileIds,
     ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
     ...interactions.draggingTileIds,
+    ...(interactions.hoveredTileId ? [interactions.hoveredTileId] : []),
+    ...(interactions.contextMenu?.kind === "tile" ? [interactions.contextMenu.card?.id] : []),
+    ...(textBoxEditorState?.tileId ? [textBoxEditorState.tileId] : []),
     ...stickerTileIdSet,
   ]), [
+    interactions.contextMenu,
     interactions.draggingTileIds,
     interactions.focusedTileId,
+    interactions.hoveredTileId,
     interactions.selectedTileIds,
     stickerTileIdSet,
+    textBoxEditorState?.tileId,
   ]);
   const workspaceLodLevel = useMemo(() => {
     if (isGridMode) {
@@ -1763,7 +1812,7 @@ export default function CanvasWorkspaceView() {
     workspaceLodLevelRef.current = workspaceLodLevel;
   }, [workspaceLodLevel]);
 
-  const useSceneSurface = sceneSurfaceEnabled && workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR;
+  const useSceneSurface = sceneSurfaceEnabled && !isGridMode;
   const stableTileMetaById = useMemo(() => {
     const previousCache = tileMetaCacheRef.current;
     const nextCache = new Map();
@@ -1866,6 +1915,10 @@ export default function CanvasWorkspaceView() {
   const activeRenderTiles = useMemo(() => (
     useSceneSurface ? overlayTiles : layout.rootTiles
   ), [layout.rootTiles, overlayTiles, useSceneSurface]);
+  const promotedDomTileCount = activeRenderTiles.length;
+  const activeEmbedTileCount = useMemo(() => (
+    activeRenderTiles.filter((tile) => tile?.airpaste?.embed?.mode === "live" && typeof tile?.url === "string" && tile.url.trim().length > 0).length
+  ), [activeRenderTiles]);
   const animatingStickerTileIdSet = useMemo(() => new Set(animatingStickerTileIds), [animatingStickerTileIds]);
   const presentWorkspaceCardsById = useMemo(() => new Map(
     workspace.cards.map((card) => [card.id, card]),
@@ -2249,6 +2302,8 @@ export default function CanvasWorkspaceView() {
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
     draggingCount: interactions.draggingTileIds.length,
+    promotedDomTileCount,
+    activeEmbedTileCount,
     dragVisualDelta: interactions.dragVisualDelta
       ? `${Math.round(interactions.dragVisualDelta.x)}:${Math.round(interactions.dragVisualDelta.y)}`
       : null,
@@ -2261,6 +2316,7 @@ export default function CanvasWorkspaceView() {
     canvas.isPanning,
     dropImport.isDropTarget,
     filteredTiles.length,
+    activeEmbedTileCount,
     interactions.draggingTileIds.length,
     interactions.dragVisualDelta,
     interactions.focusedTileId,
@@ -2271,6 +2327,7 @@ export default function CanvasWorkspaceView() {
     liveViewport.x,
     liveViewport.y,
     liveViewport.zoom,
+    promotedDomTileCount,
     renderedTileCount,
     snapSettings.enabled,
     visibleTileCount,
@@ -2301,11 +2358,15 @@ export default function CanvasWorkspaceView() {
       perfMode: performanceMode,
       surfaceRenderer: useSceneSurface ? "scene" : "dom",
       workspaceLodLevel,
+      promotedDomTileCount,
+      activeEmbedTileCount,
     });
   }, [
+    activeEmbedTileCount,
     interactions.draggingTileIds.length,
     lodLevelCounts,
     performanceMode,
+    promotedDomTileCount,
     previewTierCounts,
     renderedTileCount,
     useSceneSurface,
@@ -2672,6 +2733,8 @@ export default function CanvasWorkspaceView() {
               <SceneWorkspaceSurface
                 folderPath={folderPath}
                 tiles={sceneTiles}
+                edges={workspace.edges}
+                groups={workspace.groups}
                 tileMetaById={decoratedTileMetaById}
                 tileRenderHintsById={tileRenderHintsById}
                 isCanvasMoving={isCanvasMoving}
@@ -2700,6 +2763,15 @@ export default function CanvasWorkspaceView() {
               onStagePointerCancel={drawingTool.handleStagePointerCancel}
               onStageContextMenu={drawingTool.handleStageContextMenu}
             />
+            {useSceneSurface ? (
+              <CanvasEmbedLayer
+                cards={overlayTiles}
+                tileMetaById={decoratedTileMetaById}
+                viewport={liveViewport}
+                canvasSize={canvasViewportSize}
+                isCanvasMoving={isCanvasMoving}
+              />
+            ) : null}
             <div
               ref={canvas.contentRef}
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
@@ -2743,6 +2815,8 @@ export default function CanvasWorkspaceView() {
           renderedTileCount={renderedTileCount}
           totalTileCount={totalTileCount}
           activeDragLayers={interactions.draggingTileIds.length}
+          promotedDomTileCount={promotedDomTileCount}
+          activeEmbedTileCount={activeEmbedTileCount}
           isCanvasMoving={isCanvasMoving}
           workspaceLodLevel={workspaceLodLevel}
           lodLevelCounts={lodLevelCounts}

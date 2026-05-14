@@ -49,6 +49,24 @@ function getTileWorldBounds(tile, tileMeta) {
   };
 }
 
+function getGroupWorldBounds(group) {
+  const x = parseCssPixel(group?.x, 0);
+  const y = parseCssPixel(group?.y, 0);
+  const width = Math.max(1, parseCssPixel(group?.width, 1));
+  const height = Math.max(1, parseCssPixel(group?.height, 1));
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    left: x,
+    top: y,
+    right: x + width,
+    bottom: y + height,
+  };
+}
+
 function rectsIntersect(leftRect, rightRect) {
   return !(
     leftRect.right < rightRect.left
@@ -233,6 +251,118 @@ function drawImageCover(ctx, image, x, y, width, height) {
   );
 }
 
+function getNodeAnchor(bounds, side = "") {
+  switch (side) {
+    case "top":
+      return { x: bounds.left + (bounds.width / 2), y: bounds.top };
+    case "bottom":
+      return { x: bounds.left + (bounds.width / 2), y: bounds.bottom };
+    case "left":
+      return { x: bounds.left, y: bounds.top + (bounds.height / 2) };
+    case "right":
+      return { x: bounds.right, y: bounds.top + (bounds.height / 2) };
+    default:
+      return { x: bounds.left + (bounds.width / 2), y: bounds.top + (bounds.height / 2) };
+  }
+}
+
+function getPrimaryTileLabel(tile) {
+  if (typeof tile?.title === "string" && tile.title.trim()) {
+    return tile.title.trim();
+  }
+
+  if (typeof tile?.siteName === "string" && tile.siteName.trim()) {
+    return tile.siteName.trim();
+  }
+
+  if (typeof tile?.file?.fileName === "string" && tile.file.fileName.trim()) {
+    return tile.file.fileName.trim();
+  }
+
+  if (typeof tile?.url === "string" && tile.url.trim()) {
+    return tile.url.trim();
+  }
+
+  if (typeof tile?.text === "string" && tile.text.trim()) {
+    return tile.text.trim();
+  }
+
+  if (typeof tile?.body === "string" && tile.body.trim()) {
+    return tile.body.trim();
+  }
+
+  if (typeof tile?.description === "string" && tile.description.trim()) {
+    return tile.description.trim();
+  }
+
+  return tile?.type ?? "tile";
+}
+
+function getSecondaryTileLabel(tile) {
+  if (typeof tile?.description === "string" && tile.description.trim()) {
+    return tile.description.trim();
+  }
+
+  if (typeof tile?.body === "string" && tile.body.trim()) {
+    return tile.body.trim();
+  }
+
+  if (typeof tile?.text === "string" && tile.text.trim()) {
+    return tile.text.trim();
+  }
+
+  if (typeof tile?.code === "string" && tile.code.trim()) {
+    return tile.code.trim();
+  }
+
+  return "";
+}
+
+function drawClampedText(ctx, text, x, y, width, lineHeight, maxLines) {
+  const normalized = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+  if (!normalized || maxLines <= 0 || width <= 8) {
+    return 0;
+  }
+
+  const words = normalized.split(" ");
+  const lines = [];
+  let current = words.shift() ?? "";
+
+  words.forEach((word) => {
+    const candidate = `${current} ${word}`.trim();
+
+    if (ctx.measureText(candidate).width <= width) {
+      current = candidate;
+      return;
+    }
+
+    lines.push(current);
+    current = word;
+  });
+
+  if (current) {
+    lines.push(current);
+  }
+
+  const visibleLines = lines.slice(0, maxLines);
+  visibleLines.forEach((line, index) => {
+    let renderedLine = line;
+    const isLastVisibleLine = index === visibleLines.length - 1;
+    const wasTruncated = lines.length > maxLines && isLastVisibleLine;
+
+    if (wasTruncated) {
+      while (renderedLine.length > 1 && ctx.measureText(`${renderedLine}…`).width > width) {
+        renderedLine = renderedLine.slice(0, -1);
+      }
+      renderedLine = `${renderedLine}…`;
+    }
+
+    ctx.fillText(renderedLine, x, y + (index * lineHeight));
+  });
+
+  return visibleLines.length;
+}
+
 async function resolveSceneTileImageSource({
   folderPath,
   tile,
@@ -286,6 +416,8 @@ async function resolveSceneTileImageSource({
 function SceneWorkspaceSurface({
   folderPath,
   tiles,
+  edges = [],
+  groups = [],
   tileMetaById,
   tileRenderHintsById,
   isCanvasMoving,
@@ -330,6 +462,12 @@ function SceneWorkspaceSurface({
       };
     })
   ), [tileMetaById, tileRenderHintsById, tiles]);
+  const groupList = useMemo(() => (
+    groups.map((group) => ({
+      group,
+      bounds: getGroupWorldBounds(group),
+    }))
+  ), [groups]);
 
   const queueTileImageSource = useCallback((tileEntry, dprBucket) => {
     const tile = tileEntry.tile;
@@ -479,6 +617,108 @@ function SceneWorkspaceSurface({
     ctx.scale(viewport.zoom, viewport.zoom);
 
     const drawnTiles = [];
+    const nodeBoundsById = new Map();
+
+    tileList.forEach((tileEntry) => {
+      nodeBoundsById.set(tileEntry.tile.id, tileEntry.bounds);
+    });
+    groupList.forEach((groupEntry) => {
+      nodeBoundsById.set(groupEntry.group.id, groupEntry.bounds);
+    });
+
+    groupList.forEach((groupEntry) => {
+      if (!rectsIntersect(visibleWorldRect, groupEntry.bounds)) {
+        return;
+      }
+
+      const { bounds, group } = groupEntry;
+      const label = typeof group?.label === "string" ? group.label.trim() : "";
+
+      ctx.save();
+      ctx.fillStyle = "rgba(162, 128, 87, 0.08)";
+      ctx.strokeStyle = isCanvasMovingRef.current ? "rgba(133, 101, 66, 0.34)" : "rgba(133, 101, 66, 0.48)";
+      ctx.lineWidth = 1.25 / Math.max(0.35, viewport.zoom);
+      ctx.setLineDash(isCanvasMovingRef.current ? [10 / viewport.zoom, 8 / viewport.zoom] : [14 / viewport.zoom, 10 / viewport.zoom]);
+      ctx.beginPath();
+      traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (label) {
+        ctx.fillStyle = "rgba(90, 65, 38, 0.88)";
+        ctx.font = '16px "Segoe UI", sans-serif';
+        ctx.textBaseline = "top";
+        drawClampedText(ctx, label, bounds.x + 16, bounds.y + 12, Math.max(40, bounds.width - 32), 18, 1);
+      }
+
+      ctx.restore();
+    });
+
+    edges.forEach((edge) => {
+      const fromBounds = nodeBoundsById.get(edge?.fromNode);
+      const toBounds = nodeBoundsById.get(edge?.toNode);
+
+      if (!fromBounds || !toBounds) {
+        return;
+      }
+
+      const fromPoint = getNodeAnchor(fromBounds, edge?.fromSide);
+      const toPoint = getNodeAnchor(toBounds, edge?.toSide);
+      const minX = Math.min(fromPoint.x, toPoint.x);
+      const minY = Math.min(fromPoint.y, toPoint.y);
+      const maxX = Math.max(fromPoint.x, toPoint.x);
+      const maxY = Math.max(fromPoint.y, toPoint.y);
+
+      if (!rectsIntersect(visibleWorldRect, {
+        left: minX - 40,
+        top: minY - 40,
+        right: maxX + 40,
+        bottom: maxY + 40,
+      })) {
+        return;
+      }
+
+      const horizontalDelta = toPoint.x - fromPoint.x;
+      const controlOffset = Math.max(32, Math.min(160, Math.abs(horizontalDelta) * 0.35));
+
+      ctx.save();
+      ctx.strokeStyle = edge?.color || (isCanvasMovingRef.current ? "rgba(126, 112, 94, 0.42)" : "rgba(103, 92, 78, 0.58)");
+      ctx.lineWidth = (isCanvasMovingRef.current ? 1.5 : 2) / Math.max(0.35, viewport.zoom);
+      ctx.beginPath();
+      ctx.moveTo(fromPoint.x, fromPoint.y);
+      ctx.bezierCurveTo(
+        fromPoint.x + controlOffset,
+        fromPoint.y,
+        toPoint.x - controlOffset,
+        toPoint.y,
+        toPoint.x,
+        toPoint.y,
+      );
+      ctx.stroke();
+
+      if (!isCanvasMovingRef.current && typeof edge?.label === "string" && edge.label.trim()) {
+        const midX = (fromPoint.x + toPoint.x) * 0.5;
+        const midY = (fromPoint.y + toPoint.y) * 0.5;
+        ctx.fillStyle = "rgba(255, 250, 242, 0.92)";
+        ctx.strokeStyle = "rgba(126, 112, 94, 0.24)";
+        ctx.lineWidth = 1 / Math.max(0.35, viewport.zoom);
+        ctx.beginPath();
+        traceRoundedRectPath(ctx, midX - 52, midY - 14, 104, 28, 12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(73, 61, 49, 0.92)";
+        ctx.font = '12px "Segoe UI", sans-serif';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(edge.label.trim(), midX, midY);
+        ctx.textAlign = "start";
+      }
+
+      ctx.restore();
+    });
 
     tileList.forEach((tileEntry) => {
       const bounds = tileEntry.bounds;
@@ -589,12 +829,50 @@ function SceneWorkspaceSurface({
       ctx.lineWidth = 1 / Math.max(0.35, viewport.zoom);
       ctx.stroke();
 
+      const titleText = getPrimaryTileLabel(tile);
+      const secondaryText = getSecondaryTileLabel(tile);
+      const headerHeight = usePreviewColorBlock
+        ? Math.max(8, Math.min(bounds.height * 0.16, 22))
+        : 0;
+      const textInsetX = bounds.x + 14;
+      const textWidth = Math.max(24, bounds.width - 28);
+      const textTop = bounds.y + headerHeight + 18;
+      const titleFontSize = 14;
+      const bodyFontSize = 12;
+
+      ctx.fillStyle = "rgba(56, 49, 41, 0.92)";
+      ctx.font = `600 ${titleFontSize}px "Segoe UI", sans-serif`;
+      ctx.textBaseline = "top";
+      const titleLines = drawClampedText(
+        ctx,
+        titleText,
+        textInsetX,
+        textTop,
+        textWidth,
+        titleFontSize + 4,
+        usePreviewColorBlock ? 1 : Math.min(2, Math.max(1, Math.floor(bounds.height / 96))),
+      );
+
+      if (!isCanvasMovingRef.current && secondaryText) {
+        ctx.fillStyle = "rgba(93, 83, 70, 0.86)";
+        ctx.font = `${bodyFontSize}px "Segoe UI", sans-serif`;
+        drawClampedText(
+          ctx,
+          secondaryText,
+          textInsetX,
+          textTop + (titleLines * (titleFontSize + 4)) + 6,
+          textWidth,
+          bodyFontSize + 4,
+          Math.max(1, Math.min(4, Math.floor(bounds.height / 92))),
+        );
+      }
+
       ctx.restore();
     });
 
     ctx.restore();
     renderStateRef.current.drawnTiles = drawnTiles.sort((left, right) => left.zIndex - right.zIndex);
-  }, [getImageEntry, getViewportSnapshot, queueTileImageSource, tileList]);
+  }, [edges, getImageEntry, getViewportSnapshot, groupList, queueTileImageSource, tileList]);
 
   const runDrawLoop = useCallback(() => {
     drawRafRef.current = 0;

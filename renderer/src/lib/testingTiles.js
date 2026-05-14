@@ -12,7 +12,7 @@ import {
 } from "./workspace";
 
 export const TESTING_TILES_CANVAS_NAME = "Testing Tiles";
-export const TESTING_TILES_CANVAS_FILE_NAME = `${TESTING_TILES_CANVAS_NAME}.airpaste.json`;
+export const TESTING_TILES_CANVAS_FILE_NAME = `${TESTING_TILES_CANVAS_NAME}.canvas`;
 export const TESTING_TILES_CANVAS_PURPOSE = "tile-qa";
 
 const CARD_WIDTH = 340;

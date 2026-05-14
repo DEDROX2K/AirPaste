@@ -839,6 +839,9 @@ function normalizeWorkspacePage(page, fallbackIndex = 0) {
     drawings: normalizeDrawings(page?.drawings),
     edges: cloneStructuredArray(page?.edges),
     groups: cloneStructuredArray(page?.groups),
+    airpaste: page?.airpaste && typeof page.airpaste === "object"
+      ? deepCloneStructuredValue(page.airpaste)
+      : null,
   };
 }
 
@@ -881,6 +884,7 @@ export function createWorkspacePage(name = "", index = 0) {
     drawings: createEmptyDrawings(),
     edges: [],
     groups: [],
+    airpaste: null,
   }, index);
 }
 
@@ -1015,6 +1019,7 @@ export function createEmptyWorkspace() {
     view: { ...firstPage.view },
     cards: [],
     drawings: createEmptyDrawings(),
+    airpaste: null,
   };
 }
 
@@ -1212,6 +1217,9 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
       : null,
     layout: normalizeCardLayout(card?.layout),
+    airpaste: card?.airpaste && typeof card.airpaste === "object"
+      ? deepCloneStructuredValue(card.airpaste)
+      : null,
     parentRackId: type !== RACK_CARD_TYPE && typeof card?.parentRackId === "string" && card.parentRackId.trim().length > 0
       ? card.parentRackId
       : null,
@@ -1243,6 +1251,11 @@ export function normalizeWorkspace(workspace) {
     view: activePage.view,
     cards: activePage.cards,
     drawings: activePage.drawings,
+    edges: activePage.edges,
+    groups: activePage.groups,
+    airpaste: safeWorkspace?.airpaste && typeof safeWorkspace.airpaste === "object"
+      ? deepCloneStructuredValue(safeWorkspace.airpaste)
+      : null,
   };
 }
 

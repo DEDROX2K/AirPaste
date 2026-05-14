@@ -102,3 +102,248 @@
   transform: none !important;
   box-shadow: none !important;
 }
+
+/* Shared button hover/glare outside Home */
+.app-window :is(.page-editor__back-button,
+  .page-editor__toolbar-button,
+  .left-pages-panel__icon-button,
+  .tile-context-menu__action,
+  .zoom-menu__action,
+  .card__note-mode-button,
+  .card__table-action,
+  .card__table-delete-button,
+  .card__calendar-popup-button,
+  .card__calendar-view-button,
+  .card__calendar-nav-button,
+  .card__counter-button,
+  .card__progress-mode-button,
+  .canvas__empty-action) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 0.2s ease-out,
+    filter 0.2s ease-out,
+    background-color 0.2s ease-out,
+    color 0.2s ease-out !important;
+}
+
+.app-window :is(.page-editor__back-button,
+  .page-editor__toolbar-button,
+  .left-pages-panel__icon-button,
+  .tile-context-menu__action,
+  .zoom-menu__action,
+  .card__note-mode-button,
+  .card__table-action,
+  .card__table-delete-button,
+  .card__calendar-popup-button,
+  .card__calendar-view-button,
+  .card__calendar-nav-button,
+  .card__counter-button,
+  .card__progress-mode-button,
+  .canvas__empty-action) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-window :is(.page-editor__back-button,
+  .page-editor__toolbar-button,
+  .left-pages-panel__icon-button,
+  .tile-context-menu__action,
+  .zoom-menu__action,
+  .card__note-mode-button,
+  .card__table-action,
+  .card__table-delete-button,
+  .card__calendar-popup-button,
+  .card__calendar-view-button,
+  .card__calendar-nav-button,
+  .card__counter-button,
+  .card__progress-mode-button,
+  .canvas__empty-action)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-window :is(.page-editor__back-button:hover:not(:disabled),
+  .page-editor__toolbar-button:hover:not(:disabled),
+  .left-pages-panel__icon-button:hover:not(:disabled),
+  .tile-context-menu__action:hover:not(:disabled),
+  .zoom-menu__action:hover:not(:disabled),
+  .card__note-mode-button:hover:not(:disabled),
+  .card__table-action:hover:not(:disabled),
+  .card__table-delete-button:hover:not(:disabled),
+  .card__calendar-popup-button:hover:not(:disabled),
+  .card__calendar-view-button:hover:not(:disabled),
+  .card__calendar-nav-button:hover:not(:disabled),
+  .card__counter-button:hover:not(:disabled),
+  .card__progress-mode-button:hover:not(:disabled),
+  .canvas__empty-action:hover:not(:disabled)) {
+  transform: translate(0, -2px) !important;
+  filter: drop-shadow(2px 4px 0 #000) !important;
+  background-color: var(--bg-off-white, #f2f2f2) !important;
+}
+
+.app-window :is(.page-editor__back-button:hover:not(:disabled),
+  .page-editor__toolbar-button:hover:not(:disabled),
+  .left-pages-panel__icon-button:hover:not(:disabled),
+  .tile-context-menu__action:hover:not(:disabled),
+  .zoom-menu__action:hover:not(:disabled),
+  .card__note-mode-button:hover:not(:disabled),
+  .card__table-action:hover:not(:disabled),
+  .card__table-delete-button:hover:not(:disabled),
+  .card__calendar-popup-button:hover:not(:disabled),
+  .card__calendar-view-button:hover:not(:disabled),
+  .card__calendar-nav-button:hover:not(:disabled),
+  .card__counter-button:hover:not(:disabled),
+  .card__progress-mode-button:hover:not(:disabled),
+  .canvas__empty-action:hover:not(:disabled))::before {
+  opacity: 1;
+  animation: ap-ui-button-shine 700ms linear both;
+}
+
+.app-window :is(.page-editor__back-button:active:not(:disabled),
+  .page-editor__toolbar-button:active:not(:disabled),
+  .left-pages-panel__icon-button:active:not(:disabled),
+  .tile-context-menu__action:active:not(:disabled),
+  .zoom-menu__action:active:not(:disabled),
+  .card__note-mode-button:active:not(:disabled),
+  .card__table-action:active:not(:disabled),
+  .card__table-delete-button:active:not(:disabled),
+  .card__calendar-popup-button:active:not(:disabled),
+  .card__calendar-view-button:active:not(:disabled),
+  .card__calendar-nav-button:active:not(:disabled),
+  .card__counter-button:active:not(:disabled),
+  .card__progress-mode-button:active:not(:disabled),
+  .canvas__empty-action:active:not(:disabled)) {
+  transform: translate(0, 0) !important;
+  filter: drop-shadow(0 0 0 #000) !important;
+}
+
+.app-window :is(.page-editor__back-button:active:not(:disabled),
+  .page-editor__toolbar-button:active:not(:disabled),
+  .left-pages-panel__icon-button:active:not(:disabled),
+  .tile-context-menu__action:active:not(:disabled),
+  .zoom-menu__action:active:not(:disabled),
+  .card__note-mode-button:active:not(:disabled),
+  .card__table-action:active:not(:disabled),
+  .card__table-delete-button:active:not(:disabled),
+  .card__calendar-popup-button:active:not(:disabled),
+  .card__calendar-view-button:active:not(:disabled),
+  .card__calendar-nav-button:active:not(:disabled),
+  .card__counter-button:active:not(:disabled),
+  .card__progress-mode-button:active:not(:disabled),
+  .canvas__empty-action:active:not(:disabled))::before {
+  opacity: 0;
+  animation: none;
+}
+
+/* Segmented/tool buttons: same glare, preserve existing active palette */
+.app-window :is(.workspace-view-toggle__button,
+  .drawing-tool-controls__button,
+  .grid-view-filter-toggle__button,
+  .zoom-menu__trigger,
+  .canvas-start-menu__trigger,
+  .canvas-minimap__toggle,
+  .sticker-palette__toggle) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.app-window :is(.workspace-view-toggle__button,
+  .drawing-tool-controls__button,
+  .grid-view-filter-toggle__button,
+  .zoom-menu__trigger,
+  .canvas-start-menu__trigger,
+  .canvas-minimap__toggle,
+  .sticker-palette__toggle) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-window :is(.workspace-view-toggle__button,
+  .drawing-tool-controls__button,
+  .grid-view-filter-toggle__button,
+  .zoom-menu__trigger,
+  .canvas-start-menu__trigger,
+  .canvas-minimap__toggle,
+  .sticker-palette__toggle)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-window :is(.workspace-view-toggle__button:hover:not(:disabled),
+  .drawing-tool-controls__button:hover:not(:disabled),
+  .grid-view-filter-toggle__button:hover:not(:disabled),
+  .zoom-menu__trigger:hover:not(:disabled),
+  .canvas-start-menu__trigger:hover:not(:disabled),
+  .canvas-minimap__toggle:hover:not(:disabled),
+  .sticker-palette__toggle:hover:not(:disabled)) {
+  transform: translate(0, -1px) !important;
+  filter: drop-shadow(1px 2px 0 #000) !important;
+}
+
+.app-window :is(.workspace-view-toggle__button:hover:not(:disabled),
+  .drawing-tool-controls__button:hover:not(:disabled),
+  .grid-view-filter-toggle__button:hover:not(:disabled),
+  .zoom-menu__trigger:hover:not(:disabled),
+  .canvas-start-menu__trigger:hover:not(:disabled),
+  .canvas-minimap__toggle:hover:not(:disabled),
+  .sticker-palette__toggle:hover:not(:disabled))::before {
+  opacity: 1;
+  animation: ap-ui-button-shine 700ms linear both;
+}
+
+.app-window :is(.workspace-view-toggle__button:active:not(:disabled),
+  .drawing-tool-controls__button:active:not(:disabled),
+  .grid-view-filter-toggle__button:active:not(:disabled),
+  .zoom-menu__trigger:active:not(:disabled),
+  .canvas-start-menu__trigger:active:not(:disabled),
+  .canvas-minimap__toggle:active:not(:disabled),
+  .sticker-palette__toggle:active:not(:disabled))::before {
+  opacity: 0;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-window :is(.page-editor__back-button:hover:not(:disabled),
+    .page-editor__toolbar-button:hover:not(:disabled),
+    .left-pages-panel__icon-button:hover:not(:disabled),
+    .tile-context-menu__action:hover:not(:disabled),
+    .zoom-menu__action:hover:not(:disabled),
+    .card__note-mode-button:hover:not(:disabled),
+    .card__table-action:hover:not(:disabled),
+    .card__table-delete-button:hover:not(:disabled),
+    .card__calendar-popup-button:hover:not(:disabled),
+    .card__calendar-view-button:hover:not(:disabled),
+    .card__calendar-nav-button:hover:not(:disabled),
+    .card__counter-button:hover:not(:disabled),
+    .card__progress-mode-button:hover:not(:disabled),
+    .canvas__empty-action:hover:not(:disabled),
+    .workspace-view-toggle__button:hover:not(:disabled),
+    .drawing-tool-controls__button:hover:not(:disabled),
+    .grid-view-filter-toggle__button:hover:not(:disabled),
+    .zoom-menu__trigger:hover:not(:disabled),
+    .canvas-start-menu__trigger:hover:not(:disabled),
+    .canvas-minimap__toggle:hover:not(:disabled),
+    .sticker-palette__toggle:hover:not(:disabled))::before {
+    animation: none;
+    opacity: 0;
+  }
+}

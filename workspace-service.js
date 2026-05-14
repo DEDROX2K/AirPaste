@@ -1,6 +1,16 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash, randomUUID } = require("node:crypto");
+const {
+  DEFAULT_CANVAS_SUFFIX,
+  getCanvasSuffix,
+  isCanvasPath,
+  isJsonCanvasDocument,
+  isJsonCanvasPath,
+  parseJsonCanvasDocument,
+  serializeJsonCanvasDocument,
+  stripCanvasSuffix,
+} = require("./json-canvas");
 
 const INTERNAL_DIR = ".airpaste";
 const TMP_DIR = "tmp";
@@ -8,7 +18,6 @@ const INDEX_FILE = "index.json";
 const DOME_FILE = "dome.json";
 const UI_STATE_FILE = "ui-state.json";
 const STATE_FILE = "state.json";
-const CANVAS_SUFFIX = ".airpaste.json";
 const MAX_RECENTS = 25;
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
 
@@ -126,11 +135,6 @@ function shouldSkipFileName(fileName) {
   return SKIP_FILE_EXTS.has(ext);
 }
 
-function stripCanvasSuffix(fileName) {
-  const name = String(fileName ?? "");
-  return name.toLowerCase().endsWith(CANVAS_SUFFIX) ? name.slice(0, -CANVAS_SUFFIX.length) : stripExt(name);
-}
-
 function sanitizeName(name, fallback = "untitled") {
   const normalized = Array.from(String(name ?? ""))
     .map((char) => (char.charCodeAt(0) < 32 ? " " : char))
@@ -172,6 +176,14 @@ function cloneStructuredArray(items) {
   ));
 }
 
+function cloneStructuredValue(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value));
+}
+
 function normalizePagePayload(page, fallbackIndex = 0) {
   const safePage = isObject(page) ? page : {};
   return {
@@ -187,6 +199,7 @@ function normalizePagePayload(page, fallbackIndex = 0) {
     edges: cloneStructuredArray(safePage.edges),
     groups: cloneStructuredArray(safePage.groups),
     view: safePage.view === null || isObject(safePage.view) ? (safePage.view ?? null) : null,
+    airpaste: isObject(safePage.airpaste) ? cloneStructuredValue(safePage.airpaste) : null,
   };
 }
 
@@ -461,13 +474,9 @@ async function writeWorkspaceState(root, partialState) {
   return next;
 }
 
-function isCanvasPath(filePath) {
-  return String(filePath ?? "").toLowerCase().endsWith(CANVAS_SUFFIX);
-}
-
 function detectType(fileName) {
   const lower = String(fileName ?? "").toLowerCase();
-  if (lower.endsWith(CANVAS_SUFFIX)) {
+  if (isCanvasPath(lower)) {
     return "canvas";
   }
   const ext = fileExt(lower);
@@ -592,7 +601,12 @@ async function scanWorkspace(folderPath) {
           raw = {};
         }
 
-        const pages = normalizeCanvasPages(raw);
+        const workspaceDocument = isJsonCanvasDocument(raw) || isJsonCanvasPath(absPath)
+          ? parseJsonCanvasDocument(raw, stripCanvasSuffix(entry.name))
+          : {
+            pages: normalizeCanvasPages(raw),
+          };
+        const pages = Array.isArray(workspaceDocument.pages) ? workspaceDocument.pages : [];
         const tileCount = pages.reduce((total, page) => {
           if (Array.isArray(page?.tiles)) {
             return total + page.tiles.length;
@@ -607,7 +621,7 @@ async function scanWorkspace(folderPath) {
           id: firstString(raw.id, legacyDocumentId(relPath)),
           path: relPath,
           type,
-          name: firstString(raw.name, stripCanvasSuffix(entry.name), "Canvas"),
+          name: firstString(workspaceDocument.name, raw.name, stripCanvasSuffix(entry.name), "Canvas"),
           updatedAt: stat.mtime.toISOString(),
           excerpt: "",
           pageCount: pages.length,
@@ -650,7 +664,7 @@ async function openWorkspace(folderPath) {
 async function loadCanvas(filePath) {
   const abs = path.resolve(filePath);
   if (!isCanvasPath(abs)) {
-    throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+    throw new Error('Canvas path must end with ".canvas" or ".airpaste.json".');
   }
 
   const root = await workspaceRootFromFile(abs);
@@ -663,12 +677,15 @@ async function loadCanvas(filePath) {
   const stat = await fs.stat(abs);
   const rel = toWorkspaceRel(root, abs);
 
-  const workspace = {
-    version: Number.isFinite(raw.version) ? raw.version : DEFAULT_WORKSPACE.version,
-    name: firstString(raw.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
-    activePageId: firstString(raw.activePageId, DEFAULT_WORKSPACE.activePageId),
-    pages: normalizeCanvasPages(raw),
-  };
+  const workspace = isJsonCanvasDocument(raw) || isJsonCanvasPath(abs)
+    ? parseJsonCanvasDocument(raw, stripCanvasSuffix(path.basename(abs)))
+    : {
+      version: Number.isFinite(raw.version) ? raw.version : DEFAULT_WORKSPACE.version,
+      name: firstString(raw.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
+      activePageId: firstString(raw.activePageId, DEFAULT_WORKSPACE.activePageId),
+      pages: normalizeCanvasPages(raw),
+      airpaste: isObject(raw.airpaste) ? cloneStructuredValue(raw.airpaste) : null,
+    };
 
   await recordRecentItem(root, abs);
 
@@ -687,7 +704,7 @@ async function loadCanvas(filePath) {
 async function saveCanvas(filePath, data, options = null) {
   const abs = path.resolve(filePath);
   if (!isCanvasPath(abs)) {
-    throw new Error(`Canvas path must end with "${CANVAS_SUFFIX}".`);
+    throw new Error('Canvas path must end with ".canvas" or ".airpaste.json".');
   }
 
   const root = await workspaceRootFromFile(abs);
@@ -697,34 +714,63 @@ async function saveCanvas(filePath, data, options = null) {
 
   ensureInside(root, abs);
   const current = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
+  const currentWorkspace = isJsonCanvasDocument(current) || isJsonCanvasPath(abs)
+    ? parseJsonCanvasDocument(current, stripCanvasSuffix(path.basename(abs)))
+    : {
+      version: Number.isFinite(current.version) ? current.version : DEFAULT_WORKSPACE.version,
+      name: firstString(current.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
+      activePageId: firstString(current.activePageId, DEFAULT_WORKSPACE.activePageId),
+      pages: normalizeCanvasPages(current),
+      airpaste: isObject(current.airpaste) ? cloneStructuredValue(current.airpaste) : null,
+    };
   const input = isObject(data) ? data : {};
   const saveOptions = isObject(options) ? options : {};
-  const nextName = firstString(input.name, current.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
-  const payload = {
-    version: 9,
-    type: "canvas",
+  const nextName = firstString(input.name, currentWorkspace.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
+  const nextPages = normalizeCanvasPages({
+    pages: Array.isArray(input.pages) ? input.pages : Array.isArray(currentWorkspace.pages) ? currentWorkspace.pages : null,
+    activePageId: input.activePageId ?? currentWorkspace.activePageId,
+    viewport: input.viewport ?? currentWorkspace.viewport,
+    cards: input.cards ?? currentWorkspace.cards,
+    drawings: input.drawings ?? currentWorkspace.drawings,
+    edges: input.edges ?? currentWorkspace.edges,
+    groups: input.groups ?? currentWorkspace.groups,
+    view: input.view ?? currentWorkspace.view,
+  });
+  const nextWorkspace = {
+    version: Number.isFinite(currentWorkspace.version) ? currentWorkspace.version : DEFAULT_WORKSPACE.version,
     id: firstString(current.id, input.id, randomUUID()),
     name: nextName,
-    createdAt: typeof current.createdAt === "string" ? current.createdAt : nowIso(),
-    updatedAt: nowIso(),
     activePageId: firstString(
       input.activePageId,
-      current.activePageId,
-      normalizeCanvasPages(input)[0]?.id,
-      normalizeCanvasPages(current)[0]?.id,
+      currentWorkspace.activePageId,
+      nextPages[0]?.id,
       DEFAULT_WORKSPACE.activePageId,
     ),
-    pages: normalizeCanvasPages({
-      pages: Array.isArray(input.pages) ? input.pages : Array.isArray(current.pages) ? current.pages : null,
-      activePageId: input.activePageId ?? current.activePageId,
-      viewport: input.viewport ?? current.viewport,
-      cards: input.cards ?? current.cards,
-      drawings: input.drawings ?? current.drawings,
-      edges: input.edges ?? current.edges,
-      groups: input.groups ?? current.groups,
-      view: input.view ?? current.view,
-    }),
+    pages: nextPages,
+    airpaste: isObject(input.airpaste)
+      ? cloneStructuredValue(input.airpaste)
+      : isObject(currentWorkspace.airpaste)
+        ? cloneStructuredValue(currentWorkspace.airpaste)
+        : null,
   };
+  const payload = isJsonCanvasPath(abs)
+    ? serializeJsonCanvasDocument(nextWorkspace, {
+      id: nextWorkspace.id,
+      fallbackName: stripCanvasSuffix(path.basename(abs)),
+      createdAt: typeof current.createdAt === "string" ? current.createdAt : nowIso(),
+      updatedAt: nowIso(),
+    })
+    : {
+      version: 9,
+      type: "canvas",
+      id: nextWorkspace.id,
+      name: nextWorkspace.name,
+      createdAt: typeof current.createdAt === "string" ? current.createdAt : nowIso(),
+      updatedAt: nowIso(),
+      activePageId: nextWorkspace.activePageId,
+      pages: nextWorkspace.pages,
+      airpaste: nextWorkspace.airpaste,
+    };
 
   await atomicWriteJson(root, abs, payload);
   const rel = toWorkspaceRel(root, abs);
@@ -751,19 +797,23 @@ async function createCanvas(folderPath, name, targetFolderPath = "") {
   const filePath = await uniquePath(
     targetDir,
     sanitizeName(firstString(name, "Canvas"), "Canvas"),
-    CANVAS_SUFFIX,
+    DEFAULT_CANVAS_SUFFIX,
   );
+  const canvasId = randomUUID();
 
-  await atomicWriteJson(root, filePath, {
-    version: 9,
-    type: "canvas",
-    id: randomUUID(),
+  await atomicWriteJson(root, filePath, serializeJsonCanvasDocument({
+    version: DEFAULT_WORKSPACE.version,
+    id: canvasId,
     name: stripCanvasSuffix(path.basename(filePath)),
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
     activePageId: DEFAULT_WORKSPACE.activePageId,
     pages: DEFAULT_WORKSPACE.pages,
-  });
+    airpaste: null,
+  }, {
+    id: canvasId,
+    fallbackName: stripCanvasSuffix(path.basename(filePath)),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  }));
 
   return loadCanvas(filePath);
 }
@@ -789,7 +839,7 @@ async function renameFile(root, filePath, nextName) {
     return loadCanvas(abs);
   }
 
-  const renamed = await uniquePath(path.dirname(abs), nextBaseName, CANVAS_SUFFIX);
+  const renamed = await uniquePath(path.dirname(abs), nextBaseName, getCanvasSuffix(abs));
   await fs.rename(abs, renamed);
 
   const raw = await readJson(renamed, path.basename(renamed));

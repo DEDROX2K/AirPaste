@@ -92,6 +92,7 @@
       "build/**/*",
       "preview/**/*",
       "workspace-service.js",
+      "json-canvas.js",
       "preload.js",
       "package.json"
     ],

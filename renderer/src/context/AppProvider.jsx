@@ -106,6 +106,11 @@ function areObjectsEqual(a, b) {
   return keysA.every((key) => a[key] === b[key]);
 }
 
+function areStructuredObjectsEqual(a, b) {
+  if (a === b) return true;
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 function areCardsEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -113,6 +118,7 @@ function areCardsEqual(a, b) {
   return areObjectsEqual(a, b)
     && areObjectsEqual(a.asset, b.asset)
     && areObjectsEqual(a.file, b.file)
+    && areStructuredObjectsEqual(a.airpaste, b.airpaste)
     && areObjectsEqual(a.layout?.globe, b.layout?.globe);
 }
 
@@ -185,6 +191,7 @@ function areWorkspacePagesEqual(a = [], b = []) {
       || !areDrawingsEqual(leftPage?.drawings, rightPage?.drawings)
       || !areStructuredArraysEqual(leftPage?.edges, rightPage?.edges)
       || !areStructuredArraysEqual(leftPage?.groups, rightPage?.groups)
+      || !areStructuredObjectsEqual(leftPage?.airpaste, rightPage?.airpaste)
     ) {
       return false;
     }
@@ -226,6 +233,7 @@ function mergeCanvasDirtyFields(currentFields = null, nextFields = null) {
     pages: Boolean(currentFields?.pages || nextFields?.pages),
     activePageId: Boolean(currentFields?.activePageId || nextFields?.activePageId),
     name: Boolean(currentFields?.name || nextFields?.name),
+    airpaste: Boolean(currentFields?.airpaste || nextFields?.airpaste),
   };
 }
 
@@ -235,6 +243,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
       pages: false,
       activePageId: false,
       name: false,
+      airpaste: false,
     };
   }
 
@@ -243,6 +252,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
       pages: true,
       activePageId: true,
       name: true,
+      airpaste: true,
     };
   }
 
@@ -250,6 +260,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
     pages: previousWorkspace.pages !== nextWorkspace.pages,
     activePageId: previousWorkspace.activePageId !== nextWorkspace.activePageId,
     name: previousWorkspace.name !== nextWorkspace.name,
+    airpaste: !areStructuredObjectsEqual(previousWorkspace.airpaste, nextWorkspace.airpaste),
   };
 }
 
@@ -266,6 +277,10 @@ function buildCanvasSavePayload(workspace, dirtyFields = null) {
 
   if (dirtyFields?.name && typeof workspace?.name === "string") {
     payload.name = workspace.name;
+  }
+
+  if (dirtyFields?.airpaste) {
+    payload.airpaste = workspace?.airpaste ?? null;
   }
 
   return payload;
@@ -1406,6 +1421,7 @@ export function AppProvider({ children }) {
         pages: false,
         activePageId: false,
         name: false,
+        airpaste: false,
       };
       lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
 
@@ -1497,6 +1513,7 @@ export function AppProvider({ children }) {
               pages: false,
               activePageId: false,
               name: false,
+              airpaste: false,
             };
             lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToSave;
           }

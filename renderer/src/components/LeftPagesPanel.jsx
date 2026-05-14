@@ -262,6 +262,7 @@ function PagesPanelContent({
 
 export default function LeftPagesPanel({ isNarrowDesktop = false }) {
   const {
+    currentEditor,
     workspace,
     createCanvasPage,
     reorderCanvasPages,
@@ -305,6 +306,8 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
 
   const pages = useMemo(() => workspace?.pages ?? [], [workspace?.pages]);
   const activePageId = workspace?.activePageId ?? null;
+  const isSingleBoardCanvas = currentEditor?.kind === "canvas"
+    && String(currentEditor?.filePath ?? "").toLowerCase().endsWith(".canvas");
 
   useEffect(() => {
     if (!editingPageId) {
@@ -446,6 +449,10 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
     if (isNarrowDesktop) {
       setDrawerOpen(false);
     }
+  }
+
+  if (isSingleBoardCanvas) {
+    return null;
   }
 
   if (isNarrowDesktop) {
