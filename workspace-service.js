@@ -586,9 +586,15 @@ async function scanWorkspace(folderPath) {
         }
 
         const pages = normalizeCanvasPages(raw);
-        const tileCount = pages.reduce((total, page) => (
-          total + (Array.isArray(page?.cards) ? page.cards.length : 0)
-        ), 0);
+        const tileCount = pages.reduce((total, page) => {
+          if (Array.isArray(page?.tiles)) {
+            return total + page.tiles.length;
+          }
+          if (Array.isArray(page?.cards)) {
+            return total + page.cards.length;
+          }
+          return total;
+        }, 0);
 
         items.push({
           id: firstString(raw.id, legacyDocumentId(relPath)),

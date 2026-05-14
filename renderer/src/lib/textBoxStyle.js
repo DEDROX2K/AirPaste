@@ -22,17 +22,17 @@ export const TEXT_BOX_PRESET_OPTIONS = Object.freeze([
   {
     id: "bookish",
     label: "Bookish",
-    fontFamily: 'ui-serif, Georgia, Cambria, "Times New Roman", serif',
+    fontFamily: 'var(--ap-font-display)',
   },
   {
     id: "technical",
     label: "Technical",
-    fontFamily: 'ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace',
+    fontFamily: 'var(--ap-font-body)',
   },
   {
     id: "scribbled",
     label: "Scribbled",
-    fontFamily: '"Bradley Hand", "Segoe Print", "Comic Sans MS", "Snell Roundhand", cursive',
+    fontFamily: 'var(--ap-font-body)',
   },
 ]);
 

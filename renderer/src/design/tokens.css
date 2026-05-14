@@ -1,10 +1,40 @@
-@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+@font-face {
+  font-family: "AirPasteDisplay";
+  src: url("/fonts/dogica/dogicapixel.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
 
 @font-face {
-  font-family: "AirPasteHeader";
-  src: url("/fonts/ppneuebit-bold.otf") format("opentype");
+  font-family: "AirPasteBody";
+  src: url("/fonts/dogica/dogica.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AirPasteBody";
+  src: url("/fonts/dogica/dogicabold.otf") format("opentype");
   font-style: normal;
   font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AirPasteDisplay";
+  src: url("/fonts/dogica/dogicapixelbold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AirPasteHomeHeader";
+  src: url("/fonts/VCR.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
   font-display: swap;
 }
 
@@ -65,9 +95,9 @@
   --ap-info-dark:     #0369A1;
 
   /* ─── Typography: Families ──────────────────────────────────── */
-  --ap-font-display:  "AirPasteHeader", "Lucida Console", "Courier New", monospace;
-  --ap-font-body:     "VT323", Tahoma, "Segoe UI", "MS Sans Serif", monospace;
-  --ap-font-mono:     "VT323", "Lucida Console", Consolas, "Courier New", monospace;
+  --ap-font-display:  "AirPasteDisplay";
+  --ap-font-body:     "AirPasteBody";
+  --ap-font-mono:     "AirPasteBody";
 
   /* ─── Typography: Scale ─────────────────────────────────────── */
   --ap-text-2xs:   0.625rem;   /* 10px */

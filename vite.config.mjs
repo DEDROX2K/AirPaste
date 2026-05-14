@@ -20,5 +20,32 @@ export default defineConfig({
   build: {
     outDir: path.resolve("dist-renderer"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return undefined;
+          }
+
+          if (id.includes("react-konva") || id.includes(`${path.sep}konva${path.sep}`) || id.includes("/konva/")) {
+            return "konva";
+          }
+
+          if (id.includes(`${path.sep}three${path.sep}`) || id.includes("/three/")) {
+            return "three";
+          }
+
+          if (id.includes("framer-motion")) {
+            return "motion";
+          }
+
+          if (id.includes(`${path.sep}react${path.sep}`) || id.includes(`${path.sep}react-dom${path.sep}`) || id.includes("/react/") || id.includes("/react-dom/")) {
+            return "react";
+          }
+
+          return undefined;
+        },
+      },
+    },
   },
 });

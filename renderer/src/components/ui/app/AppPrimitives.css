@@ -17,11 +17,11 @@
   color: var(--bg-black, #000000);
   box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
   filter: drop-shadow(0 0 0 #000);
-  font-family: var(--font-retro, var(--ap-font-display));
+  font-family: var(--ap-font-display);
   font-size: 12px;
   line-height: 1;
   text-transform: uppercase;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   image-rendering: pixelated;
   transition: transform 0.2s ease-out, filter 0.2s ease-out, background-color 0.2s ease-out, color 0.2s ease-out;
 }
@@ -180,7 +180,7 @@
   background-color: var(--bg-white, #ffffff);
   background-image: var(--shine-gradient, none);
   color: var(--bg-black, #000000);
-  font-family: var(--font-body, var(--ap-font-body));
+  font-family: var(--ap-font-body);
   font-size: 18px;
   line-height: 1;
   box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);

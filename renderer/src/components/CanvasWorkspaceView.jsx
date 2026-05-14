@@ -1755,6 +1755,8 @@ export default function CanvasWorkspaceView() {
       const nextHint = buildTileRenderHint({
         lodLevel: workspaceLodLevel,
         forceFullFidelity: interactionOverlayTileIdSet.has(tile.id),
+        preferSpeed: isCanvasMoving,
+        viewportZoom: viewportZoomForRender,
       });
       const stableHint = previousHint && areRenderHintsEqual(previousHint, nextHint)
         ? previousHint
@@ -1766,7 +1768,7 @@ export default function CanvasWorkspaceView() {
 
     tileRenderHintCacheRef.current = nextCache;
     return nextHints;
-  }, [interactionOverlayTileIdSet, layout.rootTiles, workspaceLodLevel]);
+  }, [interactionOverlayTileIdSet, isCanvasMoving, layout.rootTiles, viewportZoomForRender, workspaceLodLevel]);
   const previewTierCounts = useMemo(() => {
     return layout.rootTiles.reduce((counts, tile) => {
       const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";

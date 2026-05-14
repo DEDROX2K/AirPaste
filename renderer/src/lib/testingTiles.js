@@ -492,8 +492,8 @@ function createHeadingSvgDataUrl(label) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${HEADING_WIDTH}" height="${HEADING_HEIGHT}" viewBox="0 0 ${HEADING_WIDTH} ${HEADING_HEIGHT}">
       <rect x="1" y="1" width="${HEADING_WIDTH - 2}" height="${HEADING_HEIGHT - 2}" rx="18" fill="rgba(248,249,252,0.92)" stroke="rgba(71,85,105,0.28)" />
-      <text x="18" y="28" fill="#0f172a" font-family="Georgia, serif" font-size="13" font-weight="700">QA Row</text>
-      <text x="18" y="46" fill="#334155" font-family="Georgia, serif" font-size="18" font-weight="700">${label}</text>
+      <text x="18" y="28" fill="#0f172a" font-family="AirPasteDisplay" font-size="13" font-weight="700">QA Row</text>
+      <text x="18" y="46" fill="#334155" font-family="AirPasteDisplay" font-size="18" font-weight="700">${label}</text>
     </svg>
   `.trim();
 

@@ -8,14 +8,6 @@
  * Import after tokens.css and theme.css.
  */
 
-/* ─── Font Imports ──────────────────────────────────────────────────────
-   In production, serve these as local assets or via a font manager.
-   These @import rules are for development convenience only.
-───────────────────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap');
-
 /* ─── Base Reset ───────────────────────────────────────────────────────── */
 *,
 *::before,

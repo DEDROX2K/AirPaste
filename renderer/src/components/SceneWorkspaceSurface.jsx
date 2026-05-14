@@ -71,7 +71,7 @@ function getVisibleWorldRect(viewport, width, height, overscan = 220) {
   };
 }
 
-function isLikelyRemoteImage(url) {
+function isLikelyRemoteImage(url, tile) {
   if (typeof url !== "string" || !url.trim()) {
     return false;
   }
@@ -93,7 +93,13 @@ function isLikelyRemoteImage(url) {
   }
 
   if (/^https?:\/\//i.test(url)) {
-    return IMAGE_EXTENSIONS.test(url) || url.includes("image");
+    if (tile?.contentKind === LINK_CONTENT_KIND_IMAGE) {
+      return true;
+    }
+
+    return IMAGE_EXTENSIONS.test(url)
+      || url.includes("image")
+      || /[?&](format|fm|ext|type)=image/i.test(url);
   }
 
   return false;
@@ -259,7 +265,7 @@ async function resolveSceneTileImageSource({
     }
   }
 
-  if (isLikelyRemoteImage(directImage)) {
+  if (isLikelyRemoteImage(directImage, tile)) {
     return directImage;
   }
 

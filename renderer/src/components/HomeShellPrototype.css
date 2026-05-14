@@ -1,6 +1,6 @@
 :root {
-  --font-retro: var(--ap-proto-font-retro);
-  --font-body: var(--ap-proto-font-body);
+  --font-retro: var(--ap-font-display);
+  --font-body: var(--ap-font-body);
   --bg-desktop: var(--ap-proto-bg-desktop);
   --bg-window: var(--ap-proto-bg-window);
   --bg-white: var(--ap-proto-bg-white);
@@ -124,7 +124,7 @@ body {
   font-size: 14px;
   font-family: var(--font-retro);
   color: var(--bg-black);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .titlebar-tab.is-active {
@@ -142,7 +142,7 @@ body {
   width: 24px;
   height: 24px;
   border: 2px solid #000;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,7 +216,6 @@ body {
   min-width: 0;
   overflow: auto;
   margin: 6px;
-  /* padding: 8px; */
   background-color: var(--bg-white);
   background-image: var(--shine-gradient);
   background-repeat: no-repeat;
@@ -294,7 +293,14 @@ body {
 
 .home-sidebar .sidebar-link.is-active,
 .home-sidebar .page-link.is-active {
-  color: #fff;
+  color: #000;
+}
+
+.home-sidebar .sidebar-link.is-active span,
+.home-sidebar .page-link.is-active span,
+.home-sidebar .sidebar-link.is-active .workspace-badge,
+.home-sidebar .page-link.is-active .workspace-badge {
+  color: #000 !important;
 }
 
 .home-card-action.is-flex {
@@ -374,7 +380,7 @@ body {
   border: 0;
   background: transparent;
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .browser-card-button {
@@ -435,10 +441,6 @@ body {
   margin-top: 4px;
 }
 
-.dialog-actions.is-padded {
-  padding: 0 20px 20px;
-}
-
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -448,33 +450,6 @@ body {
   justify-content: center;
   padding: 24px;
   z-index: 50;
-}
-
-.dialog-card.is-small {
-  width: min(100%, 520px);
-}
-
-.dialog-card.is-large {
-  width: min(100%, 760px);
-}
-
-.dome-list-row {
-  padding: 12px;
-  border: 2px solid #000;
-  background: #d4d4d4;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dome-name {
-  font-family: var(--font-retro);
-}
-
-.dome-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 /* =========================================
@@ -605,7 +580,7 @@ body {
   padding: 0;
   margin: 0;
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -668,8 +643,46 @@ body {
   box-shadow: var(--pixel-borders);
 }
 
+.list-row-star-button {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.list-row-star-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.9;
+  filter: grayscale(1) brightness(0.82);
+}
+
+.list-row-star-button.is-starred .list-row-star-icon {
+  filter: sepia(1) saturate(6.5) hue-rotate(340deg) brightness(1.02);
+}
+
 .list-row.is-selected {
-  background-color: var(--bg-active);
+  background-color: var(--bg-white);
+  color: var(--bg-black);
+}
+
+.list-row.is-selected .list-row-title,
+.list-row.is-selected .muted-copy {
+  color: var(--bg-black) !important;
+}
+
+.browser-card.is-selected {
+  background-color: var(--bg-white);
+  color: var(--bg-black);
+}
+
+.sidebar-link.is-active {
+  background-color: var(--bg-white);
   color: var(--bg-black);
 }
 

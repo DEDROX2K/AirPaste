@@ -157,6 +157,17 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
           <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
             <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
           </div>
+          <button
+            type="button"
+            className={`list-row-star-button${item.starred ? " is-starred" : ""}`}
+            aria-label={item.starred ? "Remove star" : "Add star"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleStar(item);
+            }}
+          >
+            <img src="/icons/star.svg" alt="" aria-hidden="true" className="list-row-star-icon" />
+          </button>
           {menuOpen ? (
             <BrowserEntryMenu
               item={item}

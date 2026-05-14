@@ -134,7 +134,7 @@
   /* off-white for unselected */
   color: #666;
   /* grey for unselected text */
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   -webkit-app-region: no-drag;
   font-size: 12px;
   line-height: 1;
@@ -191,7 +191,7 @@
   border: 2px solid transparent;
   background: transparent;
   color: currentColor;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 

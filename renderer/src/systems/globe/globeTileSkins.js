@@ -105,7 +105,7 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
 function drawFaviconGlyph(ctx, title) {
   const glyph = (title || "A").trim().charAt(0).toUpperCase() || "A";
   ctx.fillStyle = "rgba(52, 38, 22, 0.82)";
-  ctx.font = "700 52px Georgia";
+  ctx.font = '700 52px "AirPasteDisplay"';
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(glyph, 80, 80);
@@ -146,10 +146,10 @@ export function createTileSkinTexture(card, lodLevel = "mid") {
       context.fillStyle = "rgba(43, 33, 22, 0.92)";
       context.textAlign = "left";
       context.textBaseline = "middle";
-      context.font = highDetail ? "700 48px Georgia" : "700 40px Georgia";
+      context.font = highDetail ? '700 48px "AirPasteDisplay"' : '700 40px "AirPasteDisplay"';
       context.fillText(title.slice(0, compactDetail ? 18 : 30), 146, 78);
       context.fillStyle = "rgba(95, 73, 46, 0.84)";
-      context.font = highDetail ? "600 30px Georgia" : "600 26px Georgia";
+      context.font = highDetail ? '600 30px "AirPasteBody"' : '600 26px "AirPasteBody"';
       context.fillText(subtitle.slice(0, compactDetail ? 20 : 34), 146, 118);
 
       context.fillStyle = "rgba(235, 224, 206, 0.72)";
@@ -176,17 +176,17 @@ export function createTileSkinTexture(card, lodLevel = "mid") {
       drawRoundedRect(context, 48, 48, 672, 340, 28);
       context.fill();
       context.fillStyle = "rgba(103, 74, 46, 0.58)";
-      context.font = "700 50px Georgia";
+      context.font = '700 50px "AirPasteDisplay"';
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText("IMAGE", 384, 216);
 
       context.fillStyle = "rgba(48, 33, 20, 0.9)";
       context.textAlign = "left";
-      context.font = highDetail ? "700 44px Georgia" : "700 36px Georgia";
+      context.font = highDetail ? '700 44px "AirPasteDisplay"' : '700 36px "AirPasteDisplay"';
       context.fillText(title.slice(0, compactDetail ? 18 : 26), 60, 432);
       context.fillStyle = "rgba(89, 62, 35, 0.82)";
-      context.font = "600 28px Georgia";
+      context.font = '600 28px "AirPasteBody"';
       context.fillText(subtitle.slice(0, 26), 60, 468);
     }
 
@@ -204,10 +204,10 @@ export function createTileSkinTexture(card, lodLevel = "mid") {
       context.fillStyle = "rgba(53, 38, 19, 0.88)";
       context.textAlign = "left";
       context.textBaseline = "middle";
-      context.font = highDetail ? "700 48px Georgia" : "700 40px Georgia";
+      context.font = highDetail ? '700 48px "AirPasteDisplay"' : '700 40px "AirPasteDisplay"';
       context.fillText(title.slice(0, compactDetail ? 18 : 28), 56, 86);
       context.fillStyle = "rgba(77, 60, 35, 0.8)";
-      context.font = "600 28px Georgia";
+      context.font = '600 28px "AirPasteBody"';
       for (let line = 0; line < 5; line += 1) {
         context.fillText(subtitle.slice(0, compactDetail ? 24 : 42), 56, 148 + (line * 62));
       }
@@ -228,10 +228,10 @@ export function createTileSkinTexture(card, lodLevel = "mid") {
       context.fillStyle = "rgba(66, 47, 24, 0.9)";
       context.textAlign = "left";
       context.textBaseline = "middle";
-      context.font = highDetail ? "700 44px Georgia" : "700 36px Georgia";
+      context.font = highDetail ? '700 44px "AirPasteDisplay"' : '700 36px "AirPasteDisplay"';
       context.fillText(title.slice(0, compactDetail ? 16 : 24), 88, 252);
       context.fillStyle = "rgba(95, 71, 42, 0.82)";
-      context.font = "600 28px Georgia";
+      context.font = '600 28px "AirPasteBody"';
       context.fillText(subtitle.slice(0, 20), 88, 300);
 
       context.fillStyle = "rgba(237, 220, 185, 0.76)";

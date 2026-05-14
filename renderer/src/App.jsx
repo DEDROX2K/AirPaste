@@ -1,9 +1,6 @@
-import { useEffect } from "react";
-import CanvasWorkspaceView from "./components/CanvasWorkspaceView";
+import { Suspense, lazy, useEffect } from "react";
 import { DevConsole } from "./components/DevConsole";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
-import HomeShell from "./components/HomeShell";
-import LeftPagesPanel from "./components/LeftPagesPanel";
 import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
@@ -16,6 +13,9 @@ import { desktop } from "./lib/desktop";
 const BOOT_SPLASH_IMAGE_SRC = encodeURI("/Splash screen/Keyboard keycap with _airpaste_ text.png");
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
 const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+const CanvasWorkspaceView = lazy(() => import("./components/CanvasWorkspaceView"));
+const HomeShell = lazy(() => import("./components/HomeShell"));
+const LeftPagesPanel = lazy(() => import("./components/LeftPagesPanel"));
 
 function BootSplash() {
   return (
@@ -78,6 +78,14 @@ function WindowResizeHandles() {
   );
 }
 
+function AppViewFallback() {
+  return (
+    <div className="app-shell__view-loading" aria-live="polite">
+      <span className="app-shell__view-loading-label">Loading workspace</span>
+    </div>
+  );
+}
+
 export default function App() {
   useTheme();
   const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
@@ -136,13 +144,15 @@ export default function App() {
         <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
 
         <div className="app-shell__view-container">
-          {currentEditor.kind === "canvas" ? (
-            <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
-              <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
-              <CanvasWorkspaceView />
-            </div>
-          ) : null}
-          {currentEditor.kind === "home" ? <HomeShell /> : null}
+          <Suspense fallback={<AppViewFallback />}>
+            {currentEditor.kind === "canvas" ? (
+              <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
+                <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
+                <CanvasWorkspaceView />
+              </div>
+            ) : null}
+            {currentEditor.kind === "home" ? <HomeShell /> : null}
+          </Suspense>
         </div>
       </div>
 

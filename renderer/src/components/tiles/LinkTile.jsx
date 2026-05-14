@@ -700,7 +700,7 @@ function LinkTile({
       className={`${isMusicCard ? "card--music " : ""}${isStickerTile ? "card--sticker" : ""}`.trim()}
       toolbar={renderHint?.showToolbar === false || isStickerTile ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
-          <p className="card__label">{label}</p>
+          {tileMeta?.isSelected ? <p className="card__label">{label}</p> : null}
           {previewDiagnosticBadges.length > 0 ? (
             <div className="card__debug-badges" aria-label="Preview diagnostics badges">
               {previewDiagnosticBadges.map((badge) => (
