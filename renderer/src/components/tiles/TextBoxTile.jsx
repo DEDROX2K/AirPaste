@@ -6,6 +6,11 @@ import {
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
+import {
+  recordTextTileMeasurePass,
+  recordTextTileRenderSample,
+  recordTextTileSizeWrite,
+} from "../../lib/perf";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { DRAWING_TOOL_MODE_SELECT, DRAWING_TOOL_MODE_TEXT } from "../../systems/drawing/drawingTypes";
 import TileShell from "./TileShell";
@@ -79,6 +84,7 @@ function TextBoxTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  performanceMode,
   viewportZoom,
   canvasToolMode,
   textBoxEditorState,
@@ -96,6 +102,12 @@ function TextBoxTile({
   const measureRef = useRef(null);
   const editRequestIdRef = useRef(null);
   const resizeStateRef = useRef(null);
+  const pendingHeightWriteRef = useRef(null);
+  const pendingHeightRafRef = useRef(0);
+  const latestAppliedSizeRef = useRef({ width: card.width, height: card.height });
+  const deferredMeasurePendingRef = useRef(false);
+  const isMoving = performanceMode?.simplifyDuringMotion === true;
+  const isPassiveTextDisplay = !isEditing;
   const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [card.style]);
   const isPlainTextLayer = appearance !== "sticky";
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
@@ -116,10 +128,25 @@ function TextBoxTile({
 
   const growTextBoxHeight = useCallback((nextHeight) => {
     const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
-
-    if (nextHeight > currentHeight + TEXT_BOX_HEIGHT_EPSILON) {
-      updateExistingCard(card.id, { height: nextHeight });
+    if (nextHeight <= currentHeight + TEXT_BOX_HEIGHT_EPSILON) {
+      return;
     }
+
+    pendingHeightWriteRef.current = nextHeight;
+    if (pendingHeightRafRef.current) {
+      return;
+    }
+
+    pendingHeightRafRef.current = requestAnimationFrame(() => {
+      pendingHeightRafRef.current = 0;
+      const queuedHeight = pendingHeightWriteRef.current;
+      pendingHeightWriteRef.current = null;
+      if (!Number.isFinite(queuedHeight)) {
+        return;
+      }
+      recordTextTileSizeWrite();
+      updateExistingCard(card.id, { height: queuedHeight });
+    });
   }, [card.height, card.id, updateExistingCard]);
 
   const surfaceGesture = useTileGesture({
@@ -168,27 +195,88 @@ function TextBoxTile({
     if (!measureRef.current || (appearance === "sticky" && isEditing)) {
       return;
     }
+    if (isMoving) {
+      deferredMeasurePendingRef.current = true;
+      return;
+    }
 
+    recordTextTileMeasurePass();
     const nextPatch = {};
     const nextHeight = getMeasuredTextBoxHeight(measureRef.current);
     const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
+    const lastAppliedSize = latestAppliedSizeRef.current;
 
-    if (Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON) {
+    if (
+      Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON
+      && Math.abs(nextHeight - (lastAppliedSize.height ?? currentHeight)) > TEXT_BOX_HEIGHT_EPSILON
+    ) {
       nextPatch.height = nextHeight;
     }
 
     if (isAutoWidth) {
       const nextWidth = clamp(getMeasuredTextBoxWidth(measureRef.current), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
 
-      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
+      if (
+        Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON
+        && Math.abs(nextWidth - (lastAppliedSize.width ?? card.width)) > TEXT_BOX_WIDTH_EPSILON
+      ) {
         nextPatch.width = nextWidth;
       }
     }
 
     if (Object.keys(nextPatch).length > 0) {
+      latestAppliedSizeRef.current = {
+        width: Number.isFinite(nextPatch.width) ? nextPatch.width : card.width,
+        height: Number.isFinite(nextPatch.height) ? nextPatch.height : currentHeight,
+      };
+      recordTextTileSizeWrite();
       updateExistingCard(card.id, nextPatch);
     }
-  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, measuredText, normalizedStyle, updateExistingCard]);
+  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, isMoving, measuredText, normalizedStyle, updateExistingCard]);
+
+  useEffect(() => {
+    if (isMoving || !deferredMeasurePendingRef.current) {
+      return;
+    }
+    deferredMeasurePendingRef.current = false;
+    if (!measureRef.current || (appearance === "sticky" && isEditing)) {
+      return;
+    }
+    recordTextTileMeasurePass();
+    const nextPatch = {};
+    const nextHeight = getMeasuredTextBoxHeight(measureRef.current);
+    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
+    if (Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON) {
+      nextPatch.height = nextHeight;
+    }
+    if (isAutoWidth) {
+      const nextWidth = clamp(getMeasuredTextBoxWidth(measureRef.current), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
+      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
+        nextPatch.width = nextWidth;
+      }
+    }
+    if (Object.keys(nextPatch).length > 0) {
+      latestAppliedSizeRef.current = {
+        width: Number.isFinite(nextPatch.width) ? nextPatch.width : card.width,
+        height: Number.isFinite(nextPatch.height) ? nextPatch.height : currentHeight,
+      };
+      recordTextTileSizeWrite();
+      updateExistingCard(card.id, nextPatch);
+    }
+  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, isMoving, updateExistingCard]);
+
+  useEffect(() => {
+    recordTextTileRenderSample({ isMoving });
+  }, [card.id, isMoving, measuredText, isEditing, card.width, card.height]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingHeightRafRef.current) {
+        cancelAnimationFrame(pendingHeightRafRef.current);
+        pendingHeightRafRef.current = 0;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isEditing) {
@@ -356,7 +444,7 @@ function TextBoxTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className={`card__surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
+          <section className={`card__surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
             {isEditing ? (
               <textarea
                 ref={textareaRef}
@@ -386,14 +474,16 @@ function TextBoxTile({
                 {displayText}
               </div>
             )}
-            <div
-              ref={measureRef}
-              className={`card__text-box-measure${appearance === "sticky" ? " card__text-box-measure--sticky" : ""}`}
-              aria-hidden="true"
-              style={textStyle}
-            >
-              {measuredText}
-            </div>
+            {!isMoving ? (
+              <div
+                ref={measureRef}
+                className={`card__text-box-measure${appearance === "sticky" ? " card__text-box-measure--sticky" : ""}`}
+                aria-hidden="true"
+                style={textStyle}
+              >
+                {measuredText}
+              </div>
+            ) : null}
           </section>
           {tileMeta?.isSelected && !isEditing && isPlainTextLayer ? (
             TEXT_BOX_RESIZE_HANDLES.map((handle) => (

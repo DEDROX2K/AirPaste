@@ -263,6 +263,17 @@ async function resolveSceneTileImageSource({
     if (typeof resolved === "string" && resolved.trim()) {
       return resolved;
     }
+
+    if (previewTier !== PREVIEW_TIER.ORIGINAL) {
+      const originalResolved = await desktop.workspace.resolveAssetUrl(folderPath, relativePath, {
+        previewTier: PREVIEW_TIER.ORIGINAL,
+        devicePixelRatio,
+      }).catch(() => "");
+
+      if (typeof originalResolved === "string" && originalResolved.trim()) {
+        return originalResolved;
+      }
+    }
   }
 
   if (isLikelyRemoteImage(directImage, tile)) {

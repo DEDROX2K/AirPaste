@@ -50,7 +50,10 @@ async function resolveAssetPreviewUrl({
   })
     .then((resolvedUrl) => {
       const safeUrl = typeof resolvedUrl === "string" ? resolvedUrl : "";
-      resolvedPreviewUrlCache.set(cacheKey, safeUrl);
+      // Avoid caching empty values for non-original tiers; source might be generated later.
+      if (safeUrl || previewTier === PREVIEW_TIER.ORIGINAL) {
+        resolvedPreviewUrlCache.set(cacheKey, safeUrl);
+      }
       pendingPreviewUrlCache.delete(cacheKey);
       return safeUrl;
     })
@@ -113,9 +116,18 @@ export function useTilePreviewSource({
         previewTier: normalizedTier,
         devicePixelRatio,
       });
+      const shouldFallbackToOriginal = !sourceUrl && normalizedTier !== PREVIEW_TIER.ORIGINAL;
+      const fallbackOriginalUrl = shouldFallbackToOriginal
+        ? await resolveAssetPreviewUrl({
+          folderPath,
+          relativePath: assetRelativePath,
+          previewTier: PREVIEW_TIER.ORIGINAL,
+          devicePixelRatio,
+        })
+        : "";
 
       if (!cancelled) {
-        setResolvedImageSrc(sourceUrl || fallbackImageSrc);
+        setResolvedImageSrc(sourceUrl || fallbackOriginalUrl || fallbackImageSrc);
       }
     }
 

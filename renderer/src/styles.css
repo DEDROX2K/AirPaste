@@ -2231,13 +2231,13 @@ option {
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 208px;
-  padding: 10px;
+  gap: 8px;
+  width: 244px;
+  padding: 10px 10px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  background: rgba(18, 18, 18, 0.82);
-  color: #f5f5f5;
+  background: rgba(22, 24, 28, 0.9);
+  color: #f7f8fa;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -2250,7 +2250,7 @@ option {
   align-items: center;
   justify-content: space-between;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2266,6 +2266,26 @@ option {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.canvas-perf-overlay__state {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.canvas-perf-overlay__state--idle {
+  color: #79e2a8;
+  border-color: rgba(121, 226, 168, 0.45);
+  background: rgba(121, 226, 168, 0.12);
+}
+
+.canvas-perf-overlay__state--moving {
+  color: #ffd166;
+  border-color: rgba(255, 209, 102, 0.45);
+  background: rgba(255, 209, 102, 0.12);
 }
 
 .canvas-perf-overlay__copy {
@@ -2294,7 +2314,8 @@ option {
 .canvas-perf-overlay__chart {
   display: block;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
@@ -2327,13 +2348,55 @@ option {
   color: rgba(255, 255, 255, 0.72);
 }
 
+.canvas-perf-overlay__legend-item--fps {
+  color: #34d399;
+}
+
+.canvas-perf-overlay__legend-item--frame {
+  color: #f59e0b;
+}
+
 .canvas-perf-overlay__stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.25;
+}
+
+.canvas-perf-overlay__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.canvas-perf-overlay__label {
+  color: rgba(235, 240, 246, 0.76);
+}
+
+.canvas-perf-overlay__value {
+  color: #f8fafc;
+  text-align: right;
+}
+
+.canvas-perf-overlay__value--good {
+  color: #34d399;
+}
+
+.canvas-perf-overlay__value--warn {
+  color: #fbbf24;
+}
+
+.canvas-perf-overlay__value--bad {
+  color: #fb7185;
+}
+
+.canvas-perf-overlay__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 2px 0 3px;
 }
 
 .canvas-start-menu {
@@ -8423,6 +8486,15 @@ intentional so the top edge reads much shorter than the bottom edge. */
   box-shadow: none;
 }
 
+.card__surface--text-box-passive {
+  contain: layout style paint;
+  content-visibility: auto;
+}
+
+.card__surface--text-box-passive-moving {
+  contain: layout style paint;
+}
+
 .card__surface--text-box-sticky {
   min-height: 100%;
   padding: 16px 14px 18px;
@@ -8467,6 +8539,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   padding: 0 1px;
   user-select: text;
   cursor: text;
+  contain: layout paint style;
 }
 
 .card__text-box-display--auto-width {
@@ -12029,11 +12102,22 @@ body {
 
 .home-browser-entry {
   padding: 12px;
+  background: #fff !important;
+  min-height: 0;
+}
+
+.home-browser-entry:hover,
+.home-browser-entry:focus-within {
   background:
     var(--ap-proto-shine) no-repeat,
     #fff !important;
   background-size: 600px 100%, auto !important;
-  min-height: 0;
+  background-position: -600px 0, 0 0;
+  animation: ap-proto-shine-sweep 700ms linear both;
+}
+
+.home-browser-entry--active {
+  animation: none;
 }
 
 .home-browser-entry--active {
@@ -12085,6 +12169,15 @@ body {
   max-width: none;
   min-height: 120px;
   justify-content: center;
+}
+
+@keyframes ap-proto-shine-sweep {
+  from {
+    background-position: -600px 0, 0 0;
+  }
+  to {
+    background-position: 600px 0, 0 0;
+  }
 }
 
 .home-browser-entry--grid .home-browser-entry__content {

@@ -9,6 +9,7 @@ import "./index.css";
 import "../../docs/design/airpaste-design-system.css";
 import "./design/index.css";
 import "./styles.css";
+import "./final-overrides.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <StrictMode>

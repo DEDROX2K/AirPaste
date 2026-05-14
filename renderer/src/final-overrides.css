@@ -1,0 +1,104 @@
+/* Final Overrides Layer
+ * Loaded last on purpose to resolve legacy selector overlap in Home + Canvas UI.
+ */
+
+/* Home: neutralize sticky selected visuals */
+.home-shell--workspace-nav .home-browser-entry--active {
+  background: var(--ap-proto-shine) no-repeat, #fff !important;
+  color: #000 !important;
+}
+
+.home-shell--workspace-nav .home-browser-entry--active .home-browser-entry__eyebrow,
+.home-shell--workspace-nav .home-browser-entry--active .home-browser-entry__title,
+.home-shell--workspace-nav .home-browser-entry--active .home-browser-entry__meta,
+.home-shell--workspace-nav .home-browser-entry--active .home-browser-entry__submeta {
+  color: #000 !important;
+}
+
+.home-shell--workspace-nav .sidebar-link.is-active,
+.home-shell--workspace-nav .page-link.is-active,
+.home-shell--workspace-nav .list-row.is-selected {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+.home-shell--workspace-nav .list-row.is-selected .list-row-title,
+.home-shell--workspace-nav .list-row.is-selected .muted-copy,
+.home-shell--workspace-nav .sidebar-link.is-active span,
+.home-shell--workspace-nav .page-link.is-active span,
+.home-shell--workspace-nav .workspace-badge {
+  color: #000 !important;
+}
+
+/* Home list view: make full row button area reliably clickable */
+.home-shell--workspace-nav .list-row {
+  align-items: stretch;
+  transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.home-shell--workspace-nav .list-row:hover {
+  background: #f2f2f2 !important;
+  transform: translateY(-1px);
+}
+
+.home-shell--workspace-nav .list-row:focus-within {
+  background: #efefef !important;
+  box-shadow: 0 0 0 2px #000, var(--pixel-borders);
+}
+
+.home-shell--workspace-nav .list-row-button {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 100% !important;
+  display: flex !important;
+  align-items: center;
+  cursor: var(--cursor-pointer);
+}
+
+.home-shell--workspace-nav .list-row-copy {
+  width: 100%;
+  pointer-events: none;
+}
+
+/* Home list star button presentation */
+.home-shell--workspace-nav .list-row-star-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.home-shell--workspace-nav .list-row-star-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.9;
+  filter: grayscale(1) brightness(0.82);
+}
+
+.home-shell--workspace-nav .list-row-star-button.is-starred .list-row-star-icon {
+  filter: sepia(1) saturate(6.5) hue-rotate(340deg) brightness(1.02);
+}
+
+/* Home controls: avoid sticky click ring/active press artifacts */
+.home-shell--workspace-nav :is(button, [role="button"], .home-select, input):focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.home-shell--workspace-nav .list-row-button:focus-visible,
+.home-shell--workspace-nav .list-row-inline-action:focus-visible {
+  box-shadow: 0 0 0 2px #000 !important;
+}
+
+.home-shell--workspace-nav :is(.home-button:active,
+  .home-browser-entry__menu-trigger:active,
+  .home-browser-entry__open-button:active,
+  .home-view-toggle__button:active,
+  .workspace-view-toggle__button:active,
+  .home-sidebar-section:active,
+  .home-folder-tree__button:active) {
+  transform: none !important;
+  box-shadow: none !important;
+}

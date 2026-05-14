@@ -43,6 +43,12 @@ function getPerfStore() {
         lastSample: null,
       },
       commits: [],
+      textTiles: {
+        renderCount: 0,
+        movingRenderCount: 0,
+        measurePassCount: 0,
+        sizeWriteCount: 0,
+      },
     };
   }
 
@@ -277,4 +283,31 @@ export function readPointerMoveStats() {
     avgMs: perfStore.pointerMove.totalMs / perfStore.pointerMove.count,
     maxMs: perfStore.pointerMove.maxMs,
   };
+}
+
+export function recordTextTileRenderSample({ isMoving = false } = {}) {
+  const perfStore = getPerfStore();
+  if (!perfStore) {
+    return;
+  }
+  perfStore.textTiles.renderCount += 1;
+  if (isMoving) {
+    perfStore.textTiles.movingRenderCount += 1;
+  }
+}
+
+export function recordTextTileMeasurePass() {
+  const perfStore = getPerfStore();
+  if (!perfStore) {
+    return;
+  }
+  perfStore.textTiles.measurePassCount += 1;
+}
+
+export function recordTextTileSizeWrite() {
+  const perfStore = getPerfStore();
+  if (!perfStore) {
+    return;
+  }
+  perfStore.textTiles.sizeWriteCount += 1;
 }

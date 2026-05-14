@@ -514,6 +514,12 @@ async function workspaceRootFromFile(filePath) {
 
 function mapScannedItemForResponse(root, item, state) {
   const starredIds = new Set(state.starredDocumentIds);
+  const pages = Array.isArray(item.pages)
+    ? item.pages.map((page, index) => ({
+      id: firstString(page?.id, `page-${index + 1}`),
+      name: firstString(page?.name, `Page ${index + 1}`),
+    }))
+    : [];
   return {
     id: item.id ?? null,
     path: item.path,
@@ -527,6 +533,7 @@ function mapScannedItemForResponse(root, item, state) {
     excerpt: item.excerpt ?? "",
     pageCount: Number.isFinite(item.pageCount) ? item.pageCount : 0,
     tileCount: Number.isFinite(item.tileCount) ? item.tileCount : 0,
+    pages,
   };
 }
 
@@ -605,6 +612,10 @@ async function scanWorkspace(folderPath) {
           excerpt: "",
           pageCount: pages.length,
           tileCount,
+          pages: pages.map((page, index) => ({
+            id: firstString(page?.id, `page-${index + 1}`),
+            name: firstString(page?.name, `Page ${index + 1}`),
+          })),
         });
         continue;
       }

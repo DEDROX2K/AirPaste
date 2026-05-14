@@ -126,7 +126,7 @@ function BrowserEntryMenu({ item, anchorRect, onRename, onDelete, onToggleStar, 
   );
 }
 
-function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMenuToggle, onMenuClose, onOpen, onRename, onDelete, onToggleStar }) {
+function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMenuToggle, onMenuClose, onOpen, onRename, onDelete, onToggleStar, onFocusPrev, onFocusNext, listButtonRef }) {
   const primaryMeta = item.type !== "folder"
     ? `Edited ${formatRelativeTime(item.updatedAt)}`
     : (item.path || "Workspace root");
@@ -140,7 +140,24 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
   if (viewMode === "list") {
     return (
       <div className={`list-row${isActive ? " is-selected" : ""}`}>
-        <button type="button" className="list-row-button" onClick={() => onOpen(item)}>
+        <button
+          ref={listButtonRef}
+          type="button"
+          className="list-row-button"
+          onClick={() => onOpen(item)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              onFocusNext?.();
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              onFocusPrev?.();
+            } else if (event.key.toLowerCase() === "s") {
+              event.preventDefault();
+              onToggleStar(item);
+            }
+          }}
+        >
           <div className="list-row-copy">
             <div className="list-row-title">{item.name}</div>
           </div>
@@ -155,11 +172,11 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
             ))}
           </div>
           <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
+            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button list-row-inline-action" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
           </div>
           <button
             type="button"
-            className={`list-row-star-button${item.starred ? " is-starred" : ""}`}
+            className={`list-row-star-button list-row-inline-action${item.starred ? " is-starred" : ""}`}
             aria-label={item.starred ? "Remove star" : "Add star"}
             onClick={(event) => {
               event.stopPropagation();
@@ -223,6 +240,84 @@ function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
         <AppButton type="button" tone="surface" onClick={onImportFiles}>Import Files</AppButton>
       </div>
     </section>
+  );
+}
+
+function HomeSheetsView({ pages, onOpenPage }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const visibleDepth = 7;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [pages.length]);
+
+  useEffect(() => {
+    if (prefersReducedMotion || isPaused || pages.length <= 1) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % pages.length);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [isPaused, pages.length, prefersReducedMotion]);
+
+  const visiblePages = useMemo(() => {
+    if (!pages.length) {
+      return [];
+    }
+    const stack = [];
+    const maxDepth = Math.min(visibleDepth, pages.length);
+    for (let depth = 0; depth < maxDepth; depth += 1) {
+      const page = pages[(activeIndex + depth) % pages.length];
+      stack.push({ ...page, depth });
+    }
+    return stack.reverse();
+  }, [activeIndex, pages]);
+
+  if (!pages.length) {
+    return (
+      <section className="empty-card home-sheets-empty">
+        <div className="eyebrow">Sheets</div>
+        <h2 className="dialog-title">No canvas pages yet</h2>
+        <p className="muted-copy">Create pages inside a canvas to populate this rotating stack.</p>
+      </section>
+    );
+  }
+
+  return (
+    <div
+      className="home-browser-sheets"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+    >
+      {visiblePages.map((page) => (
+        <article
+          key={page.sheetId}
+          className={`home-sheet-card${page.depth === 0 ? " is-front" : ""}`}
+          style={{
+            "--sheet-depth": page.depth,
+            zIndex: visibleDepth - page.depth,
+          }}
+        >
+          <div className="home-sheet-card__titlebar">
+            <span className="home-sheet-card__close">x</span>
+            <span className="home-sheet-card__title">{page.displayName}</span>
+          </div>
+          <button
+            type="button"
+            className="home-sheet-card__surface"
+            onClick={() => onOpenPage(page)}
+          >
+            <span className="home-sheet-card__canvas-name">{page.canvasName}</span>
+            <span className="home-sheet-card__page-name">{page.pageName}</span>
+          </button>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -386,7 +481,6 @@ export default function HomeShell() {
   const scrollSaveTimeoutRef = useRef(null);
   const autoSyncRef = useRef("");
   const restoredScrollKeyRef = useRef("");
-  const browserViewMode = "list";
   const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
   const {
     activeDome,
@@ -408,6 +502,7 @@ export default function HomeShell() {
     renameItemEntry,
     revealDome,
     saveHomeUiState,
+    setActiveCanvasPage,
     switchDome,
     toggleItemStarred,
   } = useAppContext();
@@ -420,11 +515,19 @@ export default function HomeShell() {
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
+  const [homeViewMode, setHomeViewMode] = useState(() => (
+    normalizeHomePreferences(homeData.uiState).viewMode === "sheets" ? "sheets" : "list"
+  ));
+  const listButtonRefs = useRef([]);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
+  const browserViewMode = homeViewMode;
+  const isSheetsView = browserViewMode === "sheets";
 
   useEffect(() => {
+    const normalizedPreferences = normalizeHomePreferences(homeData.uiState);
     setNavigation(normalizeHomeNavigation(homeData.uiState));
-    setHomePreferences(normalizeHomePreferences(homeData.uiState));
+    setHomePreferences(normalizedPreferences);
+    setHomeViewMode(normalizedPreferences.viewMode === "sheets" ? "sheets" : "list");
   }, [homeData.uiState]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
@@ -491,21 +594,26 @@ export default function HomeShell() {
   const hasWorkspace = Boolean(folderPath);
   const activeItemPath = homeData.uiState?.lastOpenedItemPath ?? null;
 
-  const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}) => {
+  const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}, forcedViewMode = null) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
+    const nextViewMode = forcedViewMode === "sheets"
+      ? "sheets"
+      : forcedViewMode === "list"
+        ? "list"
+        : (nextPreferences?.viewMode === "sheets" ? "sheets" : "list");
     const persistedPreferences = {
       ...nextPreferences,
-      viewMode: browserViewMode,
+      viewMode: nextViewMode,
     };
     void saveHomeUiState({
       ...buildHomeRouteState(nextNavigation, nextScrollTop),
-      homeView: browserViewMode,
+      homeView: nextViewMode,
       sortBy: persistedPreferences.sortBy,
       filter: persistedPreferences.filter,
       selectedSection: nextNavigation.selectedSection,
       ...extraState,
     });
-  }, [browserViewMode, homePreferences, saveHomeUiState]);
+  }, [homePreferences, saveHomeUiState]);
 
   const handleBodyScroll = useCallback(() => {
     if (openMenuKey) {
@@ -553,6 +661,38 @@ export default function HomeShell() {
     () => buildBrowserItems(sectionItems, homePreferences, searchQuery),
     [homePreferences, searchQuery, sectionItems],
   );
+
+  const sheetPages = useMemo(() => {
+    const pages = [];
+    browserItems
+      .filter((item) => item.type === "canvas")
+      .forEach((item) => {
+        const sourcePages = Array.isArray(item.pages) && item.pages.length > 0
+          ? item.pages
+          : Array.from({ length: Math.max(0, Number(item.pageCount) || 0) }, (_, index) => ({
+            id: `page-${index + 1}`,
+            name: `Page ${index + 1}`,
+          }));
+
+        sourcePages.forEach((page, pageIndex) => {
+          const fallbackName = `Page ${pageIndex + 1}`;
+          const pageName = page.name || fallbackName;
+          pages.push({
+            sheetId: `${item.id || item.path || item.name}:${page.id || pageIndex}`,
+            canvasFilePath: item.filePath,
+            canvasName: item.name,
+            pageId: page.id || "",
+            pageName,
+            displayName: `${item.name} · ${pageName}`,
+          });
+        });
+      });
+    return pages;
+  }, [browserItems]);
+
+  useEffect(() => {
+    listButtonRefs.current = listButtonRefs.current.slice(0, browserItems.length);
+  }, [browserItems.length]);
 
   const handleSectionChange = useCallback(async (selectedSection) => {
     if (isNarrowDesktop) {
@@ -603,6 +743,22 @@ export default function HomeShell() {
 
     await openHomeItem(entry);
     persistHomeContext(navigation, homePreferences, null, { lastOpenedItemPath: entry.path });
+  }
+
+  async function handleOpenSheetPage(page) {
+    if (!page?.canvasFilePath) {
+      return;
+    }
+    const canvasEntry = browserItems.find((item) => item.filePath === page.canvasFilePath && item.type === "canvas");
+    if (!canvasEntry) {
+      return;
+    }
+
+    await openHomeItem(canvasEntry);
+    if (page.pageId) {
+      setActiveCanvasPage(page.pageId);
+    }
+    persistHomeContext(navigation, homePreferences, null, { lastOpenedItemPath: canvasEntry.path });
   }
 
   function describeEmptyState() {
@@ -662,6 +818,38 @@ export default function HomeShell() {
             <AppButton type="button" tone="accent" disabled={!hasWorkspace} onClick={() => openCreateDialog("canvas", "Canvas")}>Create Canvas</AppButton>
           </div>
           <div className="toolbar-cluster toolbar-cluster--secondary">
+            <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isSheetsView}
+                aria-pressed={!isSheetsView}
+                className={`home-view-toggle__button${!isSheetsView ? " is-active" : ""}`}
+                onClick={() => {
+                  const nextPreferences = { ...homePreferences, viewMode: "list" };
+                  setHomeViewMode("list");
+                  setHomePreferences(nextPreferences);
+                  persistHomeContext(navigation, nextPreferences, 0, {}, "list");
+                }}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isSheetsView}
+                aria-pressed={isSheetsView}
+                className={`home-view-toggle__button${isSheetsView ? " is-active" : ""}`}
+                onClick={() => {
+                  const nextPreferences = { ...homePreferences, viewMode: "sheets" };
+                  setHomeViewMode("sheets");
+                  setHomePreferences(nextPreferences);
+                  persistHomeContext(navigation, nextPreferences, 0, {}, "sheets");
+                }}
+              >
+                Sheets
+              </button>
+            </div>
             {showDeveloperQaActions ? (
               <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</AppButton>
             ) : null}
@@ -692,23 +880,32 @@ export default function HomeShell() {
                   <h3 className="panel-title">{sectionLabel(navigation.selectedSection)}</h3>
                   <div className="eyebrow is-clean">{browserItems.length} Items</div>
                 </div>
-                <div className={`home-browser-${browserViewMode}`}>
-                  {browserItems.map((item) => (
-                    <BrowserCard
-                      key={itemKey(item)}
-                      item={item}
-                      viewMode={browserViewMode}
-                      isActive={item.path === activeItemPath}
-                      menuOpen={openMenuKey === itemKey(item)}
-                      onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
-                      onMenuClose={() => setOpenMenuKey("")}
-                      onOpen={(entry) => void handleOpenEntry(entry)}
-                      onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
-                      onDelete={(entry) => setConfirmDialog({ target: entry })}
-                      onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
-                    />
-                  ))}
-                </div>
+                {isSheetsView ? (
+                  <HomeSheetsView pages={sheetPages} onOpenPage={(page) => void handleOpenSheetPage(page)} />
+                ) : (
+                  <div className={`home-browser-${browserViewMode}`}>
+                    {browserItems.map((item, index) => (
+                      <BrowserCard
+                        key={itemKey(item)}
+                        item={item}
+                        viewMode={browserViewMode}
+                        isActive={item.path === activeItemPath}
+                        menuOpen={openMenuKey === itemKey(item)}
+                        onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
+                        onMenuClose={() => setOpenMenuKey("")}
+                        onOpen={(entry) => void handleOpenEntry(entry)}
+                        onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                        onDelete={(entry) => setConfirmDialog({ target: entry })}
+                        onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                        onFocusPrev={() => listButtonRefs.current[Math.max(0, index - 1)]?.focus?.()}
+                        onFocusNext={() => listButtonRefs.current[Math.min(browserItems.length - 1, index + 1)]?.focus?.()}
+                        listButtonRef={(node) => {
+                          listButtonRefs.current[index] = node;
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             </>
           )}

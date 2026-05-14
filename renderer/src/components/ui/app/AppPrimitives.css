@@ -1,4 +1,5 @@
 .ap-ui-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10,10 +11,6 @@
   border: none !important;
   border-radius: 0 !important;
   background-color: var(--bg-white, #ffffff);
-  background-image: var(--shine-gradient, none);
-  background-repeat: no-repeat;
-  background-size: 600px 100%;
-  background-position: -600px 0;
   color: var(--bg-black, #000000);
   box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
   filter: drop-shadow(0 0 0 #000);
@@ -23,7 +20,27 @@
   text-transform: uppercase;
   cursor: var(--cursor-pointer);
   image-rendering: pixelated;
+  overflow: hidden;
+  z-index: 0;
   transition: transform 0.2s ease-out, filter 0.2s ease-out, background-color 0.2s ease-out, color 0.2s ease-out;
+}
+
+.ap-ui-button > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ap-ui-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .ap-ui-button:hover:not(:disabled) {
@@ -32,10 +49,20 @@
   background-color: var(--bg-off-white, #f2f2f2);
 }
 
+.ap-ui-button:hover:not(:disabled)::before {
+  opacity: 1;
+  animation: ap-ui-button-shine 700ms linear both;
+}
+
 .ap-ui-button:active:not(:disabled) {
   transform: translate(0, 0);
   filter: drop-shadow(0 0 0 #000);
   transition: transform 0.05s ease-out, filter 0.05s ease-out;
+}
+
+.ap-ui-button:active:not(:disabled)::before {
+  opacity: 0;
+  animation: none;
 }
 
 .ap-ui-button:focus-visible {
@@ -92,9 +119,7 @@
 }
 
 .ap-ui-button--danger {
-  background:
-    var(--shine-gradient, none),
-    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
+  background: var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
   color: var(--bg-white, #ffffff);
   text-shadow:
     1px 1px 0 #000,
@@ -104,25 +129,40 @@
 }
 
 .ap-ui-button--danger:hover:not(:disabled) {
-  background:
-    var(--shine-gradient, none),
-    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
+  background: var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
 }
 
 .ap-ui-button--danger:active:not(:disabled) {
-  background:
-    var(--shine-gradient, none),
-    var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
+  background: var(--stripes-bw, repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px));
 }
 
 .ap-ui-button--ghost {
   background-color: transparent;
-  background-image: none;
   box-shadow: inset 0 0 0 2px #000;
+}
+
+.ap-ui-button--ghost::before {
+  content: none;
 }
 
 .ap-ui-button--ghost:hover:not(:disabled) {
   background-color: var(--bg-off-white, #f2f2f2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-ui-button:hover:not(:disabled)::before {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes ap-ui-button-shine {
+  from {
+    background-position: -600px 0;
+  }
+  to {
+    background-position: 600px 0;
+  }
 }
 
 .ap-ui-surface {

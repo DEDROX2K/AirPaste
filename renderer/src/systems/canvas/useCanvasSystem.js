@@ -16,8 +16,8 @@ import {
   normalizeWheelZoomDelta,
 } from "./canvasMath";
 
-const ZOOM_INTERPOLATION_RATE = 18;
-const ZOOM_SETTLE_DELAY_MS = 120;
+const ZOOM_INTERPOLATION_RATE = 28;
+const ZOOM_SETTLE_DELAY_MS = 70;
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const [containerElement, setContainerElement] = useState(null);

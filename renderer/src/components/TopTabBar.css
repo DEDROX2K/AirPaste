@@ -274,10 +274,6 @@
 
   /* Match .ui-button */
   background-color: var(--bg-white, #fff);
-  background-image: var(--shine-gradient, none);
-  background-repeat: no-repeat;
-  background-size: 600px 100%;
-  background-position: -600px 0;
   border: none !important;
   box-shadow: var(--pixel-borders, inset 0 0 0 2px #000);
   filter: drop-shadow(0 0 0 #000);
@@ -286,9 +282,50 @@
 }
 
 .titlebar-btn.is-close {
-  background-image: var(--shine-gradient, none), repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px);
+  background-image: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px);
   color: var(--bg-white, #fff);
   text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+}
+
+.titlebar-btn:hover {
+  background-image: var(--shine-gradient, none);
+  background-repeat: no-repeat;
+  background-size: 600px 100%;
+  background-position: -600px 0;
+  animation: titlebar-btn-shine 700ms linear both;
+}
+
+.titlebar-btn.is-close:hover {
+  background-image: var(--shine-gradient, none), repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px);
+  background-repeat: no-repeat, repeat;
+  background-size: 600px 100%, auto;
+  background-position: -600px 0, 0 0;
+  animation: titlebar-btn-shine 700ms linear both;
+}
+
+.titlebar-btn:active {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-btn:hover {
+    animation: none;
+    background-image: none;
+  }
+
+  .titlebar-btn.is-close:hover {
+    animation: none;
+    background-image: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px);
+  }
+}
+
+@keyframes titlebar-btn-shine {
+  from {
+    background-position: -600px 0, 0 0;
+  }
+  to {
+    background-position: 600px 0, 0 0;
+  }
 }
 
 .titlebar-btn::before,

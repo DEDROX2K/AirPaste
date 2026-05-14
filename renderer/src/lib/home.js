@@ -1,4 +1,4 @@
-const VALID_HOME_VIEW_MODES = new Set(["grid", "list"]);
+const VALID_HOME_VIEW_MODES = new Set(["grid", "list", "sheets"]);
 const VALID_SORT_OPTIONS = new Set(["updatedAt", "name", "type"]);
 const VALID_FILTER_OPTIONS = new Set(["all", "folders", "canvases", "assets", "starred"]);
 const VALID_HOME_SECTIONS = new Set(["home", "recents", "starred"]);

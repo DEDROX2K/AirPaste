@@ -645,6 +645,10 @@ function CanvasPerformanceOverlay({
     latestCommitMs: 0,
     latestSaveMs: 0,
     latestSerializeMs: 0,
+    textTileRenderCount: 0,
+    textTileMovingRenderCount: 0,
+    textTileMeasurePassCount: 0,
+    textTileSizeWriteCount: 0,
     fpsHistory: [],
     frameMsHistory: [],
   });
@@ -675,6 +679,7 @@ function CanvasPerformanceOverlay({
         const perfStore = window.__AIRPASTE_PERF__ ?? null;
         const latestCommit = perfStore?.commits?.[perfStore.commits.length - 1] ?? null;
         const latestSave = perfStore?.saves?.lastSample ?? null;
+        const textTiles = perfStore?.textTiles ?? null;
 
         setSnapshot((currentSnapshot) => ({
           fps,
@@ -687,6 +692,10 @@ function CanvasPerformanceOverlay({
           latestCommitMs: latestCommit?.durationMs ?? 0,
           latestSaveMs: latestSave?.saveMs ?? 0,
           latestSerializeMs: latestSave?.serializeMs ?? 0,
+          textTileRenderCount: textTiles?.renderCount ?? 0,
+          textTileMovingRenderCount: textTiles?.movingRenderCount ?? 0,
+          textTileMeasurePassCount: textTiles?.measurePassCount ?? 0,
+          textTileSizeWriteCount: textTiles?.sizeWriteCount ?? 0,
           fpsHistory: [...currentSnapshot.fpsHistory, fps].slice(-PERF_HISTORY_LIMIT),
           frameMsHistory: [...currentSnapshot.frameMsHistory, averageFrameMs].slice(-PERF_HISTORY_LIMIT),
         }));
@@ -765,6 +774,10 @@ function CanvasPerformanceOverlay({
     `Save: ${roundMetric(snapshot.latestSaveMs)} ms`,
     `Serialize: ${roundMetric(snapshot.latestSerializeMs)} ms`,
     `Commit: ${roundMetric(snapshot.latestCommitMs)} ms`,
+    `Text renders: ${snapshot.textTileRenderCount}`,
+    `Text move renders: ${snapshot.textTileMovingRenderCount}`,
+    `Text measure passes: ${snapshot.textTileMeasurePassCount}`,
+    `Text size writes: ${snapshot.textTileSizeWriteCount}`,
     `LOD mode: ${workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR ? "1 (far)" : "0 (normal)"}`,
     `LOD tiles: 0=${lodLevelCounts.lod0} 1=${lodLevelCounts.lod1}`,
     `Preview tiers: t${previewTierCounts.thumbnail} m${previewTierCounts.medium} h${previewTierCounts.high} o${previewTierCounts.original}`,
@@ -778,6 +791,10 @@ function CanvasPerformanceOverlay({
     snapshot.fps,
     snapshot.frameMs,
     snapshot.latestCommitMs,
+    snapshot.textTileMeasurePassCount,
+    snapshot.textTileMovingRenderCount,
+    snapshot.textTileRenderCount,
+    snapshot.textTileSizeWriteCount,
     snapshot.latestSaveMs,
     snapshot.latestSerializeMs,
     snapshot.pointerAvgMs,
@@ -845,7 +862,9 @@ function CanvasPerformanceOverlay({
       >
         <span>PERF</span>
         <div className="canvas-perf-overlay__header-actions">
-          <span>{isCanvasMoving ? "moving" : "idle"}</span>
+          <span className={`canvas-perf-overlay__state canvas-perf-overlay__state--${isCanvasMoving ? "moving" : "idle"}`}>
+            {isCanvasMoving ? "moving" : "idle"}
+          </span>
           <AppButton tone="unstyled"
             className="canvas-perf-overlay__copy"
             type="button"
@@ -872,27 +891,56 @@ function CanvasPerformanceOverlay({
         ) : null}
       </svg>
       <div className="canvas-perf-overlay__legend">
-        <span>fps</span>
-        <span>frame ms</span>
+        <span className="canvas-perf-overlay__legend-item canvas-perf-overlay__legend-item--fps">fps</span>
+        <span className="canvas-perf-overlay__legend-item canvas-perf-overlay__legend-item--frame">frame ms</span>
       </div>
       <div className="canvas-perf-overlay__stats">
-        <span>FPS {Math.round(snapshot.fps)}</span>
-        <span>Frame {roundMetric(snapshot.frameMs)} ms</span>
-        <span>Dropped {snapshot.droppedFrames}</span>
-        <span>Visible {visibleTileCount}/{totalTileCount}</span>
-        <span>Rendered {renderedTileCount}</span>
-        <span>Drag layers {activeDragLayers}</span>
-        <span>Pointer avg {roundMetric(snapshot.pointerAvgMs)} ms</span>
-        <span>Pointer max {roundMetric(snapshot.pointerMaxMs)} ms</span>
-        <span>Renders {snapshot.boardRenderCount}</span>
-        <span>Move renders {snapshot.boardMovingRenderCount}</span>
-        <span>Save {roundMetric(snapshot.latestSaveMs)} ms</span>
-        <span>Serialize {roundMetric(snapshot.latestSerializeMs)} ms</span>
-        <span>Commit {roundMetric(snapshot.latestCommitMs)} ms</span>
-        <span>LOD mode {workspaceLodLevel === WORKSPACE_LOD_LEVEL.FAR ? "1 far" : "0 normal"}</span>
-        <span>LOD tiles 0:{lodLevelCounts.lod0} 1:{lodLevelCounts.lod1}</span>
-        <span>Preview t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
-        <span>State {isCanvasMoving ? "moving" : "idle"}</span>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">FPS</span>
+          <span className={`canvas-perf-overlay__value ${snapshot.fps >= 55 ? "canvas-perf-overlay__value--good" : snapshot.fps >= 30 ? "canvas-perf-overlay__value--warn" : "canvas-perf-overlay__value--bad"}`}>{Math.round(snapshot.fps)}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Frame</span>
+          <span className={`canvas-perf-overlay__value ${snapshot.frameMs <= 18 ? "canvas-perf-overlay__value--good" : snapshot.frameMs <= 33 ? "canvas-perf-overlay__value--warn" : "canvas-perf-overlay__value--bad"}`}>{roundMetric(snapshot.frameMs)} ms</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Dropped</span>
+          <span className="canvas-perf-overlay__value">{snapshot.droppedFrames}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Visible</span>
+          <span className="canvas-perf-overlay__value">{visibleTileCount}/{totalTileCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__divider" />
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Rendered</span>
+          <span className="canvas-perf-overlay__value">{renderedTileCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Move renders</span>
+          <span className="canvas-perf-overlay__value">{snapshot.boardMovingRenderCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Text measures</span>
+          <span className="canvas-perf-overlay__value">{snapshot.textTileMeasurePassCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Text writes</span>
+          <span className="canvas-perf-overlay__value">{snapshot.textTileSizeWriteCount}</span>
+        </div>
+        <div className="canvas-perf-overlay__divider" />
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Save</span>
+          <span className="canvas-perf-overlay__value">{roundMetric(snapshot.latestSaveMs)} ms</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Serialize</span>
+          <span className="canvas-perf-overlay__value">{roundMetric(snapshot.latestSerializeMs)} ms</span>
+        </div>
+        <div className="canvas-perf-overlay__row">
+          <span className="canvas-perf-overlay__label">Preview tiers</span>
+          <span className="canvas-perf-overlay__value">t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
+        </div>
       </div>
     </div>
   );
