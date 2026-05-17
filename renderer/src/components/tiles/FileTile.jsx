@@ -5,6 +5,10 @@ import { useAppContext } from "../../context/useAppContext";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 
+function stopInteractivePointer(event) {
+  event.stopPropagation();
+}
+
 function formatFileSize(sizeBytes) {
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
     return "0 MB";
@@ -84,6 +88,20 @@ function FileTile({
       }
     },
   });
+  const handleOpenFileClick = async () => {
+    try {
+      await openFile();
+    } catch (error) {
+      toast("error", error?.message || "Could not open file");
+    }
+  };
+  const actionStrip = tileMeta?.isSelected ? (
+    <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopInteractivePointer}>
+      <button type="button" className="card__quick-action" onClick={() => void handleOpenFileClick()}>
+        Open
+      </button>
+    </div>
+  ) : null;
 
   return (
     <TileShell
@@ -91,6 +109,7 @@ function FileTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--file"
+      actionStrip={actionStrip}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}

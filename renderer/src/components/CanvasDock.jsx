@@ -166,10 +166,10 @@ export default function CanvasDock({
       kind: "stack",
       disabled,
       children: [
-        { key: "note", label: "Note", onSelect: () => commands?.createNote?.() },
+        { key: "text-card", label: "Text card", onSelect: () => commands?.createTextCard?.() },
+        { key: "vault-note", label: "Vault note", onSelect: () => commands?.addNoteFromVault?.() },
         { key: "checklist", label: "Checklist", onSelect: () => commands?.createChecklist?.() },
-        { key: "sticky", label: "Sticky", onSelect: () => commands?.createSticky?.() },
-        { key: "text", label: "Text Box", onSelect: () => commands?.createTextBox?.() },
+        { key: "sticky", label: "Sticky note", onSelect: () => commands?.createSticky?.() },
       ],
     },
     {

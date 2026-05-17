@@ -1,5 +1,24 @@
 import TILE_TYPES from "../tiles/tileTypes";
 import {
+  CANVAS_TEXT_DEFAULT_SIZE,
+  CANVAS_TEXT_FORMAT_MARKDOWN,
+  CANVAS_TEXT_MIN_HEIGHT,
+  CANVAS_TEXT_MIN_WIDTH,
+  CANVAS_TEXT_SOURCE_FILE,
+  CANVAS_TEXT_SOURCE_LOCAL,
+  CANVAS_TEXT_STICKY_SIZE,
+  CANVAS_TEXT_TITLE_MODE_CUSTOM,
+  CANVAS_TEXT_TITLE_MODE_DERIVED,
+  CANVAS_TEXT_VARIANT_DEFAULT,
+  CANVAS_TEXT_VARIANT_STICKY,
+  deriveCanvasTextTitle,
+  getCanvasTextLineCount,
+  normalizeCanvasTextContent,
+  normalizeCanvasTextSource,
+  normalizeCanvasTextTitleMode,
+  normalizeCanvasTextVariant,
+} from "./canvasText";
+import {
   clamp,
   getDefaultCameraDistance,
   getDefaultWorkspaceView,
@@ -9,11 +28,8 @@ import {
 } from "../systems/globe/globeLayout";
 import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawingTypes";
 import {
-  getTextBoxLineCount,
-  normalizeTextBoxStyle,
   normalizeTextBoxText,
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
-  TEXT_BOX_DEFAULT_STYLE,
   TEXT_BOX_DEFAULT_TEXT,
 } from "./textBoxStyle";
 
@@ -25,6 +41,7 @@ export const CHECKLIST_CARD_TYPE = TILE_TYPES.CHECKLIST;
 export const CODE_CARD_TYPE = TILE_TYPES.CODE;
 export const COUNTER_CARD_TYPE = TILE_TYPES.COUNTER;
 export const DEADLINE_CARD_TYPE = TILE_TYPES.DEADLINE;
+export const CANVAS_TEXT_CARD_TYPE = TILE_TYPES.CANVAS_TEXT;
 export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
 export const PROGRESS_CARD_TYPE = TILE_TYPES.PROGRESS;
 export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
@@ -91,10 +108,7 @@ const DEADLINE_CARD_SIZE = Object.freeze({
   height: 320,
 });
 
-const NOTE_CARD_SIZE = Object.freeze({
-  width: 460,
-  height: 420,
-});
+const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
 
 const PROGRESS_CARD_SIZE = Object.freeze({
   width: 400,
@@ -106,18 +120,11 @@ const TABLE_CARD_SIZE = Object.freeze({
   height: 360,
 });
 
-const TEXT_BOX_CARD_SIZE = Object.freeze({
-  width: 520,
-  height: 180,
-});
-const STICKY_TEXT_BOX_CARD_SIZE = Object.freeze({
-  width: 212,
-  height: 212,
-});
+const TEXT_BOX_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
+const STICKY_TEXT_BOX_CARD_SIZE = CANVAS_TEXT_STICKY_SIZE;
 
-const TEXT_BOX_MIN_WIDTH = 140;
-const TEXT_BOX_MIN_HEIGHT = 52;
-const TEXT_BOX_APPEARANCES = new Set(["plain", "sticky"]);
+const TEXT_BOX_MIN_WIDTH = CANVAS_TEXT_MIN_WIDTH;
+const TEXT_BOX_MIN_HEIGHT = CANVAS_TEXT_MIN_HEIGHT;
 
 const RACK_CARD_SIZE = Object.freeze({
   width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
@@ -212,6 +219,10 @@ function firstString(...values) {
 }
 
 function getCardType(card) {
+  if (card?.type === CANVAS_TEXT_CARD_TYPE || card?.type === NOTE_CARD_TYPE || card?.type === TEXT_BOX_CARD_TYPE) {
+    return CANVAS_TEXT_CARD_TYPE;
+  }
+
   if (card?.type === FILE_CARD_TYPE) {
     return FILE_CARD_TYPE;
   }
@@ -244,20 +255,12 @@ function getCardType(card) {
     return DEADLINE_CARD_TYPE;
   }
 
-  if (card?.type === NOTE_CARD_TYPE) {
-    return NOTE_CARD_TYPE;
-  }
-
   if (card?.type === PROGRESS_CARD_TYPE) {
     return PROGRESS_CARD_TYPE;
   }
 
   if (card?.type === TABLE_CARD_TYPE) {
     return TABLE_CARD_TYPE;
-  }
-
-  if (card?.type === TEXT_BOX_CARD_TYPE) {
-    return TEXT_BOX_CARD_TYPE;
   }
 
   if (card?.type === RACK_CARD_TYPE) {
@@ -324,6 +327,7 @@ function normalizeFileAttachment(file) {
 
   return {
     relativePath,
+    filePath: typeof file.filePath === "string" ? file.filePath : "",
     fileName,
     extension,
     mimeType: typeof file.mimeType === "string" ? file.mimeType : "",
@@ -391,10 +395,6 @@ function normalizeCalendarHeightPreset(heightPreset) {
   return heightPreset === "tall" ? "tall" : CALENDAR_DEFAULT_HEIGHT_PRESET;
 }
 
-function normalizeNoteMode(mode) {
-  return mode === "preview" ? "preview" : "edit";
-}
-
 function normalizeCodeLanguage(language) {
   return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
 }
@@ -437,21 +437,63 @@ function normalizeProgressLinkedTileId(linkedTileId) {
     : null;
 }
 
-function normalizeTextBoxPayload(card) {
-  const appearance = TEXT_BOX_APPEARANCES.has(card?.appearance) ? card.appearance : "plain";
-  const placeholderText = typeof card?.placeholderText === "string" && card.placeholderText.trim().length > 0
-    ? card.placeholderText
-    : appearance === "sticky"
-      ? "Add text"
-      : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT;
+function normalizeCanvasTextFileMeta(file) {
+  if (!file || typeof file !== "object") {
+    return null;
+  }
+
+  const relativePath = typeof file.relativePath === "string" ? file.relativePath.trim() : "";
+  if (!relativePath) {
+    return null;
+  }
+
+  const fileName = typeof file.fileName === "string" && file.fileName.trim().length > 0
+    ? file.fileName.trim()
+    : relativePath.split(/[\\/]/).pop() ?? "";
+  const extension = normalizeFileExtension(file.extension || fileName.split(".").pop() || "md");
 
   return {
-    text: normalizeTextBoxText(card?.text),
-    style: normalizeTextBoxStyle(card?.style),
-    placeholder: card?.placeholder === true,
-    appearance,
-    placeholderText,
-    autoWidth: appearance === "sticky" ? false : card?.autoWidth !== false,
+    relativePath,
+    fileName,
+    extension: extension || "md",
+    mimeType: typeof file.mimeType === "string" && file.mimeType.trim().length > 0
+      ? file.mimeType.trim()
+      : "text/markdown",
+    sizeBytes: Number.isFinite(file.sizeBytes) ? Math.max(0, file.sizeBytes) : 0,
+    updatedAt: typeof file.updatedAt === "string" ? file.updatedAt : "",
+  };
+}
+
+function normalizeCanvasTextPayload(card) {
+  const isLegacyTextBox = card?.type === TEXT_BOX_CARD_TYPE;
+  const isLegacyNote = card?.type === NOTE_CARD_TYPE;
+  const variant = normalizeCanvasTextVariant(
+    card?.variant ?? (card?.appearance === "sticky" ? CANVAS_TEXT_VARIANT_STICKY : CANVAS_TEXT_VARIANT_DEFAULT),
+  );
+  const source = normalizeCanvasTextSource(
+    card?.source ?? ((card?.file?.relativePath && normalizeFileExtension(card?.file?.extension || card?.file?.fileName?.split(".").pop()) === "md")
+      ? CANVAS_TEXT_SOURCE_FILE
+      : CANVAS_TEXT_SOURCE_LOCAL),
+  );
+  const legacyText = isLegacyTextBox
+    ? normalizeTextBoxText(card?.text)
+    : normalizeCanvasTextContent(card?.text);
+  const text = normalizeCanvasTextContent(
+    isLegacyNote ? String(card?.body ?? "") : legacyText,
+  );
+  const title = typeof card?.title === "string" ? card.title : "";
+  const titleMode = normalizeCanvasTextTitleMode(
+    card?.titleMode ?? (isLegacyNote && title.trim().length > 0 ? CANVAS_TEXT_TITLE_MODE_CUSTOM : CANVAS_TEXT_TITLE_MODE_DERIVED),
+  );
+
+  return {
+    source,
+    variant,
+    format: CANVAS_TEXT_FORMAT_MARKDOWN,
+    text,
+    title,
+    titleMode,
+    file: source === CANVAS_TEXT_SOURCE_FILE ? normalizeCanvasTextFileMeta(card?.file) : null,
   };
 }
 
@@ -604,7 +646,7 @@ function getCardSize(type) {
     return DEADLINE_CARD_SIZE;
   }
 
-  if (type === NOTE_CARD_TYPE) {
+  if (type === CANVAS_TEXT_CARD_TYPE) {
     return NOTE_CARD_SIZE;
   }
 
@@ -614,10 +656,6 @@ function getCardSize(type) {
 
   if (type === TABLE_CARD_TYPE) {
     return TABLE_CARD_SIZE;
-  }
-
-  if (type === TEXT_BOX_CARD_TYPE) {
-    return TEXT_BOX_CARD_SIZE;
   }
 
   if (type === RACK_CARD_TYPE) {
@@ -1085,15 +1123,14 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const counterUnit = type === COUNTER_CARD_TYPE ? normalizeCounterUnit(card?.unit) : COUNTER_DEFAULT_UNIT;
   const deadlineTargetAt = type === DEADLINE_CARD_TYPE ? normalizeDeadlineTargetAt(card?.targetAt) : "";
   const deadlineTimezone = type === DEADLINE_CARD_TYPE ? normalizeDeadlineTimezone(card?.timezone) : DEADLINE_DEFAULT_TIMEZONE;
-  const noteMode = type === NOTE_CARD_TYPE ? normalizeNoteMode(card?.mode) : "edit";
   const progressMode = type === PROGRESS_CARD_TYPE ? normalizeProgressMode(card?.mode) : PROGRESS_DEFAULT_MODE;
   const progressValue = type === PROGRESS_CARD_TYPE ? normalizeProgressValue(card?.value) : PROGRESS_DEFAULT_VALUE;
   const progressMax = type === PROGRESS_CARD_TYPE ? normalizeProgressMax(card?.max) : PROGRESS_DEFAULT_MAX;
   const progressLinkedTileId = type === PROGRESS_CARD_TYPE ? normalizeProgressLinkedTileId(card?.linkedTileId) : null;
-  const languageHints = type === NOTE_CARD_TYPE ? normalizeLanguageHints(card?.languageHints) : [];
+  const languageHints = type === CANVAS_TEXT_CARD_TYPE ? normalizeLanguageHints(card?.languageHints) : [];
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
-  const textBox = type === TEXT_BOX_CARD_TYPE ? normalizeTextBoxPayload(card) : null;
+  const canvasText = type === CANVAS_TEXT_CARD_TYPE ? normalizeCanvasTextPayload(card) : null;
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
@@ -1109,12 +1146,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
     y: Number.isFinite(card?.y) ? card.y : 120,
     width: type === RACK_CARD_TYPE
       ? rackSize.width
-      : type === TEXT_BOX_CARD_TYPE
+      : type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
         : Number.isFinite(card?.width) ? card.width : size.width,
     height: type === RACK_CARD_TYPE
       ? rackSize.height
-      : type === TEXT_BOX_CARD_TYPE
+      : type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
         : Number.isFinite(card?.height) ? card.height : size.height,
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
@@ -1133,14 +1170,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
           ? firstString(card?.title, COUNTER_DEFAULT_TITLE)
         : type === DEADLINE_CARD_TYPE
           ? firstString(card?.title, DEADLINE_DEFAULT_TITLE)
-        : type === NOTE_CARD_TYPE
-          ? firstString(card?.title, NOTE_DEFAULT_TITLE)
+        : type === CANVAS_TEXT_CARD_TYPE
+          ? firstString(canvasText.title, deriveCanvasTextTitle(canvasText), NOTE_DEFAULT_TITLE)
         : type === PROGRESS_CARD_TYPE
           ? firstString(card?.title, PROGRESS_DEFAULT_TITLE)
           : type === TABLE_CARD_TYPE
             ? firstString(card?.title, TABLE_DEFAULT_TITLE)
-            : type === TEXT_BOX_CARD_TYPE
-              ? ""
             : type === RACK_CARD_TYPE
               ? firstString(card?.title, RACK_DEFAULT_TITLE)
         : "",
@@ -1149,13 +1184,17 @@ export function normalizeCard(card, fallbackIndex = 0) {
       : type === RACK_CARD_TYPE
         ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
         : "",
-    body: type === NOTE_CARD_TYPE ? String(card?.body ?? "") : "",
-    text: type === TEXT_BOX_CARD_TYPE ? textBox.text : "",
-    style: type === TEXT_BOX_CARD_TYPE ? textBox.style : null,
-    placeholder: type === TEXT_BOX_CARD_TYPE ? textBox.placeholder : false,
-    appearance: type === TEXT_BOX_CARD_TYPE ? textBox.appearance : "plain",
-    placeholderText: type === TEXT_BOX_CARD_TYPE ? textBox.placeholderText : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
-    autoWidth: type === TEXT_BOX_CARD_TYPE ? textBox.autoWidth : false,
+    body: "",
+    text: type === CANVAS_TEXT_CARD_TYPE ? canvasText.text : "",
+    style: null,
+    placeholder: false,
+    appearance: type === CANVAS_TEXT_CARD_TYPE && canvasText.variant === CANVAS_TEXT_VARIANT_STICKY ? "sticky" : "plain",
+    placeholderText: TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    autoWidth: false,
+    source: type === CANVAS_TEXT_CARD_TYPE ? canvasText.source : CANVAS_TEXT_SOURCE_LOCAL,
+    variant: type === CANVAS_TEXT_CARD_TYPE ? canvasText.variant : CANVAS_TEXT_VARIANT_DEFAULT,
+    format: type === CANVAS_TEXT_CARD_TYPE ? canvasText.format : "",
+    titleMode: type === CANVAS_TEXT_CARD_TYPE ? canvasText.titleMode : CANVAS_TEXT_TITLE_MODE_DERIVED,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1170,7 +1209,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     targetAt: type === DEADLINE_CARD_TYPE ? deadlineTargetAt : "",
     timezone: type === DEADLINE_CARD_TYPE ? deadlineTimezone : "",
     showSeconds: type === DEADLINE_CARD_TYPE ? card?.showSeconds === true : false,
-    mode: type === NOTE_CARD_TYPE ? noteMode : type === PROGRESS_CARD_TYPE ? progressMode : "",
+    mode: type === PROGRESS_CARD_TYPE ? progressMode : "",
     max: type === PROGRESS_CARD_TYPE ? progressMax : null,
     linkedTileId: type === PROGRESS_CARD_TYPE ? progressLinkedTileId : null,
     month: type === CALENDAR_CARD_TYPE ? calendarMonth : null,
@@ -1199,7 +1238,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
-    file,
+    file: type === CANVAS_TEXT_CARD_TYPE ? canvasText.file : file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
     productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",
@@ -1647,15 +1686,22 @@ export function createDeadlineCard(cards, viewport, preferredCenter = null, opti
 }
 
 export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, NOTE_CARD_TYPE, preferredCenter);
+  const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
 
   return normalizeCard({
     id: crypto.randomUUID(),
-    type: NOTE_CARD_TYPE,
-    title: firstString(options?.title, NOTE_DEFAULT_TITLE),
-    body: typeof options?.body === "string" ? options.body : "",
-    mode: normalizeNoteMode(options?.mode),
+    type: CANVAS_TEXT_CARD_TYPE,
+    source: CANVAS_TEXT_SOURCE_LOCAL,
+    variant: CANVAS_TEXT_VARIANT_DEFAULT,
+    format: CANVAS_TEXT_FORMAT_MARKDOWN,
+    title: firstString(options?.title),
+    titleMode: firstString(options?.title)
+      ? CANVAS_TEXT_TITLE_MODE_CUSTOM
+      : CANVAS_TEXT_TITLE_MODE_DERIVED,
+    text: typeof options?.text === "string"
+      ? options.text
+      : (typeof options?.body === "string" ? options.body : ""),
     languageHints: normalizeLanguageHints(options?.languageHints),
     x: position.x,
     y: position.y,
@@ -1709,21 +1755,18 @@ export function createTableCard(cards, viewport, preferredCenter = null, options
 }
 
 export function createTextBoxCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, TEXT_BOX_CARD_TYPE, preferredCenter);
+  const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
-  const appearance = TEXT_BOX_APPEARANCES.has(options?.appearance) ? options.appearance : "plain";
-  const autoWidth = appearance === "sticky" ? false : options?.autoWidth !== false;
-  const defaultSize = appearance === "sticky" ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
+  const variant = normalizeCanvasTextVariant(
+    options?.variant ?? (options?.appearance === "sticky" ? CANVAS_TEXT_VARIANT_STICKY : CANVAS_TEXT_VARIANT_DEFAULT),
+  );
+  const defaultSize = variant === CANVAS_TEXT_VARIANT_STICKY ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
   const width = Number.isFinite(options?.width)
     ? options.width
-    : autoWidth
-      ? TEXT_BOX_MIN_WIDTH
-      : defaultSize.width;
+    : defaultSize.width;
   const height = Number.isFinite(options?.height)
     ? options.height
-    : autoWidth
-      ? TEXT_BOX_MIN_HEIGHT
-      : defaultSize.height;
+    : defaultSize.height;
   const x = Number.isFinite(preferredCenter?.x)
     ? Math.round(preferredCenter.x - width / 2)
     : position.x;
@@ -1733,17 +1776,15 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
 
   return normalizeCard({
     id: crypto.randomUUID(),
-    type: TEXT_BOX_CARD_TYPE,
+    type: CANVAS_TEXT_CARD_TYPE,
+    source: CANVAS_TEXT_SOURCE_LOCAL,
+    variant,
+    format: CANVAS_TEXT_FORMAT_MARKDOWN,
+    title: firstString(options?.title),
+    titleMode: firstString(options?.title)
+      ? CANVAS_TEXT_TITLE_MODE_CUSTOM
+      : CANVAS_TEXT_TITLE_MODE_DERIVED,
     text: typeof options?.text === "string" ? options.text : TEXT_BOX_DEFAULT_TEXT,
-    style: normalizeTextBoxStyle(options?.style),
-    placeholder: options?.placeholder === true,
-    appearance,
-    placeholderText: typeof options?.placeholderText === "string" && options.placeholderText.trim().length > 0
-      ? options.placeholderText
-      : appearance === "sticky"
-        ? "Add text"
-        : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
-    autoWidth,
     x,
     y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),
@@ -1751,6 +1792,43 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+}
+
+export function createCanvasTextCard(cards, viewport, preferredCenter = null, options = {}) {
+  if (options?.source === CANVAS_TEXT_SOURCE_FILE && options?.file) {
+    const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
+    const timestamp = nowIso();
+    const variant = normalizeCanvasTextVariant(options?.variant);
+    const defaultSize = variant === CANVAS_TEXT_VARIANT_STICKY ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
+    const file = normalizeCanvasTextFileMeta(options.file);
+
+    return normalizeCard({
+      id: crypto.randomUUID(),
+      type: CANVAS_TEXT_CARD_TYPE,
+      source: CANVAS_TEXT_SOURCE_FILE,
+      variant,
+      format: CANVAS_TEXT_FORMAT_MARKDOWN,
+      title: firstString(options?.title),
+      titleMode: normalizeCanvasTextTitleMode(options?.titleMode),
+      text: normalizeCanvasTextContent(options?.text),
+      file,
+      x: position.x,
+      y: position.y,
+      width: Number.isFinite(options?.width) ? options.width : defaultSize.width,
+      height: Number.isFinite(options?.height) ? options.height : defaultSize.height,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+
+  if (options?.variant === CANVAS_TEXT_VARIANT_STICKY || options?.appearance === "sticky") {
+    return createTextBoxCard(cards, viewport, preferredCenter, {
+      ...options,
+      variant: CANVAS_TEXT_VARIANT_STICKY,
+    });
+  }
+
+  return createNoteCard(cards, viewport, preferredCenter, options);
 }
 
 export function createFileCard(cards, viewport, preferredCenter = null, options = {}) {
@@ -2197,11 +2275,6 @@ export function formatCardSubtitle(card) {
       : "no deadline set";
   }
 
-  if (card.type === NOTE_CARD_TYPE) {
-    const lineCount = String(card.body ?? "").split(/\r?\n/).length;
-    return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${card.mode === "preview" ? "preview" : "edit"}`;
-  }
-
   if (card.type === PROGRESS_CARD_TYPE) {
     return card.linkedTileId
       ? "linked checklist progress"
@@ -2214,9 +2287,11 @@ export function formatCardSubtitle(card) {
     return `${rowCount} rows · ${columnCount} cols`;
   }
 
-  if (card.type === TEXT_BOX_CARD_TYPE) {
-    const lineCount = getTextBoxLineCount(card.text ?? "");
-    return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${card.style?.preset || TEXT_BOX_DEFAULT_STYLE.preset}`;
+  if (card.type === CANVAS_TEXT_CARD_TYPE) {
+    const lineCount = getCanvasTextLineCount(card.text ?? "");
+    const sourceLabel = card.source === CANVAS_TEXT_SOURCE_FILE ? "file-backed" : "local";
+    const variantLabel = card.variant === CANVAS_TEXT_VARIANT_STICKY ? "sticky" : "markdown";
+    return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${variantLabel} · ${sourceLabel}`;
   }
 
   if (card.type === AMAZON_PRODUCT_CARD_TYPE) {

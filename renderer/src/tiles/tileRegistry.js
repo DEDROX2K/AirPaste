@@ -1,4 +1,5 @@
 import AmazonProductTile from "../components/tiles/AmazonProductTile";
+import CanvasTextTile from "../components/tiles/CanvasTextTile";
 import CalendarTile from "../components/tiles/CalendarTile";
 import ChecklistTile from "../components/tiles/ChecklistTile";
 import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
@@ -6,11 +7,9 @@ import CounterTile from "../components/tiles/CounterTile";
 import DeadlineTile from "../components/tiles/DeadlineTile";
 import FileTile from "../components/tiles/FileTile";
 import LinkTile from "../components/tiles/LinkTile";
-import NoteTile from "../components/tiles/NoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import TableTile from "../components/tiles/TableTile";
-import TextBoxTile from "../components/tiles/TextBoxTile";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
 
@@ -165,12 +164,29 @@ const tileRegistry = {
       lazy: false,
     },
   },
+  [TILE_TYPES.CANVAS_TEXT]: {
+    type: TILE_TYPES.CANVAS_TEXT,
+    displayName: "Canvas Text Tile",
+    status: "stable",
+    component: CanvasTextTile,
+    defaultSize: { width: 420, height: 220 },
+    capabilities: {
+      draggable: true,
+      selectable: true,
+      resizable: true,
+      editable: true,
+      container: false,
+      navigation: true,
+      physics: false,
+      lazy: false,
+    },
+  },
   [TILE_TYPES.NOTE]: {
     type: TILE_TYPES.NOTE,
     displayName: "Note Tile",
     status: "stable",
-    component: NoteTile,
-    defaultSize: { width: 460, height: 420 },
+    component: CanvasTextTile,
+    defaultSize: { width: 420, height: 220 },
     capabilities: {
       draggable: true,
       selectable: true,
@@ -203,8 +219,8 @@ const tileRegistry = {
     type: TILE_TYPES.TEXT_BOX,
     displayName: "Canvas Text Box Tile",
     status: "stable",
-    component: TextBoxTile,
-    defaultSize: { width: 520, height: 180 },
+    component: CanvasTextTile,
+    defaultSize: { width: 420, height: 220 },
     capabilities: {
       draggable: true,
       selectable: true,

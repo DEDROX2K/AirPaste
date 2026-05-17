@@ -43,6 +43,16 @@ contextBridge.exposeInMainWorld("airpaste", {
   loadUiState: (folderPath) => ipcRenderer.invoke("airpaste:loadUiState", folderPath),
   saveUiState: (folderPath, partialState) =>
     ipcRenderer.invoke("airpaste:saveUiState", folderPath, partialState),
+  readMarkdownFile: (folderPath, filePath) =>
+    ipcRenderer.invoke("airpaste:readMarkdownFile", folderPath, filePath),
+  writeMarkdownFile: (folderPath, filePath, content) =>
+    ipcRenderer.invoke("airpaste:writeMarkdownFile", folderPath, filePath, content),
+  createMarkdownFile: (folderPath, name, content = "", targetFolderPath = "") =>
+    ipcRenderer.invoke("airpaste:createMarkdownFile", folderPath, name, content, targetFolderPath),
+  watchMarkdownFile: (filePath) =>
+    ipcRenderer.invoke("airpaste:watchMarkdownFile", filePath),
+  unwatchMarkdownFile: (filePath) =>
+    ipcRenderer.invoke("airpaste:unwatchMarkdownFile", filePath),
   openExternal: (url) => ipcRenderer.invoke("airpaste:openExternal", url),
   openFile: (filePath) => ipcRenderer.invoke("airpaste:openFile", filePath),
   fetchLinkPreview: (folderPath, cardId, url, cardSnapshot, canvasFilePath = "") =>
@@ -68,6 +78,11 @@ contextBridge.exposeInMainWorld("airpaste", {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("airpaste:previewUpdated", handler);
     return () => ipcRenderer.removeListener("airpaste:previewUpdated", handler);
+  },
+  onMarkdownFileChanged: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("airpaste:markdownFileChanged", handler);
+    return () => ipcRenderer.removeListener("airpaste:markdownFileChanged", handler);
   },
 });
 

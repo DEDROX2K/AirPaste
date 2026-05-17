@@ -16,6 +16,35 @@ function stopTileActionPointerEvent(event) {
   event.stopPropagation();
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "absolute";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(input);
+  }
+}
+
+async function openProductLink({ card, onOpenLink, toast }) {
+  try {
+    await onOpenLink?.(card);
+  } catch {
+    toast("error", "Could not open product");
+  }
+}
+
 function formatRating(value) {
   if (!Number.isFinite(value)) {
     return "";
@@ -60,10 +89,14 @@ function AmazonProductTile({
 }) {
   const { toast } = useToast();
   const { folderPath } = useAppContext();
+  const hasLinkUrl = typeof card.url === "string" && card.url.trim().length > 0;
   const surfaceGesture = useTileGesture({
     card,
     onDragStart: onBeginDrag,
     onPressStart,
+    onDoubleActivate: async () => {
+      await openProductLink({ card, onOpenLink, toast });
+    },
   });
   const title = card.title?.trim() || "Amazon product";
   const domainLabel = getDomainLabel(card);
@@ -80,17 +113,46 @@ function AmazonProductTile({
 
   const handleOpenLinkClick = async (event) => {
     stopTileActionEvent(event);
-
+    await openProductLink({ card, onOpenLink, toast });
+  };
+  const handleCopyLinkClick = async () => {
     try {
-      await onOpenLink?.(card);
+      await copyTextToClipboard(card.url);
+      toast("success", "Link copied");
     } catch {
-      toast("error", "Could not open product");
+      toast("error", "Could not copy link");
     }
   };
 
   useEffect(() => {
     recordPreviewTierSelection(card.id, previewTier);
   }, [card.id, previewTier]);
+  const actionStrip = tileMeta?.isSelected ? (
+    <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopTileActionPointerEvent}>
+      {hasLinkUrl ? (
+        <>
+          <button
+            type="button"
+            className="card__quick-action"
+            onClick={() => void openProductLink({ card, onOpenLink, toast })}
+          >
+            Open
+          </button>
+          <button type="button" className="card__quick-action" onClick={() => void handleCopyLinkClick()}>
+            Copy
+          </button>
+        </>
+      ) : null}
+    </div>
+  ) : null;
+  const surfaceFrameClassName = [
+    "card__surface-frame",
+    "card__surface-frame--interactive",
+    tileMeta?.isSelected ? "card__surface-frame--selected" : "",
+    tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <TileShell
@@ -99,18 +161,14 @@ function AmazonProductTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--amazon-product"
-      toolbar={renderHint?.showToolbar === false ? null : (
-        <div className="card__toolbar" {...surfaceGesture}>
-          <p className="card__label">{title}</p>
-        </div>
-      )}
+      actionStrip={actionStrip}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
       onFocusOut={onFocusOut}
     >
       <div className="card__content">
-        <div className="card__surface-frame card__surface-frame--interactive" {...surfaceGesture}>
+        <div className={surfaceFrameClassName} {...surfaceGesture}>
           <div className="card__surface card__surface--amazon-product" title={title}>
             <div className="card__amazon-product-media">
               {previewSource ? (
@@ -154,7 +212,7 @@ function AmazonProductTile({
                   ) : null}
                 </div>
 
-                {renderHint?.showActions === false ? null : (
+                {renderHint?.showActions === false || tileMeta?.isSelected ? null : (
                   <button
                     className="card__amazon-product-cta"
                     type="button"

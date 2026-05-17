@@ -11,6 +11,8 @@ function TileShell({
   dragVisualDelta = null,
   className = "",
   toolbar = null,
+  actionStrip = null,
+  tileState = "",
   children,
   onContextMenu,
   onHoverChange,
@@ -42,11 +44,15 @@ function TileShell({
     "--tile-drag-y": dragVisualDelta ? `${dragVisualDelta.y}px` : "0px",
     "--tile-clipboard-opacity": tileMeta?.styleVars?.["--tile-clipboard-opacity"] ?? "1",
   }), [dragVisualDelta, tileMeta]);
+  const resolvedTileState = tileState || (
+    tileMeta?.isDragging ? "dragging" : tileMeta?.isFocused ? "focused" : tileMeta?.isSelected ? "selected" : tileMeta?.isHovered ? "hovered" : "passive"
+  );
 
   return (
     <article
       className={classNames}
       data-interaction-state={tileMeta?.interactionState ?? "idle"}
+      data-tile-state={resolvedTileState}
       data-preview-tier={renderHint?.previewTier ?? "original"}
       style={style}
       onContextMenu={(event) => onContextMenu(card, event)}
@@ -57,6 +63,7 @@ function TileShell({
       onDragStart={preventNativeDrag}
     >
       {toolbar}
+      {actionStrip}
       {children}
     </article>
   );

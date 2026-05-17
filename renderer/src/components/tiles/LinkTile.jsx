@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import {
   canRefreshLinkPreviewCard,
-  formatCardSubtitle,
   LINK_CONTENT_KIND_IMAGE,
   shouldRecoverLinkPreviewCard,
 } from "../../lib/workspace";
@@ -49,10 +48,6 @@ function isYouTubeUrl(url) {
   } catch {
     return false;
   }
-}
-
-function getCardLabel(card) {
-  return card.title.trim() || formatCardSubtitle(card);
 }
 
 function isTwitterLikeSource(card) {
@@ -290,6 +285,14 @@ async function copyTextToClipboard(text) {
   }
 }
 
+async function openTileLink({ card, onOpenLink, toast, fallbackMessage }) {
+  try {
+    await onOpenLink?.(card);
+  } catch {
+    toast("error", fallbackMessage);
+  }
+}
+
 function LinkTile({
   card,
   tileMeta,
@@ -374,7 +377,7 @@ function LinkTile({
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
   const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
-  const label = getCardLabel(card);
+  const hasLinkUrl = typeof card.url === "string" && card.url.trim().length > 0;
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const fallbackDomainLabel = getAsciiDomain(card.url);
   const fallbackShortLabel = formatShortUrl(card.url).slice(0, 48).toUpperCase();
@@ -396,19 +399,36 @@ function LinkTile({
     card,
     onDragStart: onBeginDrag,
     onPressStart,
+    onDoubleActivate: async () => {
+      await openTileLink({
+        card,
+        onOpenLink,
+        toast,
+        fallbackMessage: "Could not open link",
+      });
+    },
   });
   const handleOpenLinkClick = async (event) => {
     stopTileActionEvent(event);
 
-    try {
-      await onOpenLink?.(card);
-    } catch {
-      toast("error", "Could not open link");
-    }
+    await openTileLink({
+      card,
+      onOpenLink,
+      toast,
+      fallbackMessage: "Could not open link",
+    });
   };
   const handleCopyLinkClick = async (event) => {
     stopTileActionEvent(event);
 
+    try {
+      await copyTextToClipboard(card.url);
+      toast("success", "Link copied");
+    } catch {
+      toast("error", "Could not copy link");
+    }
+  };
+  const handleCopyLinkQuickAction = async () => {
     try {
       await copyTextToClipboard(card.url);
       toast("success", "Link copied");
@@ -690,6 +710,37 @@ function LinkTile({
       )}
     </>
   );
+  const showActionRow = tileMeta?.isSelected;
+  const actionStrip = showActionRow ? (
+    <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopTileActionPointerEvent}>
+      {hasLinkUrl ? (
+        <>
+          <button type="button" className="card__quick-action" onClick={() => void openTileLink({
+            card,
+            onOpenLink,
+            toast,
+            fallbackMessage: "Could not open link",
+          })}
+          >
+            Open
+          </button>
+          <button type="button" className="card__quick-action" onClick={() => void handleCopyLinkQuickAction()}>
+            Copy
+          </button>
+        </>
+      ) : null}
+      {!isImageTile && shouldRecoverLinkPreviewCard(card) ? (
+        <button
+          type="button"
+          className="card__quick-action"
+          disabled={!canRefreshLinkPreviewCard(card)}
+          onClick={() => onRetry?.(card)}
+        >
+          Retry
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <TileShell
@@ -698,9 +749,9 @@ function LinkTile({
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className={`${isMusicCard ? "card--music " : ""}${isStickerTile ? "card--sticker" : ""}`.trim()}
-      toolbar={renderHint?.showToolbar === false || isStickerTile ? null : (
+      actionStrip={actionStrip}
+      toolbar={renderHint?.showToolbar === false || isStickerTile || previewDiagnosticBadges.length === 0 ? null : (
         <div className="card__toolbar" {...surfaceGesture}>
-          {tileMeta?.isSelected ? <p className="card__label">{label}</p> : null}
           {previewDiagnosticBadges.length > 0 ? (
             <div className="card__debug-badges" aria-label="Preview diagnostics badges">
               {previewDiagnosticBadges.map((badge) => (

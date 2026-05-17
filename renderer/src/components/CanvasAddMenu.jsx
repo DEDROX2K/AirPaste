@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
 
 const MENU_ITEMS = [
-  { key: "notes", label: "Notes", icon: "notes" },
+  { key: "text-card", label: "Text card", icon: "notes" },
+  { key: "vault-note", label: "Add note from vault", icon: "notes" },
   { key: "checklist", label: "Checklist", icon: "checklist" },
   { key: "table", label: "Table", icon: "table" },
   { key: "sticky", label: "Sticky note", icon: "sticky" },
-  { key: "text", label: "Text box", icon: "text" },
   { key: "rack", label: "Rack", icon: "rack" },
 ];
 
@@ -106,8 +106,13 @@ function handleMenuAction(commands, key) {
     return;
   }
 
-  if (key === "notes") {
-    commands.createNote();
+  if (key === "text-card") {
+    commands.createTextCard();
+    return;
+  }
+
+  if (key === "vault-note") {
+    void commands.addNoteFromVault?.();
     return;
   }
 
@@ -123,11 +128,6 @@ function handleMenuAction(commands, key) {
 
   if (key === "sticky") {
     commands.createSticky();
-    return;
-  }
-
-  if (key === "text") {
-    commands.createTextBox();
     return;
   }
 

@@ -142,6 +142,7 @@ const cancelledPreviewJobs = new Set();
 const previewExecutionQueue = [];
 let activePreviewExecutionCount = 0;
 const resolvedAssetUrlRegistry = new Map();
+const markdownFileWatchers = new Map();
 let previewBrowserPromise = null;
 let previewResolverModule = null;
 const ASSET_PROTOCOL_SCHEME = "airpaste-asset";
@@ -643,6 +644,57 @@ function withWorkspaceQueue(folderPath, task) {
       workspaceQueues.delete(queueKey);
     }
   });
+}
+
+function notifyMarkdownFileChanged(filePath, eventType = "change") {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send("airpaste:markdownFileChanged", {
+    filePath,
+    eventType,
+    updatedAt: nowIso(),
+  });
+}
+
+function watchMarkdownFilePath(filePath) {
+  const resolvedPath = path.resolve(String(filePath ?? ""));
+  const existing = markdownFileWatchers.get(resolvedPath);
+
+  if (existing) {
+    existing.refCount += 1;
+    return { watching: true, filePath: resolvedPath };
+  }
+
+  const watcher = fsSync.watch(resolvedPath, { persistent: false }, (eventType) => {
+    notifyMarkdownFileChanged(resolvedPath, eventType || "change");
+  });
+
+  markdownFileWatchers.set(resolvedPath, {
+    watcher,
+    refCount: 1,
+  });
+
+  return { watching: true, filePath: resolvedPath };
+}
+
+function unwatchMarkdownFilePath(filePath) {
+  const resolvedPath = path.resolve(String(filePath ?? ""));
+  const existing = markdownFileWatchers.get(resolvedPath);
+
+  if (!existing) {
+    return { watching: false, filePath: resolvedPath };
+  }
+
+  existing.refCount -= 1;
+  if (existing.refCount <= 0) {
+    existing.watcher.close();
+    markdownFileWatchers.delete(resolvedPath);
+    return { watching: false, filePath: resolvedPath };
+  }
+
+  return { watching: true, filePath: resolvedPath };
 }
 
 async function resolveWorkspaceQueueKeyForFile(filePath) {
@@ -2772,6 +2824,8 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.getStarredItems(folderPath),
   "airpaste:createCanvas": (folderPath, name, targetFolderPath) =>
     workspaceService.createCanvas(folderPath, name, targetFolderPath),
+  "airpaste:createMarkdownFile": (folderPath, name, content, targetFolderPath) =>
+    workspaceService.createMarkdownFile(folderPath, name, content, targetFolderPath),
   "airpaste:createFolder": (folderPath, name, targetFolderPath) =>
     workspaceService.createFolder(folderPath, name, targetFolderPath),
   "airpaste:renameFile": (folderPath, filePath, name) =>
@@ -2790,8 +2844,12 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.getItemForFilePath(folderPath, filePath),
   "airpaste:loadUiState": (folderPath) =>
     workspaceService.loadUiState(folderPath),
+  "airpaste:readMarkdownFile": (folderPath, filePath) =>
+    workspaceService.readMarkdownFile(folderPath, filePath),
   "airpaste:saveUiState": (folderPath, partialState) =>
     workspaceService.saveUiState(folderPath, partialState),
+  "airpaste:writeMarkdownFile": (folderPath, filePath, content) =>
+    workspaceService.writeMarkdownFile(folderPath, filePath, content),
 });
 
 for (const [channel, handler] of Object.entries(workspaceActionHandlers)) {
@@ -2812,6 +2870,22 @@ ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
 ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data, options = null) => {
   const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
   return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data, options));
+});
+
+ipcMain.handle("airpaste:watchMarkdownFile", async (_event, filePath) => {
+  if (!filePath || typeof filePath !== "string") {
+    return { watching: false };
+  }
+
+  return watchMarkdownFilePath(filePath);
+});
+
+ipcMain.handle("airpaste:unwatchMarkdownFile", async (_event, filePath) => {
+  if (!filePath || typeof filePath !== "string") {
+    return { watching: false };
+  }
+
+  return unwatchMarkdownFilePath(filePath);
 });
 
 ipcMain.handle("airpaste:openExternal", async (_event, url) => {

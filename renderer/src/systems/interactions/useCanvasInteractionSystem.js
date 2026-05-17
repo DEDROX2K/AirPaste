@@ -22,7 +22,7 @@ const VIEWPORT_PADDING = 16;
 const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
 
 function isSelectionModifierPressed(event) {
-  return event.ctrlKey || event.metaKey;
+  return event.shiftKey || event.ctrlKey || event.metaKey;
 }
 
 function isCanvasBackgroundTarget(event) {
@@ -33,6 +33,7 @@ function isCanvasBackgroundTarget(event) {
 
 export function useCanvasInteractionSystem({
   cards,
+  groups = [],
   canvas,
   commands,
   interactionMode = "select",
@@ -42,7 +43,9 @@ export function useCanvasInteractionSystem({
 }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedTileIds, setSelectedTileIds] = useState([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
   const [hoveredTileId, setHoveredTileId] = useState(null);
+  const [hoveredGroupId, setHoveredGroupId] = useState(null);
   const [focusedTileId, setFocusedTileId] = useState(null);
   const [draggingTileIds, setDraggingTileIds] = useState([]);
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
@@ -99,7 +102,9 @@ export function useCanvasInteractionSystem({
     closeContextMenu();
     clearRackDropPreview();
     setSelectedTileIds([]);
+    setSelectedGroupIds([]);
     setHoveredTileId(null);
+    setHoveredGroupId(null);
     setFocusedTileId(null);
     setDraggingTileIds([]);
     setDragVisualDelta(null);
@@ -117,13 +122,18 @@ export function useCanvasInteractionSystem({
 
   useEffect(() => {
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => cards.some((tile) => tile.id === tileId)));
+    setSelectedGroupIds((currentIds) => currentIds.filter((groupId) => groups.some((group) => group.id === groupId)));
     setHoveredTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
+    setHoveredGroupId((currentId) => (groups.some((group) => group.id === currentId) ? currentId : null));
     setFocusedTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
 
     if (contextMenu?.kind === "tile" && contextMenu.card && !cards.some((tile) => tile.id === contextMenu.card.id)) {
       setContextMenu(null);
     }
-  }, [cards, contextMenu]);
+    if (contextMenu?.kind === "group" && contextMenu.group && !groups.some((group) => group.id === contextMenu.group.id)) {
+      setContextMenu(null);
+    }
+  }, [cards, contextMenu, groups]);
 
   useEffect(() => {
     const renderableTileIds = new Set(
@@ -209,6 +219,31 @@ export function useCanvasInteractionSystem({
 
       return [tileId];
     });
+    setSelectedGroupIds([]);
+  }, []);
+
+  const selectGroup = useCallback((groupId, options = {}) => {
+    const shouldToggle = Boolean(options.toggle);
+
+    setSelectedGroupIds((currentIds) => {
+      if (shouldToggle) {
+        return currentIds.includes(groupId)
+          ? currentIds.filter((currentId) => currentId !== groupId)
+          : [...currentIds, groupId];
+      }
+
+      if (currentIds.length === 1 && currentIds[0] === groupId) {
+        return currentIds;
+      }
+
+      if (currentIds.includes(groupId) && !options.forceSingle) {
+        return currentIds;
+      }
+
+      return [groupId];
+    });
+    setSelectedTileIds([]);
+    setFocusedTileId(null);
   }, []);
 
   const replaceSelection = useCallback((tileIds) => {
@@ -217,7 +252,9 @@ export function useCanvasInteractionSystem({
       : [];
 
     setSelectedTileIds(normalizedTileIds);
+    setSelectedGroupIds([]);
     setHoveredTileId(null);
+    setHoveredGroupId(null);
     setFocusedTileId(normalizedTileIds.length === 1 ? normalizedTileIds[0] : null);
   }, []);
 
@@ -237,6 +274,23 @@ export function useCanvasInteractionSystem({
     selectTile(tile.id, { forceSingle: !selectedTileIdSet.has(tile.id) });
     return false;
   }, [canvas, closeContextMenu, isHandMode, selectTile, selectedTileIdSet]);
+
+  const handleGroupPressStart = useCallback((group, event) => {
+    closeContextMenu();
+
+    if (isHandMode) {
+      canvas.beginCanvasPan(event);
+      return true;
+    }
+
+    if (isSelectionModifierPressed(event)) {
+      selectGroup(group.id, { toggle: true });
+      return true;
+    }
+
+    selectGroup(group.id, { forceSingle: true });
+    return false;
+  }, [canvas, closeContextMenu, isHandMode, selectGroup]);
 
   const handleTileContextMenu = useCallback((tile, event) => {
     event.preventDefault();
@@ -261,6 +315,29 @@ export function useCanvasInteractionSystem({
     });
   }, [canvas, selectedTileIdSet, selectedTileIds, selectTile]);
 
+  const handleGroupContextMenu = useCallback((group, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const selectionIds = selectedGroupIds.includes(group.id)
+      ? selectedGroupIds
+      : [group.id];
+
+    selectGroup(group.id, { forceSingle: true });
+
+    const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+
+    setContextMenu({
+      kind: "group",
+      id: `${Date.now()}-${group.id}-${Math.round(event.clientX)}-${Math.round(event.clientY)}`,
+      group,
+      selectionIds,
+      x: Math.max(VIEWPORT_PADDING, event.clientX),
+      y: Math.max(VIEWPORT_PADDING, event.clientY),
+      worldPoint,
+    });
+  }, [canvas, selectGroup, selectedGroupIds]);
+
   const handleTileHoverChange = useCallback((tileId, isHovered) => {
     if (suppressHoverUpdates) {
       return;
@@ -272,6 +349,20 @@ export function useCanvasInteractionSystem({
       }
 
       return currentId === tileId ? null : currentId;
+    });
+  }, [suppressHoverUpdates]);
+
+  const handleGroupHoverChange = useCallback((groupId, isHovered) => {
+    if (suppressHoverUpdates) {
+      return;
+    }
+
+    setHoveredGroupId((currentId) => {
+      if (isHovered) {
+        return groupId;
+      }
+
+      return currentId === groupId ? null : currentId;
     });
   }, [suppressHoverUpdates]);
 
@@ -441,6 +532,41 @@ export function useCanvasInteractionSystem({
     selectedTileIds,
   ]);
 
+  const beginGroupDrag = useCallback((group, event) => {
+    if (!isSelectMode) {
+      return;
+    }
+
+    closeContextMenu();
+    clearRackDropPreview();
+
+    const isPrimaryPointer = event.button === 0 || event.buttons === 1;
+    if (!isPrimaryPointer) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const selectedIds = selectedGroupIds.includes(group.id) ? selectedGroupIds : [group.id];
+    const activeGroups = selectedIds
+      .map((groupId) => groups.find((entry) => entry.id === groupId) ?? null)
+      .filter(Boolean);
+    const draggedTileIds = [...new Set(activeGroups.flatMap((entry) => Array.isArray(entry.tileIds) ? entry.tileIds : []))];
+
+    dragStateRef.current = {
+      kind: "group",
+      groupIds: activeGroups.map((entry) => entry.id),
+      tileIds: draggedTileIds,
+      pointerWorldStart: canvas.clientToWorldPoint(event.clientX, event.clientY),
+      lastDelta: { x: 0, y: 0 },
+    };
+    setSelectedGroupIds(activeGroups.map((entry) => entry.id));
+    setSelectedTileIds([]);
+    setDraggingTileIds(draggedTileIds);
+    setDragVisualDelta({ x: 0, y: 0 });
+  }, [canvas, clearRackDropPreview, closeContextMenu, groups, isSelectMode, selectedGroupIds]);
+
   useEffect(() => {
     function updateMarquee(event) {
       const marqueeState = marqueeStateRef.current;
@@ -555,7 +681,14 @@ export function useCanvasInteractionSystem({
       let nextSelectedIds = dragState.tileIds;
       let wasHandled = false;
 
-      if (event && activeRackPreview?.rackId) {
+      if (dragState.kind === "group") {
+        if (event && (dragDelta.x !== 0 || dragDelta.y !== 0)) {
+          commands.moveGroups(dragState.groupIds, dragDelta);
+          wasHandled = true;
+        } else {
+          commands.cancelPendingWorkspaceChange();
+        }
+      } else if (event && activeRackPreview?.rackId) {
         const rackTile = commands.addTilesToRack(dragState.tileIds, activeRackPreview.rackId);
 
         if (rackTile) {
@@ -581,6 +714,7 @@ export function useCanvasInteractionSystem({
       const commitEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
 
       recordInteractionCommit("drag", commitEnd - commitStart, {
+        kind: dragState.kind ?? "tile",
         movedTileCount: dragState.tileIds.length,
         deltaX: dragDelta.x,
         deltaY: dragDelta.y,
@@ -605,7 +739,11 @@ export function useCanvasInteractionSystem({
       dragStateRef.current = null;
       setDraggingTileIds([]);
       clearRackDropPreview();
-      setSelectedTileIds(nextSelectedIds);
+      if (dragState.kind === "group") {
+        setSelectedGroupIds(dragState.groupIds);
+      } else {
+        setSelectedTileIds(nextSelectedIds);
+      }
     }
 
     function handlePointerMove(event) {
@@ -616,6 +754,25 @@ export function useCanvasInteractionSystem({
       }
 
       const moveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      if (dragState.kind === "group") {
+        const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+        const worldDelta = {
+          x: currentWorldPoint.x - dragState.pointerWorldStart.x,
+          y: currentWorldPoint.y - dragState.pointerWorldStart.y,
+        };
+
+        dragState.lastDelta = worldDelta;
+        setDragVisualDelta((currentDelta) => {
+          if (currentDelta?.x === worldDelta.x && currentDelta?.y === worldDelta.y) {
+            return currentDelta;
+          }
+
+          return worldDelta;
+        });
+        recordPointerMoveSample((typeof performance !== "undefined" ? performance.now() : Date.now()) - moveStart);
+        return;
+      }
+
       const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
       const rawWorldDelta = {
         x: currentWorldPoint.x - dragState.pointerWorldStart.x,
@@ -750,17 +907,9 @@ export function useCanvasInteractionSystem({
 
     closeContextMenu();
     setHoveredTileId(null);
+    setHoveredGroupId(null);
     setFocusedTileId(null);
     suppressCanvasContextMenuRef.current = false;
-
-    const shouldBeginMarquee = isSelectionModifierPressed(event);
-
-    if (shouldBeginMarquee) {
-      event.preventDefault();
-      event.stopPropagation();
-      beginCanvasMarqueeSelection(event);
-      return;
-    }
 
     if (event.button === 2) {
       return;
@@ -771,7 +920,14 @@ export function useCanvasInteractionSystem({
     }
 
     setSelectedTileIds([]);
-  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, isHandMode]);
+    setSelectedGroupIds([]);
+
+    if (isSelectMode && event.button === 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      beginCanvasMarqueeSelection(event);
+    }
+  }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, isHandMode, isSelectMode]);
 
   const handleCanvasContextMenu = useCallback((event) => {
     if (!isCanvasBackgroundTarget(event)) {
@@ -802,18 +958,24 @@ export function useCanvasInteractionSystem({
   return useMemo(() => ({
     contextMenu,
     selectedTileIds,
+    selectedGroupIds,
     selectedTileIdSet,
     hoveredTileId,
+    hoveredGroupId,
     focusedTileId,
     draggingTileIds,
     dragVisualDelta,
     rackDropPreview,
     marqueeBox,
     marqueeStyleVars,
+    beginGroupDrag,
     beginTileDrag,
     closeContextMenu,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
+    handleGroupContextMenu,
+    handleGroupHoverChange,
+    handleGroupPressStart,
     handleTileContextMenu,
     handleTileFocusIn,
     handleTileFocusOut,
@@ -821,14 +983,19 @@ export function useCanvasInteractionSystem({
     handleTilePressStart,
     replaceSelection,
     resetTransientState,
+    selectGroup,
     selectTile,
   }), [
+    beginGroupDrag,
     beginTileDrag,
     closeContextMenu,
     contextMenu,
     dragVisualDelta,
     draggingTileIds,
     focusedTileId,
+    handleGroupContextMenu,
+    handleGroupHoverChange,
+    handleGroupPressStart,
     rackDropPreview,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
@@ -837,12 +1004,15 @@ export function useCanvasInteractionSystem({
     handleTileFocusOut,
     handleTileHoverChange,
     handleTilePressStart,
+    hoveredGroupId,
     hoveredTileId,
     marqueeBox,
     marqueeStyleVars,
     replaceSelection,
     resetTransientState,
+    selectGroup,
     selectTile,
+    selectedGroupIds,
     selectedTileIdSet,
     selectedTileIds,
   ]);

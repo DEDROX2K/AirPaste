@@ -1,4 +1,5 @@
 import AmazonProductTile from "./AmazonProductTile";
+import CanvasTextTile from "./CanvasTextTile";
 import CalendarTile from "./CalendarTile";
 import ChecklistTile from "./ChecklistTile";
 import CodeSnippetTile from "./CodeSnippetTile";
@@ -6,11 +7,9 @@ import CounterTile from "./CounterTile";
 import DeadlineTile from "./DeadlineTile";
 import FileTile from "./FileTile";
 import LinkTile from "./LinkTile";
-import NoteTile from "./NoteTile";
 import ProgressTile from "./ProgressTile";
 import RackTile from "./RackTile";
 import TableTile from "./TableTile";
-import TextBoxTile from "./TextBoxTile";
 import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
@@ -38,8 +37,11 @@ const tileRegistry = {
   [TILE_TYPES.DEADLINE]: {
     Component: DeadlineTile,
   },
+  [TILE_TYPES.CANVAS_TEXT]: {
+    Component: CanvasTextTile,
+  },
   [TILE_TYPES.NOTE]: {
-    Component: NoteTile,
+    Component: CanvasTextTile,
   },
   [TILE_TYPES.PROGRESS]: {
     Component: ProgressTile,
@@ -48,7 +50,7 @@ const tileRegistry = {
     Component: TableTile,
   },
   [TILE_TYPES.TEXT_BOX]: {
-    Component: TextBoxTile,
+    Component: CanvasTextTile,
   },
   [TILE_TYPES.RACK]: {
     Component: RackTile,

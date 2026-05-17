@@ -1433,8 +1433,67 @@ async function importFiles(root, sourcePaths, targetFolderPath = "") {
   return imported;
 }
 
+function ensureMarkdownWorkspacePath(root, filePath) {
+  const rel = toWorkspaceRel(root, filePath);
+  const abs = resolveWorkspacePath(root, rel);
+
+  if (!/\.md$/i.test(abs)) {
+    throw new Error("Only Markdown files are supported here.");
+  }
+
+  return {
+    relativePath: rel,
+    absolutePath: abs,
+  };
+}
+
+async function buildMarkdownFilePayload(root, absolutePath, relativePath, content = null) {
+  const fileContent = typeof content === "string" ? content : await fs.readFile(absolutePath, "utf8");
+  const stat = await fs.stat(absolutePath);
+
+  return {
+    relativePath,
+    filePath: absolutePath,
+    fileName: path.basename(absolutePath),
+    extension: "md",
+    mimeType: "text/markdown",
+    sizeBytes: Buffer.byteLength(fileContent, "utf8"),
+    content: fileContent,
+    updatedAt: stat.mtime.toISOString(),
+  };
+}
+
+async function readMarkdownFile(root, filePath) {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const { relativePath, absolutePath } = ensureMarkdownWorkspacePath(absRoot, filePath);
+  return buildMarkdownFilePayload(absRoot, absolutePath, relativePath);
+}
+
+async function writeMarkdownFile(root, filePath, content = "") {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const { relativePath, absolutePath } = ensureMarkdownWorkspacePath(absRoot, filePath);
+  await atomicWriteText(absRoot, absolutePath, typeof content === "string" ? content : String(content ?? ""));
+  return buildMarkdownFilePayload(absRoot, absolutePath, relativePath, typeof content === "string" ? content : String(content ?? ""));
+}
+
+async function createMarkdownFile(root, name, content = "", targetFolderPath = "") {
+  const absRoot = await ensureWorkspaceScaffold(root);
+  const targetDir = resolveWorkspacePath(absRoot, normalizeFolder(targetFolderPath));
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const requestedBaseName = sanitizeName(firstString(name, "Canvas Note"), "Canvas Note");
+  const normalizedBaseName = /\.md$/i.test(requestedBaseName)
+    ? requestedBaseName.slice(0, -3).trim() || "Canvas Note"
+    : requestedBaseName;
+  const absolutePath = await uniquePath(targetDir, normalizedBaseName, ".md");
+
+  await atomicWriteText(absRoot, absolutePath, typeof content === "string" ? content : String(content ?? ""));
+  return buildMarkdownFilePayload(absRoot, absolutePath, toWorkspaceRel(absRoot, absolutePath), typeof content === "string" ? content : String(content ?? ""));
+}
+
 module.exports = {
   createCanvas,
+  createMarkdownFile,
   createDome,
   createFolder,
   createWorkspace,
@@ -1455,6 +1514,7 @@ module.exports = {
   loadWorkspace,
   markItemStarred,
   openWorkspace,
+  readMarkdownFile,
   readWorkspaceDocument,
   rebuildIndex,
   recordRecentItem,
@@ -1466,4 +1526,5 @@ module.exports = {
   saveUiState,
   saveWorkspace,
   scanWorkspace,
+  writeMarkdownFile,
 };

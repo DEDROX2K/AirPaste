@@ -68,6 +68,11 @@ export const desktop = {
     getItemForFilePath: (...args) => airpasteBridge.getItemForFilePath?.(...args) ?? Promise.resolve(null),
     loadUiState: (...args) => airpasteBridge.loadUiState?.(...args) ?? Promise.resolve(null),
     saveUiState: (...args) => airpasteBridge.saveUiState?.(...args) ?? Promise.resolve(null),
+    readMarkdownFile: (...args) => airpasteBridge.readMarkdownFile?.(...args) ?? Promise.resolve(null),
+    writeMarkdownFile: (...args) => airpasteBridge.writeMarkdownFile?.(...args) ?? Promise.resolve(null),
+    createMarkdownFile: (...args) => airpasteBridge.createMarkdownFile?.(...args) ?? Promise.resolve(null),
+    watchMarkdownFile: (...args) => airpasteBridge.watchMarkdownFile?.(...args) ?? Promise.resolve({ watching: false }),
+    unwatchMarkdownFile: (...args) => airpasteBridge.unwatchMarkdownFile?.(...args) ?? Promise.resolve({ watching: false }),
     fetchLinkPreview: (...args) => airpasteBridge.fetchLinkPreview?.(...args) ?? Promise.resolve({ queued: false }),
     cancelLinkPreview: (...args) => airpasteBridge.cancelLinkPreview?.(...args) ?? Promise.resolve({ cancelled: false }),
     importImageAsset: (...args) => airpasteBridge.importImageAsset?.(...args) ?? Promise.resolve(null),
@@ -88,6 +93,7 @@ export const desktop = {
       return null;
     },
     onPreviewUpdated: (listener) => airpasteBridge.onPreviewUpdated?.(listener) ?? (() => { }),
+    onMarkdownFileChanged: (listener) => airpasteBridge.onMarkdownFileChanged?.(listener) ?? (() => { }),
   },
   shell: {
     openExternal: (url) => airpasteBridge.openExternal?.(url) ?? Promise.resolve({ opened: false }),

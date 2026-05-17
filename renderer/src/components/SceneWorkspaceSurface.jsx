@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { desktop } from "../lib/desktop";
+import { CANVAS_TEXT_SOURCE_FILE, deriveCanvasTextSummary, deriveCanvasTextTitle } from "../lib/canvasText";
 import { LINK_CONTENT_KIND_IMAGE } from "../lib/workspace";
 import { PREVIEW_TIER } from "../systems/canvas/tileLod";
 import {
@@ -65,6 +66,47 @@ function getGroupWorldBounds(group) {
     right: x + width,
     bottom: y + height,
   };
+}
+
+function getBoundsWithOffset(bounds, delta, enabled) {
+  if (!enabled || !delta) {
+    return bounds;
+  }
+
+  return {
+    ...bounds,
+    x: bounds.x + delta.x,
+    y: bounds.y + delta.y,
+    left: bounds.left + delta.x,
+    top: bounds.top + delta.y,
+    right: bounds.right + delta.x,
+    bottom: bounds.bottom + delta.y,
+  };
+}
+
+function isGroupHitZone(worldX, worldY, bounds) {
+  const edgeReach = 18;
+  const headerHeight = 34;
+  const inside = (
+    worldX >= bounds.left
+    && worldX <= bounds.right
+    && worldY >= bounds.top
+    && worldY <= bounds.bottom
+  );
+
+  if (!inside) {
+    return false;
+  }
+
+  const inHeader = worldY <= bounds.top + headerHeight;
+  const nearEdge = (
+    worldX <= bounds.left + edgeReach
+    || worldX >= bounds.right - edgeReach
+    || worldY <= bounds.top + edgeReach
+    || worldY >= bounds.bottom - edgeReach
+  );
+
+  return inHeader || nearEdge;
 }
 
 function rectsIntersect(leftRect, rightRect) {
@@ -267,6 +309,10 @@ function getNodeAnchor(bounds, side = "") {
 }
 
 function getPrimaryTileLabel(tile) {
+  if (tile?.type === "canvas-text") {
+    return deriveCanvasTextTitle(tile);
+  }
+
   if (typeof tile?.title === "string" && tile.title.trim()) {
     return tile.title.trim();
   }
@@ -299,6 +345,13 @@ function getPrimaryTileLabel(tile) {
 }
 
 function getSecondaryTileLabel(tile) {
+  if (tile?.type === "canvas-text") {
+    const summary = deriveCanvasTextSummary(tile?.text, 4);
+    return tile?.source === CANVAS_TEXT_SOURCE_FILE && !summary
+      ? (tile?.file?.relativePath || "")
+      : summary;
+  }
+
   if (typeof tile?.description === "string" && tile.description.trim()) {
     return tile.description.trim();
   }
@@ -418,6 +471,11 @@ function SceneWorkspaceSurface({
   tiles,
   edges = [],
   groups = [],
+  selectedGroupIds = [],
+  hoveredGroupId = null,
+  dragVisualDelta = null,
+  dragVisualTileIdSet = null,
+  draggingGroupIdSet = null,
   tileMetaById,
   tileRenderHintsById,
   isCanvasMoving,
@@ -427,6 +485,10 @@ function SceneWorkspaceSurface({
   onTileDragStart,
   onTileContextMenu,
   onTileHoverChange,
+  onGroupPressStart,
+  onGroupDragStart,
+  onGroupContextMenu,
+  onGroupHoverChange,
   onBackgroundPointerDown,
   onBackgroundContextMenu,
 }) {
@@ -435,6 +497,8 @@ function SceneWorkspaceSurface({
   const renderStateRef = useRef({
     drawnTiles: [],
     hoveredTileId: null,
+    drawnGroups: [],
+    hoveredGroupId: null,
   });
   const pressStateRef = useRef(null);
   const resolvedSourceByKeyRef = useRef(new Map());
@@ -453,7 +517,12 @@ function SceneWorkspaceSurface({
     tiles.map((tile) => {
       const tileMeta = tileMetaById[tile.id] ?? null;
       const renderHint = tileRenderHintsById[tile.id] ?? null;
-      const bounds = getTileWorldBounds(tile, tileMeta);
+      const baseBounds = getTileWorldBounds(tile, tileMeta);
+      const bounds = getBoundsWithOffset(
+        baseBounds,
+        dragVisualDelta,
+        dragVisualTileIdSet?.has?.(tile.id) === true,
+      );
       return {
         tile,
         tileMeta,
@@ -461,13 +530,17 @@ function SceneWorkspaceSurface({
         bounds,
       };
     })
-  ), [tileMetaById, tileRenderHintsById, tiles]);
+  ), [dragVisualDelta, dragVisualTileIdSet, tileMetaById, tileRenderHintsById, tiles]);
   const groupList = useMemo(() => (
     groups.map((group) => ({
       group,
-      bounds: getGroupWorldBounds(group),
+      bounds: getBoundsWithOffset(
+        getGroupWorldBounds(group),
+        dragVisualDelta,
+        draggingGroupIdSet?.has?.(group.id) === true,
+      ),
     }))
-  ), [groups]);
+  ), [dragVisualDelta, draggingGroupIdSet, groups]);
 
   const queueTileImageSource = useCallback((tileEntry, dprBucket) => {
     const tile = tileEntry.tile;
@@ -633,11 +706,24 @@ function SceneWorkspaceSurface({
 
       const { bounds, group } = groupEntry;
       const label = typeof group?.label === "string" ? group.label.trim() : "";
+      const isSelected = selectedGroupIds.includes(group.id);
+      const isHovered = hoveredGroupId === group.id;
+      const isDragging = draggingGroupIdSet?.has?.(group.id) === true;
 
       ctx.save();
-      ctx.fillStyle = "rgba(162, 128, 87, 0.08)";
-      ctx.strokeStyle = isCanvasMovingRef.current ? "rgba(133, 101, 66, 0.34)" : "rgba(133, 101, 66, 0.48)";
-      ctx.lineWidth = 1.25 / Math.max(0.35, viewport.zoom);
+      ctx.fillStyle = isSelected
+        ? "rgba(162, 128, 87, 0.14)"
+        : isHovered
+          ? "rgba(162, 128, 87, 0.11)"
+          : "rgba(162, 128, 87, 0.08)";
+      ctx.strokeStyle = isDragging
+        ? "rgba(91, 68, 44, 0.78)"
+        : isSelected
+          ? "rgba(91, 68, 44, 0.62)"
+          : isCanvasMovingRef.current
+            ? "rgba(133, 101, 66, 0.34)"
+            : "rgba(133, 101, 66, 0.48)";
+      ctx.lineWidth = (isSelected ? 2 : 1.25) / Math.max(0.35, viewport.zoom);
       ctx.setLineDash(isCanvasMovingRef.current ? [10 / viewport.zoom, 8 / viewport.zoom] : [14 / viewport.zoom, 10 / viewport.zoom]);
       ctx.beginPath();
       traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 18);
@@ -829,6 +915,15 @@ function SceneWorkspaceSurface({
       ctx.lineWidth = 1 / Math.max(0.35, viewport.zoom);
       ctx.stroke();
 
+      if (dragVisualTileIdSet?.has?.(tile.id) === true) {
+        ctx.strokeStyle = "rgba(91, 68, 44, 0.42)";
+        ctx.lineWidth = 1.5 / Math.max(0.35, viewport.zoom);
+        ctx.beginPath();
+        traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 8);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
       const titleText = getPrimaryTileLabel(tile);
       const secondaryText = getSecondaryTileLabel(tile);
       const headerHeight = usePreviewColorBlock
@@ -872,7 +967,22 @@ function SceneWorkspaceSurface({
 
     ctx.restore();
     renderStateRef.current.drawnTiles = drawnTiles.sort((left, right) => left.zIndex - right.zIndex);
-  }, [edges, getImageEntry, getViewportSnapshot, groupList, queueTileImageSource, tileList]);
+    renderStateRef.current.drawnGroups = groupList.map((entry) => ({
+      group: entry.group,
+      bounds: entry.bounds,
+    }));
+  }, [
+    dragVisualTileIdSet,
+    draggingGroupIdSet,
+    edges,
+    getImageEntry,
+    getViewportSnapshot,
+    groupList,
+    hoveredGroupId,
+    queueTileImageSource,
+    selectedGroupIds,
+    tileList,
+  ]);
 
   const runDrawLoop = useCallback(() => {
     drawRafRef.current = 0;
@@ -973,6 +1083,28 @@ function SceneWorkspaceSurface({
     return null;
   }, [getViewportSnapshot]);
 
+  const hitTestGroup = useCallback((clientX, clientY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const viewport = getViewportSnapshot();
+    const worldX = (clientX - rect.left - viewport.x) / Math.max(0.1, viewport.zoom);
+    const worldY = (clientY - rect.top - viewport.y) / Math.max(0.1, viewport.zoom);
+    const drawnGroups = renderStateRef.current.drawnGroups;
+
+    for (let index = drawnGroups.length - 1; index >= 0; index -= 1) {
+      const entry = drawnGroups[index];
+      if (isGroupHitZone(worldX, worldY, entry.bounds)) {
+        return entry.group;
+      }
+    }
+
+    return null;
+  }, [getViewportSnapshot]);
+
   const updateHoveredTile = useCallback((nextTile) => {
     const previousTileId = renderStateRef.current.hoveredTileId ?? null;
     const nextTileId = nextTile?.id ?? null;
@@ -992,9 +1124,30 @@ function SceneWorkspaceSurface({
     renderStateRef.current.hoveredTileId = nextTileId;
   }, [onTileHoverChange]);
 
+  const updateHoveredGroup = useCallback((nextGroup) => {
+    const previousGroupId = renderStateRef.current.hoveredGroupId ?? null;
+    const nextGroupId = nextGroup?.id ?? null;
+
+    if (previousGroupId === nextGroupId) {
+      return;
+    }
+
+    if (previousGroupId) {
+      onGroupHoverChange?.(previousGroupId, false);
+    }
+
+    if (nextGroupId) {
+      onGroupHoverChange?.(nextGroupId, true);
+    }
+
+    renderStateRef.current.hoveredGroupId = nextGroupId;
+  }, [onGroupHoverChange]);
+
   const handlePointerDown = useCallback((event) => {
     const hitTile = hitTestTile(event.clientX, event.clientY);
+    const hitGroup = hitTile ? null : hitTestGroup(event.clientX, event.clientY);
     updateHoveredTile(hitTile);
+    updateHoveredGroup(hitGroup);
 
     if (hitTile) {
       const suppressDrag = onTilePressStart?.(hitTile, event) === true;
@@ -1012,13 +1165,31 @@ function SceneWorkspaceSurface({
       return;
     }
 
+    if (hitGroup) {
+      const suppressDrag = onGroupPressStart?.(hitGroup, event) === true;
+
+      pressStateRef.current = {
+        pointerId: event.pointerId,
+        group: hitGroup,
+        startX: event.clientX,
+        startY: event.clientY,
+        hasTriggeredDrag: false,
+        suppressDrag,
+      };
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     pressStateRef.current = null;
     onBackgroundPointerDown?.(event);
-  }, [hitTestTile, onBackgroundPointerDown, onTilePressStart, updateHoveredTile]);
+  }, [hitTestGroup, hitTestTile, onBackgroundPointerDown, onGroupPressStart, onTilePressStart, updateHoveredGroup, updateHoveredTile]);
 
   const handlePointerMove = useCallback((event) => {
     const hitTile = hitTestTile(event.clientX, event.clientY);
+    const hitGroup = hitTile ? null : hitTestGroup(event.clientX, event.clientY);
     updateHoveredTile(hitTile);
+    updateHoveredGroup(hitGroup);
 
     const pressState = pressStateRef.current;
 
@@ -1034,8 +1205,13 @@ function SceneWorkspaceSurface({
     }
 
     pressState.hasTriggeredDrag = true;
-    onTileDragStart?.(pressState.tile, event);
-  }, [hitTestTile, onTileDragStart, updateHoveredTile]);
+    if (pressState.tile) {
+      onTileDragStart?.(pressState.tile, event);
+      return;
+    }
+
+    onGroupDragStart?.(pressState.group, event);
+  }, [hitTestGroup, hitTestTile, onGroupDragStart, onTileDragStart, updateHoveredGroup, updateHoveredTile]);
 
   const clearPressedTile = useCallback((event) => {
     const pressState = pressStateRef.current;
@@ -1053,19 +1229,27 @@ function SceneWorkspaceSurface({
 
   const handleContextMenu = useCallback((event) => {
     const hitTile = hitTestTile(event.clientX, event.clientY);
+    const hitGroup = hitTile ? null : hitTestGroup(event.clientX, event.clientY);
     updateHoveredTile(hitTile);
+    updateHoveredGroup(hitGroup);
 
     if (hitTile) {
       onTileContextMenu?.(hitTile, event);
       return;
     }
 
+    if (hitGroup) {
+      onGroupContextMenu?.(hitGroup, event);
+      return;
+    }
+
     onBackgroundContextMenu?.(event);
-  }, [hitTestTile, onBackgroundContextMenu, onTileContextMenu, updateHoveredTile]);
+  }, [hitTestGroup, hitTestTile, onBackgroundContextMenu, onGroupContextMenu, onTileContextMenu, updateHoveredGroup, updateHoveredTile]);
 
   const handlePointerLeave = useCallback(() => {
     updateHoveredTile(null);
-  }, [updateHoveredTile]);
+    updateHoveredGroup(null);
+  }, [updateHoveredGroup, updateHoveredTile]);
 
   return (
     <canvas

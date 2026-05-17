@@ -1341,6 +1341,7 @@ option {
 }
 
 .canvas--moving .card__toolbar,
+.canvas--moving .card__quick-actions,
 .canvas--moving .card__link-actions,
 .canvas--moving .card__debug-badges,
 .canvas--moving .card__retry {
@@ -3089,6 +3090,44 @@ option {
   padding: 0 10px 8px;
 }
 
+.card__quick-actions {
+  position: absolute;
+  top: -14px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(126, 112, 94, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.96);
+  box-shadow: 0 10px 20px rgba(37, 31, 22, 0.12);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.card__quick-action {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(244, 238, 229, 0.92);
+  color: rgba(68, 56, 39, 0.94);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: var(--cursor-pointer);
+}
+
+.card__quick-action:hover {
+  background: rgba(235, 227, 214, 0.98);
+}
+
+.card__quick-action:focus-visible {
+  outline: 2px solid rgba(108, 88, 56, 0.38);
+  outline-offset: 1px;
+}
+
 .card__label {
   max-width: 100%;
   color: var(--tile-label);
@@ -3512,8 +3551,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card--hovered .card__link-actions,
-.card--focused .card__link-actions,
-.card--selected .card__link-actions {
+.card--focused .card__link-actions {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
@@ -8591,6 +8629,175 @@ intentional so the top edge reads much shorter than the bottom edge. */
   inset: 16px 14px auto 14px;
 }
 
+.card__surface--canvas-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(248, 243, 234, 0.98) 100%);
+  border: 1px solid rgba(173, 158, 131, 0.24);
+  box-shadow: 0 12px 28px rgba(62, 49, 28, 0.08);
+  overflow: hidden;
+}
+
+.card__surface--canvas-text-sticky {
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffe07b 0%, #ffd45d 100%);
+  border-color: rgba(183, 142, 43, 0.24);
+  box-shadow: 0 10px 20px rgba(145, 114, 42, 0.16);
+}
+
+.card__canvas-text-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card__canvas-text-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.card__canvas-text-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: rgba(53, 45, 34, 0.94);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card__canvas-text-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(113, 98, 77, 0.76);
+}
+
+.card__canvas-text-actions,
+.card__canvas-text-error-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card__canvas-text-action {
+  padding: 6px 9px;
+  border: 1px solid rgba(147, 128, 97, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(74, 60, 38, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: var(--cursor-pointer);
+}
+
+.card__canvas-text-action:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.card__canvas-text-body-shell {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.card__canvas-text-preview,
+.card__canvas-text-editor,
+.card__canvas-text-measure {
+  color: rgba(57, 46, 31, 0.94);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.card__canvas-text-preview {
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.card__canvas-text-preview--sticky,
+.card__surface--canvas-text-sticky .card__canvas-text-preview,
+.card__surface--canvas-text-sticky .card__canvas-text-editor,
+.card__surface--canvas-text-sticky .card__canvas-text-measure {
+  color: #694f18;
+}
+
+.card__canvas-text-preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0 0 8px;
+}
+
+.card__canvas-text-preview :is(p, ul, ol, blockquote, pre) {
+  margin: 0 0 8px;
+}
+
+.card__canvas-text-preview :is(ul, ol) {
+  padding-left: 18px;
+}
+
+.card__canvas-text-preview :is(pre, code) {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.card__canvas-text-empty {
+  color: rgba(112, 106, 97, 0.72);
+}
+
+.card__canvas-text-error {
+  display: grid;
+  gap: 10px;
+  color: rgba(113, 56, 56, 0.92);
+}
+
+.card__canvas-text-editor {
+  min-height: 100%;
+}
+
+.card__canvas-text-editor .cm-editor {
+  min-height: 100%;
+  background: transparent;
+}
+
+.card__canvas-text-editor .cm-scroller {
+  overflow: hidden;
+  font: inherit;
+}
+
+.card__canvas-text-editor .cm-content {
+  padding: 0;
+  font: inherit;
+  caret-color: currentColor;
+}
+
+.card__canvas-text-editor .cm-focused {
+  outline: none;
+}
+
+.card__canvas-text-editor .cm-line {
+  padding: 0;
+}
+
+.card__canvas-text-editor .cm-selectionBackground {
+  background: rgba(162, 128, 87, 0.22) !important;
+}
+
+.card__canvas-text-measure {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  padding: 16px;
+}
+
 .card__sticky-note-display,
 .card__sticky-note-editor {
   display: flex;
@@ -10514,6 +10721,12 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__surface-frame--selected .card__record-sleeve {
   outline: 2px solid var(--ap-tile-selection);
   outline-offset: 2px;
+}
+
+.card[data-tile-state="editing"] .card__surface-frame .card__surface:not(.card__surface--music),
+.card[data-tile-state="editing"] .card__surface-frame .card__record-sleeve {
+  outline: 2px solid rgba(104, 84, 50, 0.82);
+  outline-offset: 3px;
 }
 
 .card__surface-frame--merge-target {

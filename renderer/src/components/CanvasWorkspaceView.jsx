@@ -9,7 +9,6 @@ import CanvasStopwatch from "./CanvasStopwatch";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
-import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
@@ -18,10 +17,10 @@ import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
 import {
   CODE_CARD_TYPE,
+  CANVAS_TEXT_CARD_TYPE,
   COUNTER_CARD_TYPE,
   DEADLINE_CARD_TYPE,
   PROGRESS_CARD_TYPE,
-  TEXT_BOX_CARD_TYPE,
   canRefreshLinkPreviewCard,
   createCanvasSelectionClipboardPayload,
   getWorkspaceActivePage,
@@ -33,7 +32,7 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
-import { getTextBoxLineCount, normalizeTextBoxStyle } from "../lib/textBoxStyle";
+import { getCanvasTextLineCount } from "../lib/canvasText";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -496,31 +495,18 @@ function buildProgressTileCodexReport(card) {
 }
 
 function buildTextBoxTileDiagnosticsExport(card) {
-  const style = normalizeTextBoxStyle(card?.style);
   const text = String(card?.text ?? "");
 
   return {
     schemaVersion: 1,
     tileId: card?.id || "",
-    type: card?.type || TEXT_BOX_CARD_TYPE,
+    type: card?.type || CANVAS_TEXT_CARD_TYPE,
     textLength: text.length,
-    lineCount: getTextBoxLineCount(text),
-    preset: style.preset,
-    fontSize: style.fontSize,
-    fontWeight: style.fontWeight,
-    align: style.align,
-    styleFlags: {
-      italic: style.italic,
-      underline: style.underline,
-      strike: style.strike,
-    },
-    italic: style.italic,
-    underline: style.underline,
-    strike: style.strike,
-    color: style.color,
-    lineHeight: style.lineHeight,
-    letterSpacing: style.letterSpacing,
-    placeholder: card?.placeholder === true,
+    lineCount: getCanvasTextLineCount(text),
+    source: card?.source || "local",
+    variant: card?.variant || "default",
+    titleMode: card?.titleMode || "derived",
+    filePath: card?.file?.relativePath || "",
     finalPersistedCardPayload: { ...card },
   };
 }
@@ -529,20 +515,17 @@ function buildTextBoxTileCodexReport(card) {
   const diagnostics = buildTextBoxTileDiagnosticsExport(card);
 
   return [
-    "## AirPaste Text Box Tile Debug Report",
+    "## AirPaste Canvas Text Tile Debug Report",
     "",
     "### Tile",
     `- Tile ID: ${diagnostics.tileId}`,
     `- Type: ${diagnostics.type}`,
     `- Text length: ${diagnostics.textLength}`,
     `- Line count: ${diagnostics.lineCount}`,
-    `- Preset: ${diagnostics.preset}`,
-    `- Font size: ${diagnostics.fontSize}`,
-    `- Font weight: ${diagnostics.fontWeight}`,
-    `- Align: ${diagnostics.align}`,
-    `- Italic: ${diagnostics.italic}`,
-    `- Underline: ${diagnostics.underline}`,
-    `- Strike: ${diagnostics.strike}`,
+    `- Source: ${diagnostics.source}`,
+    `- Variant: ${diagnostics.variant}`,
+    `- Title mode: ${diagnostics.titleMode}`,
+    `- File path: ${diagnostics.filePath}`,
     "",
     "### Diagnostics",
     "```json",
@@ -994,17 +977,14 @@ export default function CanvasWorkspaceView() {
     createNewCounterCard,
     createNewDeadlineCard,
     createNewLinkCard,
-    createNewNoteCard,
+    createNewCanvasTextCard,
     createNewProgressCard,
     createNewRackCard,
-    createNewStickerCard,
     createNewTableCard,
-    createNewTextBoxCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
     setCanvasClipboard,
-    updateExistingCard,
     updateExistingCards,
   } = useAppContext();
   const { log } = useLog();
@@ -1095,16 +1075,13 @@ export default function CanvasWorkspaceView() {
     createNewCounterCard,
     createNewDeadlineCard,
     createNewLinkCard,
-    createNewNoteCard,
+    createNewCanvasTextCard,
     createNewProgressCard,
     createNewRackCard,
-    createNewStickerCard,
     createNewTableCard,
-    createNewTextBoxCard,
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
-    updateExistingCard,
     updateExistingCards,
     log,
     toast,
@@ -1249,6 +1226,7 @@ export default function CanvasWorkspaceView() {
 
   const interactions = useCanvasInteractionSystem({
     cards: workspace.cards,
+    groups: workspace.groups,
     canvas,
     commands,
     interactionMode: drawingTool.activeTool,
@@ -1606,11 +1584,8 @@ export default function CanvasWorkspaceView() {
     }
 
     const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
-    return selectedTile?.type === TEXT_BOX_CARD_TYPE ? selectedTile : null;
+    return selectedTile?.type === CANVAS_TEXT_CARD_TYPE ? selectedTile : null;
   }, [interactions.selectedTileIds, tileById]);
-  const selectedPlainTextBoxTile = useMemo(() => (
-    selectedTextBoxTile?.appearance === "sticky" ? null : selectedTextBoxTile
-  ), [selectedTextBoxTile]);
   const requestTextBoxEdit = useCallback((tileId, options = {}) => {
     textBoxEditRequestIdRef.current += 1;
     setTextBoxEditorState({
@@ -1638,35 +1613,9 @@ export default function CanvasWorkspaceView() {
       });
     }
   }, [canvas]);
-  const patchSelectedTextBoxStyle = useCallback((stylePatch) => {
-    if (!selectedPlainTextBoxTile) {
-      return;
-    }
-
-    updateExistingCard(selectedPlainTextBoxTile.id, {
-      style: normalizeTextBoxStyle({
-        ...(selectedPlainTextBoxTile.style ?? {}),
-        ...stylePatch,
-      }),
-    });
-  }, [selectedPlainTextBoxTile, updateExistingCard]);
   const beginTextBoxCreation = useCallback((worldPoint) => {
-    const textBox = commands.createTextBox(worldPoint, {
-      text: "Add text",
-      placeholder: true,
-      placeholderText: "Add text",
-      style: {
-        preset: "simple",
-        fontSize: 32,
-        fontWeight: 500,
-        italic: false,
-        underline: false,
-        strike: false,
-        align: "left",
-        color: "#262626",
-        lineHeight: 1.08,
-        letterSpacing: 0,
-      },
+    const textBox = commands.createTextCard(worldPoint, {
+      text: "",
     });
 
     if (!textBox) {
@@ -1995,7 +1944,7 @@ export default function CanvasWorkspaceView() {
   ]);
 
   const handleSceneTilePressStart = useCallback((tile, event) => {
-    if (isTextToolActive && tile.type === TEXT_BOX_CARD_TYPE) {
+    if (isTextToolActive && tile.type === CANVAS_TEXT_CARD_TYPE) {
       interactions.selectTile(tile.id, { forceSingle: true });
       requestTextBoxEdit(tile.id, { selectAll: false });
       return true;
@@ -2016,12 +1965,28 @@ export default function CanvasWorkspaceView() {
     interactions.handleTileHoverChange(tileId, isHovered);
   }, [interactions]);
 
+  const handleSceneGroupPressStart = useCallback((group, event) => {
+    return interactions.handleGroupPressStart(group, event);
+  }, [interactions]);
+
+  const handleSceneGroupDragStart = useCallback((group, event) => {
+    interactions.beginGroupDrag(group, event);
+  }, [interactions]);
+
+  const handleSceneGroupContextMenu = useCallback((group, event) => {
+    interactions.handleGroupContextMenu(group, event);
+  }, [interactions]);
+
+  const handleSceneGroupHoverChange = useCallback((groupId, isHovered) => {
+    interactions.handleGroupHoverChange(groupId, isHovered);
+  }, [interactions]);
+
   const handleSceneBackgroundPointerDown = useCallback((event) => {
     if (textBoxEditorState?.tileId && event.button === 0) {
       return;
     }
 
-    if (selectedPlainTextBoxTile && isTextToolActive && event.button === 0) {
+    if (selectedTextBoxTile && isTextToolActive && event.button === 0) {
       interactions.handleCanvasPointerDown(event);
       return;
     }
@@ -2037,7 +2002,7 @@ export default function CanvasWorkspaceView() {
     }
 
     interactions.handleCanvasPointerDown(event);
-  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive, selectedPlainTextBoxTile, textBoxEditorState?.tileId]);
+  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive, selectedTextBoxTile, textBoxEditorState?.tileId]);
 
   useEffect(() => {
     if (
@@ -2146,7 +2111,7 @@ export default function CanvasWorkspaceView() {
       }
 
       if (
-        selectedPlainTextBoxTile
+        selectedTextBoxTile
         && canvasToolShortcutContext
         && activeElementIsCanvas
         && !event.ctrlKey
@@ -2160,13 +2125,13 @@ export default function CanvasWorkspaceView() {
       ) {
         if (event.key === "Enter") {
           event.preventDefault();
-          requestTextBoxEdit(selectedPlainTextBoxTile.id, { selectAll: false });
+          requestTextBoxEdit(selectedTextBoxTile.id, { selectAll: false });
           return;
         }
 
         if (isPrintableTextKey(event) && !["v", "h", "t", "s"].includes(activeKey)) {
           event.preventDefault();
-          requestTextBoxEdit(selectedPlainTextBoxTile.id, {
+          requestTextBoxEdit(selectedTextBoxTile.id, {
             replacementText: event.key,
             selectAll: false,
           });
@@ -2192,6 +2157,15 @@ export default function CanvasWorkspaceView() {
 
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v") {
         if (pasteCanvasSelection(event)) {
+          return;
+        }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "g") {
+        if (interactions.selectedTileIds.length > 0) {
+          event.preventDefault();
+          commands.createFolderFromSelection(interactions.selectedTileIds, canvas.getViewportCenter());
+          interactions.closeContextMenu();
           return;
         }
       }
@@ -2228,6 +2202,13 @@ export default function CanvasWorkspaceView() {
         if (interactions.selectedTileIds.length > 0) {
           event.preventDefault();
           commands.deleteTiles(interactions.selectedTileIds);
+          interactions.closeContextMenu();
+          return;
+        }
+
+        if (interactions.selectedGroupIds.length > 0) {
+          event.preventDefault();
+          commands.deleteGroups(interactions.selectedGroupIds);
           interactions.closeContextMenu();
           return;
         }
@@ -2276,7 +2257,7 @@ export default function CanvasWorkspaceView() {
     pasteCanvasSelection,
     requestTextBoxEdit,
     redoWorkspaceChange,
-    selectedPlainTextBoxTile,
+    selectedTextBoxTile,
     undoWorkspaceChange,
     zoomToFitAll,
   ]);
@@ -2416,7 +2397,7 @@ export default function CanvasWorkspaceView() {
   const isCounterContextTile = activeContextTile?.type === COUNTER_CARD_TYPE;
   const isDeadlineContextTile = activeContextTile?.type === DEADLINE_CARD_TYPE;
   const isProgressContextTile = activeContextTile?.type === PROGRESS_CARD_TYPE;
-  const isTextBoxContextTile = activeContextTile?.type === TEXT_BOX_CARD_TYPE;
+  const isTextBoxContextTile = activeContextTile?.type === CANVAS_TEXT_CARD_TYPE;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
@@ -2439,6 +2420,10 @@ export default function CanvasWorkspaceView() {
     );
 
   const handleRadialFolder = useCallback(() => {
+    if (radialMenu?.kind === "group") {
+      return false;
+    }
+
     if (!radialMenu?.worldPoint) {
       return false;
     }
@@ -2468,6 +2453,11 @@ export default function CanvasWorkspaceView() {
 
     if (selectionIds.length === 0) {
       return false;
+    }
+
+    if (radialMenu?.kind === "group") {
+      commands.deleteGroups(selectionIds);
+      return true;
     }
 
     commands.deleteTiles(selectionIds);
@@ -2662,12 +2652,6 @@ export default function CanvasWorkspaceView() {
         </div>,
         document.body
       )}
-      {selectedPlainTextBoxTile ? (
-        <TextFormattingToolbar
-          card={selectedPlainTextBoxTile}
-          onPatchStyle={patchSelectedTextBoxStyle}
-        />
-      ) : null}
       <CanvasStopwatch isOpen={isStopwatchOpen} />
       <CanvasCalculator isOpen={isCalculatorOpen} />
 
@@ -2702,7 +2686,7 @@ export default function CanvasWorkspaceView() {
             return;
           }
 
-          if (selectedPlainTextBoxTile && isTextToolActive && isCanvasBackground && event.button === 0) {
+          if (selectedTextBoxTile && isTextToolActive && isCanvasBackground && event.button === 0) {
             interactions.handleCanvasPointerDown(event);
             return;
           }
@@ -2735,6 +2719,11 @@ export default function CanvasWorkspaceView() {
                 tiles={sceneTiles}
                 edges={workspace.edges}
                 groups={workspace.groups}
+                selectedGroupIds={interactions.selectedGroupIds}
+                hoveredGroupId={interactions.hoveredGroupId}
+                dragVisualDelta={interactions.dragVisualDelta}
+                dragVisualTileIdSet={new Set(interactions.draggingTileIds)}
+                draggingGroupIdSet={new Set(interactions.dragVisualDelta && interactions.selectedGroupIds.length > 0 ? interactions.selectedGroupIds : [])}
                 tileMetaById={decoratedTileMetaById}
                 tileRenderHintsById={tileRenderHintsById}
                 isCanvasMoving={isCanvasMoving}
@@ -2744,6 +2733,10 @@ export default function CanvasWorkspaceView() {
                 onTileDragStart={handleSceneTileDragStart}
                 onTileContextMenu={handleSceneTileContextMenu}
                 onTileHoverChange={handleSceneTileHoverChange}
+                onGroupPressStart={handleSceneGroupPressStart}
+                onGroupDragStart={handleSceneGroupDragStart}
+                onGroupContextMenu={handleSceneGroupContextMenu}
+                onGroupHoverChange={handleSceneGroupHoverChange}
                 onBackgroundPointerDown={handleSceneBackgroundPointerDown}
                 onBackgroundContextMenu={handleSceneBackgroundContextMenu}
               />

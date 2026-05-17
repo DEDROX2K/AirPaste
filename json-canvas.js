@@ -133,7 +133,11 @@ function cleanEdgeAirpaste(airpaste) {
 function buildTextCardFromNode(node, airpaste) {
   return {
     id: firstString(node?.id, `card-${Date.now()}`),
-    type: firstString(node?.airpaste?.sourceType, "text-box"),
+    type: "canvas-text",
+    source: "local",
+    variant: "default",
+    format: "markdown",
+    titleMode: "derived",
     text: typeof node?.text === "string" ? node.text : "",
     title: "",
     x: normalizeFiniteNumber(node?.x, 120),
@@ -153,6 +157,36 @@ function buildTextCardFromNode(node, airpaste) {
 function buildFileCardFromNode(node, airpaste) {
   const relativePath = typeof node?.file === "string" ? node.file.trim() : "";
   const fileName = relativePath ? path.basename(relativePath) : "";
+  const extension = fileExt(fileName);
+
+  if (extension === "md") {
+    return {
+      id: firstString(node?.id, `card-${Date.now()}`),
+      type: "canvas-text",
+      source: "file",
+      variant: "default",
+      format: "markdown",
+      title: firstString(node?.label),
+      titleMode: "derived",
+      text: "",
+      x: normalizeFiniteNumber(node?.x, 120),
+      y: normalizeFiniteNumber(node?.y, 120),
+      width: Math.max(120, normalizeFiniteNumber(node?.width, 420)),
+      height: Math.max(120, normalizeFiniteNumber(node?.height, 220)),
+      file: relativePath
+        ? {
+          relativePath,
+          fileName,
+          extension: "md",
+          mimeType: "text/markdown",
+          sizeBytes: 0,
+        }
+        : null,
+      createdAt: typeof node?.createdAt === "string" ? node.createdAt : new Date().toISOString(),
+      updatedAt: typeof node?.updatedAt === "string" ? node.updatedAt : new Date().toISOString(),
+      airpaste,
+    };
+  }
 
   return {
     id: firstString(node?.id, `card-${Date.now()}`),
@@ -321,6 +355,10 @@ function buildCanvasText(card) {
 }
 
 function mapCardToCanvasNodeType(card) {
+  if (card?.type === "canvas-text" && card?.source === "file") {
+    return "file";
+  }
+
   switch (card?.type) {
     case "file":
       return "file";

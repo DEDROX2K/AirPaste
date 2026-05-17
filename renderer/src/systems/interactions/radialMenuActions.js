@@ -16,6 +16,10 @@ const TILE_ACTION_ORDER = [
   "delete",
 ];
 
+const GROUP_ACTION_ORDER = [
+  "delete",
+];
+
 export function buildRadialMenuActions({
   menu,
   snapEnabled,
@@ -28,8 +32,14 @@ export function buildRadialMenuActions({
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
-  const actionOrder = menu?.kind === "canvas" ? CANVAS_ACTION_ORDER : TILE_ACTION_ORDER;
-  const deleteLabel = selectionCount > 1 ? `Delete ${selectionCount} tiles` : "Delete tile";
+  const actionOrder = menu?.kind === "canvas"
+    ? CANVAS_ACTION_ORDER
+    : menu?.kind === "group"
+      ? GROUP_ACTION_ORDER
+      : TILE_ACTION_ORDER;
+  const deleteLabel = menu?.kind === "group"
+    ? (selectionCount > 1 ? `Delete ${selectionCount} groups` : "Delete group")
+    : (selectionCount > 1 ? `Delete ${selectionCount} tiles` : "Delete tile");
 
   // Extend this switch with new ids as the canvas command surface grows.
   return actionOrder.map((id) => {

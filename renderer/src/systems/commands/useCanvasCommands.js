@@ -16,13 +16,26 @@ import {
   shouldRecoverLinkPreviewCard,
   updateCards,
 } from "../../lib/workspace";
+import {
+  CANVAS_TEXT_SOURCE_FILE,
+  CANVAS_TEXT_SOURCE_LOCAL,
+  CANVAS_TEXT_TITLE_MODE_DERIVED,
+  CANVAS_TEXT_VARIANT_DEFAULT,
+  CANVAS_TEXT_VARIANT_STICKY,
+  deriveCanvasTextTitle,
+} from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
+import { getRenderableTileEntries } from "../layout/tileLayout";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
+const GROUP_DEFAULT_WIDTH = 420;
+const GROUP_DEFAULT_HEIGHT = 260;
+const GROUP_PADDING_X = 56;
+const GROUP_PADDING_Y = 48;
 
 function folderNameFromPath(folderPath) {
   if (!folderPath) {
@@ -118,6 +131,56 @@ function getFileExtensionLabel(fileName, fallbackExtension = "") {
   return normalizedFallback;
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function isMarkdownFilePath(value) {
+  return /\.md$/i.test(String(value ?? "").trim());
+}
+
+function fileStem(fileName) {
+  return String(fileName ?? "").replace(/\.[^.]+$/, "").trim();
+}
+
+function createGroupBoundsFromEntries(entries, fallbackCenter) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return {
+      x: Math.round(fallbackCenter.x - (GROUP_DEFAULT_WIDTH / 2)),
+      y: Math.round(fallbackCenter.y - (GROUP_DEFAULT_HEIGHT / 2)),
+      width: GROUP_DEFAULT_WIDTH,
+      height: GROUP_DEFAULT_HEIGHT,
+    };
+  }
+
+  const bounds = entries.reduce((currentBounds, entry) => {
+    const nextRect = entry.rect ?? {
+      left: entry.x,
+      top: entry.y,
+      right: entry.x + entry.width,
+      bottom: entry.y + entry.height,
+    };
+
+    if (!currentBounds) {
+      return { ...nextRect };
+    }
+
+    return {
+      left: Math.min(currentBounds.left, nextRect.left),
+      top: Math.min(currentBounds.top, nextRect.top),
+      right: Math.max(currentBounds.right, nextRect.right),
+      bottom: Math.max(currentBounds.bottom, nextRect.bottom),
+    };
+  }, null);
+
+  return {
+    x: Math.round(bounds.left - GROUP_PADDING_X),
+    y: Math.round(bounds.top - GROUP_PADDING_Y),
+    width: Math.round((bounds.right - bounds.left) + (GROUP_PADDING_X * 2)),
+    height: Math.round((bounds.bottom - bounds.top) + (GROUP_PADDING_Y * 2)),
+  };
+}
+
 async function readClipboardImage(clipboardData) {
   const imageItem = Array.from(clipboardData?.items ?? []).find((item) => item.type.startsWith("image/"));
 
@@ -171,11 +234,10 @@ export function useCanvasCommands({
   createNewCounterCard,
   createNewDeadlineCard,
   createNewLinkCard,
-  createNewNoteCard,
+  createNewCanvasTextCard,
   createNewProgressCard,
   createNewRackCard,
   createNewTableCard,
-  createNewTextBoxCard,
   deleteExistingCard,
   replaceWorkspaceCards,
   reorderExistingCards,
@@ -402,20 +464,31 @@ export function useCanvasCommands({
     return deadline;
   }, [createNewDeadlineCard, folderPath, getViewportCenter, log, toast]);
 
-  const createNote = useCallback((preferredCenter = null) => {
+  const createTextCard = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
-      log("warn", "New note blocked because no folder is open");
+      log("warn", "New text card blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const note = createNewNoteCard(centerPoint);
+    const note = createNewCanvasTextCard(centerPoint, {
+      source: CANVAS_TEXT_SOURCE_LOCAL,
+      variant: CANVAS_TEXT_VARIANT_DEFAULT,
+      titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+      text: typeof options?.text === "string" ? options.text : "",
+      width: options?.width,
+      height: options?.height,
+    });
 
-    log("success", "New note created on the canvas", centerPoint);
-    toast("success", "Note dropped into place.");
+    log("success", "New text card created on the canvas", centerPoint);
+    toast("success", "Text card dropped into place.");
     return note;
-  }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
+  }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
+
+  const createNote = useCallback((preferredCenter = null) => {
+    return createTextCard(preferredCenter);
+  }, [createTextCard]);
 
   const createProgress = useCallback((preferredCenter = null) => {
     if (!folderPath) {
@@ -454,56 +527,161 @@ export function useCanvasCommands({
   }, [createNewTableCard, folderPath, getViewportCenter, log, toast]);
 
   const createTextBox = useCallback((preferredCenter = null, options = {}) => {
+    return createTextCard(preferredCenter, options);
+  }, [createTextCard]);
+
+  const createSticky = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
-      log("warn", "New text box blocked because no folder is open");
+      log("warn", "New sticky note blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const textBox = createNewTextBoxCard(centerPoint, {
+    const sticky = createNewCanvasTextCard(centerPoint, {
       ...options,
-      placeholder: options?.placeholder === true,
+      source: CANVAS_TEXT_SOURCE_LOCAL,
+      variant: CANVAS_TEXT_VARIANT_STICKY,
+      titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+      text: typeof options?.text === "string" ? options.text : "",
     });
 
-    log("success", "New text box created on the canvas", centerPoint);
-    toast("success", "Text box dropped into place.");
-    return textBox;
-  }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
+    log("success", "New sticky note created on the canvas", centerPoint);
+    toast("success", "Sticky note dropped into place.");
+    return sticky;
+  }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
 
-  const createSticky = useCallback((preferredCenter = null) => {
+  const resolveMarkdownSelection = useCallback(async (selectedPath) => {
+    const existingItem = await desktop.workspace.getItemForFilePath(folderPath, selectedPath).catch(() => null);
+    const existingPath = existingItem?.filePath || existingItem?.path || selectedPath;
+
+    if (existingItem?.filePath && isMarkdownFilePath(existingItem.filePath)) {
+      return desktop.workspace.readMarkdownFile(folderPath, existingPath);
+    }
+
+    const importedFiles = await desktop.workspace.importFiles(folderPath, [selectedPath], "");
+    const importedFile = Array.isArray(importedFiles) ? importedFiles[0] : null;
+    const importedPath = importedFile?.filePath || importedFile?.path || "";
+
+    if (!importedPath || !isMarkdownFilePath(importedPath)) {
+      throw new Error("Pick a Markdown file to add a file-backed note.");
+    }
+
+    return desktop.workspace.readMarkdownFile(folderPath, importedPath);
+  }, [folderPath]);
+
+  const addNoteFromVault = useCallback(async (preferredCenter = null) => {
     if (!folderPath) {
-      log("warn", "New sticky blocked because no folder is open");
+      log("warn", "Add note from vault blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
-    const centerPoint = preferredCenter ?? getViewportCenter();
-    const sticky = createNewTextBoxCard(centerPoint, {
-      text: "Add text",
-      placeholder: true,
-      placeholderText: "Add text",
-      appearance: "sticky",
-      width: 212,
-      height: 212,
-      style: {
-        preset: "simple",
-        fontSize: 18,
-        fontWeight: 400,
-        italic: false,
-        underline: false,
-        strike: false,
-        align: "left",
-        color: "#8d7331",
-        lineHeight: 1.25,
-        letterSpacing: 0,
-      },
-    });
+    const selectedPaths = await desktop.workspace.openFiles();
+    const markdownPath = selectedPaths.find((candidate) => isMarkdownFilePath(candidate));
 
-    log("success", "New sticky created on the canvas", centerPoint);
-    toast("success", "Sticky dropped into place.");
-    return sticky;
-  }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
+    if (!markdownPath) {
+      toast("warn", "Pick a Markdown file.");
+      return null;
+    }
+
+    try {
+      const fileRecord = await resolveMarkdownSelection(markdownPath);
+      const centerPoint = preferredCenter ?? getViewportCenter();
+      const note = createNewCanvasTextCard(centerPoint, {
+        source: CANVAS_TEXT_SOURCE_FILE,
+        variant: CANVAS_TEXT_VARIANT_DEFAULT,
+        titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+        text: fileRecord.content,
+        file: fileRecord,
+      });
+
+      log("success", "File-backed markdown note created", {
+        centerPoint,
+        relativePath: fileRecord.relativePath,
+      });
+      toast("success", "Markdown note added to the canvas.");
+      return note;
+    } catch (error) {
+      const message = error?.message || "Unable to add that Markdown note.";
+      log("error", "Markdown note import failed", message);
+      toast("error", message);
+      return null;
+    }
+  }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, resolveMarkdownSelection, toast]);
+
+  const convertTextCardToFile = useCallback(async (tile) => {
+    if (!folderPath || !tile?.id || tile?.type !== "canvas-text" || tile?.source !== CANVAS_TEXT_SOURCE_LOCAL) {
+      return null;
+    }
+
+    const suggestedName = fileStem(deriveCanvasTextTitle(tile)) || "Canvas Note";
+
+    try {
+      const fileRecord = await desktop.workspace.createMarkdownFile(folderPath, suggestedName, tile.text ?? "", "");
+      updateExistingCard(tile.id, {
+        source: CANVAS_TEXT_SOURCE_FILE,
+        file: fileRecord,
+        text: fileRecord.content,
+        titleMode: tile.titleMode || CANVAS_TEXT_TITLE_MODE_DERIVED,
+        updatedAt: nowIso(),
+      });
+      toast("success", "Text card converted to a markdown file.");
+      return fileRecord;
+    } catch (error) {
+      const message = error?.message || "Unable to convert this text card to a file.";
+      log("error", "Text card conversion failed", message);
+      toast("error", message);
+      return null;
+    }
+  }, [folderPath, log, toast, updateExistingCard]);
+
+  const swapTextCardSource = useCallback(async (tile) => {
+    if (!folderPath || !tile?.id || tile?.type !== "canvas-text") {
+      return null;
+    }
+
+    const selectedPaths = await desktop.workspace.openFiles();
+    const markdownPath = selectedPaths.find((candidate) => isMarkdownFilePath(candidate));
+
+    if (!markdownPath) {
+      toast("warn", "Pick a Markdown file.");
+      return null;
+    }
+
+    try {
+      const fileRecord = await resolveMarkdownSelection(markdownPath);
+      updateExistingCard(tile.id, {
+        source: CANVAS_TEXT_SOURCE_FILE,
+        file: fileRecord,
+        text: fileRecord.content,
+        titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+        updatedAt: nowIso(),
+      });
+      toast("success", "Note source swapped.");
+      return fileRecord;
+    } catch (error) {
+      const message = error?.message || "Unable to swap the source file.";
+      log("error", "Swap source file failed", message);
+      toast("error", message);
+      return null;
+    }
+  }, [folderPath, log, resolveMarkdownSelection, toast, updateExistingCard]);
+
+  const openTextCardSource = useCallback(async (tile) => {
+    if (!folderPath || tile?.type !== "canvas-text" || tile?.source !== CANVAS_TEXT_SOURCE_FILE || !tile?.file?.relativePath) {
+      return false;
+    }
+
+    const item = await desktop.workspace.getItemForFilePath(folderPath, tile.file.relativePath).catch(() => null);
+    if (!item?.filePath) {
+      toast("error", "Source file no longer exists.");
+      return false;
+    }
+
+    await desktop.workspace.openFile(item.filePath);
+    return true;
+  }, [folderPath, toast]);
 
   const moveTiles = useCallback((tileIds, origins, delta) => {
     const updatesById = {};
@@ -530,6 +708,157 @@ export function useCanvasCommands({
       cards: updateCards(page.cards, updatesById),
     })));
   }, [commitWorkspaceChange]);
+
+  const createFolderTile = useCallback((preferredCenter = null) => {
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const timestamp = nowIso();
+    const nextGroup = {
+      id: crypto.randomUUID(),
+      label: "Group",
+      tileIds: [],
+      x: Math.round(centerPoint.x - (GROUP_DEFAULT_WIDTH / 2)),
+      y: Math.round(centerPoint.y - (GROUP_DEFAULT_HEIGHT / 2)),
+      width: GROUP_DEFAULT_WIDTH,
+      height: GROUP_DEFAULT_HEIGHT,
+      color: "",
+      background: "",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      airpaste: {
+        variant: "group",
+      },
+    };
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => ({
+      ...page,
+      groups: [...(Array.isArray(page.groups) ? page.groups : []), nextGroup],
+    })));
+
+    log("success", "Created empty group", { groupId: nextGroup.id, centerPoint });
+    toast("success", "Group created.");
+    return nextGroup;
+  }, [commitWorkspaceChange, getViewportCenter, log, toast]);
+
+  const createFolderFromSelection = useCallback((tileIds, preferredCenter = null) => {
+    const normalizedTileIds = Array.isArray(tileIds)
+      ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
+      : [];
+    const centerPoint = preferredCenter ?? getViewportCenter();
+
+    if (normalizedTileIds.length === 0) {
+      return createFolderTile(centerPoint);
+    }
+
+    let createdGroup = null;
+
+    commitWorkspaceChange((current) => {
+      const activePage = getWorkspaceActivePage(current);
+      const tileById = Object.fromEntries(activePage.cards.map((card) => [card.id, card]));
+      const renderableEntries = getRenderableTileEntries(activePage.cards, tileById)
+        .filter((entry) => normalizedTileIds.includes(entry.tile.id));
+      const bounds = createGroupBoundsFromEntries(renderableEntries, centerPoint);
+      const timestamp = nowIso();
+
+      createdGroup = {
+        id: crypto.randomUUID(),
+        label: normalizedTileIds.length === 1 ? "Group" : `${normalizedTileIds.length} items`,
+        tileIds: normalizedTileIds,
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        color: "",
+        background: "",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        airpaste: {
+          variant: "group",
+        },
+      };
+
+      return updateCurrentActivePage(current, (page) => ({
+        ...page,
+        groups: [...(Array.isArray(page.groups) ? page.groups : []), createdGroup],
+      }));
+    });
+
+    if (!createdGroup) {
+      return null;
+    }
+
+    log("success", "Created group from selection", {
+      groupId: createdGroup.id,
+      tileIds: normalizedTileIds,
+      count: normalizedTileIds.length,
+    });
+    toast("success", normalizedTileIds.length === 1 ? "1 tile grouped." : `${normalizedTileIds.length} tiles grouped.`);
+    return createdGroup;
+  }, [commitWorkspaceChange, createFolderTile, getViewportCenter, log, toast]);
+
+  const moveGroups = useCallback((groupIds, delta) => {
+    const normalizedGroupIds = Array.isArray(groupIds)
+      ? [...new Set(groupIds.filter((groupId) => typeof groupId === "string" && groupId.trim().length > 0))]
+      : [];
+
+    if (normalizedGroupIds.length === 0 || (!delta?.x && !delta?.y)) {
+      return;
+    }
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const nextGroups = Array.isArray(page.groups) ? page.groups.map((group) => {
+        if (!normalizedGroupIds.includes(group.id)) {
+          return group;
+        }
+
+        return {
+          ...group,
+          x: group.x + delta.x,
+          y: group.y + delta.y,
+          updatedAt: nowIso(),
+        };
+      }) : [];
+
+      const movedTileIdSet = new Set(
+        nextGroups
+          .filter((group) => normalizedGroupIds.includes(group.id))
+          .flatMap((group) => Array.isArray(group.tileIds) ? group.tileIds : []),
+      );
+      const nextCards = page.cards.map((card) => (
+        movedTileIdSet.has(card.id)
+          ? {
+            ...card,
+            x: card.x + delta.x,
+            y: card.y + delta.y,
+            updatedAt: nowIso(),
+          }
+          : card
+      ));
+
+      return {
+        ...page,
+        cards: nextCards,
+        groups: nextGroups,
+      };
+    }));
+  }, [commitWorkspaceChange]);
+
+  const deleteGroups = useCallback((groupIds) => {
+    const normalizedGroupIds = Array.isArray(groupIds)
+      ? [...new Set(groupIds.filter((groupId) => typeof groupId === "string" && groupId.trim().length > 0))]
+      : [];
+
+    if (normalizedGroupIds.length === 0) {
+      return;
+    }
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => ({
+      ...page,
+      groups: (Array.isArray(page.groups) ? page.groups : []).filter((group) => !normalizedGroupIds.includes(group.id)),
+    })));
+
+    log("info", "Deleted selected groups", { groupIds: normalizedGroupIds, count: normalizedGroupIds.length });
+    toast("success", normalizedGroupIds.length === 1 ? "Group deleted." : `${normalizedGroupIds.length} groups deleted.`);
+  }, [commitWorkspaceChange, log, toast]);
 
   const bringTilesToFront = useCallback((tileIds) => {
     const rootTileIds = tileIds.filter((tileId) => (
@@ -1015,22 +1344,31 @@ export function useCanvasCommands({
     createCounter,
     createDeadline,
     createNote,
+    createTextCard,
     createProgress,
     createRack,
     createTable,
     createTextBox,
     createSticky,
+    addNoteFromVault,
+    convertTextCardToFile,
+    openTextCardSource,
+    swapTextCardSource,
     createLinkFromClipboard,
+    createFolderTile,
+    createFolderFromSelection,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
     removeTileFromRack: removeTileFromRackCommand,
     deleteTile,
     deleteTiles,
+    deleteGroups,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
     queueLinkPreview,
     moveTiles,
+    moveGroups,
     bringTilesToFront,
     cancelPendingWorkspaceChange,
     commitCurrentWorkspace,
@@ -1049,20 +1387,29 @@ export function useCanvasCommands({
     createCounter,
     createDeadline,
     createNote,
+    createTextCard,
     createProgress,
     createRack,
     createTable,
     createTextBox,
     createSticky,
+    addNoteFromVault,
+    convertTextCardToFile,
+    openTextCardSource,
+    swapTextCardSource,
     createLinkFromClipboard,
+    createFolderTile,
+    createFolderFromSelection,
     deleteTile,
     deleteTiles,
+    deleteGroups,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
     importResolvedDrop,
     queueLinkPreview,
     moveTiles,
+    moveGroups,
     bringTilesToFront,
     cancelPendingWorkspaceChange,
     commitCurrentWorkspace,
