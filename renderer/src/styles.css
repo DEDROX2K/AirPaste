@@ -661,8 +661,7 @@ option {
   width: min(56vw, 760px);
   max-width: 100%;
   object-fit: contain;
-  filter:
-    drop-shadow(0 34px 80px rgba(0, 0, 0, 0.28)) drop-shadow(0 12px 24px rgba(255, 255, 255, 0.12));
+  box-shadow: var(--ap-shadow-md);
 }
 
 .boot-splash__status {
@@ -1452,7 +1451,7 @@ option {
   min-height: 24px;
   padding: 0 8px;
   border: 1px solid rgba(0, 0, 0, 0.7);
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: rgba(255, 255, 255, 0.36);
   color: rgba(0, 0, 0, 0.82);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.42);
@@ -1484,7 +1483,7 @@ option {
   height: 120px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.5);
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.28)),
     rgba(236, 236, 236, 0.42);
@@ -2183,7 +2182,7 @@ option {
 }
 
 .drawing-tool-controls__icon--pixel {
-  image-rendering: pixelated;
+  
 }
 
 .drawing-tool-controls__text {
@@ -2455,7 +2454,7 @@ option {
 .canvas-start-menu__trigger-icon,
 .canvas-start-menu__hero-icon,
 .canvas-start-menu__item-icon-image {
-  image-rendering: pixelated;
+  
 }
 
 .canvas-start-menu__trigger-icon {
@@ -2763,8 +2762,8 @@ option {
   z-index: 9500;
   width: min(280px, calc(100vw - 24px));
   padding: 10px;
-  border: 2px solid #000;
-  border-radius: 0;
+  border: 1px solid var(--ap-border-subtle);
+  border-radius: var(--ap-radius-md);
   background: #fff;
   box-shadow: var(--pixel-borders);
   color: var(--ap-text-primary);
@@ -2811,7 +2810,7 @@ option {
   width: 100%;
   min-height: 34px;
   padding: 8px 12px;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   color: inherit;
   text-align: left;
   text-transform: none;
@@ -3405,7 +3404,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   height: auto;
   overflow: visible;
   background: transparent;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
 }
 
 .card__surface--video {
@@ -3861,7 +3860,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   /* Removes old gradients and shadows */
   background-color: transparent;
   box-shadow: none;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   z-index: -1;
 
   /* Optional: Add drop shadow to match the front */
@@ -3889,9 +3888,9 @@ intentional so the top edge reads much shorter than the bottom edge. */
   /* Removes old gradients and shadows */
   background-color: transparent;
   box-shadow: none;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
 
-  /* filter: drop-shadow(0 28px 44px rgba(52, 52, 52, 0.22)); */
+  /* box-shadow: var(--ap-shadow-md); */
 }
 
 .card--folder-group-target .card__canvas-folder-front {
@@ -4090,7 +4089,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   opacity: 0;
   filter: blur(18px) saturate(0.7) contrast(0.88);
   transform: scale(1.08);
-  image-rendering: pixelated;
+  
   transition:
     opacity 220ms ease,
     filter 280ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -4560,7 +4559,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   left: -10%;
   right: -10%;
   height: 16%;
-  image-rendering: pixelated;
+  
   opacity: 0.95;
 }
 
@@ -4749,7 +4748,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   aspect-ratio: 1 / 2;
   margin: 0 auto;
   border: 1px solid rgba(18, 18, 18, 0.28);
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background:
     radial-gradient(circle at 16% 8%, rgba(0, 0, 0, 0.05), transparent 22%),
     radial-gradient(circle at 82% 88%, rgba(0, 0, 0, 0.06), transparent 24%),
@@ -4849,7 +4848,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__surface-frame--paper-fallback .card__surface--paper-fallback {
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
   box-shadow: none !important;
   background: transparent !important;
   overflow: visible !important;
@@ -8518,7 +8517,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   min-height: var(--tile-height);
   padding: 4px 2px 6px;
   overflow: visible;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
@@ -10395,7 +10394,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   aspect-ratio: 1;
   width: 100%;
   padding: 10px;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: transparent;
   box-shadow: none;
   transition:
@@ -10443,8 +10442,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter:
-    drop-shadow(0 26px 30px rgba(42, 28, 8, 0.18)) drop-shadow(0 10px 12px rgba(255, 255, 255, 0.34));
+  box-shadow: var(--ap-shadow-md);
 }
 
 @keyframes sticker-drag-float {
@@ -10465,7 +10463,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .tile-context-menu {
   padding: 10px;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   border-color: #000;
   background: #fff;
   box-shadow: var(--pixel-borders);
@@ -10480,7 +10478,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .tile-context-menu__action {
   min-height: 34px;
   padding: 8px 12px;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
 }
 
 .home-shell--workspace-nav {
@@ -10752,7 +10750,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__surface--paper-fallback {
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
   box-shadow: none !important;
   background: transparent !important;
 }
@@ -10881,7 +10879,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__surface--sticker {
   border: none;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: transparent;
   box-shadow: none;
   overflow: visible;
@@ -10906,12 +10904,12 @@ intentional so the top edge reads much shorter than the bottom edge. */
 @keyframes sticker-paste-pop {
   0% {
     transform: translateY(-18px) rotate(-4deg) scale(1.16);
-    filter: drop-shadow(0 18px 24px rgba(56, 35, 11, 0.18));
+    box-shadow: var(--ap-shadow-md);
   }
 
   58% {
     transform: translateY(3px) rotate(1.2deg) scale(0.94);
-    filter: drop-shadow(0 8px 12px rgba(56, 35, 11, 0.08));
+    box-shadow: var(--ap-shadow-md);
   }
 
   100% {
@@ -11351,7 +11349,7 @@ body {
 .tile-context-menu,
 .sticker-paper,
 .toast-item {
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
 }
 
 .home-sidebar__search-input,
@@ -11641,7 +11639,7 @@ body {
 .canvas-background-skin__value {
   min-height: 16px;
   border: 1px solid #808080;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: #ffffff;
   color: #2f2f2f;
 }
@@ -11668,7 +11666,7 @@ body {
 }
 
 .tile-context-menu__action {
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
 }
 
 .toast-stack {
@@ -11695,7 +11693,7 @@ body {
 
 .canvas__empty-action {
   border: 1px solid #000;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: linear-gradient(180deg, #ffffff 0%, #d7d7d7 100%);
   box-shadow:
     inset 1px 1px 0 #ffffff,
@@ -11711,7 +11709,7 @@ body {
 .card__table-toolbar,
 .card__progress-shell,
 .card__counter-stepper {
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
 }
 
 .card__surface,
@@ -11740,7 +11738,7 @@ body {
 .card__table-action,
 .card__progress-action,
 .card__counter-stepper button {
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
 }
 
 @media (max-width: 980px) {
@@ -11796,7 +11794,7 @@ body,
 
 body {
   cursor: crosshair;
-  image-rendering: pixelated;
+  
 }
 
 ::-webkit-scrollbar {
@@ -11807,12 +11805,12 @@ body {
 
 ::-webkit-scrollbar-track {
   background: var(--ap-proto-checker-bw);
-  border-left: 2px solid #000;
+  border-left: 1px solid var(--ap-border-subtle);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #fff;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   box-shadow: inset 2px 2px 0 #fff;
 }
 
@@ -11820,7 +11818,7 @@ body {
   display: block;
   width: 22px;
   height: 22px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: #fff;
 }
 
@@ -11833,7 +11831,7 @@ body {
   flex-direction: column;
   min-height: 100vh;
   margin: 0;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: var(--ap-proto-bg-window);
   box-shadow: var(--ap-proto-shadow-lg);
   overflow: hidden;
@@ -11868,7 +11866,7 @@ body {
 .boot-splash__image {
   width: min(56vw, 720px);
   filter: none;
-  image-rendering: pixelated;
+  
 }
 
 .boot-splash__status {
@@ -11882,7 +11880,7 @@ body {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: #fff;
   color: #000;
   padding: 0 10px;
@@ -11898,7 +11896,7 @@ body {
 .left-pages-panel {
   width: 260px;
   min-width: 260px;
-  border-right: 2px solid #000;
+  border-right: 1px solid var(--ap-border-subtle);
   background: var(--ap-proto-desktop);
   color: #fff;
   box-shadow: none;
@@ -11907,12 +11905,12 @@ body {
 .left-pages-panel__header {
   min-height: 52px;
   padding: 10px;
-  border-bottom: 2px solid #000;
+  border-bottom: 1px solid var(--ap-border-subtle);
   background: var(--ap-proto-checker-bw);
 }
 
 .left-pages-panel__title {
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: #fff;
   color: #000;
   padding: 4px 8px;
@@ -11924,8 +11922,8 @@ body {
 
 .left-pages-panel__icon-button,
 .left-pages-panel__item {
-  border: 2px solid #000;
-  border-radius: 0;
+  border: 1px solid var(--ap-border-subtle);
+  border-radius: var(--ap-radius-md);
   background: #fff;
   color: #000;
   box-shadow: var(--ap-proto-shadow);
@@ -11980,7 +11978,7 @@ body {
 
 .left-pages-panel__item-input {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--ap-radius-md);
   background: transparent;
   color: inherit;
   box-shadow: none;
@@ -12015,7 +12013,7 @@ body {
 .home-sidebar--workspace-nav {
   background: var(--ap-proto-desktop);
   color: #fff;
-  border-right: 2px solid #000;
+  border-right: 1px solid var(--ap-border-subtle);
   box-shadow: none;
   padding: 24px;
 }
@@ -12064,7 +12062,7 @@ body {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   padding: 0 10px;
   box-shadow: var(--ap-proto-shadow);
 }
@@ -12106,7 +12104,7 @@ body {
 .zoom-menu__trigger,
 .home-folder-tree__button,
 .home-folder-tree__root {
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
 }
 
 .home-sidebar__search-input,
@@ -12132,7 +12130,7 @@ body {
 .canvas-add-menu__trigger,
 .canvas-background-skin__trigger,
 .zoom-menu__trigger {
-  border: 2px solid #000 !important;
+  border: 1px solid var(--ap-border-subtle) !important;
   background: #fff !important;
   color: #000 !important;
   box-shadow: var(--ap-proto-shadow) !important;
@@ -12269,7 +12267,7 @@ body {
 .browser-panel-header,
 .home-content__body-header,
 .canvas-toolbar__header {
-  border-bottom: 2px solid #000;
+  border-bottom: 1px solid var(--ap-border-subtle);
   background: #000;
   color: #fff;
 }
@@ -12348,7 +12346,7 @@ body {
 }
 
 .home-browser-entry__icon {
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: #d4d4d4;
   box-shadow: var(--ap-proto-shadow);
 }
@@ -12479,7 +12477,7 @@ body {
 }
 
 .toast-item__close {
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background: #fff;
   color: #000;
   box-shadow: var(--ap-proto-shadow);
@@ -12492,7 +12490,7 @@ body {
 
   .home-sidebar--workspace-nav {
     border-right: none;
-    border-bottom: 2px solid #000;
+    border-bottom: 1px solid var(--ap-border-subtle);
   }
 
   .left-pages-panel {
@@ -12553,7 +12551,7 @@ body {
   .card__counter-button,
   .card__progress-mode-button) {
   appearance: none;
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
   font-family: var(--ap-font-display) !important;
 }
 
@@ -12567,7 +12565,7 @@ body {
   .card__code-textarea,
   .card__text-box-input) {
   appearance: none;
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
 }
 
 .app-window :is(.home-button,
@@ -12586,10 +12584,10 @@ body {
   .card__counter-button,
   .card__progress-mode-button,
   .canvas__empty-action) {
-  border: 2px solid #000 !important;
+  border: 1px solid var(--ap-border-subtle) !important;
   background: #fff !important;
   color: #000 !important;
-  box-shadow: 4px 4px 0 #000 !important;
+  box-shadow: var(--ap-shadow-md) !important;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -12713,14 +12711,14 @@ body {
     width: 56px;
     min-width: 56px;
     padding: 10px 8px;
-    border-right: 2px solid #000;
+    border-right: 1px solid var(--ap-border-subtle);
     background: var(--bg-white);
     background-image: var(--shine-gradient);
     background-repeat: no-repeat;
     background-size: 600px 100%;
     background-position: -600px 0;
     box-shadow: var(--pixel-borders);
-    filter: drop-shadow(0 0 0 #000);
+    box-shadow: var(--ap-shadow-md);
     z-index: 2;
   }
 
@@ -12758,7 +12756,7 @@ body {
 
 .titlebar-root {
   background: var(--bg-white);
-  border-bottom: 2px solid #000;
+  border-bottom: 1px solid var(--ap-border-subtle);
   padding-top: 8px;
   padding-bottom: 10px;
 }
@@ -12777,7 +12775,7 @@ body {
 .canvas-minimap__panel {
   border: none !important;
   box-shadow: var(--pixel-borders) !important;
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .left-pages-panel__icon-button,
@@ -12798,7 +12796,7 @@ body {
   background-position: -600px 0;
   border: none !important;
   box-shadow: var(--pixel-borders) !important;
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
 }
 
@@ -12811,8 +12809,8 @@ body {
 .canvas-start-menu__trigger:hover:not(:disabled),
 .zoom-menu__trigger:hover,
 .canvas-minimap__toggle:hover {
-  transform: translate(0, -2px);
-  filter: drop-shadow(2px 4px 0 #000);
+  transform: translateY(-1px);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .left-pages-panel__icon-button:active:not(:disabled),
@@ -12825,7 +12823,7 @@ body {
 .zoom-menu__trigger:active,
 .canvas-minimap__toggle:active {
   transform: translate(0, 0);
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
   transition: transform 0.05s ease-out, filter 0.05s ease-out;
 }
 
@@ -12861,7 +12859,7 @@ body {
   background-image: none !important;
   border: none !important;
   box-shadow: var(--pixel-borders) !important;
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .workspace-view-toggle__button,
@@ -13032,8 +13030,8 @@ body {
   background: transparent;
   box-shadow: none;
   cursor: var(--cursor-pointer);
-  image-rendering: pixelated;
-  filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.45));
+  
+  box-shadow: var(--ap-shadow-md);
   transition: transform 120ms ease, filter 120ms ease;
 }
 
@@ -13045,7 +13043,7 @@ body {
 .canvas-tool-launcher:active,
 .canvas-tool-launcher.is-open {
   transform: translateY(0);
-  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.58));
+  box-shadow: var(--ap-shadow-md);
 }
 
 .canvas-tool-launcher__image {
@@ -13053,7 +13051,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  image-rendering: pixelated;
+  
   pointer-events: none;
 }
 
@@ -13150,13 +13148,13 @@ body {
 }
 
 .canvas-stopwatch__button:hover:not(:disabled) {
-  transform: translate(0, -2px);
-  filter: drop-shadow(2px 4px 0 #000);
+  transform: translateY(-1px);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .canvas-stopwatch__button:active {
   transform: translate(0, 0);
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .canvas-calculator {
@@ -13334,15 +13332,15 @@ body {
 .canvas-calculator__key:hover:not(:disabled),
 .canvas-calculator__receipt-clear:hover:not(:disabled),
 .canvas-calculator__display-reset:hover:not(:disabled) {
-  transform: translate(0, -2px);
-  filter: drop-shadow(2px 4px 0 #000);
+  transform: translateY(-1px);
+  box-shadow: var(--ap-shadow-md);
 }
 
 .canvas-calculator__key:active,
 .canvas-calculator__receipt-clear:active,
 .canvas-calculator__display-reset:active {
   transform: translate(0, 0);
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
 }
 
 @media (max-width: 900px) {
@@ -13417,7 +13415,7 @@ body {
 
 #canvas-board {
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--ap-radius-md) !important;
   background: #ffffff !important;
   box-shadow: none !important;
 }

@@ -1,71 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-
-@font-face {
-  font-family: "AirPasteHeader";
-  src: url("/fonts/ppneuebit-bold.otf") format("opentype");
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-}
-
 :root {
-  --ap-proto-font-retro: "AirPasteHeader", monospace;
-  --ap-proto-font-body: "VT323", monospace;
+  --ap-proto-font-retro: var(--ap-font-display);
+  --ap-proto-font-body: var(--ap-font-body);
 
-  --ap-proto-bg-desktop: #5f6671;
-  --ap-proto-bg-window: #d4d4d4;
-  --ap-proto-bg-white: #ffffff;
-  --ap-proto-bg-black: #000000;
-  --ap-proto-bg-active: #0089ff;
-  --ap-proto-bg-off-white: #f5f5f5;
-  --ap-proto-bg-grey: #cccccc;
+  --ap-proto-bg-desktop: var(--ap-bg-page);
+  --ap-proto-bg-window: var(--ap-surface-raised);
+  --ap-proto-bg-white: var(--ap-surface-default);
+  --ap-proto-bg-black: var(--ap-text-primary);
+  --ap-proto-bg-active: var(--ap-interactive-bg-selected);
+  --ap-proto-bg-off-white: var(--ap-surface-raised);
+  --ap-proto-bg-grey: var(--ap-surface-muted);
 
-  --ap-proto-text-main: #000000;
+  --ap-proto-text-main: var(--ap-text-primary);
 
-  --ap-proto-checker-bw: repeating-conic-gradient(#000 0% 25%, #fff 0% 50%) 50% / 4px 4px;
-  --ap-proto-checker-shadow: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%) 50% / 4px 4px;
-  --ap-proto-shine-gradient: linear-gradient(
-    110deg,
-    transparent 0%,
-    transparent 45%,
-    rgba(255, 255, 255, 0.4) 45%,
-    rgba(255, 255, 255, 0.4) 48%,
-    rgba(255, 255, 255, 0.9) 48%,
-    rgba(255, 255, 255, 0.9) 52%,
-    rgba(255, 255, 255, 0.4) 52%,
-    rgba(255, 255, 255, 0.4) 55%,
-    transparent 55%,
-    transparent 100%
-  );
+  --ap-proto-checker-bw: transparent;
+  --ap-proto-checker-shadow: transparent;
+  --ap-proto-shine-gradient: none;
 
-  --ap-proto-pixel-borders:
-    -2px 0 0 0 #000, 2px 0 0 0 #000, 0 -2px 0 0 #000, 0 2px 0 0 #000,
-    -4px 0 0 0 var(--ap-proto-bg-white), 4px 0 0 0 var(--ap-proto-bg-white), 0 -4px 0 0 var(--ap-proto-bg-white), 0 4px 0 0 var(--ap-proto-bg-white),
-    -2px -2px 0 0 var(--ap-proto-bg-white), 2px -2px 0 0 var(--ap-proto-bg-white), -2px 2px 0 0 var(--ap-proto-bg-white), 2px 2px 0 0 var(--ap-proto-bg-white);
-
-  --ap-proto-shadow-clip: polygon(
-    4px 0,
-    calc(100% - 4px) 0,
-    calc(100% - 4px) 2px,
-    calc(100% - 2px) 2px,
-    calc(100% - 2px) 4px,
-    100% 4px,
-    100% calc(100% - 4px),
-    calc(100% - 2px) calc(100% - 4px),
-    calc(100% - 2px) calc(100% - 2px),
-    calc(100% - 4px) calc(100% - 2px),
-    calc(100% - 4px) 100%,
-    4px 100%,
-    4px calc(100% - 2px),
-    2px calc(100% - 2px),
-    2px calc(100% - 4px),
-    0 calc(100% - 4px),
-    0 4px,
-    2px 4px,
-    2px 2px,
-    4px 2px,
-    4px 0
-  );
+  --ap-proto-pixel-borders: var(--ap-shadow-md);
+  --ap-proto-shadow-clip: none;
 
   --ap-proto-space-4: 4px;
   --ap-proto-space-8: 8px;

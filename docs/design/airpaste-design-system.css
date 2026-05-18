@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=-apple-system&family=-apple-system&display=swap');
 @import url('./airpaste-prototype-tokens.css');
 
 :root {
@@ -11,8 +11,8 @@
   --bg-active: var(--ap-proto-bg-active);
   --text-main: var(--ap-proto-text-main);
   --checker-bw: var(--ap-proto-checker-bw);
-  --checker-green: repeating-conic-gradient(#237b56 0% 25%, #b3cc8e 0% 50%) 50% / 4px 4px;
-  --stripes-bw: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px);
+  --checker-green: none;
+  --stripes-bw: none;
   --checker-shadow: var(--ap-proto-checker-shadow);
   --shine-gradient: var(--ap-proto-shine-gradient);
   --pixel-borders: var(--ap-proto-pixel-borders);
@@ -37,38 +37,38 @@
 }
 
 body {
-  background-color: var(--bg-desktop);
-  color: var(--text-main);
+  background-color: var(--ap-bg-page);
+  color: var(--ap-text-primary);
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1.2;
   margin: 0;
   padding: 0;
   cursor: crosshair;
-  image-rendering: pixelated;
+  
 }
 
 ::-webkit-scrollbar {
   width: 24px;
   height: 24px;
-  background: var(--bg-white);
-  border-left: 2px solid #000;
+  background: var(--ap-surface-default);
+  border-left: 1px solid var(--ap-border-subtle);
 }
 
 ::-webkit-scrollbar-track {
   background-image: var(--checker-bw);
-  border-left: 2px solid #000;
+  border-left: 1px solid var(--ap-border-subtle);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-white);
-  border: 2px solid #000;
-  box-shadow: inset 2px 2px 0 #fff;
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
+  box-shadow: none;
 }
 
 ::-webkit-scrollbar-button {
-  background: var(--bg-white);
-  border: 2px solid #000;
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   display: block;
   height: 24px;
   width: 24px;
@@ -78,15 +78,15 @@ body {
    UX DEFAULTS
    ========================================= */
 ::selection {
-  background-color: var(--bg-active);
-  color: var(--bg-white);
+  background-color: var(--ap-interactive-bg-selected);
+  color: var(--ap-surface-default);
   text-shadow: none;
 }
 
 :focus-visible {
-  outline: 2px solid var(--bg-black);
+  outline: 2px solid var(--ap-text-primary);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--bg-active);
+  box-shadow: 0 0 0 4px var(--ap-interactive-bg-selected);
 }
 
 input,
@@ -124,7 +124,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   text-transform: uppercase;
   margin: 0;
 }
@@ -155,7 +155,7 @@ h6 {
 .empty-card {
   position: relative;
   background: transparent !important;
-  border: none !important;
+  border: 1px solid var(--ap-border-subtle) !important; border-radius: var(--ap-radius-md) !important;
   box-shadow: none !important;
   z-index: 1;
   margin: 6px;
@@ -201,12 +201,12 @@ h6 {
   content: '';
   position: absolute;
   inset: 0;
-  background-color: var(--bg-white);
+  background-color: var(--ap-surface-default);
   background-image: var(--shine-gradient);
   background-repeat: no-repeat;
   background-size: 600px 100%;
   background-position: -600px 0;
-  box-shadow: var(--pixel-borders);
+  box-shadow: var(--ap-shadow-md);
   z-index: -1;
 }
 
@@ -248,17 +248,17 @@ h6 {
 .toast-card::before,
 .canvas-shell::before,
 .stack-card::before {
-  background-color: var(--bg-window);
+  background-color: var(--ap-surface-raised);
 }
 
 /* Interactive Major Elements Hover */
 .browser-card:hover {
-  transform: translate(0, -6px);
+  transform: translateY(-2px);
   z-index: 10;
 }
 
 .browser-card:hover::after {
-  transform: translate(8px, 14px);
+  transform: translateY(2px);
 }
 
 .browser-card:active {
@@ -294,14 +294,14 @@ h6 {
 .add-item,
 .list-row {
   position: relative;
-  background-color: var(--bg-white);
+  background-color: var(--ap-surface-default);
   background-image: var(--shine-gradient);
   background-repeat: no-repeat;
   background-size: 600px 100%;
   background-position: -600px 0;
-  border: none !important;
-  box-shadow: var(--pixel-borders);
-  filter: drop-shadow(0 0 0 #000);
+  border: 1px solid var(--ap-border-subtle) !important; border-radius: var(--ap-radius-md) !important;
+  box-shadow: var(--ap-shadow-md);
+  box-shadow: var(--ap-shadow-md);
   margin: 6px;
   transition: transform 0.2s ease-out, filter 0.2s ease-out;
 }
@@ -315,8 +315,8 @@ h6 {
 .context-item:hover,
 .add-item:hover,
 .list-row:hover {
-  transform: translate(0, -4px);
-  filter: drop-shadow(4px 8px 0 #000);
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-md);
   z-index: 10;
 }
 
@@ -329,19 +329,44 @@ h6 {
 .add-item:active,
 .list-row:active {
   transform: translate(0, 0);
-  filter: drop-shadow(0 0 0 #000);
+  box-shadow: var(--ap-shadow-md);
   transition: transform 0.05s ease-out, filter 0.05s ease-out;
 }
 
+.ui-button {
+  background-color: #ffffff !important;
+  color: var(--ap-text-primary) !important;
+  border: 1px solid var(--ap-border-default) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.15s ease;
+}
+
+.ui-button:hover {
+  background-color: var(--ap-interactive-bg-hover) !important;
+  border-color: var(--ap-border-strong) !important;
+  color: var(--ap-text-primary) !important;
+}
+
 .ui-button.is-primary {
-  background-color: var(--bg-active);
-  color: var(--bg-white);
+  background-color: var(--ap-accent-bg) !important;
+  color: var(--ap-text-on-accent) !important;
+  border-color: var(--ap-accent-bg) !important;
+}
+
+.ui-button.is-primary:hover {
+  background-color: var(--ap-accent-bg-hover) !important;
+  border-color: var(--ap-text-primary) !important;
 }
 
 .ui-button.is-danger {
-  background-image: var(--shine-gradient), var(--stripes-bw);
-  color: var(--bg-white);
-  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  background-color: var(--ap-status-danger-bg) !important;
+  color: var(--ap-status-danger-text) !important;
+  border: 1px solid var(--ap-status-danger-border) !important;
+}
+
+.ui-button.is-danger:hover {
+  background-color: rgba(255, 59, 48, 0.25) !important;
+  border-color: var(--ap-border-danger) !important;
 }
 
 .sidebar-link.is-active,
@@ -349,21 +374,21 @@ h6 {
 .dropdown-item.is-active,
 .add-item.is-primary,
 .list-row.is-selected {
-  background-color: var(--bg-active);
-  color: var(--bg-white);
+  background-color: var(--ap-interactive-bg-selected);
+  color: var(--ap-text-on-accent) !important;
 }
 
 .list-row.is-selected .list-row-title,
 .list-row.is-selected .muted-copy {
-  color: var(--bg-white);
+  color: var(--ap-text-on-accent) !important;
 }
 
 /* SPECIFIC COMPONENT STYLING */
 
 .prototype-kicker {
-  font-family: var(--font-retro);
-  color: var(--bg-white);
-  background: var(--bg-black);
+  font-family: var(--ap-font-display);
+  color: var(--ap-surface-default);
+  background: var(--ap-text-primary);
   display: inline-block;
   padding: 4px 8px;
   font-size: 12px;
@@ -372,17 +397,17 @@ h6 {
 
 .prototype-title {
   font-size: 28px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
   margin: 0 0 12px 0;
-  text-shadow: 2px 2px 0 var(--bg-white);
+  text-shadow: none;
 }
 
 .prototype-intro {
-  color: var(--text-main);
+  color: var(--ap-text-primary);
   max-width: 800px;
-  background: var(--bg-white);
+  background: var(--ap-surface-default);
   padding: 12px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .prototype-grid {
@@ -393,29 +418,29 @@ h6 {
 
 .section-header {
   padding: var(--space-16) var(--space-20);
-  border-bottom: 2px solid #000;
-  background-color: var(--bg-white);
+  border-bottom: 1px solid var(--ap-border-subtle);
+  background-color: var(--ap-surface-default);
   background-image: var(--checker-bw);
 }
 
 .section-header>* {
-  background: var(--bg-white);
-  border: 2px solid #000;
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   padding: 4px 8px;
   display: inline-block;
   margin: 4px 0;
 }
 
 .section-kicker {
-  font-family: var(--font-retro);
-  background: var(--bg-black);
-  color: #fff;
+  font-family: var(--ap-font-display);
+  background: var(--ap-text-primary);
+  color: var(--ap-text-inverse);
   font-size: 12px;
 }
 
 .section-title {
   font-size: 20px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .section-copy {
@@ -428,8 +453,8 @@ h6 {
 
 /* App Window */
 .window-titlebar {
-  background: var(--bg-white);
-  border-bottom: 2px solid #000;
+  background: var(--ap-surface-default);
+  border-bottom: 1px solid var(--ap-border-subtle);
   padding: 4px;
   display: flex;
   align-items: center;
@@ -444,24 +469,24 @@ h6 {
 }
 
 .window-app-mark {
-  background: var(--bg-white);
-  color: var(--bg-black);
-  font-family: var(--font-retro);
+  background: var(--ap-surface-default);
+  color: var(--ap-text-primary);
+  font-family: var(--ap-font-display);
   width: 24px;
   height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   font-size: 16px;
 }
 
 .window-title {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 14px;
-  color: var(--bg-black);
-  background: var(--bg-white);
-  border: 2px solid #000;
+  color: var(--ap-text-primary);
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   padding: 4px 12px;
   display: flex;
   align-items: center;
@@ -479,12 +504,12 @@ h6 {
 }
 
 .window-badge {
-  background: var(--bg-black);
+  background: var(--ap-text-primary);
   color: white;
   padding: 4px 8px;
   font-size: 12px;
-  font-family: var(--font-retro);
-  border: 2px solid #000;
+  font-family: var(--ap-font-display);
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .titlebar-tabs {
@@ -494,18 +519,18 @@ h6 {
 }
 
 .titlebar-tab {
-  background: var(--bg-white);
-  border: 2px solid #000;
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   padding: 4px 12px;
   font-size: 14px;
-  font-family: var(--font-retro);
-  color: var(--bg-black);
+  font-family: var(--ap-font-display);
+  color: var(--ap-text-primary);
   cursor: pointer;
 }
 
 .titlebar-tab.is-active {
-  background: var(--bg-black);
-  color: var(--bg-white);
+  background: var(--ap-text-primary);
+  color: var(--ap-surface-default);
 }
 
 .window-controls {
@@ -514,10 +539,10 @@ h6 {
 }
 
 .window-control {
-  background: var(--bg-white);
+  background: var(--ap-surface-default);
   width: 24px;
   height: 24px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -526,19 +551,19 @@ h6 {
 
 .window-control.is-close::before {
   content: 'X';
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 14px;
 }
 
 .window-control.is-maximize::before {
   content: '+';
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 16px;
 }
 
 .window-control.is-minimize::before {
   content: '-';
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 16px;
 }
 
@@ -549,27 +574,27 @@ h6 {
 
 .home-sidebar {
   width: 280px;
-  background: var(--bg-desktop);
+  background: var(--ap-bg-page);
   border-right: 2px solid #000;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  color: var(--bg-white);
+  color: var(--ap-surface-default);
 }
 
 .brand-wordmark {
   font-size: 24px;
-  font-family: var(--font-retro);
-  color: var(--bg-black);
+  font-family: var(--ap-font-display);
+  color: var(--ap-text-primary);
 }
 
 .beta-badge {
-  background: var(--bg-black);
+  background: var(--ap-text-primary);
   color: white;
   font-size: 10px;
   padding: 4px 8px;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
 }
 
 .sidebar-section {
@@ -579,17 +604,17 @@ h6 {
 }
 
 .eyebrow {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 12px;
-  color: var(--bg-white);
-  text-shadow: 2px 2px 0 var(--bg-black);
+  color: var(--ap-surface-default);
+  text-shadow: none;
 }
 
 .workspace-search {
   padding: 8px;
   font-family: var(--font-body);
   font-size: 18px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .sidebar-link,
@@ -601,16 +626,16 @@ h6 {
 }
 
 .workspace-badge {
-  background: var(--bg-white);
-  color: var(--bg-black);
-  font-family: var(--font-retro);
+  background: var(--ap-surface-default);
+  color: var(--ap-text-primary);
+  font-family: var(--ap-font-display);
   font-size: 12px;
   padding: 4px 8px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .sidebar-link.is-active .workspace-badge {
-  background: var(--bg-window);
+  background: var(--ap-surface-raised);
 }
 
 .workspace-main {
@@ -634,13 +659,13 @@ h6 {
 }
 
 .toolbar-cluster .eyebrow {
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
   text-shadow: none;
 }
 
 .ui-button,
 .mini-button {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 12px;
   padding: 8px 16px;
   cursor: pointer;
@@ -657,35 +682,35 @@ h6 {
 
 .toolbar-view-toggle {
   display: flex;
-  background-color: var(--bg-black);
+  background-color: var(--ap-text-primary);
   padding: 2px;
   gap: 2px;
 }
 
 .toolbar-view-button {
   background: transparent;
-  color: var(--bg-white);
+  color: var(--ap-surface-default);
   border: none;
   font-size: 12px;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   padding: 6px 12px;
   cursor: pointer;
 }
 
 .toolbar-view-button.is-active {
-  background: var(--bg-white);
-  color: var(--bg-black);
+  background: var(--ap-surface-default);
+  color: var(--ap-text-primary);
 }
 
 .browser-panel-header {
-  background: var(--bg-black);
-  color: var(--bg-white);
+  background: var(--ap-text-primary);
+  color: var(--ap-surface-default);
   padding: 8px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #000;
-  font-family: var(--font-retro);
+  border-bottom: 1px solid var(--ap-border-subtle);
+  font-family: var(--ap-font-display);
 }
 
 .browser-panel-header .eyebrow {
@@ -713,8 +738,8 @@ h6 {
 
 .browser-card-thumb {
   height: 100px;
-  background: var(--bg-window);
-  border: 2px solid #000;
+  background: var(--ap-surface-raised);
+  border: 1px solid var(--ap-border-subtle);
   position: relative;
 }
 
@@ -730,15 +755,15 @@ h6 {
 
 .browser-card-title {
   margin: 0;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 30px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .browser-card-copy {
   margin: 0;
   font-size: 16px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .home-browser-list {
@@ -755,14 +780,14 @@ h6 {
 }
 
 .list-row-title {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 34px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .muted-copy {
   font-size: 16px;
-  color: var(--bg-black);
+  color: var(--ap-text-primary);
 }
 
 .boot-grid,
@@ -778,10 +803,10 @@ h6 {
 .dialog-header,
 .menu-header,
 .toast-header {
-  background-color: var(--bg-white);
-  color: var(--bg-black);
+  background-color: var(--ap-surface-default);
+  color: var(--ap-text-primary);
   padding: 8px 16px;
-  border-bottom: 2px solid #000;
+  border-bottom: 1px solid var(--ap-border-subtle);
   background-image: var(--checker-bw);
 }
 
@@ -789,9 +814,9 @@ h6 {
 .dialog-header .eyebrow,
 .menu-header .eyebrow,
 .toast-header .eyebrow {
-  color: var(--bg-black);
-  background: var(--bg-white);
-  border: 2px solid #000;
+  color: var(--ap-text-primary);
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   padding: 4px;
   text-shadow: none;
   display: inline-block;
@@ -811,23 +836,23 @@ h6 {
 .toast-title {
   margin: 0;
   font-size: 16px;
-  background: var(--bg-black);
-  color: var(--bg-white);
+  background: var(--ap-text-primary);
+  color: var(--ap-surface-default);
   padding: 8px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .boot-progress {
   height: 24px;
-  background: var(--bg-white);
-  border: 2px solid #000;
+  background: var(--ap-surface-default);
+  border: 1px solid var(--ap-border-subtle);
   padding: 2px;
 }
 
 .boot-progress-bar {
   width: 66%;
   height: 100%;
-  background: var(--bg-black);
+  background: var(--ap-text-primary);
 }
 
 .dialog-actions {
@@ -858,32 +883,32 @@ h6 {
 }
 
 .empty-mark {
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 24px;
-  color: var(--bg-white);
-  background: var(--bg-black);
+  color: var(--ap-surface-default);
+  background: var(--ap-text-primary);
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .canvas-header {
   padding: 16px 24px;
-  border-bottom: 2px solid #000;
+  border-bottom: 1px solid var(--ap-border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--bg-white);
+  background: var(--ap-surface-default);
 }
 
 .canvas-title {
   margin: 0 0 4px;
   font-size: 24px;
-  background: var(--bg-black);
-  color: var(--bg-white);
+  background: var(--ap-text-primary);
+  color: var(--ap-surface-default);
   display: inline-block;
   padding: 4px 8px;
 }
@@ -895,7 +920,7 @@ h6 {
 
 .canvas-stage {
   /* height: 500px; */
-  background-color: var(--bg-desktop);
+  background-color: var(--ap-bg-page);
   background-image: var(--checker-green);
   position: relative;
   overflow: hidden;
@@ -915,9 +940,9 @@ h6 {
   right: 20px;
   position: absolute;
   padding: 8px 16px;
-  background: var(--bg-black);
-  color: var(--bg-white);
-  font-family: var(--font-retro);
+  background: var(--ap-text-primary);
+  color: var(--ap-surface-default);
+  font-family: var(--ap-font-display);
   font-size: 12px;
 }
 
@@ -958,26 +983,26 @@ h6 {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   font-size: 12px;
 }
 
 .token-swatch {
   width: 48px;
   height: 48px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
   background-image: var(--checker-bw);
 }
 
 .type-line.is-display {
   font-size: 32px;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   margin: 0;
 }
 
 .type-line.is-heading {
   font-size: 20px;
-  font-family: var(--font-retro);
+  font-family: var(--ap-font-display);
   margin: 0;
 }
 
@@ -987,9 +1012,9 @@ h6 {
 }
 
 .spacing-bar {
-  background: var(--bg-black);
+  background: var(--ap-text-primary);
   height: 16px;
-  border: 2px solid #000;
+  border: 1px solid var(--ap-border-subtle);
 }
 
 .spacing-bar.is-4 {

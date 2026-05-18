@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=-apple-system&family=-apple-system&display=swap');
 
 :root {
-  --font-retro: 'Silkscreen', monospace;
-  --font-body: 'VT323', monospace;
+  --font-retro: '-apple-system', monospace;
+  --font-body: '-apple-system', monospace;
 
   --bg-desktop: #717171;
   --bg-window: #cecece;

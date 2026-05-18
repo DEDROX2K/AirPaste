@@ -4,14 +4,11 @@ AirPaste is a local-first desktop canvas app for capturing links, text, images, 
 
 ## What’s in this version
 
-- Click-to-continue splash screen with app logo (`renderer/src/components/SplashScreen.jsx`).
-- Rack design polished to a continuous wood panel (three SVG pieces) in `public/rack/`.
-- Electron window icon set for dev and production (`main.js`: `icon: path.join(__dirname, 'build', 'logo.png')`).
-- Rack slot preview and rack-attached style updated for user experience (`renderer/src/styles.css`).
-- `data.json` workspaces loaded/saved per folder with atomic backups and retry recovery.
-- Canvas image rendering hardened to prevent tiles going blank during long drag/pan sessions.
-- Tile visuals now enforce shadow-free cards across idle, hover, drag, and canvas-move states.
-- Save pipeline hardened against `.tmp` rename races by using unique temp files and per-workspace serialization for canvas/page save/load IPC.
+- Canvas + app shell restyle with a semantic design system (Apple-style greyscale tokens) in `renderer/src/design/theme.css` and `renderer/src/design/tokens.css`.
+- Shared app primitives (buttons, panels, window frame pieces) aligned to the new tokens in `renderer/src/components/ui/app/AppPrimitives.css`.
+- Titlebar tabs + top chrome polish in `renderer/src/components/TopTabBar.css` and `renderer/src/components/HomeShellPrototype.css`.
+- CSS layering tightened by moving “last mile” overrides into `renderer/src/final-overrides.css` and keeping global entry styles in `renderer/src/index.css`.
+- Design references and prototypes kept under `docs/design/` for quick iteration without touching runtime code.
 
 ## Features
 
@@ -38,14 +35,22 @@ AirPaste/
 │   └── src/
 │       ├── App.jsx
 │       ├── main.jsx
-│       ├── styles.css
+│       ├── index.css
+│       ├── final-overrides.css
+│       ├── styles.css                  # legacy / experimental CSS (large; being phased down)
+│       ├── design/
+│       │   ├── theme.css               # semantic theme tokens (light/dark)
+│       │   └── tokens.css              # base tokens (typography, radii, shadows, etc.)
 │       ├── components/
 │       │   ├── Card.jsx
 │       │   ├── CanvasDock.jsx
 │       │   ├── DevConsole.jsx
 │       │   ├── SplashScreen.jsx
+│       │   ├── TopTabBar.jsx
+│       │   ├── TopTabBar.css
 │       │   ├── TileContextMenu.jsx
 │       │   ├── ToastStack.jsx
+│       │   ├── HomeShellPrototype.css
 │       │   └── tiles/
 │       │       ├── RackTile.jsx
 │       │       └── TileShell.jsx
@@ -88,6 +93,14 @@ AirPaste/
 - `RackTile` uses 3-part wood asset layout with slot strip + count display
 - `SplashScreen` renders until user click after boot restore
 
+### Styling model (CSS)
+- `renderer/src/design/tokens.css`: low-level tokens (font stacks, shadows, radii, spacing primitives)
+- `renderer/src/design/theme.css`: semantic tokens + theme mappings (`[data-theme="light"]` / `[data-theme="dark"]`)
+- `renderer/src/components/ui/app/AppPrimitives.css`: reusable app chrome and primitives, consuming semantic tokens
+- `renderer/src/index.css`: global entry point styles and layout glue
+- `renderer/src/final-overrides.css`: the “last file wins” override layer (keep this small and intentional)
+- `docs/design/*`: design-system sandbox files (not runtime critical; safe to iterate)
+
 ### Storage model
 
 Workspace storage and tile schema evolve over time.
@@ -127,8 +140,7 @@ If Electron keeps showing its default icon in dev, restart `npm run dev` after c
 
 ## Notes
 
-- Rack improvements include style and overlapping edge fix in CSS (`card__rack-slice--left/right`).
-- Splash is now in `App.jsx` with `booting || showSplash` and click handler in `SplashScreen`.
+- Keep `scratch/` for one-off scripts or experiments; don’t rely on it in production code.
 - Open Graph scraping uses `open-graph-scraper`, and screenshot fallback uses Electron's own hidden browser window capture.
 
 ## Troubleshooting

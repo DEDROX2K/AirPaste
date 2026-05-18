@@ -10,6 +10,7 @@ export default [
       "dist-renderer/**",
       "release/**",
       "node_modules/**",
+      "scratch/**",
     ],
   },
   js.configs.recommended,

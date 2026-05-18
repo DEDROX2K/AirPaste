@@ -1,87 +1,156 @@
 /**
  * AirPaste Design System — theme.css
  *
- * Retro desktop semantic tokens.
- * Components consume semantic tokens only.
+ * Modern Apple-style semantic tokens.
+ * Minimalist greyscale palette, no accent colors.
  */
 
 :root,
 [data-theme="light"] {
   color-scheme: light;
 
-  --ap-bg-page: #ebebeb;
-  --ap-bg-base: #c3c7cb;
-  --ap-bg-sunken: #9fa4aa;
+  --ap-bg-page: #f5f5f7;
+  --ap-bg-base: #e5e5ea;
+  --ap-bg-sunken: #d1d1d6;
 
-  --ap-surface-default: #c0c0c0;
-  --ap-surface-raised: #d4d0c8;
-  --ap-surface-overlay: #d4d0c8;
-  --ap-surface-overlay-bg: #d4d0c8fa;
-  --ap-surface-modal: #d4d0c8;
+  --ap-surface-default: rgba(255, 255, 255, 0.7);
+  --ap-surface-raised: rgba(255, 255, 255, 0.85);
+  --ap-surface-overlay: rgba(255, 255, 255, 0.95);
+  --ap-surface-overlay-bg: rgba(255, 255, 255, 0.95);
+  --ap-surface-modal: rgba(255, 255, 255, 0.95);
   --ap-surface-inset: #ffffff;
 
-  --ap-text-primary: #111111;
-  --ap-text-secondary: #3f3f3f;
-  --ap-text-tertiary: #5c5c5c;
-  --ap-text-placeholder: #6d6d6d;
-  --ap-text-disabled: #7d7d7d;
+  --ap-text-primary: #1c1c1e;
+  --ap-text-secondary: #8e8e93;
+  --ap-text-tertiary: #aeaeb2;
+  --ap-text-placeholder: #c7c7cc;
+  --ap-text-disabled: #d1d1d6;
   --ap-text-inverse: #ffffff;
-  --ap-text-accent: #0a246a;
+  --ap-text-accent: #1c1c1e;
   --ap-text-on-accent: #ffffff;
 
-  --ap-icon-default: #2f2f2f;
-  --ap-icon-muted: #666666;
-  --ap-icon-accent: #0a246a;
+  --ap-icon-default: #3a3a3c;
+  --ap-icon-muted: #8e8e93;
+  --ap-icon-accent: #1c1c1e;
 
-  --ap-border-subtle: #ffffff;
-  --ap-border-default: #808080;
-  --ap-border-strong: #404040;
-  --ap-border-focus: #0a246a;
-  --ap-border-accent: #0a246a;
-  --ap-border-danger: #8b1d1d;
+  --ap-border-subtle: rgba(0, 0, 0, 0.05);
+  --ap-border-default: rgba(0, 0, 0, 0.1);
+  --ap-border-strong: rgba(0, 0, 0, 0.2);
+  --ap-border-focus: rgba(0, 0, 0, 0.3);
+  --ap-border-accent: rgba(0, 0, 0, 0.3);
+  --ap-border-danger: #ff3b30;
 
   --ap-interactive-bg: transparent;
-  --ap-interactive-bg-hover: #e5e5e5;
-  --ap-interactive-bg-active: #b6b6b6;
-  --ap-interactive-bg-selected: #0a246a;
+  --ap-interactive-bg-hover: rgba(0, 0, 0, 0.05);
+  --ap-interactive-bg-active: rgba(0, 0, 0, 0.1);
+  --ap-interactive-bg-selected: rgba(0, 0, 0, 0.85);
   --ap-interactive-text-selected: #ffffff;
 
-  --ap-accent-bg: linear-gradient(180deg, #2f8ce0 0%, #0f66bf 45%, #0a5aaa 100%);
-  --ap-accent-bg-hover: linear-gradient(180deg, #44a0f4 0%, #1974d0 45%, #0a5aaa 100%);
-  --ap-accent-bg-active: linear-gradient(180deg, #0a5aaa 0%, #0f66bf 60%, #2f8ce0 100%);
-  --ap-accent-tint: rgba(15, 102, 191, 0.18);
-  --ap-accent-tint-hover: rgba(15, 102, 191, 0.28);
+  --ap-accent-bg: #1c1c1e;
+  --ap-accent-bg-hover: #2c2c2e;
+  --ap-accent-bg-active: #3a3a3c;
+  --ap-accent-tint: rgba(0, 0, 0, 0.05);
+  --ap-accent-tint-hover: rgba(0, 0, 0, 0.1);
 
-  --ap-shadow-card: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 rgba(0, 0, 0, 0.16);
-  --ap-shadow-card-hover: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #6d6d6d, 3px 3px 0 rgba(0, 0, 0, 0.18);
-  --ap-shadow-panel: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #7a7a7a, 4px 4px 0 rgba(0, 0, 0, 0.16);
-  --ap-shadow-modal: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #707070, 5px 5px 0 rgba(0, 0, 0, 0.2);
-  --ap-shadow-welcome: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #6f6f6f, 6px 6px 0 rgba(0, 0, 0, 0.2);
+  --ap-shadow-card: var(--ap-shadow-sm);
+  --ap-shadow-card-hover: var(--ap-shadow-md);
+  --ap-shadow-panel: var(--ap-shadow-lg);
+  --ap-shadow-modal: var(--ap-shadow-xl);
+  --ap-shadow-welcome: var(--ap-shadow-2xl);
 
-  --ap-overlay-backdrop: rgba(43, 51, 59, 0.34);
-  --ap-overlay-scrim: rgba(255, 255, 255, 0.08);
+  --ap-overlay-backdrop: rgba(0, 0, 0, 0.2);
+  --ap-overlay-scrim: rgba(255, 255, 255, 0.4);
 
-  --ap-status-success-bg: rgba(0, 128, 0, 0.15);
-  --ap-status-success-text: #005b00;
-  --ap-status-success-border: rgba(0, 91, 0, 0.45);
+  --ap-status-success-bg: rgba(52, 199, 89, 0.15);
+  --ap-status-success-text: #248a3d;
+  --ap-status-success-border: rgba(52, 199, 89, 0.3);
 
-  --ap-status-warning-bg: rgba(237, 181, 57, 0.18);
-  --ap-status-warning-text: #6b4d00;
-  --ap-status-warning-border: rgba(107, 77, 0, 0.45);
+  --ap-status-warning-bg: rgba(255, 149, 0, 0.15);
+  --ap-status-warning-text: #b36b00;
+  --ap-status-warning-border: rgba(255, 149, 0, 0.3);
 
-  --ap-status-danger-bg: rgba(186, 49, 49, 0.18);
-  --ap-status-danger-text: #6f1010;
-  --ap-status-danger-border: rgba(111, 16, 16, 0.45);
+  --ap-status-danger-bg: rgba(255, 59, 48, 0.15);
+  --ap-status-danger-text: #b32a22;
+  --ap-status-danger-border: rgba(255, 59, 48, 0.3);
 
-  --ap-status-info-bg: rgba(15, 102, 191, 0.16);
-  --ap-status-info-text: #0a246a;
-  --ap-status-info-border: rgba(10, 36, 106, 0.36);
+  --ap-status-info-bg: rgba(0, 0, 0, 0.05);
+  --ap-status-info-text: #1c1c1e;
+  --ap-status-info-border: rgba(0, 0, 0, 0.1);
 
-  --ap-scrollbar-track: #c0c0c0;
-  --ap-scrollbar-thumb: #9e9e9e;
-  --ap-scrollbar-thumb-hover: #7f7f7f;
+  --ap-scrollbar-track: transparent;
+  --ap-scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --ap-scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
+
+  /* Overrides for legacy retro tokens to force Apple Aesthetic */
+  --pixel-borders: var(--ap-shadow-md);
+  --ap-proto-pixel-borders: var(--ap-shadow-md);
+  --shine-gradient: none;
+  --ap-proto-shine-gradient: none;
+  --checker-bw: transparent;
+  --ap-proto-checker-bw: transparent;
+  --checker-shadow: transparent;
+  --ap-proto-checker-shadow: transparent;
+  --bg-desktop: var(--ap-bg-page);
+  --bg-window: var(--ap-surface-raised);
+  --bg-white: var(--ap-surface-default);
+  --bg-black: var(--ap-text-primary);
+  --bg-active: var(--ap-interactive-bg-selected);
+  --bg-off-white: var(--ap-surface-raised);
+  --bg-grey: var(--ap-surface-muted);
+  --text-main: var(--ap-text-primary);
+  --font-retro: var(--ap-font-display);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
+  
+  --ap-bg-page: #000000;
+  --ap-bg-base: #1c1c1e;
+  --ap-bg-sunken: #000000;
+
+  --ap-surface-default: rgba(28, 28, 30, 0.7);
+  --ap-surface-raised: rgba(44, 44, 46, 0.85);
+  --ap-surface-overlay: rgba(58, 58, 60, 0.95);
+  --ap-surface-overlay-bg: rgba(58, 58, 60, 0.95);
+  --ap-surface-modal: rgba(44, 44, 46, 0.95);
+  --ap-surface-inset: #1c1c1e;
+
+  --ap-text-primary: #ffffff;
+  --ap-text-secondary: #ebebf599;
+  --ap-text-tertiary: #ebebf54d;
+  --ap-text-placeholder: #ebebf54d;
+  --ap-text-disabled: #ebebf54d;
+  --ap-text-inverse: #1c1c1e;
+  --ap-text-accent: #ffffff;
+  --ap-text-on-accent: #000000;
+
+  --ap-icon-default: #ffffff;
+  --ap-icon-muted: #ebebf599;
+  --ap-icon-accent: #ffffff;
+
+  --ap-border-subtle: rgba(255, 255, 255, 0.05);
+  --ap-border-default: rgba(255, 255, 255, 0.1);
+  --ap-border-strong: rgba(255, 255, 255, 0.2);
+  --ap-border-focus: rgba(255, 255, 255, 0.3);
+  --ap-border-accent: rgba(255, 255, 255, 0.3);
+  --ap-border-danger: #ff453a;
+
+  --ap-interactive-bg: transparent;
+  --ap-interactive-bg-hover: rgba(255, 255, 255, 0.1);
+  --ap-interactive-bg-active: rgba(255, 255, 255, 0.15);
+  --ap-interactive-bg-selected: rgba(255, 255, 255, 0.2);
+  --ap-interactive-text-selected: #ffffff;
+
+  --ap-accent-bg: #ffffff;
+  --ap-accent-bg-hover: #e5e5ea;
+  --ap-accent-bg-active: #d1d1d6;
+  --ap-accent-tint: rgba(255, 255, 255, 0.1);
+  --ap-accent-tint-hover: rgba(255, 255, 255, 0.15);
+
+  --ap-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --ap-overlay-scrim: rgba(0, 0, 0, 0.4);
+
+  --ap-scrollbar-track: transparent;
+  --ap-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --ap-scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
 }
