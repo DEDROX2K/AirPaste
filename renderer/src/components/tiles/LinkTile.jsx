@@ -377,7 +377,6 @@ function LinkTile({
   const fallbackBadgeLabel = isTwitterLikeLink ? "X/TWITTER FALLBACK TILE" : "LINK FALLBACK TILE";
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
-  const showLinkActions = !isImageTile && (renderHint?.showActions ?? true);
   const hasLinkUrl = typeof card.url === "string" && card.url.trim().length > 0;
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const linkDescription = typeof card.description === "string" ? card.description.trim() : "";
@@ -435,26 +434,6 @@ function LinkTile({
     }
 
     setIsDescriptionExpanded((value) => !value);
-  };
-  const handleOpenLinkClick = async (event) => {
-    stopTileActionEvent(event);
-
-    await openTileLink({
-      card,
-      onOpenLink,
-      toast,
-      fallbackMessage: "Could not open link",
-    });
-  };
-  const handleCopyLinkClick = async (event) => {
-    stopTileActionEvent(event);
-
-    try {
-      await copyTextToClipboard(card.url);
-      toast("success", "Link copied");
-    } catch {
-      toast("error", "Could not copy link");
-    }
   };
   const handleCopyLinkQuickAction = async () => {
     try {
@@ -554,41 +533,6 @@ function LinkTile({
           onLoad={handleMediaLoad}
         />
       ) : null}
-      {isImageTile ? null : (
-        <div
-          className={`card__link-actions${showLinkActions ? "" : " card__link-actions--hidden"}`}
-          aria-label="Link actions"
-        >
-          <button
-            className="card__link-action"
-            type="button"
-            aria-label={`Copy link for ${linkTitle}`}
-            onPointerDown={stopTileActionPointerEvent}
-            onPointerUp={stopTileActionPointerEvent}
-            onClick={handleCopyLinkClick}
-          >
-            <img
-              src={resolveIconPath("icons/copylink.png")}
-              alt=""
-              className="card__link-action-icon"
-            />
-          </button>
-          <button
-            className="card__link-action card__link-action--primary"
-            type="button"
-            aria-label={`Open ${linkTitle}`}
-            onPointerDown={stopTileActionPointerEvent}
-            onPointerUp={stopTileActionPointerEvent}
-            onClick={handleOpenLinkClick}
-          >
-            <img
-              src={resolveIconPath("icons/openlink.png")}
-              alt=""
-              className="card__link-action-icon"
-            />
-          </button>
-        </div>
-      )}
       {isVideoCard && !isSimplifiedVideoLink ? (
         <div className={`card__video card__video--${videoRecipe.key}`}>
           <div className="card__video-media-region">
@@ -599,7 +543,7 @@ function LinkTile({
               <div className="card__video-screen">
                 {shouldRenderImage ? (
                   <TileImageReveal
-                    className="card__image card__image--video"
+                     className="card__image card__image--video"
                     src={activeVideoImageSrc}
                     alt={linkTitle}
                     enableReveal={enableReveal}
@@ -640,7 +584,6 @@ function LinkTile({
                   </div>
                 ) : (
                   <div className="card__video-placeholder">
-                    <p className="card__video-placeholder-title">{linkTitle}</p>
                     <p className="card__video-placeholder-subtitle">
                       {previewFallbackReason || formatShortUrl(card.url) || videoRecipe.badge}
                     </p>
@@ -654,7 +597,6 @@ function LinkTile({
               <span className="card__video-badge">{videoRecipe.badge}</span>
               {videoDurationLabel ? <span className="card__video-duration">{videoDurationLabel}</span> : null}
             </div>
-            <p className="card__video-title">{linkTitle}</p>
             <p className="card__video-subtitle">
               {card.channelName || card.author || card.siteName || formatShortUrl(card.url)}
             </p>
@@ -679,7 +621,6 @@ function LinkTile({
               />
             ) : (
               <div className="card__placeholder card__placeholder--simplified">
-                <p className="card__placeholder-title">{linkTitle}</p>
                 <p className="card__placeholder-subtitle">
                   {previewFallbackReason || formatShortUrl(card.url)}
                 </p>
@@ -723,7 +664,6 @@ function LinkTile({
                   <span className="card__fallback-paper__logo-fallback">{fallbackDomainLabel.slice(0, 1)}</span>
                 )}
               </div>
-              <p className="card__fallback-paper__title">{fallbackDomainLabel}</p>
             </div>
             <p className="card__fallback-paper__rule">--------------------------------</p>
             <p className="card__fallback-paper__line">{fallbackBadgeLabel}</p>
@@ -805,7 +745,6 @@ function LinkTile({
           {isImageTile ? (
             <div
               className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
-              title={linkTitle}
               aria-label={linkTitle}
             >
               {mediaMarkup}
@@ -813,7 +752,6 @@ function LinkTile({
           ) : (
             <div
               className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
-              title={linkTitle}
               aria-label={linkTitle}
             >
               {mediaMarkup}
@@ -822,11 +760,6 @@ function LinkTile({
 
           <div className="card__link-float-overlay" aria-hidden="true">
             <div className="card__link-float-overlay__title">{linkTitle}</div>
-            {hasLinkDescription ? (
-              <div className="card__link-float-overlay__hint">
-                {isDescriptionExpanded ? "Tap to hide details" : "Tap for details"}
-              </div>
-            ) : null}
           </div>
 
           {hasLinkDescription ? (

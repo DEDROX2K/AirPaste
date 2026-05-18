@@ -79,7 +79,7 @@ export function DevConsole() {
   const [stickerSnapshot, setStickerSnapshot] = useState(() => readStickerDebugSnapshot());
   const bodyRef = useRef(null);
 
-  /* Toggle with Ctrl+` */
+  /* Toggle with Ctrl+` or custom window event */
   useEffect(() => {
     function onKey(e) {
       if (e.ctrlKey && e.key === "`") {
@@ -87,8 +87,15 @@ export function DevConsole() {
         setOpen((v) => !v);
       }
     }
+    function onToggle() {
+      setOpen((v) => !v);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("airpaste:toggleDevConsole", onToggle);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("airpaste:toggleDevConsole", onToggle);
+    };
   }, []);
 
   /* Auto-scroll to bottom */
@@ -138,21 +145,6 @@ export function DevConsole() {
 
   return (
     <div id="dev-console" className={`dev-console ${open ? "dev-console--open" : ""}`}>
-      {/* ── Tab handle ── */}
-      <AppButton tone="unstyled"
-        id="dev-console-toggle"
-        className="dev-console__tab"
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        title="Toggle dev console (Ctrl+`)"
-      >
-        <span className="dev-console__tab-dot" />
-        DEV
-        {entries.some((e) => e.level === "error") && (
-          <span className="dev-console__tab-badge">!</span>
-        )}
-      </AppButton>
-
       {open && (
         <div className="dev-console__panel">
           {/* Header */}
@@ -257,4 +249,3 @@ export function DevConsole() {
     </div>
   );
 }
-

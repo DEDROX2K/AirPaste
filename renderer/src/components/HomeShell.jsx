@@ -10,7 +10,6 @@ import {
   sortEntriesByPreference,
 } from "../lib/home";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
 import { desktop } from "../lib/desktop";
 import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
 import "./HomeShellPrototype.css";
@@ -634,7 +633,6 @@ export default function HomeShell() {
     importFilesIntoFolder,
     openExistingWorkspace,
     openHomeItem,
-    openTestingTilesCanvas,
     refreshDomes,
     refreshHomeData,
     removeDome,
@@ -663,7 +661,6 @@ export default function HomeShell() {
         : "list"
   ));
   const listButtonRefs = useRef([]);
-  const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const browserViewMode = homeViewMode;
   const isSheetsView = browserViewMode === "sheets";
   const isCardsView = browserViewMode === "cards";
@@ -1029,9 +1026,6 @@ export default function HomeShell() {
                 Sheets
               </button>
             </div>
-            {showDeveloperQaActions ? (
-              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</AppButton>
-            ) : null}
             <AppButton
               type="button"
               tone="surface"

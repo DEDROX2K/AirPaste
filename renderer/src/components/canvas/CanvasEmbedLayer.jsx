@@ -113,21 +113,7 @@ function EmbedSurface({ entry, useWebview }) {
         ...entry.style,
       }}
     >
-      <div
-        className="canvas-embed-layer__chrome"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "2px",
-          padding: "10px 12px",
-          borderBottom: "1px solid rgba(126, 112, 94, 0.14)",
-          background: "linear-gradient(180deg, rgba(255,250,242,0.98), rgba(246,241,233,0.96))",
-        }}
-      >
-        <span className="canvas-embed-layer__label" style={{ fontSize: "12px", fontWeight: 700, color: "#4f3c2c" }}>{entry.card.title || entry.card.siteName || "Live embed"}</span>
-        <span className="canvas-embed-layer__url" style={{ fontSize: "11px", color: "#806c58", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.card.url}</span>
-      </div>
-      <div className="canvas-embed-layer__viewport" style={{ position: "relative", height: "calc(100% - 46px)", background: "#f7f2eb" }}>
+      <div className="canvas-embed-layer__viewport" style={{ position: "relative", height: "100%", background: "#f7f2eb" }}>
         {useWebview ? (
           <webview
             ref={elementRef}

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
 import { useAppContext } from "../context/useAppContext";
 import { desktop } from "../lib/desktop";
@@ -105,6 +105,93 @@ function TitleBarControls({ isMac }) {
       >
         <IconWindowsClose />
       </button>
+    </div>
+  );
+}
+
+function CursorEye() {
+  const eyeRef = useRef(null);
+  const pupilRef = useRef(null);
+
+  useEffect(() => {
+    const eye = eyeRef.current;
+    const pupil = pupilRef.current;
+    if (!eye || !pupil) return undefined;
+
+    let rafId = 0;
+    let target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    let current = { x: target.x, y: target.y };
+    let targetAngle = 0;
+    let currentAngle = 0;
+    let currentPupil = { x: 0, y: 0 };
+
+    const lerp = (from, to, t) => from + (to - from) * t;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const normalizeAngle = (degrees) => {
+      let value = degrees % 360;
+      if (value > 180) value -= 360;
+      if (value < -180) value += 360;
+      return value;
+    };
+
+    const tick = () => {
+      rafId = window.requestAnimationFrame(tick);
+
+      const rect = eye.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      current.x = lerp(current.x, target.x, 0.16);
+      current.y = lerp(current.y, target.y, 0.16);
+
+      const dx = current.x - cx;
+      const dy = current.y - cy;
+
+      // Match the original site's orientation (atan2 arguments swapped + inverted).
+      const rad = Math.atan2(current.x - cx, current.y - cy);
+      targetAngle = normalizeAngle((rad * (180 / Math.PI) * -1));
+
+      const delta = normalizeAngle(targetAngle - currentAngle);
+      currentAngle = normalizeAngle(currentAngle + delta * 0.18);
+      eye.style.setProperty("--eye-rot", `${currentAngle}deg`);
+
+      const dist = Math.hypot(dx, dy);
+      const travel = clamp(dist / 50, 0, 1) * 7;
+      const angle = Math.atan2(dy, dx);
+      const px = Math.cos(angle) * travel;
+      const py = Math.sin(angle) * travel;
+      currentPupil.x = lerp(currentPupil.x, px, 0.22);
+      currentPupil.y = lerp(currentPupil.y, py, 0.22);
+      pupil.style.transform = `translate(${currentPupil.x.toFixed(2)}px, ${currentPupil.y.toFixed(2)}px)`;
+    };
+
+    const onMove = (event) => {
+      target = { x: event.clientX, y: event.clientY };
+    };
+
+    const onLeave = () => {
+      target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerleave", onLeave);
+    window.addEventListener("blur", onLeave);
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("blur", onLeave);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  return (
+    <div className="titlebar-eye" aria-hidden="true">
+      <div className="titlebar-eye__eye" ref={eyeRef}>
+        <div className="titlebar-eye__content">
+          <div className="titlebar-eye__pupil" ref={pupilRef} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -340,14 +427,12 @@ export function TopTabBar({ usesCustomTitlebar }) {
       </div>
 
       <div id="titlebar-center-slot">
-        <div className="titlebar-brand">
-          <div className="titlebar-caption">AirPaste</div>
-        </div>
+        <CursorEye />
       </div>
 
       <div className="titlebar-right">
         <div id="titlebar-right-slot" />
-        {!isMac && <TitleBarControls isMac={false} />}
+        {!isMac && <div style={{ width: 138, flexShrink: 0 }} />}
       </div>
     </div>
   );

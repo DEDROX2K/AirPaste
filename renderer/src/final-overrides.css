@@ -472,3 +472,443 @@ body, .home-shell, button, input {
   border: none !important;
   padding: 0 !important;
 }
+
+/* ==========================================================================
+   PREMIUM APPLE HOVER & ACTIVE/SELECTED STATE OVERHAUL
+   ========================================================================== */
+
+/* 1. Global Sidebar Links & Tree Navigation */
+.sidebar-link:hover,
+.left-pages-panel__item:hover,
+.home-folder-tree__row:hover .home-folder-tree__button {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--ap-text-primary) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-link.is-active,
+.left-pages-panel__item--active,
+.home-sidebar-section--active,
+.home-folder-tree__row--active .home-folder-tree__button,
+.home-folder-tree__root--active {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  background-image: none !important; /* Discard retro glares */
+  color: var(--ap-text-primary) !important;
+  box-shadow: none !important;
+}
+
+.left-pages-panel__item--active .left-pages-panel__item-title,
+.left-pages-panel__item--active .left-pages-panel__item-input,
+.home-sidebar-section--active .home-sidebar-section__label,
+.home-sidebar-section--active .home-sidebar-section__count,
+.home-sidebar-section--active .home-sidebar-section__icon {
+  color: var(--ap-text-primary) !important;
+}
+
+/* 2. Grid Browser Card Hover & Selected Overhaul */
+.browser-card.is-selected {
+  background-color: #ffffff !important;
+  color: var(--ap-text-primary) !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+}
+
+.browser-card.is-selected .browser-card-title {
+  color: var(--ap-text-primary) !important;
+}
+
+/* 3. List Rows Hover & Selected Overhaul */
+.list-row:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.list-row.is-selected {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--ap-text-primary) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: none !important;
+}
+
+/* 4. Segmented Control Toggle Button Hovers */
+.home-view-toggle__button:not(.is-active):hover,
+.workspace-view-toggle__button:not(.is-active):hover,
+.grid-view-filter-toggle__button:not(.is-active):hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--ap-text-primary) !important;
+}
+
+/* 5. Titlebar Tab Bar Hover Fix */
+.titlebar-tab:not(.titlebar-tab--active):hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--ap-text-primary) !important;
+}
+
+.titlebar-tab--active:hover {
+  background: #ffffff !important;
+  color: var(--ap-text-primary) !important;
+}
+
+/* ==========================================================================
+   SLEEK MODERN PAGES PANEL REDESIGN (DE-PIXELATION OVERRIDE)
+   ========================================================================== */
+
+/* 1. Sidebar Container */
+.left-pages-panel,
+.left-pages-panel--drawer {
+  background-color: #f5f5f7 !important; /* Elegant macOS sidebar light grey */
+  background-image: none !important;   /* Discard 80s gradients */
+  border: none !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important; /* Clean vector line separator */
+  box-shadow: none !important;
+}
+
+/* 2. Header and Title (Scoping to Not-Collapsed to preserve spacing) */
+.left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__header {
+  border-bottom: none !important;
+  background: transparent !important;
+  padding: 14px 16px 8px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  min-height: auto !important;
+}
+
+.left-pages-panel__title {
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--ap-text-secondary) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  opacity: 0.8 !important;
+}
+
+/* Collapsed Header Spacing Fix */
+.left-pages-panel--collapsed .left-pages-panel__header {
+  border-bottom: none !important;
+  background: transparent !important;
+  padding: 14px 0 8px 0 !important;
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: auto !important;
+}
+
+/* 3. Icon Buttons (Header actions) */
+.left-pages-panel__icon-button {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 6px !important;
+  color: var(--ap-text-secondary) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+.left-pages-panel__icon-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  color: var(--ap-text-primary) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.left-pages-panel__icon-button:active:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Collapsed actions stacking */
+.left-pages-panel--collapsed .left-pages-panel__header-actions {
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+
+/* 4. List Items Container & Entries */
+.left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__list {
+  padding: 0 8px !important;
+  gap: 2px !important; /* Compact, tight alignment */
+}
+
+.left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__item {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 28px !important; /* Ultra-sleek standard macOS item height */
+  height: 28px !important;
+  padding: 0 10px !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  color: var(--ap-text-secondary) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
+  transform: none !important;
+}
+
+/* Inactive Item Hover */
+.left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__item:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  color: var(--ap-text-primary) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Active Item State */
+.left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__item--active {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--ap-text-primary) !important;
+  font-weight: 600 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Dragged Item Style */
+.left-pages-panel__item--dragged {
+  opacity: 0.4 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 5. Icons & Copy Alignment Spacing Reset */
+.left-pages-panel__item-icon {
+  margin-right: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  color: var(--ap-text-secondary) !important;
+  opacity: 0.7 !important;
+  transition: color 0.15s ease, opacity 0.15s ease !important;
+}
+
+.left-pages-panel__item:hover .left-pages-panel__item-icon,
+.left-pages-panel__item--active .left-pages-panel__item-icon {
+  color: var(--ap-text-primary) !important;
+  opacity: 1 !important;
+}
+
+/* Spacing fix: reset margin-left since we use flexbox gap of 8px */
+.left-pages-panel__item-copy {
+  margin-left: 0 !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.left-pages-panel__item-title {
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: inherit !important;
+}
+
+.left-pages-panel__item--active .left-pages-panel__item-title {
+  font-weight: 600 !important;
+}
+
+/* 6. Collapsed Sidebar Spacing & Item Overrides */
+.left-pages-panel--collapsed .left-pages-panel__body {
+  padding: 8px 0 !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__list {
+  padding: 0 4px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__item {
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease, transform 0.15s ease !important;
+  transform: none !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__item:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__item--active {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__item-icon {
+  margin: 0 !important;
+  opacity: 0.8 !important;
+}
+
+.left-pages-panel--collapsed .left-pages-panel__item-copy {
+  display: none !important;
+}
+
+/* 7. Rename Input Box */
+.left-pages-panel__item-input {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  color: var(--ap-text-primary) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  height: 20px !important;
+  margin: 0 !important;
+  padding: 1px 6px !important;
+  width: 100% !important;
+  outline: none !important;
+}
+
+.left-pages-panel__item-input:focus {
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+/* 8. Collapsed Sidebar Rail Style (Fallback Narrow Layout) */
+.left-pages-rail {
+  background-color: #f5f5f7 !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.left-pages-rail__button {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 9. Drag and Drop Indicators Overrides */
+.left-pages-panel__item--drop-before::before,
+.left-pages-panel__item--drop-after::after {
+  background-color: var(--ap-text-primary) !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* 10. Empty Sidebar State */
+.left-pages-panel__empty {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: var(--ap-text-secondary) !important;
+  padding: 32px 16px !important;
+  text-align: center !important;
+}
+
+.left-pages-panel__empty-icon {
+  margin-bottom: 8px !important;
+  color: var(--ap-text-tertiary) !important;
+  opacity: 0.6 !important;
+}
+
+.left-pages-panel__empty-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--ap-text-primary) !important;
+  margin-bottom: 4px !important;
+}
+
+.left-pages-panel__empty-copy {
+  font-size: 11px !important;
+  color: var(--ap-text-secondary) !important;
+  line-height: 1.4 !important;
+}
+
+/* ==========================================================================
+   CANVAS BOARD BACKGROUND RE-STYLING (SUBTLE OFF-WHITE NEUTRAL GREY)
+   ========================================================================== */
+#canvas-board,
+.canvas-stage {
+  background-color: #f4f5f6 !important;
+  background-image: none !important; /* Discard any shiny overlays */
+}
+
+/* ==========================================================================
+   PREMIUM MODERN QUICK ACTION POPUP BUTTONS REDESIGN
+   ========================================================================== */
+.card__quick-actions {
+  position: absolute !important;
+  top: -18px !important; /* Float elegantly above the card edge */
+  right: 12px !important;
+  z-index: 1000 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  padding: 4px !important;
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.02) !important;
+  pointer-events: auto !important;
+}
+
+.card__quick-action {
+  height: 24px !important;
+  padding: 0 10px !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--ap-text-primary) !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 24px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+  box-shadow: none !important;
+}
+
+.card__quick-action:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: var(--ap-text-primary) !important;
+}
+
+.card__quick-action:active {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.card__quick-action:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  background: transparent !important;
+}

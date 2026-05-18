@@ -3216,11 +3216,13 @@ option {
 }
 
 .card__surface-frame--selected .card__surface:not(.card__surface--music) {
-  outline: 2px solid rgba(185, 175, 255, 0.92);
+  outline: 1px solid rgba(185, 175, 255, 0.52);
+  outline-offset: 0px;
 }
 
 .card__surface-frame--selected .card__record-sleeve {
-  outline: 2px solid rgba(185, 175, 255, 0.92);
+  outline: 1px solid rgba(185, 175, 255, 0.52);
+  outline-offset: 0px;
   box-shadow: none;
   filter: none;
 }
@@ -3394,6 +3396,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card__surface--link {
+  position: relative;
   height: var(--tile-height);
   text-decoration: none;
   color: inherit;
@@ -4034,6 +4037,8 @@ intentional so the top edge reads much shorter than the bottom edge. */
   object-fit: cover;
 }
 
+/* Link previews often contain webpage headers with text; bias crop down slightly. */
+
 .card__image-reveal {
   position: relative;
   width: 100%;
@@ -4501,56 +4506,72 @@ intentional so the top edge reads much shorter than the bottom edge. */
   position: absolute;
   inset: 0;
   pointer-events: none;
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  padding: 12px;
-  justify-items: center;
+  display: block;
 }
 
 .card__link-float-overlay__title {
-  width: max-content;
-  max-width: min(92%, 320px);
-  padding: 7px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
-  color: rgba(14, 14, 14, 0.92);
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  /* Sit above the tile surface (no overlap with preview content). */
+  top: -18px;
+  pointer-events: none;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(18, 18, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  /* Backdrop blur is expensive across many tiles; enable only on hover/focus. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.01em;
   line-height: 1.25;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform: translateY(0px) scale(1);
+  transform: translateY(8px);
   opacity: 0;
+  visibility: hidden;
+  will-change: transform, opacity;
   transition:
     transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card__link-float-overlay__title,
+.card__link-float-overlay__hint,
+.card__link-desc {
+  contain: paint;
 }
 
 .card__link-float-overlay__hint {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 46px;
+  margin: 0 auto;
   width: max-content;
   max-width: min(100%, 260px);
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.14);
-  color: rgba(18, 18, 18, 0.72);
+  background: rgba(18, 18, 18, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: -0.01em;
   opacity: 0;
-  transform: translateY(-2px);
+  visibility: hidden;
+  will-change: transform, opacity;
+  transform: translateY(8px);
   transition:
     transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -4558,16 +4579,21 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card--hovered:not(.card--dragging) .card__link-float-overlay__title,
 .card--focused:not(.card--dragging) .card__link-float-overlay__title {
-  transform: translateY(-14px) scale(1.02);
+  transform: translateY(0px);
   opacity: 1;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
-  background: rgba(255, 255, 255, 0.82);
+  visibility: visible;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.28);
 }
 
 .card--hovered:not(.card--dragging) .card__link-float-overlay__hint,
 .card--focused:not(.card--dragging) .card__link-float-overlay__hint {
   opacity: 0.9;
-  transform: translateY(-8px);
+  visibility: visible;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  transform: translateY(0px);
 }
 
 .card__link-desc {
@@ -4580,10 +4606,12 @@ intentional so the top edge reads much shorter than the bottom edge. */
   border-radius: 14px;
   background: rgba(18, 18, 18, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
   opacity: 0;
+  visibility: hidden;
+  will-change: transform, opacity;
   transform: translateY(10px);
   transition:
     transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -4605,6 +4633,9 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__surface-frame--link-desc-expanded .card__link-desc {
   opacity: 1;
+  visibility: visible;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
   transform: translateY(0px);
 }
 

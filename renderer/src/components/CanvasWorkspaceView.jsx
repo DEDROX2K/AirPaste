@@ -15,6 +15,7 @@ import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
+import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
 import {
   CODE_CARD_TYPE,
   CANVAS_TEXT_CARD_TYPE,
@@ -614,6 +615,7 @@ function CanvasPerformanceOverlay({
   workspaceLodLevel,
   lodLevelCounts,
   previewTierCounts,
+  onOpenTestingTilesCanvas,
 }) {
   const { toast } = useToast();
   const overlayRef = useRef(null);
@@ -855,6 +857,17 @@ function CanvasPerformanceOverlay({
           <span className={`canvas-perf-overlay__state canvas-perf-overlay__state--${isCanvasMoving ? "moving" : "idle"}`}>
             {isCanvasMoving ? "moving" : "idle"}
           </span>
+          {onOpenTestingTilesCanvas ? (
+            <AppButton
+              tone="unstyled"
+              className="canvas-perf-overlay__copy"
+              type="button"
+              onClick={() => { void onOpenTestingTilesCanvas(); }}
+            >
+              Dev
+            </AppButton>
+          ) : null}
+          <AppButton tone="unstyled" className="canvas-perf-overlay__copy" type="button" onClick={() => window.dispatchEvent(new CustomEvent("airpaste:toggleDevConsole"))} title="Toggle developer console (Ctrl+`)">Console</AppButton>
           <AppButton tone="unstyled"
             className="canvas-perf-overlay__copy"
             type="button"
@@ -961,6 +974,7 @@ export default function CanvasWorkspaceView() {
     folderLoading,
     folderPath,
     homeData,
+    openTestingTilesCanvas,
     openExistingWorkspace,
     saveHomeUiState,
     setCanvasInteractionState,
@@ -998,6 +1012,7 @@ export default function CanvasWorkspaceView() {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isStopwatchOpen, setIsStopwatchOpen] = useState(false);
   const [canvasViewportSize, setCanvasViewportSize] = useState({ width: 0, height: 0 });
+  const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const textBoxEditRequestIdRef = useRef(0);
   const stickerDragStateRef = useRef(null);
   const stickerPlacementStatesRef = useRef([]);
@@ -2815,6 +2830,7 @@ export default function CanvasWorkspaceView() {
           workspaceLodLevel={workspaceLodLevel}
           lodLevelCounts={lodLevelCounts}
           previewTierCounts={previewTierCounts}
+          onOpenTestingTilesCanvas={showDeveloperQaActions ? openTestingTilesCanvas : null}
         />
 
         {/* Empty states */}

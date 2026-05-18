@@ -2632,6 +2632,11 @@ async function createWindow() {
     hasShadow: true,
     roundedCorners: true,
     titleBarStyle: "hidden",
+    titleBarOverlay: process.platform === "win32" ? {
+      color: "#ffffff",
+      symbolColor: "#1c1c1e",
+      height: 36
+    } : false,
     show: false,
     title: "AirPaste",
     ...(windowIconPath ? { icon: windowIconPath } : {}),
