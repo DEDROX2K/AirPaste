@@ -2585,7 +2585,7 @@ export default function CanvasWorkspaceView() {
   // ── Grid View short-circuit ─────────────────────────────────────────────
   if (isGridMode) {
     return (
-      <main className="canvas-stage canvas-stage--grid">
+      <main className="canvas-stage canvas-stage--grid" data-airpaste-canvas-capture-root>
 
         <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
@@ -2662,6 +2662,7 @@ export default function CanvasWorkspaceView() {
       <div
         ref={canvas.containerRef}
         id="canvas-board"
+        data-airpaste-canvas-capture-root
         className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}

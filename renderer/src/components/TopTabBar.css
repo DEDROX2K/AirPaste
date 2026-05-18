@@ -1,40 +1,53 @@
+/* ==========================================================================
+   AirPaste Premium Apple Minimalist Top Tab Bar & Titlebar
+   ========================================================================== */
+
 .titlebar-root {
   position: relative;
-  z-index: 20;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 52px;
-  padding: 6px 16px;
-  border-bottom: 1px solid var(--ap-border-subtle);
-  background: var(--ap-surface-default);
-  backdrop-filter: blur(20px) saturate(1.9);
+  min-height: 36px;
+  padding: 0 16px !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(1.9) !important;
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: drag;
   overflow: visible;
 }
 
+/* Flex distribution preventing any absolute overlapping */
 .titlebar-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex: 1 1 0;
   min-width: 0;
   overflow: visible;
+}
+
+#titlebar-center-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  z-index: 3;
 }
 
 .titlebar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
   flex: 1 1 0;
   min-width: 0;
-  -webkit-app-region: no-drag;
 }
 
+/* Clean Elegant Brand Caption (Box Removed) */
 .titlebar-brand {
   display: inline-flex;
   align-items: center;
@@ -43,62 +56,41 @@
   flex: 0 0 auto;
 }
 
-.titlebar-app-mark,
-.titlebar-caption,
-.titlebar-beta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  border: 1px solid var(--ap-border-default);
-  background: var(--ap-surface-inset);
-  color: var(--ap-text-primary);
-  border-radius: var(--ap-radius-md);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.titlebar-app-mark,
-.titlebar-caption,
-.titlebar-beta,
-.titlebar-tab,
-.titlebar-btn,
-#titlebar-right-slot button,
-#titlebar-right-slot .zoom-menu__trigger,
-#titlebar-center-slot button {
-  font-family: var(--ap-font-body);
-}
-
-.titlebar-app-mark {
-  width: 28px;
-  min-width: 28px;
-  font-size: 13px;
-}
-
 .titlebar-caption {
-  position: relative;
-  padding: 0 14px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--ap-text-primary) !important;
+  opacity: 0.88;
 }
 
 .titlebar-beta {
-  padding: 0 8px;
-  background: var(--ap-accent-bg);
-  color: var(--ap-text-on-accent);
-  font-size: 10px;
-  font-weight: 700;
+  padding: 2px 6px !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--ap-text-secondary) !important;
+  border-radius: 4px !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
 }
 
+/* Safari/Chrome modern macOS tab layout */
 .titlebar-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
   justify-content: flex-start;
-  padding: 4px;
+  padding: 4px 0;
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: none;
@@ -113,92 +105,120 @@
   flex-shrink: 0;
   min-width: 0;
   padding-block: 2px;
+  position: relative;
+}
+
+/* Micro separator lines between tabs (Safari-style) */
+.titlebar-tab-shell:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  transition: opacity 0.15s ease;
 }
 
 .titlebar-tab-shell--dragging {
   opacity: 0.68;
 }
 
+/* Pill/Floating Card active tab style */
 .titlebar-tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
-  padding: 6px 14px;
-  border: 1px solid var(--ap-border-default) !important;
-  border-radius: var(--ap-radius-md) !important;
-  background: var(--ap-surface-raised);
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: transparent !important;
   color: var(--ap-text-secondary);
   cursor: pointer;
   -webkit-app-region: no-drag;
-  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif !important;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-  transition: all 0.15s ease-out;
+  box-shadow: none !important;
+  transition: all 0.12s ease-out;
 }
 
+/* Hover state: elegant translucent capsule background */
 .titlebar-tab:hover {
-  background: var(--ap-interactive-bg-hover);
+  background: rgba(0, 0, 0, 0.04) !important;
   color: var(--ap-text-primary);
-  border-color: var(--ap-border-strong) !important;
 }
 
+/* Active State: crisp white floating pill card */
 .titlebar-tab--active {
-  background: var(--ap-surface-inset) !important;
+  background: #ffffff !important;
   color: var(--ap-text-primary) !important;
-  border-color: var(--ap-border-strong) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Hide neighboring separators when a tab is hovered or active */
+.titlebar-tab-shell:has(.titlebar-tab:hover)::before,
+.titlebar-tab-shell:has(.titlebar-tab--active)::before,
+.titlebar-tab-shell:hover + .titlebar-tab-shell::before,
+.titlebar-tab-shell:has(.titlebar-tab--active) + .titlebar-tab-shell::before {
+  opacity: 0;
 }
 
 .titlebar-tab--home {
-  width: 36px;
-  min-width: 36px;
+  width: 32px;
+  min-width: 32px;
   justify-content: center;
   padding: 0;
-  margin-right: 4px;
 }
 
 .titlebar-tab--file {
-  min-width: 100px;
-  max-width: 200px;
+  min-width: 90px;
+  max-width: 180px;
 }
 
 .titlebar-home-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
 }
 
 .titlebar-home-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .titlebar-tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 1;
 }
 
 .titlebar-tab-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--ap-text-tertiary);
+  color: var(--ap-text-secondary);
+  opacity: 0.6;
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.12s ease;
+}
+
+.titlebar-tab:hover .titlebar-tab-close {
+  opacity: 1;
 }
 
 .titlebar-tab-close:hover {
@@ -207,18 +227,11 @@
 }
 
 .titlebar-tab-close svg {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
-#titlebar-center-slot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  z-index: 3;
-}
-
+/* Right side controls */
 #titlebar-right-slot {
   display: flex;
   align-items: center;
@@ -231,17 +244,18 @@
   -webkit-app-region: no-drag;
 }
 
+/* Style clean action buttons in titlebar (zoom/minimap) */
 #titlebar-right-slot button,
 #titlebar-right-slot .zoom-menu__trigger,
 #titlebar-center-slot button {
-  min-height: 32px !important;
-  padding: 6px 12px !important;
-  border: 1px solid var(--ap-border-default) !important;
-  border-radius: var(--ap-radius-md) !important;
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 6px !important;
   background: #ffffff !important;
   color: var(--ap-text-primary) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-  font-size: 13px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
   transition: all 0.15s ease;
 }
@@ -249,62 +263,105 @@
 #titlebar-right-slot button:hover,
 #titlebar-right-slot .zoom-menu__trigger:hover,
 #titlebar-center-slot button:hover {
-  background: var(--ap-interactive-bg-hover) !important;
-  border-color: var(--ap-border-strong) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
 }
 
+/* Platform-Specific Titlebar Controls */
 .titlebar-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex !important;
   flex-shrink: 0;
-  margin-left: 12px;
   -webkit-app-region: no-drag;
 }
 
-/* Premium Apple traffic light dots */
-.titlebar-btn {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  border-radius: 50% !important;
-  border: none !important;
-  background-color: var(--ap-border-strong) !important;
-  box-shadow: none !important;
-  cursor: pointer;
-  margin: 0;
-  transition: background-color 0.15s ease;
+/* --- Windows Vector Titlebar styling --- */
+.titlebar-controls--win {
+  align-items: stretch !important;
+  height: 36px !important; /* Spans full height of the header for perfect native feel */
+  gap: 0 !important;
+  margin-right: -16px !important; /* Extends to the very edge of the container */
 }
 
-.titlebar-btn.is-close {
+.titlebar-btn--win {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 46px !important;
+  height: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: var(--ap-text-primary) !important;
+  opacity: 0.88 !important;
+  cursor: default !important;
+  transition: background-color 0.1s ease, color 0.1s ease !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.titlebar-btn--win:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--ap-text-primary) !important;
+  opacity: 1 !important;
+}
+
+.titlebar-btn--win.is-close:hover {
+  background: #e81123 !important; /* Native Windows close button highlight */
+  color: #ffffff !important;
+}
+
+.titlebar-btn--win svg {
+  width: 10px;
+  height: 10px;
+  color: currentColor;
+}
+
+/* --- macOS Traffic Lights styling --- */
+.titlebar-controls--mac {
+  align-items: center !important;
+  gap: 8px !important;
+  margin-right: 14px !important;
+  margin-left: 4px !important;
+}
+
+.titlebar-btn--mac {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  position: relative;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s ease !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.titlebar-btn--mac.is-close {
   background-color: #ff5f56 !important;
 }
-.titlebar-btn.is-close:hover {
+.titlebar-btn--mac.is-close:hover {
   background-color: #ff3b30 !important;
 }
 
-.titlebar-btn.is-minimize {
+.titlebar-btn--mac.is-minimize {
   background-color: #ffbd2e !important;
 }
-.titlebar-btn.is-minimize:hover {
+.titlebar-btn--mac.is-minimize:hover {
   background-color: #ff9500 !important;
 }
 
-.titlebar-btn.is-maximize {
+.titlebar-btn--mac.is-maximize {
   background-color: #27c93f !important;
 }
-.titlebar-btn.is-maximize:hover {
+.titlebar-btn--mac.is-maximize:hover {
   background-color: #34c759 !important;
-}
-
-.titlebar-btn::before,
-.titlebar-btn::after {
-  display: none !important;
 }
 
 .titlebar-tab-menu {
@@ -322,8 +379,8 @@
   }
 
   .titlebar-tab--file {
-    min-width: 88px;
-    max-width: 148px;
+    min-width: 80px;
+    max-width: 130px;
   }
 }
 
@@ -338,10 +395,5 @@
 
   .titlebar-right {
     margin-left: 0;
-  }
-
-  .titlebar-tab--file {
-    min-width: 80px;
-    max-width: 120px;
   }
 }

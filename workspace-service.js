@@ -1,4 +1,5 @@
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const { createHash, randomUUID } = require("node:crypto");
 const {
@@ -20,6 +21,7 @@ const UI_STATE_FILE = "ui-state.json";
 const STATE_FILE = "state.json";
 const MAX_RECENTS = 25;
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
+const CANVAS_THUMB_DIR_SEGMENTS = Object.freeze([INTERNAL_DIR, "previews", "canvas-thumbs"]);
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
 const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
@@ -364,7 +366,7 @@ function normalizeUiState(uiState) {
     ...safe,
     version: DEFAULT_UI_STATE.version,
     selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
-    homeView: ["grid", "list"].includes(safe.homeView) ? safe.homeView : "grid",
+    homeView: ["grid", "list", "sheets", "cards"].includes(safe.homeView) ? safe.homeView : "grid",
     sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
     filter: ["all", "canvases", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
     currentFolderPath: normalizeFolder(safe.currentFolderPath),
@@ -529,7 +531,7 @@ function mapScannedItemForResponse(root, item, state) {
       name: firstString(page?.name, `Page ${index + 1}`),
     }))
     : [];
-  return {
+  const response = {
     id: item.id ?? null,
     path: item.path,
     filePath: resolveWorkspacePath(root, item.path),
@@ -544,6 +546,16 @@ function mapScannedItemForResponse(root, item, state) {
     tileCount: Number.isFinite(item.tileCount) ? item.tileCount : 0,
     pages,
   };
+
+  if (item.type === "canvas" && typeof item.path === "string" && item.path.trim()) {
+    const normalizedRelPath = normalizeRel(item.path, "");
+    const thumbId = createHash("sha1").update(normalizedRelPath).digest("hex").slice(0, 20);
+    const thumbRelPath = normalizeRel(path.join(...CANVAS_THUMB_DIR_SEGMENTS, `${thumbId}.jpg`), "");
+    const thumbAbsPath = path.join(root, thumbRelPath);
+    response.thumbnailPath = fsSync.existsSync(thumbAbsPath) ? thumbRelPath : null;
+  }
+
+  return response;
 }
 
 function compareUpdatedDesc(a, b) {

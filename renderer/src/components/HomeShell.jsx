@@ -11,6 +11,7 @@ import {
 } from "../lib/home";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
+import { desktop } from "../lib/desktop";
 import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
 import "./HomeShellPrototype.css";
 
@@ -243,80 +244,218 @@ function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
   );
 }
 
-function HomeSheetsView({ pages, onOpenPage }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const visibleDepth = 7;
+function HomeSheetsView({ folderPath, pages, thumbnailPathByCanvasPath, onOpenPage }) {
+  const listRef = useRef(null);
+  const cardRefs = useRef(new Map());
+  const [repeatCount, setRepeatCount] = useState(2);
+  const renderPages = useMemo(() => {
+    if (!Array.isArray(pages) || pages.length === 0) return [];
+    const repeated = [];
+    const count = Math.max(1, repeatCount);
+    for (let i = 0; i < count; i += 1) {
+      pages.forEach((page) => repeated.push({ ...page, __repeatKey: `${i}:${page.sheetId}` }));
+    }
+    return repeated;
+  }, [pages, repeatCount]);
+
+  const [thumbUrlsByCanvasPath, setThumbUrlsByCanvasPath] = useState(() => ({}));
 
   useEffect(() => {
-    setActiveIndex(0);
-  }, [pages.length]);
+    let cancelled = false;
+
+    async function resolveThumbs() {
+      if (!folderPath) {
+        setThumbUrlsByCanvasPath({});
+        return;
+      }
+
+      const entries = await Promise.all(Object.entries(thumbnailPathByCanvasPath || {}).map(async ([canvasFilePath, thumbPath]) => {
+        if (!thumbPath) return [canvasFilePath, ""];
+        const resolved = await desktop.workspace.resolveAssetUrl(folderPath, thumbPath, { previewTier: "original" });
+        return [canvasFilePath, resolved || ""];
+      }));
+
+      if (cancelled) return;
+      setThumbUrlsByCanvasPath(Object.fromEntries(entries));
+    }
+
+    void resolveThumbs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderPath, thumbnailPathByCanvasPath]);
+
+  const handleScroll = useCallback(() => {
+    const node = listRef.current;
+    if (!node) return;
+    const nearBottom = node.scrollTop + node.clientHeight > node.scrollHeight - 900;
+    if (nearBottom) {
+      setRepeatCount((count) => Math.min(12, count + 1));
+    }
+  }, []);
 
   useEffect(() => {
-    if (prefersReducedMotion || isPaused || pages.length <= 1) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % pages.length);
-    }, 2500);
-    return () => window.clearInterval(timer);
-  }, [isPaused, pages.length, prefersReducedMotion]);
+    const node = listRef.current;
+    if (!node) return undefined;
 
-  const visiblePages = useMemo(() => {
-    if (!pages.length) {
-      return [];
-    }
-    const stack = [];
-    const maxDepth = Math.min(visibleDepth, pages.length);
-    for (let depth = 0; depth < maxDepth; depth += 1) {
-      const page = pages[(activeIndex + depth) % pages.length];
-      stack.push({ ...page, depth });
-    }
-    return stack.reverse();
-  }, [activeIndex, pages]);
+    let rafId = 0;
+    const tick = () => {
+      const viewportTop = 0;
+      const viewportHeight = node.clientHeight || window.innerHeight || 1;
+      const centerY = viewportTop + viewportHeight * 0.5;
 
-  if (!pages.length) {
+      cardRefs.current.forEach((el) => {
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const cardCenter = rect.top + rect.height * 0.5;
+        const distance = (cardCenter - centerY) / viewportHeight; // ~ -0.5..0.5
+        const clamped = Math.max(-0.8, Math.min(0.8, distance));
+        const abs = Math.abs(clamped);
+        const tilt = clamped * -18; // degrees
+        const scale = 1 - abs * 0.12;
+        const blur = abs * 2.2;
+        el.style.setProperty("--sheet-tilt", `${tilt}deg`);
+        el.style.setProperty("--sheet-scale", `${scale}`);
+        el.style.setProperty("--sheet-blur", `${blur}px`);
+      });
+
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [renderPages.length]);
+
+  if (!Array.isArray(pages) || pages.length === 0) {
     return (
       <section className="empty-card home-sheets-empty">
         <div className="eyebrow">Sheets</div>
-        <h2 className="dialog-title">No canvas pages yet</h2>
-        <p className="muted-copy">Create pages inside a canvas to populate this rotating stack.</p>
+        <h2 className="dialog-title">No canvases yet</h2>
+        <p className="muted-copy">Create canvases to populate this scrollable preview list.</p>
       </section>
     );
   }
 
   return (
-    <div
-      className="home-browser-sheets"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocus={() => setIsPaused(true)}
-      onBlur={() => setIsPaused(false)}
-    >
-      {visiblePages.map((page) => (
-        <article
-          key={page.sheetId}
-          className={`home-sheet-card${page.depth === 0 ? " is-front" : ""}`}
-          style={{
-            "--sheet-depth": page.depth,
-            zIndex: visibleDepth - page.depth,
-          }}
-        >
-          <div className="home-sheet-card__titlebar">
-            <span className="home-sheet-card__close">x</span>
-            <span className="home-sheet-card__title">{page.displayName}</span>
-          </div>
-          <button
-            type="button"
-            className="home-sheet-card__surface"
-            onClick={() => onOpenPage(page)}
+    <div className="home-browser-sheets home-browser-sheets--scroll" ref={listRef} onScroll={handleScroll}>
+      {renderPages.map((page) => {
+        const thumbUrl = thumbUrlsByCanvasPath[page.canvasFilePath] || "";
+        return (
+          <article
+            key={page.__repeatKey}
+            className="home-sheet-card home-sheet-card--scroll"
+            ref={(node) => {
+              if (!node) {
+                cardRefs.current.delete(page.__repeatKey);
+                return;
+              }
+              cardRefs.current.set(page.__repeatKey, node);
+            }}
           >
-            <span className="home-sheet-card__canvas-name">{page.canvasName}</span>
-            <span className="home-sheet-card__page-name">{page.pageName}</span>
-          </button>
-        </article>
-      ))}
+            <div className="home-sheet-card__titlebar">
+              <span className="home-sheet-card__close">x</span>
+              <span className="home-sheet-card__title">{page.displayName}</span>
+            </div>
+            <button
+              type="button"
+              className="home-sheet-card__surface home-sheet-card__surface--thumb"
+              onClick={() => onOpenPage(page)}
+            >
+              {thumbUrl ? (
+                <img className="home-sheet-card__thumb-image" src={thumbUrl} alt="" loading="lazy" />
+              ) : (
+                <div className="home-sheet-card__thumb-placeholder" aria-hidden="true" />
+              )}
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar }) {
+  const [thumbUrls, setThumbUrls] = useState(() => ({}));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveThumbnails() {
+      if (!folderPath || !Array.isArray(canvases) || canvases.length === 0) {
+        setThumbUrls({});
+        return;
+      }
+
+      const entries = await Promise.all(canvases.map(async (item) => {
+        if (!item?.thumbnailPath) {
+          return [itemKey(item), ""];
+        }
+        const resolved = await desktop.workspace.resolveAssetUrl(folderPath, item.thumbnailPath, { previewTier: "original" });
+        return [itemKey(item), resolved || ""];
+      }));
+
+      if (cancelled) return;
+      setThumbUrls(Object.fromEntries(entries));
+    }
+
+    void resolveThumbnails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canvases, folderPath]);
+
+  if (!Array.isArray(canvases) || canvases.length === 0) {
+    return (
+      <section className="empty-card home-cards-empty">
+        <div className="eyebrow">Cards</div>
+        <h2 className="dialog-title">No canvases yet</h2>
+        <p className="muted-copy">Create a canvas to see it appear here as a card with a live preview.</p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="home-browser-cards" role="list">
+      {canvases.map((item) => {
+        const thumbUrl = thumbUrls[itemKey(item)] || "";
+        const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
+        const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
+        return (
+          <article key={itemKey(item)} className="home-canvas-card" role="listitem">
+            <button
+              type="button"
+              className="home-canvas-card__hit"
+              onClick={() => onOpenCanvas(item)}
+            >
+              <div className="home-canvas-card__thumb">
+                {thumbUrl ? (
+                  <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+                ) : (
+                  <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
+                )}
+              </div>
+              <div className="home-canvas-card__meta">
+                <div className="home-canvas-card__title">{item.name}</div>
+                <div className="home-canvas-card__subtitle">Edited {formatRelativeTime(item.updatedAt)}</div>
+                <div className="home-canvas-card__stats">
+                  <span className="home-canvas-card__stat">{tileCount} tiles</span>
+                  <span className="home-canvas-card__stat">{pageCount} pages</span>
+                </div>
+              </div>
+            </button>
+
+            <div className="home-canvas-card__actions">
+              <AppButton type="button" tone="surface" onClick={() => onToggleStar(item)}>
+                {item.starred ? "Starred" : "Star"}
+              </AppButton>
+              <AppButton type="button" tone="surface" onClick={() => onRename(item)}>Rename</AppButton>
+              <AppButton type="button" tone="danger" onClick={() => onDelete(item)}>Delete</AppButton>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -499,6 +638,7 @@ export default function HomeShell() {
     refreshDomes,
     refreshHomeData,
     removeDome,
+    backfillCanvasThumbnails,
     renameItemEntry,
     revealDome,
     saveHomeUiState,
@@ -516,18 +656,29 @@ export default function HomeShell() {
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [homeViewMode, setHomeViewMode] = useState(() => (
-    normalizeHomePreferences(homeData.uiState).viewMode === "sheets" ? "sheets" : "list"
+    normalizeHomePreferences(homeData.uiState).viewMode === "sheets"
+      ? "sheets"
+      : normalizeHomePreferences(homeData.uiState).viewMode === "cards"
+        ? "cards"
+        : "list"
   ));
   const listButtonRefs = useRef([]);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const browserViewMode = homeViewMode;
   const isSheetsView = browserViewMode === "sheets";
+  const isCardsView = browserViewMode === "cards";
 
   useEffect(() => {
     const normalizedPreferences = normalizeHomePreferences(homeData.uiState);
     setNavigation(normalizeHomeNavigation(homeData.uiState));
     setHomePreferences(normalizedPreferences);
-    setHomeViewMode(normalizedPreferences.viewMode === "sheets" ? "sheets" : "list");
+    setHomeViewMode(
+      normalizedPreferences.viewMode === "sheets"
+        ? "sheets"
+        : normalizedPreferences.viewMode === "cards"
+          ? "cards"
+          : "list"
+    );
   }, [homeData.uiState]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
@@ -598,9 +749,17 @@ export default function HomeShell() {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
     const nextViewMode = forcedViewMode === "sheets"
       ? "sheets"
+      : forcedViewMode === "cards"
+        ? "cards"
       : forcedViewMode === "list"
         ? "list"
-        : (nextPreferences?.viewMode === "sheets" ? "sheets" : "list");
+        : (
+          nextPreferences?.viewMode === "sheets"
+            ? "sheets"
+            : nextPreferences?.viewMode === "cards"
+              ? "cards"
+              : "list"
+        );
     const persistedPreferences = {
       ...nextPreferences,
       viewMode: nextViewMode,
@@ -660,6 +819,11 @@ export default function HomeShell() {
   const browserItems = useMemo(
     () => buildBrowserItems(sectionItems, homePreferences, searchQuery),
     [homePreferences, searchQuery, sectionItems],
+  );
+
+  const canvasItems = useMemo(
+    () => browserItems.filter((item) => item.type === "canvas"),
+    [browserItems],
   );
 
   const sheetPages = useMemo(() => {
@@ -822,9 +986,9 @@ export default function HomeShell() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={!isSheetsView}
-                aria-pressed={!isSheetsView}
-                className={`home-view-toggle__button${!isSheetsView ? " is-active" : ""}`}
+                aria-selected={!isSheetsView && !isCardsView}
+                aria-pressed={!isSheetsView && !isCardsView}
+                className={`home-view-toggle__button${!isSheetsView && !isCardsView ? " is-active" : ""}`}
                 onClick={() => {
                   const nextPreferences = { ...homePreferences, viewMode: "list" };
                   setHomeViewMode("list");
@@ -833,6 +997,21 @@ export default function HomeShell() {
                 }}
               >
                 List
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isCardsView}
+                aria-pressed={isCardsView}
+                className={`home-view-toggle__button${isCardsView ? " is-active" : ""}`}
+                onClick={() => {
+                  const nextPreferences = { ...homePreferences, viewMode: "cards" };
+                  setHomeViewMode("cards");
+                  setHomePreferences(nextPreferences);
+                  persistHomeContext(navigation, nextPreferences, 0, {}, "cards");
+                }}
+              >
+                Cards
               </button>
               <button
                 type="button"
@@ -853,6 +1032,14 @@ export default function HomeShell() {
             {showDeveloperQaActions ? (
               <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void openTestingTilesCanvas()}>Testing Tiles</AppButton>
             ) : null}
+            <AppButton
+              type="button"
+              tone="surface"
+              disabled={!hasWorkspace || folderLoading}
+              onClick={() => void backfillCanvasThumbnails(12)}
+            >
+              Backfill previews
+            </AppButton>
             <AppButton type="button" tone="surface" disabled={!hasWorkspace} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>Import Files</AppButton>
             <AppButton type="button" tone="surface" disabled={!folderPath || folderLoading} onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}>More</AppButton>
           </div>
@@ -881,7 +1068,21 @@ export default function HomeShell() {
                   <div className="eyebrow is-clean">{browserItems.length} Items</div>
                 </div>
                 {isSheetsView ? (
-                  <HomeSheetsView pages={sheetPages} onOpenPage={(page) => void handleOpenSheetPage(page)} />
+                  <HomeSheetsView
+                    folderPath={folderPath}
+                    pages={sheetPages}
+                    thumbnailPathByCanvasPath={Object.fromEntries(canvasItems.map((item) => [item.filePath, item.thumbnailPath]))}
+                    onOpenPage={(page) => void handleOpenSheetPage(page)}
+                  />
+                ) : isCardsView ? (
+                  <HomeCardsView
+                    folderPath={folderPath}
+                    canvases={canvasItems}
+                    onOpenCanvas={(entry) => void handleOpenEntry(entry)}
+                    onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                    onDelete={(entry) => setConfirmDialog({ target: entry })}
+                    onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                  />
                 ) : (
                   <div className={`home-browser-${browserViewMode}`}>
                     {browserItems.map((item, index) => (

@@ -722,9 +722,57 @@ export function AppProvider({ children }) {
   }, [applyHomeData, folderPath, openCanvasFile, refreshHomeData]);
 
   const showHome = useCallback(async () => {
+    if (folderPath && currentEditor.kind === "canvas" && currentEditor.filePath) {
+      try {
+        const captureRoot = document.querySelector("[data-airpaste-canvas-capture-root]");
+        if (captureRoot) {
+          const rect = captureRoot.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const clamped = {
+            x: Math.max(0, Math.min(rect.left, viewportWidth)),
+            y: Math.max(0, Math.min(rect.top, viewportHeight)),
+            width: Math.max(0, Math.min(rect.width, viewportWidth - Math.max(0, rect.left))),
+            height: Math.max(0, Math.min(rect.height, viewportHeight - Math.max(0, rect.top))),
+          };
+
+          if (clamped.width >= 32 && clamped.height >= 32) {
+            await desktop.workspace.captureCanvasThumbnail(
+              folderPath,
+              currentEditor.filePath,
+              clamped,
+              window.devicePixelRatio || 1,
+            );
+          }
+        }
+      } catch {
+        // Ignore capture failures; keep any previous thumbnail.
+      }
+    }
+
     showHomeTab();
     if (folderPath) await refreshHomeData(folderPath);
-  }, [folderPath, refreshHomeData, showHomeTab]);
+  }, [currentEditor.filePath, currentEditor.kind, folderPath, refreshHomeData, showHomeTab]);
+
+  const backfillCanvasThumbnails = useCallback(async (limit = 12) => {
+    if (!folderPath) return 0;
+
+    const canvases = homeData.allFiles.filter((item) => item.type === "canvas" && item.filePath);
+    const missing = canvases.filter((item) => !item.thumbnailPath).slice(0, Math.max(0, limit));
+    if (missing.length === 0) return 0;
+
+    for (const canvasItem of missing) {
+      try {
+        await openCanvasFile(canvasItem.filePath);
+        await showHome();
+      } catch {
+        // Keep going even if one capture fails.
+        await showHome().catch(() => {});
+      }
+    }
+
+    return missing.length;
+  }, [folderPath, homeData.allFiles, openCanvasFile, showHome]);
 
   useEffect(() => {
     if (!folderPath || !activeTab?.entityId) {
@@ -1615,6 +1663,7 @@ export function AppProvider({ children }) {
     setViewport,
     setWorkspaceView,
     showHome,
+    backfillCanvasThumbnails,
     switchDome,
     toggleItemStarred,
     getCanvasClipboard,
@@ -1682,6 +1731,7 @@ export function AppProvider({ children }) {
     setViewport,
     setWorkspaceView,
     showHome,
+    backfillCanvasThumbnails,
     switchDome,
     toggleItemStarred,
     getCanvasClipboard,

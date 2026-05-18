@@ -26,7 +26,9 @@ const BACKUP_SUFFIX = ".bak";
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
 const PREVIEW_DOCUMENT_TIMEOUT_MS = 12000;
 const PREVIEW_JPEG_QUALITY = 58;
+const CANVAS_THUMB_JPEG_QUALITY = 68;
 const ASSET_PREVIEW_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "asset-lod"]);
+const CANVAS_THUMB_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "canvas-thumbs"]);
 const ASSET_PREVIEW_TIER_WIDTHS = Object.freeze({
   thumbnail: 256,
   medium: 768,
@@ -207,6 +209,23 @@ function clearPreviewResolverModuleCache() {
       delete require.cache[cacheKey];
     }
   });
+}
+
+function normalizeRel(value, fallback = "") {
+  const normalized = String(value ?? "")
+    .replaceAll("\\", "/")
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "/");
+  if (!normalized || normalized === ".") {
+    return fallback;
+  }
+  return normalized;
+}
+
+function canvasThumbIdFromRelativePath(relativePath) {
+  const normalized = normalizeRel(relativePath, "");
+  return createHash("sha1").update(normalized).digest("hex").slice(0, 20);
 }
 
 function getPreviewResolverModule() {
@@ -2805,6 +2824,48 @@ ipcMain.handle("airpaste:resolveAssetUrl", async (_event, folderPath, relativePa
   const normalizedOptions = normalizeAssetPreviewOptions(options);
   const resolvedPath = await resolveAssetVariantPath(folderPath, assetPath, normalizedOptions);
   return registerResolvedAssetUrl(resolvedPath);
+});
+
+ipcMain.handle("airpaste:captureCanvasThumbnail", async (_event, folderPath, canvasFilePath, rect, devicePixelRatio = 1) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return { thumbnailPath: "" };
+    }
+
+    if (!folderPath || !canvasFilePath || !rect || typeof rect !== "object") {
+      return { thumbnailPath: "" };
+    }
+
+    const relativeCanvasPath = normalizeRel(path.relative(folderPath, canvasFilePath), "");
+    if (!relativeCanvasPath) {
+      return { thumbnailPath: "" };
+    }
+
+    const thumbId = canvasThumbIdFromRelativePath(relativeCanvasPath);
+    const thumbDir = path.join(folderPath, ...CANVAS_THUMB_DIR_SEGMENTS);
+    await fs.mkdir(thumbDir, { recursive: true });
+
+    const normalizedDpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+    const captureRect = {
+      x: Math.max(0, Math.floor(Number(rect.x || 0) * normalizedDpr)),
+      y: Math.max(0, Math.floor(Number(rect.y || 0) * normalizedDpr)),
+      width: Math.max(0, Math.floor(Number(rect.width || 0) * normalizedDpr)),
+      height: Math.max(0, Math.floor(Number(rect.height || 0) * normalizedDpr)),
+    };
+
+    if (captureRect.width < 32 || captureRect.height < 32) {
+      return { thumbnailPath: "" };
+    }
+
+    const image = await mainWindow.webContents.capturePage(captureRect);
+    const outPath = path.join(thumbDir, `${thumbId}.jpg`);
+    await fs.writeFile(outPath, image.toJPEG(CANVAS_THUMB_JPEG_QUALITY));
+
+    const relativeThumbPath = normalizeRel(path.relative(folderPath, outPath), "");
+    return { thumbnailPath: relativeThumbPath };
+  } catch {
+    return { thumbnailPath: "" };
+  }
 });
 
 ipcMain.handle("airpaste:getPreviewCapabilities", async () => {

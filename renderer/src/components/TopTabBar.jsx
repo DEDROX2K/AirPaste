@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
+import { useAppContext } from "../context/useAppContext";
 import { desktop } from "../lib/desktop";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
 import "./TopTabBar.css";
@@ -20,32 +21,90 @@ function IconHomeFilled() {
   );
 }
 
-function TitleBarControls() {
+function IconWindowsMinimize() {
   return (
-    <div className="titlebar-controls">
+    <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
+      <path d="M0 0.5 H10" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function IconWindowsMaximize() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function IconWindowsClose() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path d="M1.5 1.5 L8.5 8.5 M8.5 1.5 L1.5 8.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function TitleBarControls({ isMac }) {
+  if (isMac) {
+    return (
+      <div className="titlebar-controls titlebar-controls--mac">
+        <button
+          className="titlebar-btn titlebar-btn--mac is-close"
+          type="button"
+          title="Close"
+          aria-label="Close"
+          onClick={() => desktop.window.close()}
+        />
+        <button
+          className="titlebar-btn titlebar-btn--mac is-minimize"
+          type="button"
+          title="Minimize"
+          aria-label="Minimize"
+          onClick={() => desktop.window.minimize()}
+        />
+        <button
+          className="titlebar-btn titlebar-btn--mac is-maximize"
+          type="button"
+          title="Maximize"
+          aria-label="Maximize"
+          onClick={() => desktop.window.maximize()}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="titlebar-controls titlebar-controls--win">
       <button
-        className="titlebar-btn titlebar-btn--minimize is-minimize"
+        className="titlebar-btn titlebar-btn--win is-minimize"
         type="button"
         title="Minimize"
         aria-label="Minimize"
         onClick={() => desktop.window.minimize()}
-      />
+      >
+        <IconWindowsMinimize />
+      </button>
 
       <button
-        className="titlebar-btn titlebar-btn--maximize is-maximize"
+        className="titlebar-btn titlebar-btn--win is-maximize"
         type="button"
-        title="Toggle maximize"
+        title="Maximize"
         aria-label="Maximize"
         onClick={() => desktop.window.maximize()}
-      />
+      >
+        <IconWindowsMaximize />
+      </button>
 
       <button
-        className="titlebar-btn titlebar-btn--close is-close"
+        className="titlebar-btn titlebar-btn--win is-close"
         type="button"
         title="Close"
         aria-label="Close"
         onClick={() => desktop.window.close()}
-      />
+      >
+        <IconWindowsClose />
+      </button>
     </div>
   );
 }
@@ -153,6 +212,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
     closeTabsToRight,
     canReopenClosedTab,
   } = useTabs();
+  const { showHome } = useAppContext();
   const tabRefs = useRef(new Map());
   const previousRectsRef = useRef(new Map());
   const [draggedTabId, setDraggedTabId] = useState(null);
@@ -237,6 +297,8 @@ export function TopTabBar({ usesCustomTitlebar }) {
     setDraggedTabId(null);
   }
 
+  const isMac = typeof window !== "undefined" && navigator.userAgent.includes("Mac");
+
   return (
     <div
       className="titlebar-root"
@@ -245,6 +307,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
       }}
     >
       <div className="titlebar-left">
+        {isMac && <TitleBarControls isMac={true} />}
         <div className="titlebar-tabs">
           {tabs.map((tab) => (
             <div
@@ -256,7 +319,13 @@ export function TopTabBar({ usesCustomTitlebar }) {
                 tab={tab}
                 isActive={tab.id === activeTabId}
                 canReopenClosedTab={canReopenClosedTab}
-                onActivate={() => setActiveTab(tab.id)}
+                onActivate={() => {
+                  if (tab.id === "home") {
+                    void showHome();
+                    return;
+                  }
+                  setActiveTab(tab.id);
+                }}
                 onClose={() => closeTab(tab.id)}
                 onCloseOtherTabs={() => closeOtherTabs(tab.id)}
                 onCloseTabsToRight={() => closeTabsToRight(tab.id)}
@@ -278,7 +347,7 @@ export function TopTabBar({ usesCustomTitlebar }) {
 
       <div className="titlebar-right">
         <div id="titlebar-right-slot" />
-        <TitleBarControls />
+        {!isMac && <TitleBarControls isMac={false} />}
       </div>
     </div>
   );

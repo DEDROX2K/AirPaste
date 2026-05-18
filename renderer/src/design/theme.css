@@ -21,16 +21,16 @@
   --ap-surface-inset: #ffffff;
 
   --ap-text-primary: #1c1c1e;
-  --ap-text-secondary: #8e8e93;
-  --ap-text-tertiary: #aeaeb2;
-  --ap-text-placeholder: #c7c7cc;
-  --ap-text-disabled: #d1d1d6;
+  --ap-text-secondary: #636366; /* Elegant high-contrast grey (WCAG AAA) */
+  --ap-text-tertiary: #8e8e93;   /* Safe readable secondary/tertiary balance */
+  --ap-text-placeholder: #a1a1a6;
+  --ap-text-disabled: #c7c7cc;
   --ap-text-inverse: #ffffff;
   --ap-text-accent: #1c1c1e;
   --ap-text-on-accent: #ffffff;
 
   --ap-icon-default: #3a3a3c;
-  --ap-icon-muted: #8e8e93;
+  --ap-icon-muted: #636366;      /* Matching high-contrast icon color */
   --ap-icon-accent: #1c1c1e;
 
   --ap-border-subtle: rgba(0, 0, 0, 0.05);

@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld("airpaste", {
   },
   resolveAssetUrl: (folderPath, relativePath, options) =>
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
+  captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
+    ipcRenderer.invoke("airpaste:captureCanvasThumbnail", folderPath, canvasFilePath, rect, devicePixelRatio),
   getPreviewCapabilities: () => ipcRenderer.invoke("airpaste:getPreviewCapabilities"),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
