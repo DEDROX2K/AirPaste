@@ -1,11 +1,5 @@
-const IMAGE_CARD_PORTRAIT_MAX_WIDTH = 320;
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
-const IMAGE_CARD_SQUARE_MAX_WIDTH = 340;
-const IMAGE_CARD_SQUARE_MAX_HEIGHT = 380;
-const IMAGE_CARD_LANDSCAPE_MAX_WIDTH = 420;
-const IMAGE_CARD_LANDSCAPE_MAX_HEIGHT = 320;
-const IMAGE_CARD_MIN_WIDTH = 180;
-const IMAGE_CARD_MIN_HEIGHT = 140;
+const IMAGE_CARD_FIXED_WIDTH = 240;
 const STICKER_TILE_MAX_WIDTH = 188;
 const STICKER_TILE_MAX_HEIGHT = 188;
 const STICKER_TILE_MIN_SIDE = 92;
@@ -19,10 +13,7 @@ export function getImageTileSize(width, height, previewKind = "default") {
   }
 
   if (previewKind === "music") {
-    const side = Math.max(
-      IMAGE_CARD_MIN_WIDTH,
-      Math.min(IMAGE_CARD_SQUARE_MAX_WIDTH, Math.round(Math.min(width, height))),
-    );
+    const side = Math.round(IMAGE_CARD_FIXED_WIDTH);
 
     return {
       width: side,
@@ -31,37 +22,12 @@ export function getImageTileSize(width, height, previewKind = "default") {
   }
 
   const aspectRatio = width / height;
-  const bounds = aspectRatio < 0.9
-    ? {
-      maxWidth: IMAGE_CARD_PORTRAIT_MAX_WIDTH,
-      maxHeight: IMAGE_CARD_PORTRAIT_MAX_HEIGHT,
-    }
-    : aspectRatio > 1.18
-      ? {
-        maxWidth: IMAGE_CARD_LANDSCAPE_MAX_WIDTH,
-        maxHeight: IMAGE_CARD_LANDSCAPE_MAX_HEIGHT,
-      }
-      : {
-        maxWidth: IMAGE_CARD_SQUARE_MAX_WIDTH,
-        maxHeight: IMAGE_CARD_SQUARE_MAX_HEIGHT,
-      };
+  let nextWidth = IMAGE_CARD_FIXED_WIDTH;
+  let nextHeight = IMAGE_CARD_FIXED_WIDTH / aspectRatio;
 
-  let scale = Math.min(
-    bounds.maxWidth / width,
-    bounds.maxHeight / height,
-    1,
-  );
-  let nextWidth = width * scale;
-  let nextHeight = height * scale;
-
-  if (nextWidth < IMAGE_CARD_MIN_WIDTH && nextHeight < IMAGE_CARD_MIN_HEIGHT) {
-    const upscale = Math.max(
-      IMAGE_CARD_MIN_WIDTH / nextWidth,
-      IMAGE_CARD_MIN_HEIGHT / nextHeight,
-    );
-
-    nextWidth *= upscale;
-    nextHeight *= upscale;
+  if (nextHeight > IMAGE_CARD_PORTRAIT_MAX_HEIGHT) {
+    nextHeight = IMAGE_CARD_PORTRAIT_MAX_HEIGHT;
+    nextWidth = nextHeight * aspectRatio;
   }
 
   return {

@@ -293,6 +293,46 @@ function drawImageCover(ctx, image, x, y, width, height) {
   );
 }
 
+function drawImageContain(ctx, image, x, y, width, height) {
+  const targetRect = getContainedImageRect(image, x, y, width, height);
+
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    Math.max(1, image?.naturalWidth ?? image?.width ?? 1),
+    Math.max(1, image?.naturalHeight ?? image?.height ?? 1),
+    targetRect.x,
+    targetRect.y,
+    targetRect.width,
+    targetRect.height,
+  );
+}
+
+function getContainedImageRect(image, x, y, width, height) {
+  const sourceWidth = Math.max(1, image?.naturalWidth ?? image?.width ?? 1);
+  const sourceHeight = Math.max(1, image?.naturalHeight ?? image?.height ?? 1);
+  const scale = Math.min(width / sourceWidth, height / sourceHeight);
+  return {
+    x: x + ((width - (sourceWidth * scale)) * 0.5),
+    y: y + ((height - (sourceHeight * scale)) * 0.5),
+    width: sourceWidth * scale,
+    height: sourceHeight * scale,
+  };
+}
+
+function shouldPreserveTileImageAspect(tile) {
+  if (tile?.type !== "link") {
+    return false;
+  }
+
+  if (tile?.sourceType === "sticker" || tile?.previewKind === "music") {
+    return false;
+  }
+
+  return true;
+}
+
 function getNodeAnchor(bounds, side = "") {
   switch (side) {
     case "top":
@@ -369,6 +409,16 @@ function getSecondaryTileLabel(tile) {
   }
 
   return "";
+}
+
+function shouldDrawSceneText(tile) {
+  const type = String(tile?.type || "").toLowerCase();
+
+  if (type === "link" || type === "amazon-product") {
+    return false;
+  }
+
+  return true;
 }
 
 function drawClampedText(ctx, text, x, y, width, lineHeight, maxLines) {
@@ -865,8 +915,16 @@ function SceneWorkspaceSurface({
       }
 
       ctx.save();
+      const preserveTileAspect = shouldPreserveTileImageAspect(tile);
+      const canDrawNaturalImage = preserveTileAspect && !usePreviewColorBlock && imageEntry?.status === "loaded";
+      const naturalImageRect = canDrawNaturalImage
+        ? getContainedImageRect(imageEntry.image, bounds.x, bounds.y, bounds.width, bounds.height)
+        : null;
+      const clipRect = naturalImageRect ?? bounds;
+      const clipRadius = naturalImageRect ? 0 : 8;
+
       ctx.beginPath();
-      traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 8);
+      traceRoundedRectPath(ctx, clipRect.x, clipRect.y, clipRect.width, clipRect.height, clipRadius);
       ctx.closePath();
       ctx.clip();
 
@@ -885,81 +943,109 @@ function SceneWorkspaceSurface({
         if (ditheredPreview && previewHeight > 0) {
           const previousSmoothingValue = ctx.imageSmoothingEnabled;
           ctx.imageSmoothingEnabled = false;
-          drawImageCover(
-            ctx,
-            ditheredPreview,
-            bounds.x,
-            bounds.y + headerHeight,
-            bounds.width,
-            previewHeight,
-          );
+          if (shouldPreserveTileImageAspect(tile)) {
+            drawImageContain(
+              ctx,
+              ditheredPreview,
+              bounds.x,
+              bounds.y + headerHeight,
+              bounds.width,
+              previewHeight,
+            );
+          } else {
+            drawImageCover(
+              ctx,
+              ditheredPreview,
+              bounds.x,
+              bounds.y + headerHeight,
+              bounds.width,
+              previewHeight,
+            );
+          }
           ctx.imageSmoothingEnabled = previousSmoothingValue;
         } else {
           ctx.fillStyle = sampledColor;
           ctx.fillRect(bounds.x, bounds.y + headerHeight, bounds.width, previewHeight);
         }
       } else {
-        ctx.fillStyle = "rgba(246, 241, 233, 0.98)";
-        ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-
         const shouldDrawImage = Boolean(source)
           && renderHint?.imageEnabled !== false
           && renderHint?.previewTier !== PREVIEW_TIER.THUMBNAIL;
 
+        if (!preserveTileAspect || !shouldDrawImage || imageEntry?.status !== "loaded") {
+          ctx.fillStyle = "rgba(246, 241, 233, 0.98)";
+          ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+
         if (shouldDrawImage && imageEntry?.status === "loaded") {
-          drawImageCover(ctx, imageEntry.image, bounds.x, bounds.y, bounds.width, bounds.height);
+          if (preserveTileAspect) {
+            drawImageContain(ctx, imageEntry.image, bounds.x, bounds.y, bounds.width, bounds.height);
+          } else {
+            drawImageCover(ctx, imageEntry.image, bounds.x, bounds.y, bounds.width, bounds.height);
+          }
         }
       }
 
-      ctx.strokeStyle = "rgba(126, 112, 94, 0.24)";
-      ctx.lineWidth = 1 / Math.max(0.35, viewport.zoom);
-      ctx.stroke();
+      if (!naturalImageRect) {
+        ctx.strokeStyle = "rgba(126, 112, 94, 0.24)";
+        ctx.lineWidth = 1 / Math.max(0.35, viewport.zoom);
+        ctx.stroke();
+      }
 
       if (dragVisualTileIdSet?.has?.(tile.id) === true) {
         ctx.strokeStyle = "rgba(91, 68, 44, 0.42)";
         ctx.lineWidth = 1.5 / Math.max(0.35, viewport.zoom);
         ctx.beginPath();
-        traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 8);
+        traceRoundedRectPath(
+          ctx,
+          naturalImageRect?.x ?? bounds.x,
+          naturalImageRect?.y ?? bounds.y,
+          naturalImageRect?.width ?? bounds.width,
+          naturalImageRect?.height ?? bounds.height,
+          naturalImageRect ? 0 : 8,
+        );
         ctx.closePath();
         ctx.stroke();
       }
 
-      const titleText = getPrimaryTileLabel(tile);
-      const secondaryText = getSecondaryTileLabel(tile);
-      const headerHeight = usePreviewColorBlock
-        ? Math.max(8, Math.min(bounds.height * 0.16, 22))
-        : 0;
-      const textInsetX = bounds.x + 14;
-      const textWidth = Math.max(24, bounds.width - 28);
-      const textTop = bounds.y + headerHeight + 18;
-      const titleFontSize = 14;
-      const bodyFontSize = 12;
+      if (shouldDrawSceneText(tile)) {
+        const titleText = getPrimaryTileLabel(tile);
+        const secondaryText = getSecondaryTileLabel(tile);
+        const headerHeight = usePreviewColorBlock
+          ? Math.max(8, Math.min(bounds.height * 0.16, 22))
+          : 0;
+        const textInsetX = bounds.x + 14;
+        const textWidth = Math.max(24, bounds.width - 28);
+        const textTop = bounds.y + headerHeight + 18;
+        const titleFontSize = 14;
+        const bodyFontSize = 12;
 
-      ctx.fillStyle = "rgba(56, 49, 41, 0.92)";
-      ctx.font = `600 ${titleFontSize}px "Segoe UI", sans-serif`;
-      ctx.textBaseline = "top";
-      const titleLines = drawClampedText(
-        ctx,
-        titleText,
-        textInsetX,
-        textTop,
-        textWidth,
-        titleFontSize + 4,
-        usePreviewColorBlock ? 1 : Math.min(2, Math.max(1, Math.floor(bounds.height / 96))),
-      );
-
-      if (!isCanvasMovingRef.current && secondaryText) {
-        ctx.fillStyle = "rgba(93, 83, 70, 0.86)";
-        ctx.font = `${bodyFontSize}px "Segoe UI", sans-serif`;
-        drawClampedText(
+        ctx.fillStyle = "rgba(56, 49, 41, 0.92)";
+        ctx.font = `600 ${titleFontSize}px "Segoe UI", sans-serif`;
+        ctx.textBaseline = "top";
+        const titleLines = drawClampedText(
           ctx,
-          secondaryText,
+          titleText,
           textInsetX,
-          textTop + (titleLines * (titleFontSize + 4)) + 6,
+          textTop,
           textWidth,
-          bodyFontSize + 4,
-          Math.max(1, Math.min(4, Math.floor(bounds.height / 92))),
+          titleFontSize + 4,
+          usePreviewColorBlock ? 1 : Math.min(2, Math.max(1, Math.floor(bounds.height / 96))),
         );
+
+        if (!isCanvasMovingRef.current && secondaryText) {
+          ctx.fillStyle = "rgba(93, 83, 70, 0.86)";
+          ctx.font = `${bodyFontSize}px "Segoe UI", sans-serif`;
+          drawClampedText(
+            ctx,
+            secondaryText,
+            textInsetX,
+            textTop + (titleLines * (titleFontSize + 4)) + 6,
+            textWidth,
+            bodyFontSize + 4,
+            Math.max(1, Math.min(4, Math.floor(bounds.height / 92))),
+          );
+        }
       }
 
       ctx.restore();

@@ -66,6 +66,8 @@ const NOTE_STYLE_TWO = "notes-2";
 const NOTE_STYLE_THREE = "notes-3";
 const NOTE_FOLDER_DEFAULT_TITLE = "Daily memo";
 const NOTE_FOLDER_DEFAULT_DESCRIPTION = "Notes & Journaling";
+const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
+const IMAGE_CARD_FIXED_WIDTH = 240;
 const PREVIEW_REJECTION_PATTERNS = Object.freeze([
   "continue shopping",
   "continue to shopping",
@@ -310,6 +312,44 @@ function defaultCardSize(type) {
   return { width: 428, height: 540 };
 }
 
+function getImageCardSizeFromAspectRatio(aspectRatio) {
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+    return null;
+  }
+
+  let width = IMAGE_CARD_FIXED_WIDTH;
+  let height = IMAGE_CARD_FIXED_WIDTH / aspectRatio;
+
+  if (height > IMAGE_CARD_PORTRAIT_MAX_HEIGHT) {
+    height = IMAGE_CARD_PORTRAIT_MAX_HEIGHT;
+    width = height * aspectRatio;
+  }
+
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function getNormalizedImageLinkDimensions(cardWidth, cardHeight, fallbackSize, contentKind, asset, mediaAspectRatio) {
+  const width = isFiniteNumber(cardWidth, fallbackSize.width);
+  const height = isFiniteNumber(cardHeight, fallbackSize.height);
+  const isDefaultLinkSize = Math.abs(width - fallbackSize.width) <= 1 && Math.abs(height - fallbackSize.height) <= 1;
+
+  if (contentKind !== LINK_CONTENT_KIND_IMAGE || !isDefaultLinkSize) {
+    return { width, height };
+  }
+
+  const derivedAspectRatio = Number.isFinite(mediaAspectRatio) && mediaAspectRatio > 0
+    ? mediaAspectRatio
+    : (asset && Number.isFinite(asset.width) && Number.isFinite(asset.height) && asset.width > 0 && asset.height > 0
+      ? (asset.width / asset.height)
+      : null);
+  const normalizedSize = getImageCardSizeFromAspectRatio(derivedAspectRatio);
+
+  return normalizedSize ?? { width, height };
+}
+
 function defaultTextCardSize(noteStyle) {
   if (noteStyle === NOTE_STYLE_THREE) {
     return { width: 452, height: 468 };
@@ -482,6 +522,14 @@ function normalizeCard(card, index = 0) {
     ? card.noteStyle
     : NOTE_STYLE_TWO;
   const size = type === "text" ? defaultTextCardSize(noteStyle) : defaultCardSize(type);
+  const rawMediaAspectRatio = isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
+    ? Number(card.mediaAspectRatio)
+    : (linkAsset && Number.isFinite(linkAsset.width) && Number.isFinite(linkAsset.height) && linkAsset.width > 0 && linkAsset.height > 0
+      ? (linkAsset.width / linkAsset.height)
+      : null);
+  const normalizedLinkDimensions = isLinkLikeCard
+    ? getNormalizedImageLinkDimensions(card?.width, card?.height, size, contentKind, linkAsset, rawMediaAspectRatio)
+    : null;
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const notes = type === NOTE_FOLDER_CARD_TYPE ? normalizeFolderNotes(card?.notes) : [];
@@ -504,8 +552,8 @@ function normalizeCard(card, index = 0) {
     type,
     x: isFiniteNumber(card?.x, 120 + (index % 3) * 28),
     y: isFiniteNumber(card?.y, 120 + index * 24),
-    width: isFiniteNumber(card?.width, size.width),
-    height: isFiniteNumber(card?.height, size.height),
+    width: normalizedLinkDimensions?.width ?? isFiniteNumber(card?.width, size.width),
+    height: normalizedLinkDimensions?.height ?? isFiniteNumber(card?.height, size.height),
     text: type === "text" ? String(card?.text ?? "") : "",
     secondaryText: type === "text" ? String(card?.secondaryText ?? "") : "",
     noteStyle: type === "text" ? noteStyle : "",
@@ -542,9 +590,7 @@ function normalizeCard(card, index = 0) {
     duration: isLinkLikeCard && Number.isFinite(card?.duration) ? Math.max(0, Math.round(card.duration)) : null,
     author: isLinkLikeCard ? String(card?.author ?? "") : "",
     channelName: isLinkLikeCard ? String(card?.channelName ?? "") : "",
-    mediaAspectRatio: isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
-      ? Number(card.mediaAspectRatio)
-      : null,
+    mediaAspectRatio: rawMediaAspectRatio,
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
     status: isLinkLikeCard && PREVIEW_STATE_VALUES.includes(card?.status)

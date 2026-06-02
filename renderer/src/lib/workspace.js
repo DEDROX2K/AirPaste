@@ -193,6 +193,8 @@ const CODE_SUPPORTED_LANGUAGES = Object.freeze([
   "yaml",
 ]);
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
+const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
+const IMAGE_CARD_FIXED_WIDTH = 240;
 
 function nowIso() {
   return new Date().toISOString();
@@ -216,6 +218,44 @@ function generateWorkspaceEntityId(prefix = "item") {
 
 function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
+}
+
+function getImageCardSizeFromAspectRatio(aspectRatio) {
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+    return null;
+  }
+
+  let width = IMAGE_CARD_FIXED_WIDTH;
+  let height = IMAGE_CARD_FIXED_WIDTH / aspectRatio;
+
+  if (height > IMAGE_CARD_PORTRAIT_MAX_HEIGHT) {
+    height = IMAGE_CARD_PORTRAIT_MAX_HEIGHT;
+    width = height * aspectRatio;
+  }
+
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function getNormalizedImageLinkDimensions(cardWidth, cardHeight, fallbackSize, contentKind, asset, mediaAspectRatio) {
+  const width = Number.isFinite(cardWidth) ? cardWidth : fallbackSize.width;
+  const height = Number.isFinite(cardHeight) ? cardHeight : fallbackSize.height;
+  const isDefaultLinkSize = Math.abs(width - fallbackSize.width) <= 1 && Math.abs(height - fallbackSize.height) <= 1;
+
+  if (contentKind !== LINK_CONTENT_KIND_IMAGE || !isDefaultLinkSize) {
+    return { width, height };
+  }
+
+  const derivedAspectRatio = Number.isFinite(mediaAspectRatio) && mediaAspectRatio > 0
+    ? mediaAspectRatio
+    : (asset && Number.isFinite(asset.width) && Number.isFinite(asset.height) && asset.width > 0 && asset.height > 0
+      ? (asset.width / asset.height)
+      : null);
+  const normalizedSize = getImageCardSizeFromAspectRatio(derivedAspectRatio);
+
+  return normalizedSize ?? { width, height };
 }
 
 function getCardType(card) {
@@ -1107,6 +1147,14 @@ export function normalizeCard(card, fallbackIndex = 0) {
     ? normalizeLinkContentKind(card?.contentKind, linkAsset)
     : "";
   const size = getCardSize(type);
+  const rawMediaAspectRatio = isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
+    ? Number(card.mediaAspectRatio)
+    : (linkAsset && Number.isFinite(linkAsset.width) && Number.isFinite(linkAsset.height) && linkAsset.width > 0 && linkAsset.height > 0
+      ? (linkAsset.width / linkAsset.height)
+      : null);
+  const normalizedLinkDimensions = isLinkLikeCard
+    ? getNormalizedImageLinkDimensions(card?.width, card?.height, size, contentKind, linkAsset, rawMediaAspectRatio)
+    : null;
   const createdAt = typeof card?.createdAt === "string" ? card.createdAt : nowIso();
   const updatedAt = typeof card?.updatedAt === "string" ? card.updatedAt : createdAt;
   const calendarMonth = type === CALENDAR_CARD_TYPE ? normalizeCalendarMonth(card?.month) : CALENDAR_DEFAULT_MONTH;
@@ -1148,12 +1196,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? rackSize.width
       : type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
-        : Number.isFinite(card?.width) ? card.width : size.width,
+        : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width),
     height: type === RACK_CARD_TYPE
       ? rackSize.height
       : type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
-        : Number.isFinite(card?.height) ? card.height : size.height,
+        : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height),
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
     title: isLinkLikeCard
@@ -1228,9 +1276,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     duration: isLinkLikeCard && Number.isFinite(card?.duration) ? Math.max(0, Math.round(card.duration)) : null,
     author: isLinkLikeCard ? String(card?.author ?? "") : "",
     channelName: isLinkLikeCard ? String(card?.channelName ?? "") : "",
-    mediaAspectRatio: isLinkLikeCard && Number.isFinite(card?.mediaAspectRatio) && card.mediaAspectRatio > 0
-      ? Number(card.mediaAspectRatio)
-      : null,
+    mediaAspectRatio: rawMediaAspectRatio,
     previewKind: isLinkLikeCard && card?.previewKind === "music" ? "music" : "default",
     previewError: isLinkLikeCard ? String(card?.previewError ?? "") : "",
     status: isLinkLikeCard && LINK_PREVIEW_STATUSES.includes(card?.status)
@@ -1858,6 +1904,9 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
   const domain = getDomainLabel(url);
   const image = typeof options?.image === "string" ? options.image : "";
   const asset = normalizeLinkAsset(options?.asset);
+  const derivedMediaAspectRatio = asset && Number.isFinite(asset.width) && Number.isFinite(asset.height) && asset.width > 0 && asset.height > 0
+    ? (asset.width / asset.height)
+    : null;
 
   return normalizeCard({
     id: crypto.randomUUID(),
@@ -1878,7 +1927,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     channelName: typeof options?.channelName === "string" ? options.channelName : "",
     mediaAspectRatio: Number.isFinite(options?.mediaAspectRatio) && options.mediaAspectRatio > 0
       ? Number(options.mediaAspectRatio)
-      : null,
+      : derivedMediaAspectRatio,
     previewKind: options?.previewKind === "music" ? "music" : "default",
     previewError: typeof options?.previewError === "string" ? options.previewError : "",
     status: contentKind === LINK_CONTENT_KIND_IMAGE

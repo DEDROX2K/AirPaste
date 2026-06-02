@@ -999,7 +999,15 @@ export function useCanvasCommands({
   }, [commitWorkspaceChange, folderPath, log, toast]);
 
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
-    if (!tile?.id || !tile.image) {
+    if (
+      !tile?.id
+      || tile?.type !== "link"
+      || tile?.contentKind !== LINK_CONTENT_KIND_IMAGE
+      || !Number.isFinite(mediaWidth)
+      || !Number.isFinite(mediaHeight)
+      || mediaWidth <= 0
+      || mediaHeight <= 0
+    ) {
       return;
     }
 
@@ -1085,6 +1093,9 @@ export function useCanvasCommands({
           image: pastedImage.dataUrl,
           siteName: "Image",
           status: "ready",
+          mediaAspectRatio: pastedImage.width > 0 && pastedImage.height > 0
+            ? (pastedImage.width / pastedImage.height)
+            : null,
           width: imageTileSize.width,
           height: imageTileSize.height,
           asset: null,

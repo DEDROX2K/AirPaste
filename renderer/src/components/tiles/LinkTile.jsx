@@ -238,10 +238,6 @@ function hasTerminalPreviewState(card) {
     || ["ready", "fallback", "blocked", "error"].includes(diagnosticsStatus);
 }
 
-function resolveIconPath(relativePath) {
-  return `${import.meta.env.BASE_URL}${relativePath}`;
-}
-
 const VIDEO_PREVIEW_DEBUG_ENABLED = (
   String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
   || (typeof window !== "undefined" && window.__AIRPASTE_PREVIEW_DEBUG === true)
@@ -253,11 +249,6 @@ function logVideoPreviewDebug(event, payload = {}) {
   }
 
   console.debug(`[tile:video] ${event}`, payload);
-}
-
-function stopTileActionEvent(event) {
-  event.preventDefault();
-  event.stopPropagation();
 }
 
 function stopTileActionPointerEvent(event) {
@@ -374,6 +365,11 @@ function LinkTile({
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
   const isAsciiFallbackActive = !isImageTile && !shouldRenderImage && !isPreviewLoading;
+  const shouldPreserveMediaAspect = shouldRenderImage
+    && !isStickerTile
+    && !isMusicCard
+    && (isImageTile || isSimplifiedVideoLink || !isVideoCard);
+  const shouldUseNaturalMediaLayout = shouldPreserveMediaAspect && !isImageTile;
   const fallbackBadgeLabel = isTwitterLikeLink ? "X/TWITTER FALLBACK TILE" : "LINK FALLBACK TILE";
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
@@ -630,8 +626,8 @@ function LinkTile({
         </div>
       ) : shouldRenderImage && !isStickerTile ? (
         <TileImageReveal
-          className={`card__image${isSimplifiedVideoLink ? " card__image--natural" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
-          wrapperClassName={isSimplifiedVideoLink ? "card__image-reveal--natural" : ""}
+          className={`card__image${shouldUseNaturalMediaLayout ? " card__image--natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__image--contain" : ""}${isStickerTile ? " card__image--sticker" : ""}`}
+          wrapperClassName={shouldUseNaturalMediaLayout ? "card__image-reveal--natural" : ""}
           src={isSimplifiedVideoLink ? activeVideoImageSrc : mediaSrc}
           alt={linkTitle}
           enableReveal={enableReveal}
@@ -744,14 +740,14 @@ function LinkTile({
         <div className={surfaceFrameClassName} {...surfaceGesture} onClick={handleSurfaceClick}>
           {isImageTile ? (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
+              className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
               aria-label={linkTitle}
             >
               {mediaMarkup}
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
+              className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
               aria-label={linkTitle}
             >
               {mediaMarkup}

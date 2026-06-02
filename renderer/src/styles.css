@@ -3410,6 +3410,17 @@ intentional so the top edge reads much shorter than the bottom edge. */
   border-radius: var(--ap-radius-md);
 }
 
+.card__surface--link-natural {
+  display: block;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+
+.card__surface--link-transparent {
+  background: transparent;
+}
+
 .card__surface--video {
   background:
     linear-gradient(180deg, rgba(248, 248, 248, 0.98), rgba(233, 231, 228, 0.98));
@@ -4072,6 +4083,7 @@ intentional so the top edge reads much shorter than the bottom edge. */
   display: block;
   width: 100%;
   height: auto;
+  object-fit: contain;
 }
 
 .card__image-reveal__placeholder {
@@ -4159,6 +4171,10 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__image--natural {
   height: auto;
+  object-fit: contain;
+}
+
+.card__image--contain {
   object-fit: contain;
 }
 

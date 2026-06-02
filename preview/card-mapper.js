@@ -3,6 +3,27 @@ const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
 const { PREVIEW_KIND, PREVIEW_STATE_VALUES, PREVIEW_STATUS } = require("./constants");
 const { getHostname } = require("./utils");
+const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
+const IMAGE_CARD_FIXED_WIDTH = 240;
+
+function getImageCardSizeFromAspectRatio(aspectRatio) {
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+    return null;
+  }
+
+  let width = IMAGE_CARD_FIXED_WIDTH;
+  let height = IMAGE_CARD_FIXED_WIDTH / aspectRatio;
+
+  if (height > IMAGE_CARD_PORTRAIT_MAX_HEIGHT) {
+    height = IMAGE_CARD_PORTRAIT_MAX_HEIGHT;
+    width = height * aspectRatio;
+  }
+
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
 
 function defaultCardTypeForResult(result) {
   if (result.kind === PREVIEW_KIND.AMAZON_PRODUCT && result.status !== PREVIEW_STATUS.BLOCKED) {
@@ -25,17 +46,31 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"
     ? result.diagnostics
     : null;
+  const nextMediaAspectRatio = Number.isFinite(result.metadata?.mediaAspectRatio) && result.metadata.mediaAspectRatio > 0
+    ? result.metadata.mediaAspectRatio
+    : (Number.isFinite(currentCard.mediaAspectRatio) && currentCard.mediaAspectRatio > 0 ? currentCard.mediaAspectRatio : null);
+  const shouldResizeForImageAspect = (
+    nextType === "link"
+    && contentKind === LINK_CONTENT_KIND_IMAGE
+    && (
+      currentCard.type !== nextType
+      || currentCard.contentKind !== LINK_CONTENT_KIND_IMAGE
+    )
+  );
+  const imageSize = shouldResizeForImageAspect
+    ? getImageCardSizeFromAspectRatio(nextMediaAspectRatio)
+    : null;
 
   return {
     type: nextType,
     url: result.resolvedUrl || result.canonicalUrl || currentCard.url,
     resolvedUrl: result.resolvedUrl || result.canonicalUrl || currentCard.url,
-    width: shouldResize ? nextSize.width : currentCard.width,
-    height: shouldResize
+    width: imageSize?.width ?? (shouldResize ? nextSize.width : currentCard.width),
+    height: imageSize?.height ?? (shouldResize
       ? nextSize.height
       : result.previewKind === "music"
         ? Math.max(currentCard.height, currentCard.width)
-        : currentCard.height,
+        : currentCard.height),
     contentKind,
     title: result.title || result.siteName || domainFallback,
     description: safeStatus === "blocked" ? "" : (result.description || ""),
@@ -51,9 +86,7 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
     duration: Number.isFinite(result.duration) ? result.duration : null,
     author: result.author || "",
     channelName: result.channelName || result.author || "",
-    mediaAspectRatio: Number.isFinite(result.metadata?.mediaAspectRatio) && result.metadata.mediaAspectRatio > 0
-      ? result.metadata.mediaAspectRatio
-      : (Number.isFinite(currentCard.mediaAspectRatio) && currentCard.mediaAspectRatio > 0 ? currentCard.mediaAspectRatio : null),
+    mediaAspectRatio: nextMediaAspectRatio,
     previewDiagnostics,
     productAsin: isAmazonCard ? String(result.metadata?.productAsin ?? "") : "",
     productPrice: isAmazonCard ? String(result.metadata?.productPrice ?? "") : "",
