@@ -1,0 +1,481 @@
+/* Final tile polish layer.
+   This file owns tile states after legacy canvas/grid styling has loaded. */
+
+:root {
+  --ap-tile-bg: rgba(255, 255, 255, 0.86);
+  --ap-tile-bg-solid: #ffffff;
+  --ap-tile-bg-muted: #f5f5f7;
+  --ap-tile-bg-subtle: #fbfbfd;
+  --ap-tile-ink: #1d1d1f;
+  --ap-tile-muted: #6e6e73;
+  --ap-tile-line: rgba(29, 29, 31, 0.1);
+  --ap-tile-line-strong: rgba(29, 29, 31, 0.18);
+  --ap-tile-selected: #0071e3;
+  --ap-tile-selected-soft: rgba(0, 113, 227, 0.16);
+  --ap-tile-merge: #34c759;
+  --ap-tile-danger: #ff3b30;
+  --ap-tile-radius: 14px;
+  --ap-tile-radius-inner: 10px;
+  --ap-tile-shadow: 0 14px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --ap-tile-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055);
+  --ap-tile-shadow-selected: 0 0 0 3px var(--ap-tile-selected-soft), 0 16px 36px rgba(0, 113, 227, 0.12), 0 4px 14px rgba(0, 0, 0, 0.06);
+  --ap-tile-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.canvas__content .card,
+.grid-workspace .card {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif !important;
+  color: var(--ap-tile-ink);
+  filter: none !important;
+}
+
+.canvas__content .card__content,
+.grid-workspace .card__content {
+  gap: 10px !important;
+}
+
+.canvas__content .card__toolbar,
+.grid-workspace .card__toolbar {
+  gap: 5px !important;
+  padding: 0 8px 6px !important;
+}
+
+.canvas__content .card__label,
+.grid-workspace .card__label {
+  color: var(--ap-tile-muted) !important;
+  font-size: 12px !important;
+  font-weight: 560 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.25 !important;
+  text-shadow: none !important;
+}
+
+.canvas__content .card--selected .card__label,
+.grid-workspace .card--selected .card__label {
+  color: var(--ap-tile-ink) !important;
+}
+
+.canvas__content .card__surface-frame,
+.grid-workspace .card__surface-frame {
+  border-radius: var(--ap-tile-radius) !important;
+  outline: 0 !important;
+  filter: none !important;
+  box-shadow: none !important;
+  transition:
+    transform 160ms var(--ap-tile-ease),
+    box-shadow 160ms ease,
+    filter 160ms ease !important;
+}
+
+.canvas__content .card__surface,
+.grid-workspace .card__surface,
+.canvas__content .card__record-sleeve,
+.grid-workspace .card__record-sleeve,
+.canvas__content .card__video-frame,
+.grid-workspace .card__video-frame {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: var(--ap-tile-radius) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.74)),
+    var(--ap-tile-bg-solid) !important;
+  box-shadow: var(--ap-tile-shadow) !important;
+  color: var(--ap-tile-ink) !important;
+  overflow: hidden !important;
+}
+
+.canvas__content .card__surface::before,
+.canvas__content .card__surface::after,
+.grid-workspace .card__surface::before,
+.grid-workspace .card__surface::after {
+  box-shadow: none !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+  transform: translateY(-2px) !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface {
+  border-color: var(--ap-tile-line-strong) !important;
+  box-shadow: var(--ap-tile-shadow-hover) !important;
+}
+
+.canvas__content .card--selected .card__surface-frame,
+.canvas__content .card__surface-frame--selected,
+.grid-workspace .card--selected .card__surface-frame,
+.grid-workspace .card__surface-frame--selected {
+  outline: 0 !important;
+  box-shadow: var(--ap-tile-shadow-selected) !important;
+}
+
+.canvas__content .card--selected .card__surface,
+.canvas__content .card__surface-frame--selected .card__surface,
+.grid-workspace .card--selected .card__surface,
+.grid-workspace .card__surface-frame--selected .card__surface,
+.canvas__content .card__surface-frame--selected .card__record-sleeve,
+.grid-workspace .card__surface-frame--selected .card__record-sleeve {
+  border-color: rgba(0, 113, 227, 0.52) !important;
+  outline: 0 !important;
+  box-shadow: var(--ap-tile-shadow-selected) !important;
+}
+
+.canvas__content .card[data-tile-state="editing"] .card__surface,
+.grid-workspace .card[data-tile-state="editing"] .card__surface {
+  border-color: rgba(0, 113, 227, 0.48) !important;
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12), var(--ap-tile-shadow) !important;
+}
+
+.canvas__content :is(.card__surface-frame--merge-target, .card--merge-target .card__surface-frame, .card--folder-group-target .card__surface-frame, .card--folder-group-armed .card__surface-frame),
+.grid-workspace :is(.card__surface-frame--merge-target, .card--merge-target .card__surface-frame, .card--folder-group-target .card__surface-frame, .card--folder-group-armed .card__surface-frame) {
+  outline: 0 !important;
+  box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.14), 0 0 0 1px rgba(52, 199, 89, 0.46), var(--ap-tile-shadow) !important;
+}
+
+.canvas__content .card--dragging .card__surface-frame,
+.grid-workspace .card--dragging .card__surface-frame {
+  transform: translateY(-3px) scale(1.01) !important;
+}
+
+.canvas__content .card--dragging .card__surface,
+.grid-workspace .card--dragging .card__surface {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.16), 0 8px 22px rgba(0, 0, 0, 0.1) !important;
+}
+
+.canvas__content .card--clipboard-cut-source,
+.grid-workspace .card--clipboard-cut-source {
+  opacity: 0.52 !important;
+}
+
+.canvas__content .card--lod-thumbnail .card__surface,
+.grid-workspace .card--lod-thumbnail .card__surface {
+  background: var(--ap-tile-bg-muted) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface--link,
+.grid-workspace .card__surface--link,
+.canvas__content .card__surface--amazon-product,
+.grid-workspace .card__surface--amazon-product,
+.canvas__content .card__surface--video,
+.grid-workspace .card__surface--video {
+  background: var(--ap-tile-bg-solid) !important;
+}
+
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--deadline, .card__surface--progress, .card__surface--code, .card__surface--calendar),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--deadline, .card__surface--progress, .card__surface--code, .card__surface--calendar) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 250, 252, 0.94)),
+    var(--ap-tile-bg-subtle) !important;
+}
+
+.canvas__content :is(.card__image, .card__image-reveal, .card__image-reveal__placeholder, .card__image-reveal__preview, .card__image-reveal__final, .card__video-screen, .card__video-media-region, .card__placeholder, .card__link-loading),
+.grid-workspace :is(.card__image, .card__image-reveal, .card__image-reveal__placeholder, .card__image-reveal__preview, .card__image-reveal__final, .card__video-screen, .card__video-media-region, .card__placeholder, .card__link-loading) {
+  border-radius: var(--ap-tile-radius-inner) !important;
+  overflow: hidden !important;
+}
+
+.canvas__content :is(.card__image, .card__image-reveal__final, .card__image-reveal__preview),
+.grid-workspace :is(.card__image, .card__image-reveal__final, .card__image-reveal__preview) {
+  display: block;
+  background: var(--ap-tile-bg-muted) !important;
+}
+
+.canvas__content :is(.card__image:not(.card__image--natural):not(.card__image--contain), .card__image-reveal__final:not(.card__image--natural):not(.card__image--contain)),
+.grid-workspace :is(.card__image:not(.card__image--natural):not(.card__image--contain), .card__image-reveal__final:not(.card__image--natural):not(.card__image--contain)) {
+  object-fit: cover;
+}
+
+.canvas__content :is(.card__image--natural, .card__image--contain, .card__surface--link-natural .card__image-reveal__final, .card__surface--link-transparent .card__image-reveal__final),
+.grid-workspace :is(.card__image--natural, .card__image--contain, .card__surface--link-natural .card__image-reveal__final, .card__surface--link-transparent .card__image-reveal__final) {
+  object-fit: contain !important;
+  background: var(--ap-tile-bg-muted) !important;
+}
+
+.canvas__content .card__image-reveal__pixel-grid,
+.grid-workspace .card__image-reveal__pixel-grid {
+  opacity: 0 !important;
+}
+
+.canvas__content .card__image-reveal__placeholder,
+.grid-workspace .card__image-reveal__placeholder,
+.canvas__content .card__video-loading,
+.grid-workspace .card__video-loading,
+.canvas__content .card__link-loading,
+.grid-workspace .card__link-loading {
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.68) 48%, transparent 100%),
+    #eef0f3 !important;
+  background-size: 220% 100%, 100% 100%;
+  animation: apTileLoadingSweep 1400ms ease-in-out infinite;
+}
+
+.canvas__content .card__video-loading-bar,
+.grid-workspace .card__video-loading-bar {
+  background: rgba(29, 29, 31, 0.12) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content :is(.card__fallback-paper, .card__surface--paper-fallback),
+.grid-workspace :is(.card__fallback-paper, .card__surface--paper-fallback) {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: var(--ap-tile-radius) !important;
+  background: var(--ap-tile-bg-solid) !important;
+  box-shadow: var(--ap-tile-shadow) !important;
+}
+
+.canvas__content .card__surface--file,
+.grid-workspace .card__surface--file {
+  display: flex !important;
+  min-height: 260px !important;
+  flex-direction: column;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  padding: 24px !important;
+  border: 1px solid var(--ap-tile-line) !important;
+  background: var(--ap-tile-bg-solid) !important;
+  box-shadow: var(--ap-tile-shadow) !important;
+}
+
+.canvas__content .card__file-hero,
+.grid-workspace .card__file-hero {
+  width: 76px !important;
+  height: 76px !important;
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 20px !important;
+  background:
+    linear-gradient(180deg, #ffffff, #f2f3f5) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 8px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+.canvas__content .card__file-body,
+.grid-workspace .card__file-body {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 8px !important;
+  text-align: center !important;
+}
+
+.canvas__content .card__file-side-tab,
+.grid-workspace .card__file-side-tab {
+  display: none !important;
+}
+
+.canvas__content :is(.card__file-name, .card__file-type),
+.grid-workspace :is(.card__file-name, .card__file-type) {
+  max-width: 100% !important;
+  color: var(--ap-tile-ink) !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 680 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.2 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.canvas__content .card__file-type,
+.grid-workspace .card__file-type {
+  color: var(--ap-tile-muted) !important;
+  font-size: 12px !important;
+  font-weight: 620 !important;
+  text-transform: uppercase;
+}
+
+.canvas__content .card__file-size-pill,
+.grid-workspace .card__file-size-pill {
+  padding: 4px 10px !important;
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 999px !important;
+  background: var(--ap-tile-bg-muted) !important;
+  color: var(--ap-tile-muted) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 620 !important;
+  line-height: 1.25 !important;
+}
+
+.canvas__content :is(.card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle),
+.grid-workspace :is(.card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle) {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action),
+.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action) {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--ap-tile-ink) !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  font-weight: 620 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms var(--ap-tile-ease) !important;
+}
+
+.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled),
+.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled) {
+  border-color: var(--ap-tile-line-strong) !important;
+  background: rgba(29, 29, 31, 0.055) !important;
+  transform: none !important;
+}
+
+.canvas__content :is(.card__note-mode-button--active, .card__progress-mode-button--active, .card__calendar-view-button--active, .card__counter-button--primary, .card__link-action--primary, .card__amazon-product-cta),
+.grid-workspace :is(.card__note-mode-button--active, .card__progress-mode-button--active, .card__calendar-view-button--active, .card__counter-button--primary, .card__link-action--primary, .card__amazon-product-cta) {
+  border-color: transparent !important;
+  background: var(--ap-tile-selected) !important;
+  color: #fff !important;
+}
+
+.canvas__content .card__quick-actions,
+.grid-workspace .card__quick-actions {
+  top: -16px !important;
+  right: 10px !important;
+  z-index: 20 !important;
+  gap: 2px !important;
+  padding: 4px !important;
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(18px) saturate(1.12) !important;
+}
+
+.canvas__content .card__quick-action,
+.grid-workspace .card__quick-action {
+  height: 26px !important;
+  min-width: 28px;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: var(--ap-tile-ink) !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+}
+
+.canvas__content .card__quick-action:hover:not(:disabled),
+.grid-workspace .card__quick-action:hover:not(:disabled) {
+  background: rgba(29, 29, 31, 0.06) !important;
+}
+
+.canvas__content .card__quick-action:disabled,
+.grid-workspace .card__quick-action:disabled {
+  opacity: 0.42 !important;
+}
+
+.canvas__content .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select),
+.grid-workspace .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select) {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--ap-tile-ink) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select):focus-visible,
+.canvas__content .card__surface :is(button, input[type="checkbox"]):focus-visible,
+.grid-workspace .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select):focus-visible,
+.grid-workspace .card__surface :is(button, input[type="checkbox"]):focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14), 0 0 0 1px rgba(0, 113, 227, 0.42) !important;
+}
+
+.grid-workspace {
+  background:
+    linear-gradient(180deg, #fbfbfd, #f5f5f7) !important;
+}
+
+.grid-workspace__scroll {
+  padding: 24px 0 48px !important;
+}
+
+.masonry-grid {
+  background: transparent !important;
+}
+
+.masonry-grid__item {
+  transition:
+    top 260ms var(--ap-tile-ease),
+    left 260ms var(--ap-tile-ease),
+    opacity 160ms ease !important;
+}
+
+.masonry-grid__item > .card {
+  transform: none !important;
+}
+
+.masonry-grid__item > .card .card__surface-frame {
+  width: 100%;
+}
+
+.masonry-grid__item > .card .card__toolbar,
+.masonry-grid__item > .card .card__surface-frame--interactive,
+.masonry-grid__item > .card .card__surface-frame--interactive .card__surface--link,
+.masonry-grid__item > .card .card__surface-frame--interactive .card__surface--folder {
+  cursor: pointer !important;
+}
+
+.grid-workspace .canvas-minimap__toggle,
+.grid-workspace .canvas-minimap__panel {
+  border: 1px solid var(--ap-tile-line) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--ap-tile-ink) !important;
+  box-shadow: var(--ap-tile-shadow) !important;
+  font-family: inherit !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+@keyframes apTileLoadingSweep {
+  0% {
+    background-position: 140% 0, 0 0;
+  }
+
+  100% {
+    background-position: -140% 0, 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__content .card__surface-frame,
+  .grid-workspace .card__surface-frame,
+  .masonry-grid__item,
+  .canvas__content .card__image-reveal__placeholder,
+  .grid-workspace .card__image-reveal__placeholder,
+  .canvas__content .card__video-loading,
+  .grid-workspace .card__video-loading,
+  .canvas__content .card__link-loading,
+  .grid-workspace .card__link-loading {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+  .canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+  .grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+  .grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+    transform: none !important;
+  }
+}

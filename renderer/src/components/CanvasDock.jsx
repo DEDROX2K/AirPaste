@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Archive,
+  BookOpenText,
+  Calculator,
+  CalendarDays,
+  Code2,
+  Hash,
+  Link2,
+  ListChecks,
+  PenLine,
+  StickyNote,
+  Table2,
+  Target,
+  Timer,
+  Type,
+} from "lucide-react";
 
-const DOCK_INFLUENCE_RADIUS = 156;
+const DOCK_INFLUENCE_RADIUS = 132;
 const STACK_CLOSE_DELAY_MS = 140;
-const ASSET_BASE_URL = import.meta.env.BASE_URL;
-
-function assetUrl(relativePath) {
-  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
-}
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -19,7 +30,7 @@ function getDockItemScale(pointerX, itemCenterX) {
 
   const distance = Math.abs(pointerX - itemCenterX);
   const intensity = clamp01(1 - (distance / DOCK_INFLUENCE_RADIUS));
-  return 1 + (0.38 * (intensity ** 1.6));
+  return 1 + (0.18 * (intensity ** 1.55));
 }
 
 function getDockItemOffset(scale) {
@@ -27,30 +38,21 @@ function getDockItemOffset(scale) {
     return 0;
   }
 
-  return -Math.round((scale - 1) * 26);
+  return -Math.round((scale - 1) * 18);
 }
 
-function DockIcon({ iconSrc }) {
+function DockIcon({ icon: Icon, iconSrc }) {
   return (
     <span className="canvas-dock__icon" aria-hidden="true">
-      {iconSrc ? (
+      {Icon ? (
+        <Icon size={17} strokeWidth={2.1} />
+      ) : iconSrc ? (
         <img className="canvas-dock__icon-image" src={iconSrc} alt="" />
       ) : (
         <span className="canvas-dock__icon-placeholder" />
       )}
     </span>
   );
-}
-
-function getFanPosition(index) {
-  const positions = [
-    { offsetX: 0, offsetY: 24, rotation: -2 },
-    { offsetX: 12, offsetY: 48, rotation: 3 },
-    { offsetX: 28, offsetY: 70, rotation: 8 },
-    { offsetX: 46, offsetY: 90, rotation: 12 },
-  ];
-
-  return positions[index] ?? positions[positions.length - 1];
 }
 
 function DockButton({
@@ -107,38 +109,29 @@ function DockButton({
             {item.label}
           </span>
         ) : null}
-        <DockIcon iconSrc={item.iconSrc} />
+        <DockIcon icon={item.icon} iconSrc={item.iconSrc} />
         <span className="canvas-dock__indicator" aria-hidden="true" />
       </button>
 
       {isStackItem && item.isStackOpen ? (
         <div className="canvas-dock__fan" role="menu" aria-label={`${item.label} stack`}>
-          {item.children.map((child, childIndex) => {
-            const fanPosition = getFanPosition(childIndex);
-
-            return (
-              <button
-                key={child.key}
-                type="button"
-                className="canvas-dock__fan-item"
-                role="menuitem"
-                title={child.label}
-                aria-label={child.label}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSelectChild(item.key, child.onSelect);
-                }}
-                style={{
-                  "--dock-fan-offset-x": `${fanPosition.offsetX}px`,
-                  "--dock-fan-offset-y": `${fanPosition.offsetY}px`,
-                  "--dock-fan-rotation": `${fanPosition.rotation}deg`,
-                }}
-              >
-                <span className="canvas-dock__fan-label">{child.label}</span>
-                <DockIcon iconSrc={child.iconSrc} />
-              </button>
-            );
-          })}
+          {item.children.map((child) => (
+            <button
+              key={child.key}
+              type="button"
+              className="canvas-dock__fan-item"
+              role="menuitem"
+              title={child.label}
+              aria-label={child.label}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectChild(item.key, child.onSelect);
+              }}
+            >
+              <DockIcon icon={child.icon} iconSrc={child.iconSrc} />
+              <span className="canvas-dock__fan-label">{child.label}</span>
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
@@ -164,36 +157,38 @@ export default function CanvasDock({
       key: "write",
       label: "Write",
       kind: "stack",
+      icon: PenLine,
       disabled,
       children: [
-        { key: "text-card", label: "Text card", onSelect: () => commands?.createTextCard?.() },
-        { key: "vault-note", label: "Vault note", onSelect: () => commands?.addNoteFromVault?.() },
-        { key: "checklist", label: "Checklist", onSelect: () => commands?.createChecklist?.() },
-        { key: "sticky", label: "Sticky note", onSelect: () => commands?.createSticky?.() },
+        { key: "text-card", label: "Text card", icon: Type, onSelect: () => commands?.createTextCard?.() },
+        { key: "vault-note", label: "Vault note", icon: BookOpenText, onSelect: () => commands?.addNoteFromVault?.() },
+        { key: "checklist", label: "Checklist", icon: ListChecks, onSelect: () => commands?.createChecklist?.() },
+        { key: "sticky", label: "Sticky note", icon: StickyNote, onSelect: () => commands?.createSticky?.() },
       ],
     },
     {
       key: "plan",
       label: "Plan",
       kind: "stack",
+      icon: Target,
       disabled,
       children: [
-        { key: "progress", label: "Progress", onSelect: () => commands?.createProgress?.() },
-        { key: "deadline", label: "Deadline", onSelect: () => commands?.createDeadline?.() },
-        { key: "calendar", label: "Calendar", onSelect: () => commands?.createCalendar?.() },
+        { key: "progress", label: "Progress", icon: Target, onSelect: () => commands?.createProgress?.() },
+        { key: "deadline", label: "Deadline", icon: Timer, onSelect: () => commands?.createDeadline?.() },
+        { key: "calendar", label: "Calendar", icon: CalendarDays, onSelect: () => commands?.createCalendar?.() },
       ],
     },
-    { key: "table", label: "Table", kind: "create", onSelect: () => commands?.createTable?.(), disabled },
-    { key: "rack", label: "Rack", kind: "create", onSelect: () => commands?.createRack?.(), disabled },
-    { key: "code", label: "Code", kind: "create", onSelect: () => commands?.createCode?.(), disabled },
-    { key: "counter", label: "Counter", kind: "create", onSelect: () => commands?.createCounter?.(), disabled },
-    { key: "link", label: "Link", kind: "create", onSelect: () => commands?.createLinkFromClipboard?.(), disabled },
+    { key: "table", label: "Table", kind: "create", icon: Table2, onSelect: () => commands?.createTable?.(), disabled },
+    { key: "rack", label: "Rack", kind: "create", icon: Archive, onSelect: () => commands?.createRack?.(), disabled },
+    { key: "code", label: "Code", kind: "create", icon: Code2, onSelect: () => commands?.createCode?.(), disabled },
+    { key: "counter", label: "Counter", kind: "create", icon: Hash, onSelect: () => commands?.createCounter?.(), disabled },
+    { key: "link", label: "Link", kind: "create", icon: Link2, onSelect: () => commands?.createLinkFromClipboard?.(), disabled },
     {
       key: "stopwatch",
       label: "Stopwatch",
       kind: "utility",
       hasDivider: true,
-      iconSrc: assetUrl("tilesimg/Stopwatch.png"),
+      icon: Timer,
       isToggle: true,
       isActive: isStopwatchOpen,
       onSelect: onToggleStopwatch,
@@ -204,7 +199,7 @@ export default function CanvasDock({
       key: "calculator",
       label: "Calculator",
       kind: "utility",
-      iconSrc: assetUrl("tilesimg/calculator.png"),
+      icon: Calculator,
       isToggle: true,
       isActive: isCalculatorOpen,
       onSelect: onToggleCalculator,

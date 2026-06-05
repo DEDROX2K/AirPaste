@@ -95,6 +95,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resizeStart: (direction) => ipcRenderer.send("window:resizeStart", { direction }),
   resizeMove: (deltaX, deltaY) => ipcRenderer.send("window:resizeMove", { deltaX, deltaY }),
   resizeEnd: () => ipcRenderer.send("window:resizeEnd"),
+  onPrepareClose: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on("window:prepare-close", handler);
+    return () => ipcRenderer.removeListener("window:prepare-close", handler);
+  },
   usesCustomTitlebar: true,
   usesCustomWindowResize: false,
 });

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { DevConsole } from "./components/DevConsole";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
 import { TopTabBar } from "./components/TopTabBar";
@@ -10,24 +10,29 @@ import { useToast } from "./hooks/useToast";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { desktop } from "./lib/desktop";
 
-const BOOT_SPLASH_IMAGE_SRC = encodeURI("/Splash screen/Keyboard keycap with _airpaste_ text.png");
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
 const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
 const CanvasWorkspaceView = lazy(() => import("./components/CanvasWorkspaceView"));
 const HomeShell = lazy(() => import("./components/HomeShell"));
 const LeftPagesPanel = lazy(() => import("./components/LeftPagesPanel"));
 
-function BootSplash() {
+function BootSplash({ label = "Preparing workspace" }) {
+  const displayLabel = !label || label === "Loading" ? "Preparing workspace" : label;
+
   return (
-    <main className="boot-splash" aria-label="Restoring workspace">
-      <div className="boot-splash__texture" aria-hidden="true" />
-      <div className="boot-splash__corner" aria-hidden="true" />
-      <div className="boot-splash__hero">
-        <img className="boot-splash__image" src={BOOT_SPLASH_IMAGE_SRC} alt="AirPaste splash" />
+    <main className="boot-splash" aria-label="Starting AirPaste">
+      <div className="boot-splash__ambient" aria-hidden="true" />
+      <div className="boot-splash__stage">
+        <div className="boot-splash__mark" aria-hidden="true">
+          <span>A</span>
+        </div>
+        <h1 className="boot-splash__wordmark">AirPaste</h1>
+        <div className="boot-splash__progress" aria-hidden="true">
+          <span />
+        </div>
       </div>
       <div className="boot-splash__status">
-        <span className="boot-splash__eyebrow">AirPaste</span>
-        <span className="boot-splash__message">Restoring your workspace</span>
+        <span className="boot-splash__message">{displayLabel}</span>
       </div>
     </main>
   );
@@ -89,6 +94,7 @@ function AppViewFallback() {
 export default function App() {
   useTheme();
   const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
+  const [isClosing, setIsClosing] = useState(false);
 
   const usesCustomTitlebar = desktop.window.usesCustomTitlebar;
   const usesCustomWindowResize = desktop.window.usesCustomWindowResize;
@@ -97,10 +103,26 @@ export default function App() {
     currentEditor,
     error,
     isLoading,
+    loadingLabel,
     setError,
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
+
+  const markWindowClosing = useCallback(() => {
+    if (isClosing) {
+      return;
+    }
+
+    setIsClosing(true);
+  }, [isClosing]);
+
+  const requestWindowClose = useCallback(() => {
+    markWindowClosing();
+    desktop.window.close();
+  }, [markWindowClosing]);
+
+  useEffect(() => desktop.window.onPrepareClose(markWindowClosing), [markWindowClosing]);
 
   useEffect(() => {
     const updatePointerPosition = (event) => {
@@ -132,16 +154,16 @@ export default function App() {
   if (booting) {
     return (
       <div className="app-shell app-shell--booting">
-        <BootSplash />
+        <BootSplash label={loadingLabel || "Preparing workspace"} />
       </div>
     );
   }
 
   return (
-    <div className={`app-shell app-shell--with-tabs ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""}`}>
+    <div className={`app-shell app-shell--with-tabs app-shell--ready ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""} ${isClosing ? "app-shell--closing" : ""}`}>
       {usesCustomTitlebar && usesCustomWindowResize ? <WindowResizeHandles /> : null}
       <div className="app-window">
-        <TopTabBar usesCustomTitlebar={usesCustomTitlebar} />
+        <TopTabBar usesCustomTitlebar={usesCustomTitlebar} onRequestClose={requestWindowClose} />
 
         <div className="app-shell__view-container">
           <Suspense fallback={<AppViewFallback />}>

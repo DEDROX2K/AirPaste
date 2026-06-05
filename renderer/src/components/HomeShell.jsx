@@ -4,6 +4,7 @@ import { useAppContext } from "../context/useAppContext";
 import {
   buildHomeRouteState,
   filterItemsByPreference,
+  folderNameFromPath,
   formatRelativeTime,
   normalizeHomeNavigation,
   normalizeHomePreferences,
@@ -12,10 +13,36 @@ import {
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { desktop } from "../lib/desktop";
 import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
+import {
+  Clock,
+  FolderOpen,
+  FolderPlus,
+  Grid2X2,
+  Home,
+  Import,
+  LayoutList,
+  Menu,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings2,
+  Sparkles,
+  Star,
+  Trash2,
+} from "lucide-react";
 import "./HomeShellPrototype.css";
 
 const HOME_MENU_GAP = 8;
 const HOME_MENU_MIN_WIDTH = 176;
+
+function getResolvedHomeViewMode(uiState) {
+  const mode = normalizeHomePreferences(uiState).viewMode;
+  if (mode === "sheets") return "sheets";
+  if (mode === "list") return "list";
+  return "cards";
+}
 
 function typeLabel(type) {
   if (type === "folder") return "Folder";
@@ -27,7 +54,13 @@ function typeLabel(type) {
 function sectionLabel(section) {
   if (section === "recents") return "Recent";
   if (section === "starred") return "Starred";
-  return "All files";
+  return "All canvases";
+}
+
+function SectionIcon({ section }) {
+  if (section === "recents") return <Clock size={16} aria-hidden="true" />;
+  if (section === "starred") return <Star size={16} aria-hidden="true" />;
+  return <Home size={16} aria-hidden="true" />;
 }
 
 function buildBrowserItems(items, preferences, searchQuery) {
@@ -112,12 +145,15 @@ function BrowserEntryMenu({ item, anchorRect, onRename, onDelete, onToggleStar, 
     >
       <div className="menu-list">
         <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onToggleStar(item); onClose(); }}>
+          <Star size={15} aria-hidden="true" />
           {item.starred ? "Remove star" : "Add star"}
         </AppButton>
         <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onRename(item); onClose(); }}>
+          <Pencil size={15} aria-hidden="true" />
           Rename
         </AppButton>
         <AppButton type="button" tone="danger" className="dropdown-item browser-entry-menu__action browser-entry-menu__action--danger" onClick={() => { onDelete(item); onClose(); }}>
+          <Trash2 size={15} aria-hidden="true" />
           Delete
         </AppButton>
       </div>
@@ -172,7 +208,9 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
             ))}
           </div>
           <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button list-row-inline-action" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
+            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button list-row-inline-action" aria-label={`More actions for ${item.name}`} title="More actions" onClick={() => onMenuToggle(itemKey(item))}>
+              <MoreHorizontal size={16} aria-hidden="true" />
+            </AppButton>
           </div>
           <button
             type="button"
@@ -212,7 +250,9 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
       <div className="browser-card-actions">
         <AppButton type="button" tone="surface" className="home-card-action is-flex" onClick={() => onOpen(item)}>Open</AppButton>
         <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-          <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" onClick={() => onMenuToggle(itemKey(item))}>...</AppButton>
+          <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" aria-label={`More actions for ${item.name}`} title="More actions" onClick={() => onMenuToggle(itemKey(item))}>
+            <MoreHorizontal size={16} aria-hidden="true" />
+          </AppButton>
         </div>
         {menuOpen ? (
           <BrowserEntryMenu
@@ -229,15 +269,87 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
   );
 }
 
+function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorkspace, onOpenWorkspace, onOpenDome, onManageWorkspaces }) {
+  const recentDomes = Array.isArray(domes) ? domes.slice(0, 4) : [];
+
+  return (
+    <section className="workspace-launch" aria-label="Workspace launcher">
+      <div className="workspace-launch__hero">
+        <div className="workspace-launch__eyebrow">
+          <Sparkles size={15} aria-hidden="true" />
+          AirPaste
+        </div>
+        <h1 className="workspace-launch__title">Start with a workspace.</h1>
+        <p className="workspace-launch__copy">
+          Open an existing workspace or create a new one.
+        </p>
+        <div className="workspace-launch__actions">
+          <AppButton type="button" tone="accent" size="lg" disabled={folderLoading} onClick={onOpenWorkspace}>
+            <FolderOpen size={18} aria-hidden="true" />
+            Open Workspace
+          </AppButton>
+          <AppButton type="button" tone="surface" size="lg" disabled={folderLoading} onClick={onCreateWorkspace}>
+            <FolderPlus size={18} aria-hidden="true" />
+            Create Workspace
+          </AppButton>
+        </div>
+      </div>
+
+      <div className="workspace-launch__panel">
+        <div className="workspace-launch__panel-header">
+          <div>
+            <div className="eyebrow is-clean">Recent workspaces</div>
+            <h2 className="workspace-launch__panel-title">Pick up where you left off</h2>
+          </div>
+          <AppButton type="button" tone="surface" size="icon" aria-label="Manage workspaces" title="Manage workspaces" onClick={onManageWorkspaces}>
+            <Settings2 size={17} aria-hidden="true" />
+          </AppButton>
+        </div>
+
+        <div className="workspace-launch__recent-list">
+          {recentDomes.length > 0 ? recentDomes.map((dome) => (
+            <button
+              key={dome.id}
+              type="button"
+              className={`workspace-launch__recent${dome.id === activeDome?.id ? " is-active" : ""}`}
+              disabled={folderLoading}
+              onClick={() => onOpenDome(dome.id)}
+            >
+              <span className="workspace-launch__recent-icon">
+                <FolderOpen size={18} aria-hidden="true" />
+              </span>
+              <span className="workspace-launch__recent-copy">
+                <span className="workspace-launch__recent-name">{dome.name || folderNameFromPath(dome.path)}</span>
+                <span className="workspace-launch__recent-path">{dome.path || "Workspace path unavailable"}</span>
+              </span>
+            </button>
+          )) : (
+            <div className="workspace-launch__empty-recent">
+              <FolderOpen size={20} aria-hidden="true" />
+              <span>No recent workspaces yet.</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
   return (
-    <section className="empty-card">
-      <div className="eyebrow">Workspace</div>
+    <section className="empty-card browser-empty-state">
+      <div className="eyebrow is-clean">Workspace</div>
       <h2 className="dialog-title">{title}</h2>
       <p className="muted-copy">{description}</p>
       <div className="dome-actions">
-        <AppButton type="button" tone="accent" onClick={onNewCanvas}>Create Canvas</AppButton>
-        <AppButton type="button" tone="surface" onClick={onImportFiles}>Import Files</AppButton>
+        <AppButton type="button" tone="accent" onClick={onNewCanvas}>
+          <Plus size={16} aria-hidden="true" />
+          Create Canvas
+        </AppButton>
+        <AppButton type="button" tone="surface" onClick={onImportFiles}>
+          <Import size={16} aria-hidden="true" />
+          Import Files
+        </AppButton>
       </div>
     </section>
   );
@@ -447,10 +559,17 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
 
             <div className="home-canvas-card__actions">
               <AppButton type="button" tone="surface" onClick={() => onToggleStar(item)}>
+                <Star size={15} aria-hidden="true" />
                 {item.starred ? "Starred" : "Star"}
               </AppButton>
-              <AppButton type="button" tone="surface" onClick={() => onRename(item)}>Rename</AppButton>
-              <AppButton type="button" tone="danger" onClick={() => onDelete(item)}>Delete</AppButton>
+              <AppButton type="button" tone="surface" onClick={() => onRename(item)}>
+                <Pencil size={15} aria-hidden="true" />
+                Rename
+              </AppButton>
+              <AppButton type="button" tone="danger" onClick={() => onDelete(item)}>
+                <Trash2 size={15} aria-hidden="true" />
+                Delete
+              </AppButton>
             </div>
           </article>
         );
@@ -473,14 +592,24 @@ function HomeSidebarContent({
 }) {
   return (
     <>
+      <div className="home-sidebar__brand">
+        <div className="home-sidebar__mark">A</div>
+        <div>
+          <div className="home-sidebar__brand-name">AirPaste</div>
+          <div className="home-sidebar__brand-subtitle">{folderPath ? folderNameFromPath(folderPath) : "Workspace launcher"}</div>
+        </div>
+      </div>
+
       <div className="sidebar-section">
-        <div className="eyebrow">Search</div>
-        <input
-          className="workspace-search"
-          value={searchQuery}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search folders, canvases, files"
-        />
+        <label className="workspace-search-shell">
+          <Search size={16} aria-hidden="true" />
+          <input
+            className="workspace-search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search canvases"
+          />
+        </label>
       </div>
 
       <div className="sidebar-section">
@@ -492,7 +621,10 @@ function HomeSidebarContent({
             className={`sidebar-link${navigation.selectedSection === section ? " is-active" : ""}`}
             onClick={() => void onSectionChange(section)}
           >
-            <span>{section === "home" ? "Home" : sectionLabel(section)}</span>
+            <span className="sidebar-link__label">
+              <SectionIcon section={section} />
+              {section === "home" ? "Home" : sectionLabel(section)}
+            </span>
             <span className="workspace-badge">
               {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
             </span>
@@ -502,10 +634,11 @@ function HomeSidebarContent({
 
       <div className="sidebar-section is-bottom">
         <div>
-          <h3 className="brand-wordmark">AIR</h3>
+          <h3 className="brand-wordmark">{activeDome?.name || "AirPaste"}</h3>
           <p className="sidebar-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
         </div>
         <AppButton type="button" tone="surface" className="home-sidebar-action" onClick={onManageWorkspaces}>
+          <Settings2 size={16} aria-hidden="true" />
           Manage Workspaces
         </AppButton>
       </div>
@@ -653,13 +786,7 @@ export default function HomeShell() {
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
-  const [homeViewMode, setHomeViewMode] = useState(() => (
-    normalizeHomePreferences(homeData.uiState).viewMode === "sheets"
-      ? "sheets"
-      : normalizeHomePreferences(homeData.uiState).viewMode === "cards"
-        ? "cards"
-        : "list"
-  ));
+  const [homeViewMode, setHomeViewMode] = useState(() => getResolvedHomeViewMode(homeData.uiState));
   const listButtonRefs = useRef([]);
   const browserViewMode = homeViewMode;
   const isSheetsView = browserViewMode === "sheets";
@@ -669,13 +796,7 @@ export default function HomeShell() {
     const normalizedPreferences = normalizeHomePreferences(homeData.uiState);
     setNavigation(normalizeHomeNavigation(homeData.uiState));
     setHomePreferences(normalizedPreferences);
-    setHomeViewMode(
-      normalizedPreferences.viewMode === "sheets"
-        ? "sheets"
-        : normalizedPreferences.viewMode === "cards"
-          ? "cards"
-          : "list"
-    );
+    setHomeViewMode(getResolvedHomeViewMode(homeData.uiState));
   }, [homeData.uiState]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
@@ -741,6 +862,7 @@ export default function HomeShell() {
 
   const hasWorkspace = Boolean(folderPath);
   const activeItemPath = homeData.uiState?.lastOpenedItemPath ?? null;
+  const workspaceName = folderPath ? folderNameFromPath(folderPath) : activeDome?.name || "Workspace";
 
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}, forcedViewMode = null) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
@@ -950,8 +1072,8 @@ export default function HomeShell() {
   const emptyState = describeEmptyState();
 
   return (
-    <main ref={shellRef} className="home-shell">
-      {!isNarrowDesktop ? (
+    <main ref={shellRef} className={`home-shell${!hasWorkspace ? " home-shell--launch" : ""}`}>
+      {!isNarrowDesktop && hasWorkspace ? (
         <aside className="home-sidebar">
           <HomeSidebarContent
             searchQuery={searchQuery}
@@ -969,83 +1091,121 @@ export default function HomeShell() {
       ) : null}
 
       <section className="workspace-main">
-        <div className="home-toolbar-shell">
-          <div className="toolbar-cluster toolbar-cluster--primary">
-            {isNarrowDesktop ? (
+        {hasWorkspace ? (
+          <div className="home-toolbar-shell">
+            <div className="toolbar-cluster toolbar-cluster--primary">
+              {isNarrowDesktop ? (
               <AppButton type="button" tone="surface" className="home-sidebar-trigger" onClick={() => setSidebarDrawerOpen(true)}>
+                <Menu size={17} aria-hidden="true" />
                 Menu
               </AppButton>
-            ) : null}
-            <AppButton type="button" tone="accent" disabled={!hasWorkspace} onClick={() => openCreateDialog("canvas", "Canvas")}>Create Canvas</AppButton>
-          </div>
-          <div className="toolbar-cluster toolbar-cluster--secondary">
-            <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={!isSheetsView && !isCardsView}
-                aria-pressed={!isSheetsView && !isCardsView}
-                className={`home-view-toggle__button${!isSheetsView && !isCardsView ? " is-active" : ""}`}
-                onClick={() => {
-                  const nextPreferences = { ...homePreferences, viewMode: "list" };
-                  setHomeViewMode("list");
-                  setHomePreferences(nextPreferences);
-                  persistHomeContext(navigation, nextPreferences, 0, {}, "list");
-                }}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isCardsView}
-                aria-pressed={isCardsView}
-                className={`home-view-toggle__button${isCardsView ? " is-active" : ""}`}
-                onClick={() => {
-                  const nextPreferences = { ...homePreferences, viewMode: "cards" };
-                  setHomeViewMode("cards");
-                  setHomePreferences(nextPreferences);
-                  persistHomeContext(navigation, nextPreferences, 0, {}, "cards");
-                }}
-              >
-                Cards
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isSheetsView}
-                aria-pressed={isSheetsView}
-                className={`home-view-toggle__button${isSheetsView ? " is-active" : ""}`}
-                onClick={() => {
-                  const nextPreferences = { ...homePreferences, viewMode: "sheets" };
-                  setHomeViewMode("sheets");
-                  setHomePreferences(nextPreferences);
-                  persistHomeContext(navigation, nextPreferences, 0, {}, "sheets");
-                }}
-              >
-                Sheets
-              </button>
+              ) : null}
+              <div className="home-toolbar-title">
+                <span className="home-toolbar-kicker">{sectionLabel(navigation.selectedSection)}</span>
+                <h1>{workspaceName}</h1>
+              </div>
+              <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
+                <Plus size={17} aria-hidden="true" />
+                Create Canvas
+              </AppButton>
             </div>
-            <AppButton
-              type="button"
-              tone="surface"
-              disabled={!hasWorkspace || folderLoading}
-              onClick={() => void backfillCanvasThumbnails(12)}
-            >
-              Backfill previews
-            </AppButton>
-            <AppButton type="button" tone="surface" disabled={!hasWorkspace} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>Import Files</AppButton>
-            <AppButton type="button" tone="surface" disabled={!folderPath || folderLoading} onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}>More</AppButton>
+            <div className="toolbar-cluster toolbar-cluster--secondary">
+              <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="List view"
+                  title="List view"
+                  aria-selected={!isSheetsView && !isCardsView}
+                  aria-pressed={!isSheetsView && !isCardsView}
+                  className={`home-view-toggle__button${!isSheetsView && !isCardsView ? " is-active" : ""}`}
+                  onClick={() => {
+                    const nextPreferences = { ...homePreferences, viewMode: "list" };
+                    setHomeViewMode("list");
+                    setHomePreferences(nextPreferences);
+                    persistHomeContext(navigation, nextPreferences, 0, {}, "list");
+                  }}
+                >
+                  <LayoutList size={16} aria-hidden="true" />
+                  <span>List</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="Card view"
+                  title="Card view"
+                  aria-selected={isCardsView}
+                  aria-pressed={isCardsView}
+                  className={`home-view-toggle__button${isCardsView ? " is-active" : ""}`}
+                  onClick={() => {
+                    const nextPreferences = { ...homePreferences, viewMode: "cards" };
+                    setHomeViewMode("cards");
+                    setHomePreferences(nextPreferences);
+                    persistHomeContext(navigation, nextPreferences, 0, {}, "cards");
+                  }}
+                >
+                  <Grid2X2 size={16} aria-hidden="true" />
+                  <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="Sheets view"
+                  title="Sheets view"
+                  aria-selected={isSheetsView}
+                  aria-pressed={isSheetsView}
+                  className={`home-view-toggle__button${isSheetsView ? " is-active" : ""}`}
+                  onClick={() => {
+                    const nextPreferences = { ...homePreferences, viewMode: "sheets" };
+                    setHomeViewMode("sheets");
+                    setHomePreferences(nextPreferences);
+                    persistHomeContext(navigation, nextPreferences, 0, {}, "sheets");
+                  }}
+                >
+                  <Sparkles size={16} aria-hidden="true" />
+                  <span>Sheets</span>
+                </button>
+              </div>
+              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
+                <Import size={16} aria-hidden="true" />
+                Import
+              </AppButton>
+              <AppButton
+                type="button"
+                tone="surface"
+                size="icon"
+                aria-label="Refresh workspace"
+                title="Refresh workspace"
+                disabled={folderLoading}
+                onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+              </AppButton>
+              <AppButton
+                type="button"
+                tone="surface"
+                size="icon"
+                aria-label="Backfill canvas previews"
+                title="Backfill canvas previews"
+                disabled={folderLoading}
+                onClick={() => void backfillCanvasThumbnails(12)}
+              >
+                <MoreHorizontal size={16} aria-hidden="true" />
+              </AppButton>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div ref={bodyRef} className="workspace-main-content" onScroll={handleBodyScroll}>
           {!hasWorkspace ? (
-            <BrowserEmptyState
-              title={activeDome?.name || "No Workspace Loaded"}
-              description="Open a folder-backed workspace to browse nested folders, canvases, and imported files."
-              onNewCanvas={() => openCreateDialog("canvas", "Canvas")}
-              onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
+            <WorkspaceLaunchScreen
+              domes={domes}
+              folderLoading={folderLoading}
+              activeDome={activeDome}
+              onCreateWorkspace={() => openCreateDialog("create-dome", "New Workspace")}
+              onOpenWorkspace={() => void openExistingWorkspace()}
+              onOpenDome={(id) => void switchDome(id)}
+              onManageWorkspaces={() => setManageDomesOpen(true)}
             />
           ) : browserItems.length === 0 ? (
             <BrowserEmptyState

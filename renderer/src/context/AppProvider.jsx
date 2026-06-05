@@ -36,6 +36,7 @@ import {
 } from "../lib/testingTiles";
 
 const CANVAS_SAVE_DELAY_MS = 420;
+const BOOT_MIN_DURATION_MS = 680;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 8;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
 const WORKSPACE_HISTORY_LIMIT_STORAGE_KEY = "airpaste.workspaceHistoryLimit";
@@ -608,11 +609,25 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+    const bootStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+    let finishBootTimeout = 0;
     const bootFallbackTimeout = window.setTimeout(() => {
       if (!cancelled) {
         setBooting(false);
       }
     }, 1800);
+
+    function finishBoot() {
+      window.clearTimeout(bootFallbackTimeout);
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const remainingMs = Math.max(0, BOOT_MIN_DURATION_MS - (now - bootStart));
+
+      finishBootTimeout = window.setTimeout(() => {
+        if (!cancelled) {
+          setBooting(false);
+        }
+      }, remainingMs);
+    }
 
     async function boot() {
       try {
@@ -637,14 +652,14 @@ export function AppProvider({ children }) {
       } catch (bootError) {
         if (!cancelled) setError(bootError.message || "Unable to restore previous Dome.");
       } finally {
-        window.clearTimeout(bootFallbackTimeout);
-        if (!cancelled) setBooting(false);
+        finishBoot();
       }
     }
     void boot();
     return () => {
       cancelled = true;
       window.clearTimeout(bootFallbackTimeout);
+      window.clearTimeout(finishBootTimeout);
     };
   }, [applyDomesState, loadFolder]);
 

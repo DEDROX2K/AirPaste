@@ -25,6 +25,7 @@ const TEMP_SUFFIX = ".tmp";
 const BACKUP_SUFFIX = ".bak";
 const PREVIEW_NETWORK_IDLE_TIMEOUT_MS = 5000;
 const PREVIEW_DOCUMENT_TIMEOUT_MS = 12000;
+const WINDOW_CLOSE_ANIMATION_MS = 190;
 const PREVIEW_JPEG_QUALITY = 58;
 const CANVAS_THUMB_JPEG_QUALITY = 68;
 const ASSET_PREVIEW_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "asset-lod"]);
@@ -140,6 +141,8 @@ const PREVIEW_GENERIC_TITLES = Object.freeze([
 
 let mainWindow = null;
 let activeWindowResizeSession = null;
+let allowImmediateWindowClose = false;
+let pendingWindowCloseTimeout = null;
 const previewJobs = new Map();
 const workspaceQueues = new Map();
 const cancelledPreviewJobs = new Set();
@@ -2663,6 +2666,9 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
 
 async function createWindow() {
   const windowIconPath = resolveWindowIconPath();
+  allowImmediateWindowClose = false;
+  clearTimeout(pendingWindowCloseTimeout);
+  pendingWindowCloseTimeout = null;
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -2697,6 +2703,20 @@ async function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (allowImmediateWindowClose || mainWindow?.isDestroyed()) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow.webContents.send("window:prepare-close");
+    clearTimeout(pendingWindowCloseTimeout);
+    pendingWindowCloseTimeout = setTimeout(() => {
+      allowImmediateWindowClose = true;
+      mainWindow?.close();
+    }, WINDOW_CLOSE_ANIMATION_MS);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -3254,6 +3274,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  allowImmediateWindowClose = true;
+  clearTimeout(pendingWindowCloseTimeout);
   const previewResolver = getPreviewResolverModule();
   void previewResolver?.closePreviewBrowser?.();
 });
