@@ -56,7 +56,8 @@
 }
 
 .canvas__content .card__surface-frame,
-.grid-workspace .card__surface-frame {
+.grid-workspace .card__surface-frame,
+.card__surface-frame {
   border-radius: var(--ap-tile-radius) !important;
   outline: 0 !important;
   filter: none !important;
@@ -72,7 +73,10 @@
 .canvas__content .card__record-sleeve,
 .grid-workspace .card__record-sleeve,
 .canvas__content .card__video-frame,
-.grid-workspace .card__video-frame {
+.grid-workspace .card__video-frame,
+.card__surface,
+.card__record-sleeve,
+.card__video-frame {
   border: 1px solid var(--ap-tile-line) !important;
   border-radius: var(--ap-tile-radius) !important;
   background:
@@ -93,8 +97,10 @@
 .canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
 .canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
 .grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
-.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
-  transform: translateY(-2px) !important;
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+  transform: none !important;
 }
 
 .canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface,
@@ -346,26 +352,28 @@
 }
 
 .canvas__content .card__quick-actions,
-.grid-workspace .card__quick-actions {
-  top: -16px !important;
+.grid-workspace .card__quick-actions,
+.card__quick-actions {
+  top: 10px !important;
   right: 10px !important;
   z-index: 20 !important;
-  gap: 2px !important;
+  gap: 4px !important;
   padding: 4px !important;
   border: 1px solid var(--ap-tile-line) !important;
-  border-radius: 999px !important;
+  border-radius: var(--ap-tile-radius-inner) !important;
   background: rgba(255, 255, 255, 0.9) !important;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
   backdrop-filter: blur(18px) saturate(1.12) !important;
 }
 
 .canvas__content .card__quick-action,
-.grid-workspace .card__quick-action {
+.grid-workspace .card__quick-action,
+.card__quick-action {
   height: 26px !important;
   min-width: 28px;
   padding: 0 10px !important;
   border: 0 !important;
-  border-radius: 999px !important;
+  border-radius: 8px !important;
   background: transparent !important;
   color: var(--ap-tile-ink) !important;
   box-shadow: none !important;
@@ -382,6 +390,37 @@
 .canvas__content .card__quick-action:disabled,
 .grid-workspace .card__quick-action:disabled {
   opacity: 0.42 !important;
+}
+
+.card__link-float-overlay__title,
+.canvas__content .card__link-float-overlay__title,
+.grid-workspace .card__link-float-overlay__title {
+  top: 10px !important;
+  left: 10px !important;
+  right: 10px !important;
+  padding: 8px 12px !important;
+  border-radius: var(--ap-tile-radius-inner) !important;
+  background: rgba(24, 24, 26, 0.8) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+  transform: none !important;
+}
+
+.card__link-desc,
+.canvas__content .card__link-desc,
+.grid-workspace .card__link-desc {
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+  border-radius: var(--ap-tile-radius-inner) !important;
+}
+
+.card--hovered:not(.card--dragging) .card__link-float-overlay__title,
+.card--focused:not(.card--dragging) .card__link-float-overlay__title,
+.canvas__content .card--hovered:not(.card--dragging) .card__link-float-overlay__title,
+.canvas__content .card--focused:not(.card--dragging) .card__link-float-overlay__title,
+.grid-workspace .card--hovered:not(.card--dragging) .card__link-float-overlay__title,
+.grid-workspace .card--focused:not(.card--dragging) .card__link-float-overlay__title {
+  transform: none !important;
 }
 
 .canvas__content .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select),

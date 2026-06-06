@@ -57,6 +57,10 @@ function sectionLabel(section) {
   return "All canvases";
 }
 
+function formatItemCount(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function SectionIcon({ section }) {
   if (section === "recents") return <Clock size={16} aria-hidden="true" />;
   if (section === "starred") return <Star size={16} aria-hidden="true" />;
@@ -195,7 +199,9 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
           }}
         >
           <div className="list-row-copy">
+            <div className="list-row-kicker">{typeLabel(item.type)}</div>
             <div className="list-row-title">{item.name}</div>
+            <p className="muted-copy list-row-subtitle">{primaryMeta}</p>
           </div>
         </button>
         <div className="list-row-actions">
@@ -221,7 +227,7 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
               onToggleStar(item);
             }}
           >
-            <img src="/icons/star.svg" alt="" aria-hidden="true" className="list-row-star-icon" />
+            <Star size={16} aria-hidden="true" className="list-row-star-icon" />
           </button>
           {menuOpen ? (
             <BrowserEntryMenu
@@ -533,6 +539,7 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
         const thumbUrl = thumbUrls[itemKey(item)] || "";
         const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
         const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
+        const editedLabel = `Edited ${formatRelativeTime(item.updatedAt)}`;
         return (
           <article key={itemKey(item)} className="home-canvas-card" role="listitem">
             <button
@@ -541,15 +548,19 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
               onClick={() => onOpenCanvas(item)}
             >
               <div className="home-canvas-card__thumb">
-                {thumbUrl ? (
-                  <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
-                ) : (
-                  <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
-                )}
+                <div className="home-canvas-card__thumb-stage">
+                  {thumbUrl ? (
+                    <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+                  ) : (
+                    <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
+                  )}
+                </div>
               </div>
               <div className="home-canvas-card__meta">
-                <div className="home-canvas-card__title">{item.name}</div>
-                <div className="home-canvas-card__subtitle">Edited {formatRelativeTime(item.updatedAt)}</div>
+                <div className="home-canvas-card__heading">
+                  <div className="home-canvas-card__title">{item.name}</div>
+                  <div className="home-canvas-card__subtitle">{editedLabel}</div>
+                </div>
                 <div className="home-canvas-card__stats">
                   <span className="home-canvas-card__stat">{tileCount} tiles</span>
                   <span className="home-canvas-card__stat">{pageCount} pages</span>
@@ -558,17 +569,14 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
             </button>
 
             <div className="home-canvas-card__actions">
-              <AppButton type="button" tone="surface" onClick={() => onToggleStar(item)}>
+              <AppButton type="button" tone="surface" size="icon" aria-label={item.starred ? `Unstar ${item.name}` : `Star ${item.name}`} title={item.starred ? "Remove star" : "Add star"} onClick={() => onToggleStar(item)}>
                 <Star size={15} aria-hidden="true" />
-                {item.starred ? "Starred" : "Star"}
               </AppButton>
-              <AppButton type="button" tone="surface" onClick={() => onRename(item)}>
+              <AppButton type="button" tone="surface" size="icon" aria-label={`Rename ${item.name}`} title="Rename" onClick={() => onRename(item)}>
                 <Pencil size={15} aria-hidden="true" />
-                Rename
               </AppButton>
-              <AppButton type="button" tone="danger" onClick={() => onDelete(item)}>
+              <AppButton type="button" tone="danger" size="icon" aria-label={`Delete ${item.name}`} title="Delete" onClick={() => onDelete(item)}>
                 <Trash2 size={15} aria-hidden="true" />
-                Delete
               </AppButton>
             </div>
           </article>
@@ -633,9 +641,10 @@ function HomeSidebarContent({
       </div>
 
       <div className="sidebar-section is-bottom">
-        <div>
+        <div className="sidebar-workspace-card">
+          <div className="sidebar-workspace-card__label">Workspace</div>
           <h3 className="brand-wordmark">{activeDome?.name || "AirPaste"}</h3>
-          <p className="sidebar-path">{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
+          <p className="sidebar-path" title={folderPath || activeDome?.path || "Workspace path unavailable."}>{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
         </div>
         <AppButton type="button" tone="surface" className="home-sidebar-action" onClick={onManageWorkspaces}>
           <Settings2 size={16} aria-hidden="true" />
@@ -862,7 +871,6 @@ export default function HomeShell() {
 
   const hasWorkspace = Boolean(folderPath);
   const activeItemPath = homeData.uiState?.lastOpenedItemPath ?? null;
-  const workspaceName = folderPath ? folderNameFromPath(folderPath) : activeDome?.name || "Workspace";
 
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}, forcedViewMode = null) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
@@ -1070,6 +1078,13 @@ export default function HomeShell() {
   }
 
   const emptyState = describeEmptyState();
+  const sectionTitle = sectionLabel(navigation.selectedSection);
+  const itemCountLabel = formatItemCount(browserItems.length, "canvas");
+  const statChips = [
+    { key: "all", icon: Home, label: formatItemCount(allCanvasItems.length, "canvas") },
+    { key: "recent", icon: Clock, label: `${recentCanvasItems.length} recent` },
+    { key: "starred", icon: Star, label: `${homeData.starredItems.length} starred` },
+  ];
 
   return (
     <main ref={shellRef} className={`home-shell${!hasWorkspace ? " home-shell--launch" : ""}`}>
@@ -1101,16 +1116,30 @@ export default function HomeShell() {
               </AppButton>
               ) : null}
               <div className="home-toolbar-title">
-                <span className="home-toolbar-kicker">{sectionLabel(navigation.selectedSection)}</span>
-                <h1>{workspaceName}</h1>
+                <h1>{sectionTitle}</h1>
               </div>
-              <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
-                <Plus size={17} aria-hidden="true" />
-                Create Canvas
-              </AppButton>
+              <div className="home-toolbar-stats" aria-label="Workspace summary">
+                {statChips.map(({ key, icon: Icon, label }) => (
+                  <span key={key} className="home-toolbar-stat">
+                    <Icon size={14} aria-hidden="true" />
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="toolbar-cluster toolbar-cluster--secondary">
-              <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
+              <div className="home-toolbar-actions">
+                <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
+                  <Plus size={17} aria-hidden="true" />
+                  Create Canvas
+                </AppButton>
+                <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
+                  <Import size={16} aria-hidden="true" />
+                  Import
+                </AppButton>
+              </div>
+              <div className="home-toolbar-tools">
+                <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
                 <button
                   type="button"
                   role="tab"
@@ -1166,10 +1195,6 @@ export default function HomeShell() {
                   <span>Sheets</span>
                 </button>
               </div>
-              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
-                <Import size={16} aria-hidden="true" />
-                Import
-              </AppButton>
               <AppButton
                 type="button"
                 tone="surface"
@@ -1185,13 +1210,14 @@ export default function HomeShell() {
                 type="button"
                 tone="surface"
                 size="icon"
-                aria-label="Backfill canvas previews"
-                title="Backfill canvas previews"
+                aria-label="Refresh canvas previews"
+                title="Refresh canvas previews"
                 disabled={folderLoading}
                 onClick={() => void backfillCanvasThumbnails(12)}
               >
-                <MoreHorizontal size={16} aria-hidden="true" />
+                <Sparkles size={16} aria-hidden="true" />
               </AppButton>
+              </div>
             </div>
           </div>
         ) : null}
@@ -1218,8 +1244,11 @@ export default function HomeShell() {
             <>
               <section className="browser-panel">
                 <div className="browser-panel-header">
-                  <h3 className="panel-title">{sectionLabel(navigation.selectedSection)}</h3>
-                  <div className="eyebrow is-clean">{browserItems.length} Items</div>
+                  <h3 className="panel-title">{sectionTitle}</h3>
+                  <div className="browser-panel-header__meta">
+                    <span className="browser-panel-header__pill">{itemCountLabel}</span>
+                    {searchQuery.trim() ? <span className="browser-panel-header__pill">Filtered</span> : null}
+                  </div>
                 </div>
                 {isSheetsView ? (
                   <HomeSheetsView
