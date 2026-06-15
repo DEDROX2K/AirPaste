@@ -492,8 +492,98 @@ function HomeSheetsView({ folderPath, pages, thumbnailPathByCanvasPath, onOpenPa
   );
 }
 
+function HomeCanvasCardItem({
+  item,
+  thumbUrl,
+  menuOpen,
+  onOpenCanvas,
+  onRename,
+  onDelete,
+  onToggleStar,
+  onMenuToggle,
+  onMenuClose,
+}) {
+  const menuButtonRef = useRef(null);
+  const anchorRect = menuButtonRef.current?.getBoundingClientRect() ?? null;
+  const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
+  const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
+  const editedLabel = `Edited ${formatRelativeTime(item.updatedAt)}`;
+  const summaryLabel = `${formatItemCount(tileCount, "tile")} · ${formatItemCount(pageCount, "page")}`;
+
+  return (
+    <article className={`home-canvas-card${item.starred ? " is-starred" : ""}`} role="listitem">
+      <div className="home-canvas-card__toolbar">
+        <AppButton
+          type="button"
+          tone="surface"
+          size="icon"
+          className={`home-canvas-card__icon-button${item.starred ? " is-active" : ""}`}
+          aria-label={item.starred ? `Unstar ${item.name}` : `Star ${item.name}`}
+          title={item.starred ? "Remove star" : "Add star"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleStar(item);
+          }}
+        >
+          <Star size={15} aria-hidden="true" />
+        </AppButton>
+        <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
+          <AppButton
+            ref={menuButtonRef}
+            type="button"
+            tone="surface"
+            size="icon"
+            className="home-canvas-card__icon-button"
+            aria-label={`More actions for ${item.name}`}
+            title="More actions"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMenuToggle();
+            }}
+          >
+            <MoreHorizontal size={15} aria-hidden="true" />
+          </AppButton>
+        </div>
+        {menuOpen ? (
+          <BrowserEntryMenu
+            item={item}
+            anchorRect={anchorRect}
+            onRename={onRename}
+            onDelete={onDelete}
+            onToggleStar={onToggleStar}
+            onClose={onMenuClose}
+          />
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className="home-canvas-card__hit"
+        onClick={() => onOpenCanvas(item)}
+      >
+        <div className="home-canvas-card__thumb">
+          <div className="home-canvas-card__thumb-stage">
+            {thumbUrl ? (
+              <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+            ) : (
+              <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
+            )}
+          </div>
+        </div>
+        <div className="home-canvas-card__meta">
+          <div className="home-canvas-card__heading">
+            <div className="home-canvas-card__title">{item.name}</div>
+            <div className="home-canvas-card__subtitle">{editedLabel}</div>
+          </div>
+          <div className="home-canvas-card__summary">{summaryLabel}</div>
+        </div>
+      </button>
+    </article>
+  );
+}
+
 function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar }) {
   const [thumbUrls, setThumbUrls] = useState(() => ({}));
+  const [openMenuKey, setOpenMenuKey] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -523,6 +613,31 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
     };
   }, [canvases, folderPath]);
 
+  useEffect(() => {
+    if (!openMenuKey) return undefined;
+
+    function handlePointerDown(event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".home-entry-menu") || target?.closest(".home-canvas-card__toolbar")) {
+        return;
+      }
+      setOpenMenuKey(null);
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setOpenMenuKey(null);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openMenuKey]);
+
   if (!Array.isArray(canvases) || canvases.length === 0) {
     return (
       <section className="empty-card home-cards-empty">
@@ -536,50 +651,21 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
   return (
     <div className="home-browser-cards" role="list">
       {canvases.map((item) => {
+        const key = itemKey(item);
         const thumbUrl = thumbUrls[itemKey(item)] || "";
-        const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
-        const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
-        const editedLabel = `Edited ${formatRelativeTime(item.updatedAt)}`;
         return (
-          <article key={itemKey(item)} className="home-canvas-card" role="listitem">
-            <button
-              type="button"
-              className="home-canvas-card__hit"
-              onClick={() => onOpenCanvas(item)}
-            >
-              <div className="home-canvas-card__thumb">
-                <div className="home-canvas-card__thumb-stage">
-                  {thumbUrl ? (
-                    <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
-                  ) : (
-                    <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
-                  )}
-                </div>
-              </div>
-              <div className="home-canvas-card__meta">
-                <div className="home-canvas-card__heading">
-                  <div className="home-canvas-card__title">{item.name}</div>
-                  <div className="home-canvas-card__subtitle">{editedLabel}</div>
-                </div>
-                <div className="home-canvas-card__stats">
-                  <span className="home-canvas-card__stat">{tileCount} tiles</span>
-                  <span className="home-canvas-card__stat">{pageCount} pages</span>
-                </div>
-              </div>
-            </button>
-
-            <div className="home-canvas-card__actions">
-              <AppButton type="button" tone="surface" size="icon" aria-label={item.starred ? `Unstar ${item.name}` : `Star ${item.name}`} title={item.starred ? "Remove star" : "Add star"} onClick={() => onToggleStar(item)}>
-                <Star size={15} aria-hidden="true" />
-              </AppButton>
-              <AppButton type="button" tone="surface" size="icon" aria-label={`Rename ${item.name}`} title="Rename" onClick={() => onRename(item)}>
-                <Pencil size={15} aria-hidden="true" />
-              </AppButton>
-              <AppButton type="button" tone="danger" size="icon" aria-label={`Delete ${item.name}`} title="Delete" onClick={() => onDelete(item)}>
-                <Trash2 size={15} aria-hidden="true" />
-              </AppButton>
-            </div>
-          </article>
+          <HomeCanvasCardItem
+            key={key}
+            item={item}
+            thumbUrl={thumbUrl}
+            menuOpen={openMenuKey === key}
+            onOpenCanvas={onOpenCanvas}
+            onRename={onRename}
+            onDelete={onDelete}
+            onToggleStar={onToggleStar}
+            onMenuToggle={() => setOpenMenuKey((current) => (current === key ? null : key))}
+            onMenuClose={() => setOpenMenuKey(null)}
+          />
         );
       })}
     </div>
@@ -1115,9 +1201,6 @@ export default function HomeShell() {
                 Menu
               </AppButton>
               ) : null}
-              <div className="home-toolbar-title">
-                <h1>{sectionTitle}</h1>
-              </div>
               <div className="home-toolbar-stats" aria-label="Workspace summary">
                 {statChips.map(({ key, icon: Icon, label }) => (
                   <span key={key} className="home-toolbar-stat">

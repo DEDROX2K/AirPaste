@@ -19,9 +19,12 @@ import {
 import {
   CANVAS_TEXT_SOURCE_FILE,
   CANVAS_TEXT_SOURCE_LOCAL,
+  CANVAS_TEXT_TITLE_MODE_CUSTOM,
   CANVAS_TEXT_TITLE_MODE_DERIVED,
   CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
+  composeStickyNoteFileContent,
+  deriveStickyNoteFileDocument,
   deriveCanvasTextTitle,
 } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
@@ -542,7 +545,8 @@ export function useCanvasCommands({
       ...options,
       source: CANVAS_TEXT_SOURCE_LOCAL,
       variant: CANVAS_TEXT_VARIANT_STICKY,
-      titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+      title: typeof options?.title === "string" ? options.title : "",
+      titleMode: CANVAS_TEXT_TITLE_MODE_CUSTOM,
       text: typeof options?.text === "string" ? options.text : "",
     });
 
@@ -616,14 +620,23 @@ export function useCanvasCommands({
     }
 
     const suggestedName = fileStem(deriveCanvasTextTitle(tile)) || "Canvas Note";
+    const nextContent = tile?.variant === CANVAS_TEXT_VARIANT_STICKY
+      ? composeStickyNoteFileContent(tile.title, tile.text)
+      : (tile.text ?? "");
 
     try {
-      const fileRecord = await desktop.workspace.createMarkdownFile(folderPath, suggestedName, tile.text ?? "", "");
+      const fileRecord = await desktop.workspace.createMarkdownFile(folderPath, suggestedName, nextContent, "");
+      const stickyDocument = tile?.variant === CANVAS_TEXT_VARIANT_STICKY
+        ? deriveStickyNoteFileDocument(fileRecord.content, tile.title)
+        : null;
       updateExistingCard(tile.id, {
         source: CANVAS_TEXT_SOURCE_FILE,
         file: fileRecord,
-        text: fileRecord.content,
-        titleMode: tile.titleMode || CANVAS_TEXT_TITLE_MODE_DERIVED,
+        title: stickyDocument ? stickyDocument.title : tile.title,
+        text: stickyDocument ? stickyDocument.bodyText : fileRecord.content,
+        titleMode: tile?.variant === CANVAS_TEXT_VARIANT_STICKY
+          ? CANVAS_TEXT_TITLE_MODE_CUSTOM
+          : (tile.titleMode || CANVAS_TEXT_TITLE_MODE_DERIVED),
         updatedAt: nowIso(),
       });
       toast("success", "Text card converted to a markdown file.");
@@ -651,11 +664,17 @@ export function useCanvasCommands({
 
     try {
       const fileRecord = await resolveMarkdownSelection(markdownPath);
+      const stickyDocument = tile?.variant === CANVAS_TEXT_VARIANT_STICKY
+        ? deriveStickyNoteFileDocument(fileRecord.content, tile.title)
+        : null;
       updateExistingCard(tile.id, {
         source: CANVAS_TEXT_SOURCE_FILE,
         file: fileRecord,
-        text: fileRecord.content,
-        titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+        title: stickyDocument ? stickyDocument.title : tile.title,
+        text: stickyDocument ? stickyDocument.bodyText : fileRecord.content,
+        titleMode: tile?.variant === CANVAS_TEXT_VARIANT_STICKY
+          ? CANVAS_TEXT_TITLE_MODE_CUSTOM
+          : CANVAS_TEXT_TITLE_MODE_DERIVED,
         updatedAt: nowIso(),
       });
       toast("success", "Note source swapped.");

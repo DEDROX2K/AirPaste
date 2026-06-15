@@ -57,12 +57,18 @@ function TableTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
 }) {
   const { updateExistingCard } = useAppContext();
   const inputRefs = useRef(new Map());
   const pendingFocusRef = useRef(null);
+  const titleInputRef = useRef(null);
   const surfaceGesture = useTileGesture({
     card,
+    onDoubleActivate: () => {
+      titleInputRef.current?.focus?.();
+      titleInputRef.current?.select?.();
+    },
     onDragStart: onBeginDrag,
     onPressStart,
   });
@@ -275,6 +281,7 @@ function TableTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--table"
+      renderHint={renderHint}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
@@ -285,6 +292,7 @@ function TableTile({
           <section className="card__surface card__surface--table" aria-label={card.title || "Table"}>
             <header className="card__table-header">
               <input
+                ref={titleInputRef}
                 className="card__table-title"
                 type="text"
                 value={card.title ?? ""}

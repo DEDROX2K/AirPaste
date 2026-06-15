@@ -84,6 +84,7 @@ function TextBoxTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
   performanceMode,
   viewportZoom,
   canvasToolMode,
@@ -437,6 +438,7 @@ function TextBoxTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--text-box"
+      renderHint={renderHint}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}

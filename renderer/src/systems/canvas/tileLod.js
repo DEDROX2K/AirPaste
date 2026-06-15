@@ -17,11 +17,17 @@ export const WORKSPACE_LOD_LEVEL = Object.freeze({
   FAR: "lod1",
 });
 
+export const TILE_RENDER_STATE = Object.freeze({
+  DETAIL: "detail",
+  COMPACT: "compact",
+});
+
 const FAR_VISIBLE_THRESHOLD = 28;
 const FAR_VISIBLE_THRESHOLD_EXIT = 18;
 const FAR_ZOOM_THRESHOLD = 0.42;
 const FAR_ZOOM_THRESHOLD_EXIT = 0.5;
 const ENABLE_WORKSPACE_LOD = false;
+const DETAIL_RENDER_ZOOM_THRESHOLD = 0.65;
 
 export const ZOOM_PREVIEW_BANDS = Object.freeze([
   Object.freeze({ minZoom: 0.9, previewTier: PREVIEW_TIER.ORIGINAL }),
@@ -34,6 +40,13 @@ export function resolveZoomPreviewTier(viewportZoom) {
   const safeZoom = Number.isFinite(viewportZoom) ? viewportZoom : 1;
   const band = ZOOM_PREVIEW_BANDS.find((entry) => safeZoom >= entry.minZoom);
   return band?.previewTier ?? PREVIEW_TIER.ORIGINAL;
+}
+
+export function resolveTileRenderState(viewportZoom) {
+  const safeZoom = Number.isFinite(viewportZoom) ? viewportZoom : 1;
+  return safeZoom >= DETAIL_RENDER_ZOOM_THRESHOLD
+    ? TILE_RENDER_STATE.DETAIL
+    : TILE_RENDER_STATE.COMPACT;
 }
 
 export function resolveWorkspaceLodLevel({
@@ -66,11 +79,13 @@ export function buildTileRenderHint({
   viewportZoom = 1,
 }) {
   const zoomPreviewTier = resolveZoomPreviewTier(viewportZoom);
+  const renderState = resolveTileRenderState(viewportZoom);
 
   if (!ENABLE_WORKSPACE_LOD) {
     return {
       lodLevel: WORKSPACE_LOD_LEVEL.NORMAL,
       previewTier: forceFullFidelity ? PREVIEW_TIER.ORIGINAL : zoomPreviewTier,
+      renderState,
       simplify: !forceFullFidelity && preferSpeed,
       imageEnabled: true,
       showToolbar: true,
@@ -90,6 +105,7 @@ export function buildTileRenderHint({
     previewTier: isFarLod
       ? PREVIEW_TIER.THUMBNAIL
       : (shouldUseOptimizedImage ? zoomPreviewTier : PREVIEW_TIER.ORIGINAL),
+    renderState,
     simplify: shouldSimplify,
     imageEnabled: true,
     showToolbar: !isFarLod,

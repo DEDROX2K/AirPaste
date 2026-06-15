@@ -11,9 +11,8 @@ import {
   CANVAS_TEXT_MIN_WIDTH,
   CANVAS_TEXT_SOURCE_FILE,
   CANVAS_TEXT_SOURCE_LOCAL,
-  CANVAS_TEXT_TITLE_MODE_DERIVED,
   CANVAS_TEXT_VARIANT_STICKY,
-  deriveCanvasTextTitle,
+  deriveCanvasTextDisplayModel,
 } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
@@ -40,6 +39,18 @@ function defaultSourceStatus(source) {
   return source === CANVAS_TEXT_SOURCE_FILE
     ? { status: "loading", error: "" }
     : { status: "ready", error: "" };
+}
+
+function buildStickyPreviewSections(lines) {
+  const normalizedLines = Array.isArray(lines)
+    ? lines.filter((line) => typeof line === "string" && line.trim().length > 0)
+    : [];
+
+  return {
+    detailBodyLines: normalizedLines.slice(0, 4),
+    detailFooterLines: normalizedLines.slice(4, 6),
+    compactLines: normalizedLines.slice(0, 3),
+  };
 }
 
 function buildEditorExtensions({ onDocChange, onExit }) {
@@ -99,6 +110,7 @@ function CanvasTextTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
   viewportZoom,
   canvasToolMode,
   textBoxEditorState,
@@ -118,8 +130,36 @@ function CanvasTextTile({
   const measureRef = useRef(null);
   const resizeStateRef = useRef(null);
   const actionInFlightRef = useRef(false);
-  const title = useMemo(() => deriveCanvasTextTitle(card), [card]);
-  const markdownPreview = useMemo(() => renderSimpleMarkdown(card.text ?? ""), [card.text]);
+  const displayModel = useMemo(
+    () => deriveCanvasTextDisplayModel(card, isEditing ? draftText : (card.text ?? "")),
+    [card, draftText, isEditing],
+  );
+  const title = displayModel.title;
+  const bodyMarkdown = displayModel.bodyMarkdown;
+  const renderState = renderHint?.renderState ?? "detail";
+  const stickyPreview = useMemo(
+    () => buildStickyPreviewSections(displayModel.bodyLines),
+    [displayModel.bodyLines],
+  );
+  const isCompactSticky = isSticky && renderState === "compact";
+  const hasTitle = title.trim().length > 0;
+  const hasBodyContent = bodyMarkdown.trim().length > 0;
+  const markdownPreview = useMemo(() => renderSimpleMarkdown(bodyMarkdown), [bodyMarkdown]);
+  const footerLabel = useMemo(() => {
+    if (!hasBodyContent) {
+      return "TYPE HERE...";
+    }
+
+    if (isSticky) {
+      return stickyPreview.detailFooterLines.join(" ");
+    }
+
+    if (source === CANVAS_TEXT_SOURCE_FILE) {
+      return card.file?.relativePath || card.file?.fileName || "Markdown file";
+    }
+
+    return isSticky ? "LOCAL STICKY NOTE" : "LOCAL MARKDOWN NOTE";
+  }, [card.file?.fileName, card.file?.relativePath, hasBodyContent, isSticky, source, stickyPreview.detailFooterLines]);
   const surfaceGesture = useTileGesture({
     card,
     canDrag: !isEditing && isSelectToolActive,
@@ -133,7 +173,7 @@ function CanvasTextTile({
   const refreshCardHeight = useCallback((measuredHeight = 0) => {
     const nextHeight = Math.max(
       CANVAS_TEXT_MIN_HEIGHT,
-      Math.ceil(measuredHeight || measureRef.current?.getBoundingClientRect?.().height || 0) + 34,
+      Math.ceil(measureRef.current?.getBoundingClientRect?.().height || measuredHeight || 0) + 2,
     );
 
     if (Math.abs(nextHeight - (card.height ?? CANVAS_TEXT_MIN_HEIGHT)) > 1) {
@@ -285,7 +325,9 @@ function CanvasTextTile({
         extensions: buildEditorExtensions({
           onDocChange: (nextText, contentHeight) => {
             setDraftText(nextText);
-            refreshCardHeight(contentHeight);
+            window.requestAnimationFrame(() => {
+              refreshCardHeight(contentHeight);
+            });
           },
           onExit: () => {
             void exitEditMode({ restoreCanvasFocus: true });
@@ -383,64 +425,6 @@ function CanvasTextTile({
     window.addEventListener("blur", finishResize);
   };
 
-  const handleConvertToFile = async () => {
-    if (!folderPath) {
-      return;
-    }
-
-    try {
-      const fileRecord = await desktop.workspace.createMarkdownFile(
-        folderPath,
-        title,
-        card.text ?? "",
-        "",
-      );
-      updateExistingCard(card.id, {
-        source: CANVAS_TEXT_SOURCE_FILE,
-        file: fileRecord,
-        text: fileRecord.content,
-        titleMode: card.titleMode || CANVAS_TEXT_TITLE_MODE_DERIVED,
-      });
-      setSourceStatus({ status: "ready", error: "" });
-    } catch (error) {
-      setSourceStatus({
-        status: "error",
-        error: error?.message || "Unable to convert this card to a Markdown file.",
-      });
-    }
-  };
-
-  const handleSwapSource = async () => {
-    const selectedPaths = await desktop.workspace.openFiles();
-    const markdownPath = selectedPaths.find((candidate) => /\.md$/i.test(candidate));
-
-    if (!markdownPath || !folderPath) {
-      return;
-    }
-
-    try {
-      const existingItem = await desktop.workspace.getItemForFilePath(folderPath, markdownPath).catch(() => null);
-      const sourcePath = existingItem?.filePath || markdownPath;
-      const fileRecord = existingItem?.filePath
-        ? await desktop.workspace.readMarkdownFile(folderPath, sourcePath)
-        : await desktop.workspace.readMarkdownFile(
-          folderPath,
-          (await desktop.workspace.importFiles(folderPath, [markdownPath], ""))?.[0]?.filePath ?? "",
-        );
-      updateExistingCard(card.id, {
-        source: CANVAS_TEXT_SOURCE_FILE,
-        file: fileRecord,
-        text: fileRecord.content,
-      });
-      setSourceStatus({ status: "ready", error: "" });
-    } catch (error) {
-      setSourceStatus({
-        status: "error",
-        error: error?.message || "Unable to swap the note source.",
-      });
-    }
-  };
-
   const handleOpenSource = async () => {
     if (!folderPath || !card.file?.relativePath) {
       return;
@@ -452,27 +436,7 @@ function CanvasTextTile({
     }
   };
 
-  const showActionRow = tileMeta?.isSelected && !isEditing;
   const showResizeHandles = tileMeta?.isSelected && !isEditing;
-  const actionStrip = showActionRow ? (
-    <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopInteractivePointer}>
-      <button
-        type="button"
-        className="card__quick-action"
-        onClick={() => onRequestTextBoxEdit?.(card.id, { selectAll: false })}
-      >
-        Edit
-      </button>
-      {source === CANVAS_TEXT_SOURCE_FILE ? (
-        <>
-          <button type="button" className="card__quick-action" onClick={handleOpenSource}>Open</button>
-          <button type="button" className="card__quick-action" onClick={handleSwapSource}>Swap</button>
-        </>
-      ) : (
-        <button type="button" className="card__quick-action" onClick={handleConvertToFile}>Convert</button>
-      )}
-    </div>
-  ) : null;
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
@@ -488,7 +452,7 @@ function CanvasTextTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--canvas-text"
-      actionStrip={actionStrip}
+      renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
@@ -502,12 +466,13 @@ function CanvasTextTile({
             aria-label={isSticky ? "Sticky note" : "Canvas text card"}
           >
             <header className="card__canvas-text-header" data-canvas-text-action-root="true">
-              <div className="card__canvas-text-heading">
-                <div className="card__canvas-text-title">{title}</div>
-                <div className="card__canvas-text-meta">
-                  {source === CANVAS_TEXT_SOURCE_FILE ? "Markdown file" : isSticky ? "Sticky note" : "Markdown card"}
+              {isCompactSticky ? (
+                <div className="card__canvas-text-title card__canvas-text-title--compact-spacer" aria-hidden="true" />
+              ) : (
+                <div className={`card__canvas-text-title${hasTitle ? "" : " card__canvas-text-title--placeholder"}`}>
+                  {hasTitle ? title : "ENTER TITLE HERE"}
                 </div>
-              </div>
+              )}
             </header>
 
             <div className="card__canvas-text-body-shell" onPointerDown={stopInteractivePointer}>
@@ -527,25 +492,73 @@ function CanvasTextTile({
                     ) : null}
                   </div>
                 </div>
+              ) : isSticky && isCompactSticky ? (
+                <div className="card__canvas-text-compact-preview" aria-label={hasBodyContent ? "Sticky note summary" : "Empty sticky note"}>
+                  {(stickyPreview.compactLines.length > 0 ? stickyPreview.compactLines : ["TYPE HERE...", "", ""]).map((line, index) => (
+                    <div
+                      key={`compact-line-${index}`}
+                      className={`card__canvas-text-compact-line${line ? "" : " card__canvas-text-compact-line--empty"}`}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              ) : isSticky ? (
+                <div className="card__canvas-text-sticky-preview" aria-label={hasBodyContent ? "Sticky note preview" : "Empty sticky note"}>
+                  {stickyPreview.detailBodyLines.length > 0 ? (
+                    stickyPreview.detailBodyLines.map((line, index) => (
+                      <p key={`sticky-line-${index}`} className="card__canvas-text-sticky-line">
+                        {line}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="card__canvas-text-empty">TYPE HERE...</p>
+                  )}
+                </div>
               ) : (
                 <div className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}>
-                  {String(card.text ?? "").trim().length > 0 ? (
+                  {hasBodyContent ? (
                     markdownPreview
                   ) : (
-                    <p className="card__canvas-text-empty">Double click to start writing Markdown.</p>
+                    <p className="card__canvas-text-empty">TYPE HERE...</p>
                   )}
                 </div>
               )}
             </div>
 
+            <footer className={`card__canvas-text-footer${hasBodyContent ? "" : " card__canvas-text-footer--placeholder"}`}>
+              <div className={`card__canvas-text-footer-label${isCompactSticky ? " card__canvas-text-footer-label--compact" : ""}`}>
+                {isCompactSticky ? "" : footerLabel}
+              </div>
+            </footer>
+
             <div ref={measureRef} className="card__canvas-text-measure" aria-hidden="true">
               <div className="card__canvas-text-header">
-                <div className="card__canvas-text-heading">
-                  <div className="card__canvas-text-title">{title}</div>
+                <div className={`card__canvas-text-title${hasTitle ? "" : " card__canvas-text-title--placeholder"}`}>
+                  {hasTitle ? title : "ENTER TITLE HERE"}
                 </div>
               </div>
-              <div className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}>
-                {String(card.text ?? "").trim().length > 0 ? markdownPreview : <p>Double click to start writing Markdown.</p>}
+              <div className="card__canvas-text-body-shell">
+                {isSticky ? (
+                  <div className="card__canvas-text-sticky-preview">
+                    {stickyPreview.detailBodyLines.length > 0 ? (
+                      stickyPreview.detailBodyLines.map((line, index) => (
+                        <p key={`measure-sticky-line-${index}`} className="card__canvas-text-sticky-line">
+                          {line}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="card__canvas-text-empty">TYPE HERE...</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}>
+                    {hasBodyContent ? markdownPreview : <p>TYPE HERE...</p>}
+                  </div>
+                )}
+              </div>
+              <div className={`card__canvas-text-footer${hasBodyContent ? "" : " card__canvas-text-footer--placeholder"}`}>
+                <div className="card__canvas-text-footer-label">{footerLabel}</div>
               </div>
             </div>
           </section>

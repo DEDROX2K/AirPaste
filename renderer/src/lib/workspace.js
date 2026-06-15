@@ -12,6 +12,7 @@ import {
   CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
   deriveCanvasTextTitle,
+  deriveStickyNoteDocument,
   getCanvasTextLineCount,
   normalizeCanvasTextContent,
   normalizeCanvasTextSource,
@@ -525,6 +526,24 @@ function normalizeCanvasTextPayload(card) {
   const titleMode = normalizeCanvasTextTitleMode(
     card?.titleMode ?? (isLegacyNote && title.trim().length > 0 ? CANVAS_TEXT_TITLE_MODE_CUSTOM : CANVAS_TEXT_TITLE_MODE_DERIVED),
   );
+
+  if (variant === CANVAS_TEXT_VARIANT_STICKY) {
+    const stickyDocument = deriveStickyNoteDocument({
+      title,
+      text,
+      titleMode,
+    });
+
+    return {
+      source,
+      variant,
+      format: CANVAS_TEXT_FORMAT_MARKDOWN,
+      text: stickyDocument.bodyText,
+      title: stickyDocument.title,
+      titleMode: CANVAS_TEXT_TITLE_MODE_CUSTOM,
+      file: source === CANVAS_TEXT_SOURCE_FILE ? normalizeCanvasTextFileMeta(card?.file) : null,
+    };
+  }
 
   return {
     source,
@@ -1819,6 +1838,16 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
   const y = Number.isFinite(preferredCenter?.y)
     ? Math.round(preferredCenter.y - height / 2)
     : position.y;
+  const isStickyVariant = variant === CANVAS_TEXT_VARIANT_STICKY;
+  const nextTitle = isStickyVariant
+    ? (typeof options?.title === "string" ? options.title.trim() : "")
+    : firstString(options?.title);
+  const nextText = typeof options?.text === "string"
+    ? options.text
+    : (isStickyVariant ? "" : TEXT_BOX_DEFAULT_TEXT);
+  const nextTitleMode = isStickyVariant
+    ? CANVAS_TEXT_TITLE_MODE_CUSTOM
+    : (nextTitle ? CANVAS_TEXT_TITLE_MODE_CUSTOM : CANVAS_TEXT_TITLE_MODE_DERIVED);
 
   return normalizeCard({
     id: crypto.randomUUID(),
@@ -1826,11 +1855,9 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
     source: CANVAS_TEXT_SOURCE_LOCAL,
     variant,
     format: CANVAS_TEXT_FORMAT_MARKDOWN,
-    title: firstString(options?.title),
-    titleMode: firstString(options?.title)
-      ? CANVAS_TEXT_TITLE_MODE_CUSTOM
-      : CANVAS_TEXT_TITLE_MODE_DERIVED,
-    text: typeof options?.text === "string" ? options.text : TEXT_BOX_DEFAULT_TEXT,
+    title: nextTitle,
+    titleMode: nextTitleMode,
+    text: nextText,
     x,
     y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),
@@ -1847,6 +1874,16 @@ export function createCanvasTextCard(cards, viewport, preferredCenter = null, op
     const variant = normalizeCanvasTextVariant(options?.variant);
     const defaultSize = variant === CANVAS_TEXT_VARIANT_STICKY ? STICKY_TEXT_BOX_CARD_SIZE : TEXT_BOX_CARD_SIZE;
     const file = normalizeCanvasTextFileMeta(options.file);
+    const initialTitle = firstString(options?.title);
+    const initialTitleMode = normalizeCanvasTextTitleMode(options?.titleMode);
+    const initialText = normalizeCanvasTextContent(options?.text);
+    const stickyDocument = variant === CANVAS_TEXT_VARIANT_STICKY
+      ? deriveStickyNoteDocument({
+        title: initialTitle,
+        titleMode: initialTitleMode,
+        text: initialText,
+      })
+      : null;
 
     return normalizeCard({
       id: crypto.randomUUID(),
@@ -1854,9 +1891,9 @@ export function createCanvasTextCard(cards, viewport, preferredCenter = null, op
       source: CANVAS_TEXT_SOURCE_FILE,
       variant,
       format: CANVAS_TEXT_FORMAT_MARKDOWN,
-      title: firstString(options?.title),
-      titleMode: normalizeCanvasTextTitleMode(options?.titleMode),
-      text: normalizeCanvasTextContent(options?.text),
+      title: stickyDocument ? stickyDocument.title : initialTitle,
+      titleMode: stickyDocument ? CANVAS_TEXT_TITLE_MODE_CUSTOM : initialTitleMode,
+      text: stickyDocument ? stickyDocument.bodyText : initialText,
       file,
       x: position.x,
       y: position.y,

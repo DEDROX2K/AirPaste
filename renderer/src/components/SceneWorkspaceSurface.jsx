@@ -1,8 +1,17 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { desktop } from "../lib/desktop";
-import { CANVAS_TEXT_SOURCE_FILE, deriveCanvasTextSummary, deriveCanvasTextTitle } from "../lib/canvasText";
+import {
+  CANVAS_TEXT_SOURCE_FILE,
+  CANVAS_TEXT_VARIANT_STICKY,
+  STICKY_NOTE_BODY_PLACEHOLDER,
+  STICKY_NOTE_TITLE_PLACEHOLDER,
+  deriveCanvasTextSummary,
+  deriveStickyNoteViewModel,
+  deriveCanvasTextTitle,
+  resolveStickyNoteLayoutMetrics,
+} from "../lib/canvasText";
 import { LINK_CONTENT_KIND_IMAGE } from "../lib/workspace";
-import { PREVIEW_TIER } from "../systems/canvas/tileLod";
+import { PREVIEW_TIER, TILE_RENDER_STATE } from "../systems/canvas/tileLod";
 import {
   ensureDitheredPreview,
   getCachedDitheredPreview,
@@ -13,6 +22,7 @@ const DRAG_START_THRESHOLD = 8;
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i;
 const LOD1_DITHER_SIZE = 24;
 const LOD1_DITHER_LEVELS = 4;
+const TEXT_HEAVY_TILE_TYPES = new Set(["canvas-text", "checklist", "code", "table", "text-box", "note"]);
 
 function parseCssPixel(value, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -466,6 +476,507 @@ function drawClampedText(ctx, text, x, y, width, lineHeight, maxLines) {
   return visibleLines.length;
 }
 
+function drawCenteredClampedLine(ctx, text, centerX, y, width) {
+  const normalized = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+  if (!normalized || width <= 8) {
+    return;
+  }
+
+  let renderedLine = normalized;
+  let wasTruncated = false;
+
+  while (renderedLine.length > 1 && ctx.measureText(renderedLine).width > width) {
+    renderedLine = renderedLine.slice(0, -1);
+    wasTruncated = true;
+  }
+
+  if (wasTruncated) {
+    while (renderedLine.length > 1 && ctx.measureText(`${renderedLine}…`).width > width) {
+      renderedLine = renderedLine.slice(0, -1);
+    }
+    renderedLine = `${renderedLine}…`;
+  }
+
+  ctx.fillText(renderedLine, centerX, y);
+}
+
+function fillRoundedRect(ctx, x, y, width, height, radius, fillStyle) {
+  ctx.save();
+  ctx.beginPath();
+  traceRoundedRectPath(ctx, x, y, width, height, radius);
+  ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeRoundedRect(ctx, x, y, width, height, radius, strokeStyle, lineWidth) {
+  ctx.save();
+  ctx.beginPath();
+  traceRoundedRectPath(ctx, x, y, width, height, radius);
+  ctx.closePath();
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function traceChamferedHeaderPath(ctx, x, y, width, height, chamfer) {
+  const safeChamfer = Math.max(0, Math.min(chamfer, Math.min(width, height) / 2));
+
+  ctx.moveTo(x + safeChamfer, y);
+  ctx.lineTo(x + width - safeChamfer, y);
+  ctx.lineTo(x + width, y + safeChamfer);
+  ctx.lineTo(x + width - safeChamfer, y + height);
+  ctx.lineTo(x + safeChamfer, y + height);
+  ctx.lineTo(x, y + safeChamfer);
+}
+
+function traceChamferedPanelPath(ctx, x, y, width, height, chamfer) {
+  const safeChamfer = Math.max(0, Math.min(chamfer, Math.min(width, height) / 2));
+
+  ctx.moveTo(x + safeChamfer, y);
+  ctx.lineTo(x + width - safeChamfer, y);
+  ctx.lineTo(x + width, y + safeChamfer);
+  ctx.lineTo(x + width, y + height - safeChamfer);
+  ctx.lineTo(x + width - safeChamfer, y + height);
+  ctx.lineTo(x + safeChamfer, y + height);
+  ctx.lineTo(x, y + height - safeChamfer);
+  ctx.lineTo(x, y + safeChamfer);
+}
+
+function fillChamferedPanel(ctx, pathRenderer, x, y, width, height, chamfer, fillStyle) {
+  ctx.save();
+  ctx.beginPath();
+  pathRenderer(ctx, x, y, width, height, chamfer);
+  ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeChamferedPanel(ctx, pathRenderer, x, y, width, height, chamfer, strokeStyle, lineWidth) {
+  ctx.save();
+  ctx.beginPath();
+  pathRenderer(ctx, x, y, width, height, chamfer);
+  ctx.closePath();
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSceneTextLineSet(ctx, lines, x, y, width, lineHeight, maxLines) {
+  const visibleLines = Array.isArray(lines) ? lines.slice(0, Math.max(0, maxLines)) : [];
+
+  visibleLines.forEach((line, index) => {
+    drawClampedText(ctx, line, x, y + (index * lineHeight), width, lineHeight, 1);
+  });
+
+  return visibleLines.length;
+}
+
+function getSceneStickyCanvasTextModel(tile) {
+  const stickyModel = deriveStickyNoteViewModel(tile);
+  return {
+    ...stickyModel,
+    title: stickyModel.title || STICKY_NOTE_TITLE_PLACEHOLDER,
+  };
+}
+
+function getSceneStickyCanvasTextLayout(bounds, renderState) {
+  const metrics = resolveStickyNoteLayoutMetrics(bounds.width, bounds.height, renderState);
+  const bodyY = bounds.y + metrics.headerHeight + metrics.gap;
+  const footerY = bodyY + metrics.bodyHeight + metrics.gap;
+
+  return {
+    ...metrics,
+    bodyY,
+    footerY,
+  };
+}
+
+function strokeSceneStickyCanvasTextTile(ctx, bounds, renderState, strokeStyle, lineWidth) {
+  const layout = getSceneStickyCanvasTextLayout(bounds, renderState);
+
+  strokeChamferedPanel(
+    ctx,
+    traceChamferedHeaderPath,
+    bounds.x,
+    bounds.y,
+    bounds.width,
+    layout.headerHeight,
+    layout.chamfer,
+    strokeStyle,
+    lineWidth,
+  );
+  strokeChamferedPanel(
+    ctx,
+    traceChamferedPanelPath,
+    bounds.x,
+    layout.bodyY,
+    bounds.width,
+    layout.bodyHeight,
+    layout.chamfer,
+    strokeStyle,
+    lineWidth,
+  );
+  strokeChamferedPanel(
+    ctx,
+    traceChamferedPanelPath,
+    bounds.x,
+    layout.footerY,
+    bounds.width,
+    layout.footerHeight,
+    layout.chamfer,
+    strokeStyle,
+    lineWidth,
+  );
+}
+
+function isTextHeavyTile(tile) {
+  return TEXT_HEAVY_TILE_TYPES.has(String(tile?.type || "").toLowerCase());
+}
+
+function getSceneCanvasTextFooterLabel(tile) {
+  if (tile?.source === CANVAS_TEXT_SOURCE_FILE) {
+    return tile?.file?.relativePath || tile?.file?.fileName || "MARKDOWN FILE";
+  }
+
+  return "LOCAL NOTE";
+}
+
+function drawSceneGenericCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  const titleText = deriveCanvasTextTitle(tile) || "ENTER TITLE HERE";
+  const bodyText = deriveCanvasTextSummary(tile?.text, renderState === TILE_RENDER_STATE.DETAIL ? 4 : 1) || "TYPE HERE...";
+  const footerText = renderState === TILE_RENDER_STATE.DETAIL
+    ? getSceneCanvasTextFooterLabel(tile)
+    : "TYPE HERE...";
+  const gap = renderState === TILE_RENDER_STATE.DETAIL ? 8 : 6;
+  const headerHeight = renderState === TILE_RENDER_STATE.DETAIL ? Math.min(58, bounds.height * 0.22) : Math.min(42, bounds.height * 0.26);
+  const footerHeight = renderState === TILE_RENDER_STATE.DETAIL ? Math.min(74, bounds.height * 0.26) : Math.min(52, bounds.height * 0.22);
+  const bodyHeight = Math.max(32, bounds.height - headerHeight - footerHeight - (gap * 2));
+  const insetX = bounds.x + 16;
+  const textWidth = Math.max(20, bounds.width - 32);
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, headerHeight, 14, "#111111");
+  fillRoundedRect(ctx, bounds.x, bounds.y + headerHeight + gap, bounds.width, bodyHeight, 14, "#5a5a5a");
+  fillRoundedRect(ctx, bounds.x, bounds.y + headerHeight + bodyHeight + (gap * 2), bounds.width, footerHeight, 14, "#d5ff00");
+
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  ctx.font = `600 ${renderState === TILE_RENDER_STATE.DETAIL ? 16 : 13}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  drawClampedText(
+    ctx,
+    titleText.toUpperCase(),
+    insetX,
+    bounds.y + 12,
+    textWidth,
+    renderState === TILE_RENDER_STATE.DETAIL ? 18 : 15,
+    1,
+  );
+
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 13 : 11}px "Segoe UI", sans-serif`;
+  drawClampedText(
+    ctx,
+    bodyText,
+    insetX,
+    bounds.y + headerHeight + gap + 14,
+    textWidth,
+    renderState === TILE_RENDER_STATE.DETAIL ? 17 : 14,
+    renderState === TILE_RENDER_STATE.DETAIL && !isCanvasMoving ? 4 : 1,
+  );
+
+  ctx.fillStyle = "#111111";
+  ctx.font = `500 ${renderState === TILE_RENDER_STATE.DETAIL ? 13 : 11}px "Segoe UI", sans-serif`;
+  drawClampedText(
+    ctx,
+    footerText.toUpperCase(),
+    insetX,
+    bounds.y + headerHeight + bodyHeight + (gap * 2) + 14,
+    textWidth,
+    renderState === TILE_RENDER_STATE.DETAIL ? 16 : 14,
+    renderState === TILE_RENDER_STATE.DETAIL ? 2 : 1,
+  );
+}
+
+function drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  if (tile?.variant !== CANVAS_TEXT_VARIANT_STICKY) {
+    drawSceneGenericCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving);
+    return;
+  }
+
+  const layout = getSceneStickyCanvasTextLayout(bounds, renderState);
+  const model = getSceneStickyCanvasTextModel(tile);
+
+  fillChamferedPanel(
+    ctx,
+    traceChamferedHeaderPath,
+    bounds.x,
+    bounds.y,
+    bounds.width,
+    layout.headerHeight,
+    layout.chamfer,
+    "#111111",
+  );
+  fillChamferedPanel(
+    ctx,
+    traceChamferedPanelPath,
+    bounds.x,
+    layout.bodyY,
+    bounds.width,
+    layout.bodyHeight,
+    layout.chamfer,
+    "#5a5a5a",
+  );
+  fillChamferedPanel(
+    ctx,
+    traceChamferedPanelPath,
+    bounds.x,
+    layout.footerY,
+    bounds.width,
+    layout.footerHeight,
+    layout.chamfer,
+    "#d5ff00",
+  );
+
+  if (renderState === TILE_RENDER_STATE.COMPACT) {
+    const barInsetX = bounds.x + layout.bodyPaddingX;
+    const barTop = layout.bodyY + layout.bodyPaddingTop;
+    const barHeight = layout.compactBarHeight;
+    const barGap = layout.compactBarGap;
+
+    ctx.save();
+    ctx.fillStyle = "#111111";
+    layout.compactBarWidths.forEach((ratio, index) => {
+      const width = Math.max(20, (bounds.width - ((barInsetX - bounds.x) * 2)) * ratio);
+      ctx.fillRect(barInsetX, barTop + (index * barGap), width, barHeight);
+    });
+    ctx.restore();
+    return;
+  }
+
+  const titleInsetX = bounds.x + layout.bodyPaddingX;
+  const textWidth = Math.max(20, bounds.width - ((titleInsetX - bounds.x) * 2));
+
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.98)";
+  ctx.font = `600 ${layout.titleFontSize}px "Arial Narrow", "Segoe UI", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  drawCenteredClampedLine(
+    ctx,
+    model.title.toUpperCase(),
+    bounds.x + (bounds.width / 2),
+    bounds.y + (layout.headerHeight / 2) + 1,
+    Math.max(20, bounds.width - (layout.headerPaddingX * 2)),
+  );
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+  ctx.font = `${layout.bodyFontSize}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  if (model.hasBodyContent) {
+    drawSceneTextLineSet(
+      ctx,
+      model.detailBodyLines,
+      titleInsetX,
+      layout.bodyY + layout.bodyPaddingTop,
+      textWidth,
+      layout.bodyLineHeight,
+      isCanvasMoving ? 2 : 4,
+    );
+  } else {
+    drawClampedText(
+      ctx,
+      STICKY_NOTE_BODY_PLACEHOLDER,
+      titleInsetX,
+      layout.bodyY + layout.bodyPaddingTop,
+      textWidth,
+      layout.bodyLineHeight,
+      1,
+    );
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = "#111111";
+  ctx.font = `600 ${layout.footerFontSize}px "Arial Narrow", "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  if (model.detailFooterLines.length > 0) {
+    drawSceneTextLineSet(
+      ctx,
+      model.detailFooterLines,
+      titleInsetX,
+      layout.footerY + layout.footerPaddingTop,
+      textWidth,
+      layout.footerLineHeight,
+      2,
+    );
+  } else {
+    drawClampedText(
+      ctx,
+      STICKY_NOTE_BODY_PLACEHOLDER,
+      titleInsetX,
+      layout.footerY + layout.footerPaddingTop,
+      textWidth,
+      layout.footerLineHeight,
+      1,
+    );
+  }
+  ctx.restore();
+}
+
+function drawSceneChecklistTile(ctx, tile, bounds, renderState) {
+  const titleText = typeof tile?.title === "string" && tile.title.trim() ? tile.title.trim() : "Checklist";
+  const items = Array.isArray(tile?.items) ? tile.items : [];
+  const visibleItems = renderState === TILE_RENDER_STATE.DETAIL ? items.slice(0, 4) : items.slice(0, 2);
+  const completedCount = items.filter((item) => item?.checked === true).length;
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 20, "rgba(248, 241, 213, 0.98)");
+  fillRoundedRect(ctx, bounds.x + 12, bounds.y + 12, bounds.width - 24, Math.min(42, bounds.height * 0.2), 14, "rgba(255,255,255,0.42)");
+
+  ctx.fillStyle = "rgba(79, 65, 38, 0.96)";
+  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 15 : 13}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  drawClampedText(ctx, titleText, bounds.x + 18, bounds.y + 18, Math.max(24, bounds.width - 92), 18, 1);
+
+  ctx.fillStyle = "rgba(104, 88, 52, 0.9)";
+  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 11 : 10}px "Segoe UI", sans-serif`;
+  drawClampedText(ctx, `${completedCount}/${Math.max(items.length, 1)}`, bounds.x + bounds.width - 54, bounds.y + 20, 36, 12, 1);
+
+  visibleItems.forEach((item, index) => {
+    const rowY = bounds.y + 64 + (index * (renderState === TILE_RENDER_STATE.DETAIL ? 28 : 24));
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bounds.x + 26, rowY + 8, 6, 0, Math.PI * 2);
+    ctx.fillStyle = item?.checked ? "#7c9c3f" : "rgba(154, 160, 190, 0.45)";
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = item?.checked ? "rgba(126, 115, 88, 0.82)" : "rgba(79, 65, 38, 0.92)";
+    ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 12 : 11}px "Segoe UI", sans-serif`;
+    drawClampedText(ctx, item?.text || "Checklist item", bounds.x + 40, rowY, Math.max(20, bounds.width - 56), 15, 1);
+  });
+}
+
+function drawSceneTableTile(ctx, tile, bounds, renderState) {
+  const titleText = typeof tile?.title === "string" && tile.title.trim() ? tile.title.trim() : "Table";
+  const columns = Array.isArray(tile?.columns) && tile.columns.length > 0 ? tile.columns : [{ id: "c1", name: "Column 1" }, { id: "c2", name: "Column 2" }];
+  const rows = Array.isArray(tile?.rows) && tile.rows.length > 0 ? tile.rows : [{ cells: {} }, { cells: {} }];
+  const visibleColumns = columns.slice(0, renderState === TILE_RENDER_STATE.DETAIL ? 3 : 2);
+  const visibleRows = rows.slice(0, renderState === TILE_RENDER_STATE.DETAIL ? 3 : 2);
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 20, "rgba(240, 246, 253, 0.98)");
+  ctx.fillStyle = "rgba(15, 23, 42, 0.98)";
+  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 15 : 13}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  drawClampedText(ctx, titleText, bounds.x + 16, bounds.y + 16, Math.max(24, bounds.width - 32), 18, 1);
+
+  const gridX = bounds.x + 16;
+  const gridY = bounds.y + 48;
+  const gridWidth = Math.max(24, bounds.width - 32);
+  const columnWidth = gridWidth / Math.max(1, visibleColumns.length);
+  const rowHeight = renderState === TILE_RENDER_STATE.DETAIL ? 26 : 20;
+
+  fillRoundedRect(ctx, gridX, gridY, gridWidth, rowHeight, 12, "rgba(226, 235, 247, 0.96)");
+  visibleColumns.forEach((column, index) => {
+    const cellX = gridX + (index * columnWidth);
+    ctx.fillStyle = "rgba(51, 65, 85, 0.92)";
+    ctx.font = `600 ${renderState === TILE_RENDER_STATE.DETAIL ? 10 : 9}px "Segoe UI", sans-serif`;
+    drawClampedText(ctx, column?.name || `Col ${index + 1}`, cellX + 8, gridY + 8, Math.max(12, columnWidth - 12), 12, 1);
+  });
+
+  visibleRows.forEach((row, rowIndex) => {
+    const cellY = gridY + rowHeight + (rowIndex * rowHeight);
+    fillRoundedRect(ctx, gridX, cellY, gridWidth, rowHeight - 2, 10, "rgba(255,255,255,0.82)");
+    visibleColumns.forEach((column, columnIndex) => {
+      const cellX = gridX + (columnIndex * columnWidth);
+      const cellValue = row?.cells?.[column.id];
+      const displayValue = typeof cellValue === "string" && cellValue.trim() ? cellValue.trim() : "Value";
+      ctx.fillStyle = "rgba(71, 85, 105, 0.9)";
+      ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 10 : 9}px "Segoe UI", sans-serif`;
+      drawClampedText(ctx, displayValue, cellX + 8, cellY + 7, Math.max(12, columnWidth - 12), 11, 1);
+    });
+  });
+}
+
+function drawSceneCodeTile(ctx, tile, bounds, renderState) {
+  const titleText = typeof tile?.title === "string" && tile.title.trim() ? tile.title.trim() : "Code snippet";
+  const codeLines = String(tile?.code ?? "")
+    .replaceAll("\r\n", "\n")
+    .split("\n")
+    .filter(Boolean)
+    .slice(0, renderState === TILE_RENDER_STATE.DETAIL ? 5 : 2);
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 20, "rgba(14, 18, 27, 0.98)");
+  fillRoundedRect(ctx, bounds.x + 14, bounds.y + 46, bounds.width - 28, bounds.height - 60, 14, "rgba(8, 11, 18, 0.98)");
+
+  ctx.fillStyle = "rgba(241, 245, 249, 0.98)";
+  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 14 : 12}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  drawClampedText(ctx, titleText, bounds.x + 16, bounds.y + 16, Math.max(24, bounds.width - 32), 17, 1);
+
+  ctx.fillStyle = "rgba(148, 163, 184, 0.94)";
+  ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 11 : 10}px "Cascadia Code", monospace`;
+  codeLines.forEach((line, index) => {
+    drawClampedText(ctx, line || "const value = true;", bounds.x + 22, bounds.y + 58 + (index * 18), Math.max(20, bounds.width - 44), 14, 1);
+  });
+}
+
+function drawScenePlainTextTile(ctx, tile, bounds, renderState) {
+  const titleText = getPrimaryTileLabel(tile) || "Untitled";
+  const secondaryText = getSecondaryTileLabel(tile) || "Type here...";
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 18, "rgba(247, 243, 236, 0.98)");
+  ctx.fillStyle = "rgba(56, 49, 41, 0.94)";
+  ctx.font = `600 ${renderState === TILE_RENDER_STATE.DETAIL ? 14 : 12}px "Segoe UI", sans-serif`;
+  ctx.textBaseline = "top";
+  const titleLines = drawClampedText(ctx, titleText, bounds.x + 14, bounds.y + 14, Math.max(24, bounds.width - 28), 17, renderState === TILE_RENDER_STATE.DETAIL ? 2 : 1);
+
+  ctx.fillStyle = "rgba(93, 83, 70, 0.86)";
+  ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 12 : 10}px "Segoe UI", sans-serif`;
+  drawClampedText(
+    ctx,
+    secondaryText,
+    bounds.x + 14,
+    bounds.y + 18 + (titleLines * 17),
+    Math.max(24, bounds.width - 28),
+    renderState === TILE_RENDER_STATE.DETAIL ? 16 : 12,
+    renderState === TILE_RENDER_STATE.DETAIL ? 4 : 1,
+  );
+}
+
+function drawSceneTextHeavyTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  if (!isTextHeavyTile(tile)) {
+    return false;
+  }
+
+  if (tile?.type === "canvas-text") {
+    drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving);
+    return true;
+  }
+
+  if (tile?.type === "checklist") {
+    drawSceneChecklistTile(ctx, tile, bounds, renderState);
+    return true;
+  }
+
+  if (tile?.type === "table") {
+    drawSceneTableTile(ctx, tile, bounds, renderState);
+    return true;
+  }
+
+  if (tile?.type === "code") {
+    drawSceneCodeTile(ctx, tile, bounds, renderState);
+    return true;
+  }
+
+  drawScenePlainTextTile(ctx, tile, bounds, renderState);
+  return true;
+}
+
 async function resolveSceneTileImageSource({
   folderPath,
   tile,
@@ -532,6 +1043,7 @@ function SceneWorkspaceSurface({
   cameraSnapshot,
   getViewportSnapshot,
   onTilePressStart,
+  onTileDoubleActivate,
   onTileDragStart,
   onTileContextMenu,
   onTileHoverChange,
@@ -869,6 +1381,7 @@ function SceneWorkspaceSurface({
         zIndex: bounds.zIndex,
       });
 
+      const tileMeta = tileEntry.tileMeta;
       const renderHint = tileEntry.renderHint;
       const tile = tileEntry.tile;
       const source = sourceByTileIdRef.current.get(tile.id) || "";
@@ -922,11 +1435,86 @@ function SceneWorkspaceSurface({
         : null;
       const clipRect = naturalImageRect ?? bounds;
       const clipRadius = naturalImageRect ? 0 : 8;
+      const renderState = renderHint?.renderState ?? TILE_RENDER_STATE.DETAIL;
+      const isStickyCanvasTextTile = tile?.type === "canvas-text" && tile?.variant === CANVAS_TEXT_VARIANT_STICKY;
 
       ctx.beginPath();
-      traceRoundedRectPath(ctx, clipRect.x, clipRect.y, clipRect.width, clipRect.height, clipRadius);
+      if (isStickyCanvasTextTile && !naturalImageRect) {
+        ctx.rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+      } else {
+        traceRoundedRectPath(ctx, clipRect.x, clipRect.y, clipRect.width, clipRect.height, clipRadius);
+      }
       ctx.closePath();
       ctx.clip();
+
+      if (drawSceneTextHeavyTile(ctx, tile, bounds, renderState, isCanvasMovingRef.current)) {
+        if (isStickyCanvasTextTile) {
+          strokeSceneStickyCanvasTextTile(
+            ctx,
+            bounds,
+            renderState,
+            "rgba(126, 112, 94, 0.2)",
+            1 / Math.max(0.35, viewport.zoom),
+          );
+        } else {
+          strokeRoundedRect(
+            ctx,
+            bounds.x,
+            bounds.y,
+            bounds.width,
+            bounds.height,
+            12,
+            "rgba(126, 112, 94, 0.24)",
+            1 / Math.max(0.35, viewport.zoom),
+          );
+        }
+
+        if (dragVisualTileIdSet?.has?.(tile.id) === true) {
+          if (isStickyCanvasTextTile) {
+            strokeSceneStickyCanvasTextTile(
+              ctx,
+              bounds,
+              renderState,
+              "rgba(91, 68, 44, 0.42)",
+              1.5 / Math.max(0.35, viewport.zoom),
+            );
+          } else {
+            strokeRoundedRect(
+              ctx,
+              bounds.x,
+              bounds.y,
+              bounds.width,
+              bounds.height,
+              12,
+              "rgba(91, 68, 44, 0.42)",
+              1.5 / Math.max(0.35, viewport.zoom),
+            );
+          }
+        }
+
+        if (isStickyCanvasTextTile) {
+          if (tileMeta?.isSelected) {
+            strokeSceneStickyCanvasTextTile(
+              ctx,
+              bounds,
+              renderState,
+              "rgba(83, 176, 255, 0.96)",
+              2 / Math.max(0.35, viewport.zoom),
+            );
+          } else if (tileMeta?.isHovered || tileMeta?.isFocused) {
+            strokeSceneStickyCanvasTextTile(
+              ctx,
+              bounds,
+              renderState,
+              "rgba(83, 176, 255, 0.48)",
+              1.25 / Math.max(0.35, viewport.zoom),
+            );
+          }
+        }
+
+        ctx.restore();
+        return;
+      }
 
       if (usePreviewColorBlock) {
         const headerHeight = Math.max(8, Math.min(bounds.height * 0.16, 22));
@@ -1236,6 +1824,12 @@ function SceneWorkspaceSurface({
     updateHoveredGroup(hitGroup);
 
     if (hitTile) {
+      if (event.detail >= 2 && onTileDoubleActivate?.(hitTile, event) === true) {
+        pressStateRef.current = null;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        return;
+      }
+
       const suppressDrag = onTilePressStart?.(hitTile, event) === true;
 
       pressStateRef.current = {
@@ -1269,7 +1863,7 @@ function SceneWorkspaceSurface({
 
     pressStateRef.current = null;
     onBackgroundPointerDown?.(event);
-  }, [hitTestGroup, hitTestTile, onBackgroundPointerDown, onGroupPressStart, onTilePressStart, updateHoveredGroup, updateHoveredTile]);
+  }, [hitTestGroup, hitTestTile, onBackgroundPointerDown, onGroupPressStart, onTileDoubleActivate, onTilePressStart, updateHoveredGroup, updateHoveredTile]);
 
   const handlePointerMove = useCallback((event) => {
     const hitTile = hitTestTile(event.clientX, event.clientY);

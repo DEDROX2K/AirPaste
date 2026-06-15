@@ -5,7 +5,7 @@ import { getTileRegistration } from "./tiles/tileRegistry";
 function Card(props) {
   recordCardRender(props.card?.id, props.card?.type);
 
-  const registration = getTileRegistration(props.card.type);
+  const registration = getTileRegistration(props.card);
   const TileComponent = registration.Component;
 
   return <TileComponent {...props} />;

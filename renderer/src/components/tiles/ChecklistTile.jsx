@@ -37,12 +37,18 @@ function ChecklistTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
 }) {
   const { updateExistingCard } = useAppContext();
   const itemRefs = useRef(new Map());
   const pendingFocusItemIdRef = useRef(null);
+  const titleInputRef = useRef(null);
   const surfaceGesture = useTileGesture({
     card,
+    onDoubleActivate: () => {
+      titleInputRef.current?.focus?.();
+      titleInputRef.current?.select?.();
+    },
     onDragStart: onBeginDrag,
     onPressStart,
   });
@@ -150,6 +156,7 @@ function ChecklistTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--checklist"
+      renderHint={renderHint}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
@@ -160,6 +167,7 @@ function ChecklistTile({
           <section className="card__surface card__surface--checklist" aria-label={card.title || "Checklist"}>
             <header className="card__checklist-header">
               <input
+                ref={titleInputRef}
                 className="card__checklist-title"
                 type="text"
                 value={card.title ?? ""}

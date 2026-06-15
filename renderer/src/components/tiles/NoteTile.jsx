@@ -33,10 +33,14 @@ function NoteTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
 }) {
   const { updateExistingCard } = useAppContext();
   const surfaceGesture = useTileGesture({
     card,
+    onDoubleActivate: () => {
+      toggleMode("edit");
+    },
     onDragStart: onBeginDrag,
     onPressStart,
   });
@@ -80,6 +84,7 @@ function NoteTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--note"
+      renderHint={renderHint}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}

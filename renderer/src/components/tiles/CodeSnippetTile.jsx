@@ -59,11 +59,15 @@ function CodeSnippetTile({
   onFocusIn,
   onFocusOut,
   onPressStart,
+  renderHint,
 }) {
   const { updateExistingCard } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
   const surfaceGesture = useTileGesture({
     card,
+    onDoubleActivate: () => {
+      setIsEditing(true);
+    },
     onDragStart: onBeginDrag,
     onPressStart,
   });
@@ -109,6 +113,7 @@ function CodeSnippetTile({
       tileMeta={tileMeta}
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--code"
+      renderHint={renderHint}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}

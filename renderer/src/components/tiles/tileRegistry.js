@@ -9,7 +9,9 @@ import FileTile from "./FileTile";
 import LinkTile from "./LinkTile";
 import ProgressTile from "./ProgressTile";
 import RackTile from "./RackTile";
+import StickyNoteTile from "./StickyNoteTile";
 import TableTile from "./TableTile";
+import { CANVAS_TEXT_VARIANT_STICKY } from "../../lib/canvasText";
 import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
@@ -57,6 +59,17 @@ const tileRegistry = {
   },
 };
 
-export function getTileRegistration(tileType) {
+export function getTileRegistration(cardOrType) {
+  const tileType = typeof cardOrType === "string" ? cardOrType : cardOrType?.type;
+
+  if (
+    tileType === TILE_TYPES.CANVAS_TEXT
+    && cardOrType?.variant === CANVAS_TEXT_VARIANT_STICKY
+  ) {
+    return {
+      Component: StickyNoteTile,
+    };
+  }
+
   return tileRegistry[tileType] ?? tileRegistry[TILE_TYPES.LINK];
 }

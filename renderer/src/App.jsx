@@ -1,6 +1,7 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DevConsole } from "./components/DevConsole";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
+import PixelScreenTransition from "./components/PixelScreenTransition";
 import { TopTabBar } from "./components/TopTabBar";
 import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
@@ -12,6 +13,7 @@ import { desktop } from "./lib/desktop";
 
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
 const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+const SCREEN_TRANSITION_DURATION_MS = 920;
 const CanvasWorkspaceView = lazy(() => import("./components/CanvasWorkspaceView"));
 const HomeShell = lazy(() => import("./components/HomeShell"));
 const LeftPagesPanel = lazy(() => import("./components/LeftPagesPanel"));
@@ -95,6 +97,9 @@ export default function App() {
   useTheme();
   const isNarrowDesktop = useMediaQuery("(max-width: 1079px)");
   const [isClosing, setIsClosing] = useState(false);
+  const [screenTransition, setScreenTransition] = useState(null);
+  const previousEditorKeyRef = useRef(null);
+  const transitionTimeoutRef = useRef(0);
 
   const usesCustomTitlebar = desktop.window.usesCustomTitlebar;
   const usesCustomWindowResize = desktop.window.usesCustomWindowResize;
@@ -108,6 +113,11 @@ export default function App() {
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
+  const currentEditorKey = useMemo(() => (
+    currentEditor.kind === "canvas"
+      ? `${currentEditor.kind}:${currentEditor.filePath ?? ""}`
+      : currentEditor.kind
+  ), [currentEditor]);
 
   const markWindowClosing = useCallback(() => {
     if (isClosing) {
@@ -123,6 +133,44 @@ export default function App() {
   }, [markWindowClosing]);
 
   useEffect(() => desktop.window.onPrepareClose(markWindowClosing), [markWindowClosing]);
+
+  useEffect(() => () => {
+    window.clearTimeout(transitionTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (booting) {
+      previousEditorKeyRef.current = currentEditorKey;
+      return undefined;
+    }
+
+    const previousEditorKey = previousEditorKeyRef.current;
+    previousEditorKeyRef.current = currentEditorKey;
+
+    if (!previousEditorKey || previousEditorKey === currentEditorKey) {
+      return undefined;
+    }
+
+    const pointer = window[LAST_POINTER_POSITION_KEY];
+    const fallbackOrigin = {
+      x: Math.round(window.innerWidth / 2),
+      y: Math.round(window.innerHeight / 2),
+    };
+
+    setScreenTransition({
+      id: Date.now(),
+      origin: pointer && Number.isFinite(pointer.x) && Number.isFinite(pointer.y) ? pointer : fallbackOrigin,
+      fromLabel: previousEditorKey.startsWith("canvas") ? "canvas" : "home",
+      toLabel: currentEditorKey.startsWith("canvas") ? "canvas" : "home",
+    });
+
+    window.clearTimeout(transitionTimeoutRef.current);
+    transitionTimeoutRef.current = window.setTimeout(() => {
+      setScreenTransition(null);
+    }, SCREEN_TRANSITION_DURATION_MS);
+
+    return () => window.clearTimeout(transitionTimeoutRef.current);
+  }, [booting, currentEditorKey]);
 
   useEffect(() => {
     const updatePointerPosition = (event) => {
@@ -175,6 +223,13 @@ export default function App() {
             ) : null}
             {currentEditor.kind === "home" ? <HomeShell /> : null}
           </Suspense>
+          <PixelScreenTransition
+            active={Boolean(screenTransition)}
+            transitionId={screenTransition?.id ?? 0}
+            origin={screenTransition?.origin ?? null}
+            fromLabel={screenTransition?.fromLabel ?? "screen"}
+            toLabel={screenTransition?.toLabel ?? "screen"}
+          />
         </div>
       </div>
 

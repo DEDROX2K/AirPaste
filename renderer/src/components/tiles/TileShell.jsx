@@ -47,12 +47,14 @@ function TileShell({
   const resolvedTileState = tileState || (
     tileMeta?.isDragging ? "dragging" : tileMeta?.isFocused ? "focused" : tileMeta?.isSelected ? "selected" : tileMeta?.isHovered ? "hovered" : "passive"
   );
+  const renderState = renderHint?.renderState ?? "detail";
 
   return (
     <article
       className={classNames}
       data-interaction-state={tileMeta?.interactionState ?? "idle"}
       data-tile-state={resolvedTileState}
+      data-render-state={renderState}
       data-preview-tier={renderHint?.previewTier ?? "original"}
       style={style}
       onContextMenu={(event) => onContextMenu(card, event)}

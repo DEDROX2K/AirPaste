@@ -310,6 +310,74 @@ option {
   flex-direction: column;
 }
 
+.pixel-screen-transition {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.pixel-screen-transition.is-active {
+  opacity: 1;
+}
+
+.pixel-screen-transition__scrim,
+.pixel-screen-transition__scanlines,
+.pixel-screen-transition__grid {
+  position: absolute;
+  inset: 0;
+}
+
+.pixel-screen-transition__scrim {
+  background:
+    radial-gradient(circle at center, rgba(255, 243, 166, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(15, 18, 36, 0.12), rgba(8, 10, 18, 0.34));
+  opacity: 0;
+}
+
+.pixel-screen-transition.is-active .pixel-screen-transition__scrim {
+  animation: pixel-screen-scrim 920ms steps(6, end) both;
+}
+
+.pixel-screen-transition__grid {
+  display: grid;
+  justify-content: start;
+  align-content: start;
+}
+
+.pixel-screen-transition__tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  opacity: 0;
+  transform: scale(0.08);
+  transform-origin: center;
+}
+
+.pixel-screen-transition.is-active .pixel-screen-transition__tile {
+  animation: pixel-screen-tile var(--pixel-duration, 720ms) steps(5, end) var(--pixel-delay, 0ms) both;
+}
+
+.pixel-screen-transition__scanlines {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 24%, transparent 76%, rgba(8, 10, 18, 0.18)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0 2px,
+      rgba(0, 0, 0, 0) 2px 6px
+    );
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.pixel-screen-transition.is-active .pixel-screen-transition__scanlines {
+  animation: pixel-screen-scanlines 920ms linear both;
+}
+
 .app-shell__view-loading {
   flex: 1;
   min-height: 0;
@@ -346,6 +414,62 @@ option {
   min-height: 0;
   display: flex;
   align-items: stretch;
+}
+
+@keyframes pixel-screen-scrim {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  24%,
+  68% {
+    opacity: 1;
+  }
+}
+
+@keyframes pixel-screen-tile {
+  0% {
+    opacity: 0;
+    transform: scale(0.08);
+  }
+
+  20% {
+    opacity: 1;
+    transform: scale(0.24);
+  }
+
+  35%,
+  62% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.08);
+  }
+}
+
+@keyframes pixel-screen-scanlines {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  18%,
+  74% {
+    opacity: 0.64;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-screen-transition.is-active .pixel-screen-transition__scrim,
+  .pixel-screen-transition.is-active .pixel-screen-transition__tile,
+  .pixel-screen-transition.is-active .pixel-screen-transition__scanlines {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
 }
 
 .left-pages-panel {
@@ -8670,6 +8794,44 @@ intentional so the top edge reads much shorter than the bottom edge. */
   line-height: 1;
 }
 
+.card[data-render-state="compact"] .card__surface--checklist {
+  padding: 14px;
+  border-radius: 20px;
+}
+
+.card[data-render-state="compact"] .card__checklist-header {
+  margin-bottom: 10px;
+}
+
+.card[data-render-state="compact"] .card__checklist-title {
+  font-size: 17px;
+}
+
+.card[data-render-state="compact"] .card__checklist-progress {
+  min-width: 44px;
+  min-height: 24px;
+  font-size: 10px;
+}
+
+.card[data-render-state="compact"] .card__checklist-item:nth-child(n + 3),
+.card[data-render-state="compact"] .card__checklist-add {
+  display: none;
+}
+
+.card[data-render-state="compact"] .card__checklist-item {
+  padding: 4px 2px;
+}
+
+.card[data-render-state="compact"] .card__checklist-toggle {
+  width: 34px;
+  min-width: 34px;
+  height: 22px;
+}
+
+.card[data-render-state="compact"] .card__checklist-input {
+  font-size: 12px;
+}
+
 .card__surface--text-box {
   position: relative;
   min-height: var(--tile-height);
@@ -8752,6 +8914,210 @@ intentional so the top edge reads much shorter than the bottom edge. */
   color: rgba(112, 106, 97, 0.62) !important;
 }
 
+.card[data-render-state="compact"] .card__surface--text-box-sticky {
+  padding: 10px 10px 12px;
+}
+
+.card__surface.card__surface--sticky-note {
+  display: grid;
+  grid-template-rows: var(--sticky-header-height) minmax(0, 1fr) var(--sticky-footer-height);
+  gap: var(--sticky-gap);
+  height: var(--tile-height);
+  min-height: var(--tile-height);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.card__sticky-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--sticky-header-height);
+  padding:
+    var(--sticky-header-padding-top)
+    var(--sticky-header-padding-x)
+    var(--sticky-header-padding-bottom);
+  background: #111111;
+  color: #ffffff;
+  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 var(--sticky-chamfer));
+}
+
+.card__sticky-note-title {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-family: var(--ap-font-display);
+  font-size: var(--sticky-title-font-size);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.024em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.card__sticky-note-title--placeholder {
+  opacity: 0.72;
+}
+
+.card__sticky-note-title-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+}
+
+.card__sticky-note-title-input::placeholder {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.card__sticky-note-title-spacer {
+  width: 100%;
+  min-height: 0;
+}
+
+.card__sticky-note-body {
+  position: relative;
+  min-height: 0;
+  padding:
+    var(--sticky-body-padding-top)
+    var(--sticky-body-padding-x)
+    var(--sticky-body-padding-bottom);
+  background: #5a5a5a;
+  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), 100% calc(100% - var(--sticky-chamfer)), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 calc(100% - var(--sticky-chamfer)), 0 var(--sticky-chamfer));
+  overflow: hidden;
+}
+
+.card__sticky-note-detail-lines {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 100%;
+}
+
+.card__sticky-note-line {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.94);
+  font-family: var(--ap-font-body);
+  font-size: var(--sticky-body-font-size);
+  line-height: var(--sticky-body-line-height);
+  letter-spacing: 0.012em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__sticky-note-line--placeholder {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.card__sticky-note-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.96);
+  font-family: var(--ap-font-body);
+  font-size: var(--sticky-body-font-size);
+  line-height: var(--sticky-body-line-height);
+  padding: 0;
+}
+
+.card__sticky-note-editor::placeholder {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.card__sticky-note-footer {
+  display: flex;
+  align-items: flex-start;
+  min-height: var(--sticky-footer-height);
+  padding:
+    var(--sticky-footer-padding-top)
+    var(--sticky-footer-padding-x)
+    var(--sticky-footer-padding-bottom);
+  background: #d5ff00;
+  color: #111111;
+  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), 100% calc(100% - var(--sticky-chamfer)), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 calc(100% - var(--sticky-chamfer)), 0 var(--sticky-chamfer));
+}
+
+.card__sticky-note-footer-copy {
+  width: 100%;
+  overflow: hidden;
+  color: #111111;
+  font-family: var(--ap-font-display);
+  font-size: var(--sticky-footer-font-size);
+  font-weight: 500;
+  line-height: var(--sticky-footer-line-height);
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.card__sticky-note-footer-copy--placeholder {
+  color: rgba(17, 17, 17, 0.86);
+}
+
+.card__sticky-note-compact-lines {
+  display: grid;
+  align-content: start;
+  gap: var(--sticky-compact-bar-gap);
+  padding-top: 0;
+}
+
+.card__sticky-note-compact-line {
+  min-height: var(--sticky-compact-bar-height);
+  border-radius: 999px;
+  background: #111111;
+}
+
+.card__sticky-note-compact-line--placeholder {
+  opacity: 0.7;
+}
+
+.card__sticky-note-error {
+  display: grid;
+  gap: 10px;
+  color: rgba(255, 231, 231, 0.95);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.card__sticky-note-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card__sticky-note-action {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #111111;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card__surface--sticky-note-compact .card__sticky-note-footer {
+  justify-content: stretch;
+}
+
 .card__text-box-editor {
   resize: none;
   display: block;
@@ -8788,30 +9154,32 @@ intentional so the top edge reads much shorter than the bottom edge. */
 
 .card__surface--canvas-text {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
   min-height: 100%;
-  padding: 16px 16px 14px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(248, 243, 234, 0.98) 100%);
-  border: 1px solid rgba(173, 158, 131, 0.24);
-  box-shadow: 0 12px 28px rgba(62, 49, 28, 0.08);
-  overflow: hidden;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .card__surface--canvas-text-sticky {
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffe07b 0%, #ffd45d 100%);
-  border-color: rgba(183, 142, 43, 0.24);
-  box-shadow: 0 10px 20px rgba(145, 114, 42, 0.16);
+  background: transparent;
 }
 
 .card__canvas-text-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  align-items: center;
+  justify-content: center;
+  min-height: 66px;
+  margin: 0;
+  padding: 12px 28px 14px;
+  background: #111111;
+  color: #ffffff;
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, calc(100% - 20px) 100%, 20px 100%, 0 22px);
 }
 
 .card__canvas-text-heading {
@@ -8820,22 +9188,27 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card__canvas-text-title {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: rgba(53, 45, 34, 0.94);
+  width: 100%;
+  font-family: var(--ap-font-display);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.025em;
+  text-align: center;
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
-.card__canvas-text-meta {
-  margin-top: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(113, 98, 77, 0.76);
+.card__canvas-text-title--placeholder {
+  opacity: 0.72;
+}
+
+.card__canvas-text-title--compact-spacer {
+  min-height: 14px;
+  opacity: 0;
 }
 
 .card__canvas-text-actions,
@@ -8866,14 +9239,17 @@ intentional so the top edge reads much shorter than the bottom edge. */
   position: relative;
   min-height: 0;
   flex: 1 1 auto;
+  padding: 18px 22px 20px;
+  background: #5a5a5a;
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, 100% calc(100% - 22px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 22px), 0 22px);
 }
 
 .card__canvas-text-preview,
 .card__canvas-text-editor,
 .card__canvas-text-measure {
-  color: rgba(57, 46, 31, 0.94);
-  font-size: 14px;
-  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .card__canvas-text-preview {
@@ -8881,15 +9257,76 @@ intentional so the top edge reads much shorter than the bottom edge. */
   overflow: hidden;
 }
 
+.card__canvas-text-sticky-preview {
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.card__canvas-text-sticky-line {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.94);
+  font-family: var(--ap-font-body);
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card__canvas-text-compact-preview {
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.card__canvas-text-compact-line {
+  width: 100%;
+  min-height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #111111;
+  color: transparent;
+  font-family: var(--ap-font-display);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.card__canvas-text-compact-line:nth-child(1) {
+  width: 82%;
+}
+
+.card__canvas-text-compact-line:nth-child(2) {
+  width: 82%;
+}
+
+.card__canvas-text-compact-line:nth-child(3) {
+  width: 56%;
+}
+
+.card__canvas-text-compact-line--empty {
+  align-self: start;
+}
+
 .card__canvas-text-preview--sticky,
 .card__surface--canvas-text-sticky .card__canvas-text-preview,
 .card__surface--canvas-text-sticky .card__canvas-text-editor,
 .card__surface--canvas-text-sticky .card__canvas-text-measure {
-  color: #694f18;
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .card__canvas-text-preview :is(h1, h2, h3, h4, h5, h6) {
   margin: 0 0 8px;
+  color: #ffffff;
 }
 
 .card__canvas-text-preview :is(p, ul, ol, blockquote, pre) {
@@ -8905,13 +9342,13 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card__canvas-text-empty {
-  color: rgba(112, 106, 97, 0.72);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .card__canvas-text-error {
   display: grid;
   gap: 10px;
-  color: rgba(113, 56, 56, 0.92);
+  color: rgba(255, 224, 224, 0.95);
 }
 
 .card__canvas-text-editor {
@@ -8943,16 +9380,92 @@ intentional so the top edge reads much shorter than the bottom edge. */
 }
 
 .card__canvas-text-editor .cm-selectionBackground {
-  background: rgba(162, 128, 87, 0.22) !important;
+  background: rgba(205, 255, 0, 0.28) !important;
 }
 
 .card__canvas-text-measure {
   position: absolute;
-  inset: 0;
+  inset: 0 auto auto 0;
+  width: 100%;
   visibility: hidden;
   pointer-events: none;
   z-index: -1;
-  padding: 16px;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+}
+
+.card__canvas-text-footer {
+  display: flex;
+  align-items: flex-start;
+  min-height: 72px;
+  padding: 16px 22px 18px;
+  background: #d5ff00;
+  color: #111111;
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, 100% calc(100% - 22px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 22px), 0 22px);
+}
+
+.card__canvas-text-footer--placeholder {
+  color: rgba(17, 17, 17, 0.86);
+}
+
+.card__canvas-text-footer-label {
+  width: 100%;
+  font-family: var(--ap-font-display);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.015em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  text-transform: uppercase;
+}
+
+.card__canvas-text-footer-label--compact {
+  min-height: 0;
+}
+
+.card[data-render-state="compact"] .card__surface--canvas-text {
+  gap: 4px;
+}
+
+.card[data-render-state="compact"] .card__canvas-text-header {
+  min-height: 18px;
+  padding: 0 14px;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, calc(100% - 8px) 100%, 8px 100%, 0 8px);
+}
+
+.card[data-render-state="compact"] .card__canvas-text-title {
+  font-size: 12px;
+}
+
+.card[data-render-state="compact"] .card__canvas-text-body-shell {
+  min-height: 56px;
+  padding: 10px 14px 12px;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%, 0 8px);
+}
+
+.card[data-render-state="compact"] .card__canvas-text-preview {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.card[data-render-state="compact"] .card__canvas-text-preview :is(p, ul, ol, blockquote, pre):not(:first-child) {
+  display: none;
+}
+
+.card[data-render-state="compact"] .card__canvas-text-footer {
+  min-height: 28px;
+  padding: 0;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%, 0 8px);
+}
+
+.card[data-render-state="compact"] .card__canvas-text-footer-label {
+  display: none;
 }
 
 .card__sticky-note-display,
@@ -9448,6 +9961,38 @@ intentional so the top edge reads much shorter than the bottom edge. */
   cursor: var(--cursor-pointer);
 }
 
+.card[data-render-state="compact"] .card__surface--table {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.card[data-render-state="compact"] .card__table-header {
+  margin-bottom: 8px;
+}
+
+.card[data-render-state="compact"] .card__table-title {
+  font-size: 16px;
+}
+
+.card[data-render-state="compact"] .card__table-actions,
+.card[data-render-state="compact"] .card__table-grid tbody tr:nth-child(n + 3),
+.card[data-render-state="compact"] .card__table-grid :is(.card__table-head-cell--actions, .card__table-cell--actions) {
+  display: none;
+}
+
+.card[data-render-state="compact"] .card__table-head-cell {
+  min-width: 92px;
+  padding: 6px;
+}
+
+.card[data-render-state="compact"] .card__table-cell {
+  min-width: 92px;
+}
+
+.card[data-render-state="compact"] :is(.card__table-column-name, .card__table-cell-input, .card__table-column-kind) {
+  font-size: 11px;
+}
+
 .card__surface--code {
   min-height: var(--tile-height);
   flex-direction: column;
@@ -9608,6 +10153,35 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__code-line-content {
   white-space: pre;
   color: rgba(226, 232, 240, 0.98);
+}
+
+.card[data-render-state="compact"] .card__surface--code {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.card[data-render-state="compact"] .card__code-header {
+  margin-bottom: 8px;
+}
+
+.card[data-render-state="compact"] .card__code-title {
+  font-size: 15px;
+}
+
+.card[data-render-state="compact"] .card__code-toolbar {
+  display: none;
+}
+
+.card[data-render-state="compact"] .card__code-editor,
+.card[data-render-state="compact"] .card__code-preview {
+  min-height: 120px;
+  padding: 10px 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.card[data-render-state="compact"] .card__code-line:nth-child(n + 4) {
+  display: none;
 }
 
 .card__code-token--keyword {
@@ -12809,6 +13383,89 @@ body {
 
 .canvas__background-plane {
   display: none !important;
+}
+
+.card__surface-frame--sticky-note {
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.card__surface.card__surface--sticky-note {
+  border: none !important;
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  overflow: visible !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-header {
+  background: #111111 !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-body {
+  background: #5a5a5a !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-footer {
+  background: #d5ff00 !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-title,
+.card__surface-frame--sticky-note .card__sticky-note-title-input {
+  color: #ffffff !important;
+  font-family: var(--ap-font-display) !important;
+  font-size: var(--sticky-title-font-size) !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.024em !important;
+  text-align: center !important;
+  text-transform: uppercase !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-title-input::placeholder {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-body {
+  font: inherit !important;
+  color: inherit !important;
+  letter-spacing: normal !important;
+  text-align: initial !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-line,
+.card__surface-frame--sticky-note .card__sticky-note-editor {
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-family: var(--ap-font-body) !important;
+  font-size: var(--sticky-body-font-size) !important;
+  line-height: var(--sticky-body-line-height) !important;
+}
+
+.card__surface-frame--sticky-note .card__sticky-note-footer-copy {
+  color: #111111 !important;
+  font-family: var(--ap-font-display) !important;
+  font-size: var(--sticky-footer-font-size) !important;
+  line-height: var(--sticky-footer-line-height) !important;
+}
+
+.card__surface-frame--selected .card__surface--sticky-note,
+.card[data-tile-state="editing"] .card__surface-frame .card__surface--sticky-note {
+  outline: none !important;
+}
+
+.card__surface-frame--selected.card__surface-frame--sticky-note {
+  outline: 2px solid var(--ap-tile-selection) !important;
+  outline-offset: 4px;
+}
+
+.card[data-tile-state="editing"] .card__surface-frame--sticky-note {
+  outline: 2px solid rgba(104, 84, 50, 0.82) !important;
+  outline-offset: 4px;
 }
 
 /* Home header font override */

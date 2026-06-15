@@ -33,7 +33,7 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
-import { getCanvasTextLineCount } from "../lib/canvasText";
+import { CANVAS_TEXT_VARIANT_STICKY, getCanvasTextLineCount } from "../lib/canvasText";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -585,6 +585,7 @@ function areRenderHintsEqual(left, right) {
 
   return left.lodLevel === right.lodLevel
     && left.previewTier === right.previewTier
+    && left.renderState === right.renderState
     && left.simplify === right.simplify
     && left.imageEnabled === right.imageEnabled
     && left.showToolbar === right.showToolbar
@@ -1737,20 +1738,31 @@ export default function CanvasWorkspaceView() {
       .filter((tile) => tile?.sourceType === "sticker")
       .map((tile) => tile.id),
   ), [layout.rootTiles]);
-  const interactionOverlayTileIdSet = useMemo(() => new Set([
+  const stickyCanvasTextTileIdSet = useMemo(() => new Set(
+    layout.rootTiles
+      .filter((tile) => tile?.type === CANVAS_TEXT_CARD_TYPE && tile?.variant === CANVAS_TEXT_VARIANT_STICKY)
+      .map((tile) => tile.id),
+  ), [layout.rootTiles]);
+  const passiveInteractionOverlayTileIdSet = useMemo(() => new Set([
     ...interactions.selectedTileIds,
     ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
-    ...interactions.draggingTileIds,
     ...(interactions.hoveredTileId ? [interactions.hoveredTileId] : []),
     ...(interactions.contextMenu?.kind === "tile" ? [interactions.contextMenu.card?.id] : []),
-    ...(textBoxEditorState?.tileId ? [textBoxEditorState.tileId] : []),
-    ...stickerTileIdSet,
-  ]), [
+  ].filter((tileId) => tileId && !stickyCanvasTextTileIdSet.has(tileId))), [
     interactions.contextMenu,
-    interactions.draggingTileIds,
     interactions.focusedTileId,
     interactions.hoveredTileId,
     interactions.selectedTileIds,
+    stickyCanvasTextTileIdSet,
+  ]);
+  const interactionOverlayTileIdSet = useMemo(() => new Set([
+    ...passiveInteractionOverlayTileIdSet,
+    ...interactions.draggingTileIds,
+    ...(textBoxEditorState?.tileId ? [textBoxEditorState.tileId] : []),
+    ...stickerTileIdSet,
+  ]), [
+    passiveInteractionOverlayTileIdSet,
+    interactions.draggingTileIds,
     stickerTileIdSet,
     textBoxEditorState?.tileId,
   ]);
@@ -1967,6 +1979,15 @@ export default function CanvasWorkspaceView() {
 
     return interactions.handleTilePressStart(tile, event);
   }, [interactions, isTextToolActive, requestTextBoxEdit]);
+  const handleSceneTileDoubleActivate = useCallback((tile) => {
+    if (tile?.type !== CANVAS_TEXT_CARD_TYPE) {
+      return false;
+    }
+
+    interactions.selectTile(tile.id, { forceSingle: true });
+    requestTextBoxEdit(tile.id, { selectAll: false });
+    return true;
+  }, [interactions, requestTextBoxEdit]);
 
   const handleSceneTileDragStart = useCallback((tile, event) => {
     interactions.beginTileDrag(tile, event);
@@ -2746,6 +2767,7 @@ export default function CanvasWorkspaceView() {
                 cameraSnapshot={workspace.viewport}
                 getViewportSnapshot={canvas.getViewportSnapshot}
                 onTilePressStart={handleSceneTilePressStart}
+                onTileDoubleActivate={handleSceneTileDoubleActivate}
                 onTileDragStart={handleSceneTileDragStart}
                 onTileContextMenu={handleSceneTileContextMenu}
                 onTileHoverChange={handleSceneTileHoverChange}
