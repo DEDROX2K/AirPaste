@@ -3175,7 +3175,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card--lod-thumbnail .card__surface,
 .card--lod-thumbnail .card__surface--amazon-product {
-  background: linear-gradient(135deg, rgba(239, 230, 214, 0.94), rgba(220, 211, 196, 0.92));
+  background: var(--ap-tile-bg-solid);
 }
 
 .card--hovered:not(.card--dragging):not(.card--music) {
@@ -3604,19 +3604,6 @@ intentional so the top edge reads much shorter than the bottom edge. */
 .card__surface--rack-target::before {
   opacity: 0.94;
   transform: scaleX(1);
-}
-
-.card__surface--rack-simplified {
-  border-radius: 16px;
-}
-
-.card__rack-simplified-shell {
-  position: absolute;
-  inset: 10px 22px;
-  border-radius: 16px;
-  background:
-    linear-gradient(135deg, rgba(160, 97, 43, 0.94), rgba(141, 81, 34, 0.96));
-  border: 1px solid rgba(255, 226, 188, 0.14);
 }
 
 .card__rack-rect {
@@ -12035,13 +12022,6 @@ body {
   z-index: 1;
 }
 
-.home-sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
 .home-sidebar__topbar-title {
   font-family: var(--ap-font-display);
   font-size: 14px;
@@ -12493,10 +12473,6 @@ body {
     right: 12px;
   }
 
-  .home-sidebar__brand {
-    gap: 6px;
-  }
-
   .home-beta-badge {
     font-size: 9px;
     padding-inline: 4px;
@@ -12764,10 +12740,6 @@ body {
 .home-content__body--workspace-nav {
   position: relative;
   z-index: 1;
-}
-
-.home-sidebar__brand {
-  gap: 10px;
 }
 
 .home-sidebar__topbar {

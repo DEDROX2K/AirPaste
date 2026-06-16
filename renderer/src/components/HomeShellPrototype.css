@@ -244,9 +244,11 @@ body {
 
 .home-toolbar-shell {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
+  align-items: center;
   min-width: 0;
+  justify-content: flex-start;
 }
 
 .home-view-toolbar {
@@ -260,7 +262,7 @@ body {
   display: flex;
   gap: 12px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
 }
 
@@ -1133,7 +1135,7 @@ body {
   }
 
   .home-toolbar-shell {
-    align-items: stretch;
+    align-items: center;
     gap: 10px;
   }
 
@@ -1141,17 +1143,8 @@ body {
     width: 100%;
   }
 
-  .toolbar-cluster--primary {
-    justify-content: flex-start;
-  }
-
   .toolbar-cluster--secondary {
     justify-content: flex-start;
-  }
-
-  .toolbar-cluster--primary > *,
-  .toolbar-cluster--secondary > * {
-    flex: 0 0 auto;
   }
 
   .home-sidebar--drawer {

@@ -1023,12 +1023,8 @@ export default function CanvasWorkspaceView() {
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
   const sceneSurfaceEnabled = useMemo(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-
-    const mode = window.localStorage?.getItem("airpaste.workspaceSurfaceMode");
-    return mode !== "dom";
+    // Keep the DOM renderer active; the scene overlay mode was only used for an old perf experiment.
+    return false;
   }, []);
 
   const canvas = useCanvasSystem({

@@ -159,8 +159,7 @@
 
 .canvas__content .card--lod-thumbnail .card__surface,
 .grid-workspace .card--lod-thumbnail .card__surface {
-  background: var(--ap-tile-bg-muted) !important;
-  box-shadow: none !important;
+  background: var(--ap-tile-bg-solid) !important;
 }
 
 .canvas__content .card__surface--link,

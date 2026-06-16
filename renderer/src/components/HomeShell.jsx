@@ -684,14 +684,6 @@ function HomeSidebarContent({
 }) {
   return (
     <>
-      <div className="home-sidebar__brand">
-        <div className="home-sidebar__mark">A</div>
-        <div>
-          <div className="home-sidebar__brand-name">AirPaste</div>
-          <div className="home-sidebar__brand-subtitle">{folderPath ? folderNameFromPath(folderPath) : "Workspace launcher"}</div>
-        </div>
-      </div>
-
       <div className="sidebar-section">
         <label className="workspace-search-shell">
           <Search size={16} aria-hidden="true" />
@@ -1192,33 +1184,31 @@ export default function HomeShell() {
       <section className="workspace-main">
         {hasWorkspace ? (
           <div className="home-toolbar-shell">
-            <div className="toolbar-cluster toolbar-cluster--primary">
-              {isNarrowDesktop ? (
+            {isNarrowDesktop ? (
               <AppButton type="button" tone="surface" className="home-sidebar-trigger" onClick={() => setSidebarDrawerOpen(true)}>
                 <Menu size={17} aria-hidden="true" />
                 Menu
               </AppButton>
-              ) : null}
-              <div className="home-toolbar-stats" aria-label="Workspace summary">
-                {statChips.map(({ key, icon: Icon, label }) => (
-                  <span key={key} className="home-toolbar-stat">
-                    <Icon size={14} aria-hidden="true" />
-                    {label}
-                  </span>
-                ))}
-              </div>
+            ) : null}
+            <div className="home-toolbar-stats" aria-label="Workspace summary">
+              {statChips.map(({ key, icon: Icon, label }) => (
+                <span key={key} className="home-toolbar-stat">
+                  <Icon size={14} aria-hidden="true" />
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="home-toolbar-actions">
+              <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
+                <Plus size={17} aria-hidden="true" />
+                Create Canvas
+              </AppButton>
+              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
+                <Import size={16} aria-hidden="true" />
+                Import
+              </AppButton>
             </div>
             <div className="toolbar-cluster toolbar-cluster--secondary">
-              <div className="home-toolbar-actions">
-                <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
-                  <Plus size={17} aria-hidden="true" />
-                  Create Canvas
-                </AppButton>
-                <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
-                  <Import size={16} aria-hidden="true" />
-                  Import
-                </AppButton>
-              </div>
               <div className="home-toolbar-tools">
                 <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
                 <button
