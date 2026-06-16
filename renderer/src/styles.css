@@ -2369,6 +2369,12 @@ option {
   pointer-events: auto;
 }
 
+body.airpaste-thumbnail-capture .canvas-perf-overlay {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .canvas-perf-overlay__header {
   display: flex;
   align-items: center;

@@ -561,13 +561,11 @@ function HomeCanvasCardItem({
         onClick={() => onOpenCanvas(item)}
       >
         <div className="home-canvas-card__thumb">
-          <div className="home-canvas-card__thumb-stage">
-            {thumbUrl ? (
-              <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
-            ) : (
-              <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
-            )}
-          </div>
+          {thumbUrl ? (
+            <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+          ) : (
+            <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
+          )}
         </div>
         <div className="home-canvas-card__meta">
           <div className="home-canvas-card__heading">

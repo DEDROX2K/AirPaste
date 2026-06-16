@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isEditableElement } from "../lib/workspace";
 import { TabContext } from "./TabContext";
 
@@ -245,6 +245,7 @@ export function TabProvider({ children }) {
   const [tabs, setTabs] = useState(() => [createHomeTab()]);
   const [activeTabId, setActiveTabId] = useState(HOME_TAB_ID);
   const [closedTabs, setClosedTabs] = useState([]);
+  const beforeCloseTabHandlerRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -319,6 +320,10 @@ export function TabProvider({ children }) {
     }
   }, []);
 
+  const registerBeforeCloseTab = useCallback((handler) => {
+    beforeCloseTabHandlerRef.current = typeof handler === "function" ? handler : null;
+  }, []);
+
   const moveTab = useCallback((tabId, targetIndex) => {
     setTabs((currentTabs) => reorderTabs(currentTabs, tabId, targetIndex));
   }, []);
@@ -364,9 +369,13 @@ export function TabProvider({ children }) {
     setActiveTabId(nextActiveId);
   }, [activeTabId]);
 
-  const closeTab = useCallback((tabIdToClose) => {
+  const closeTab = useCallback(async (tabIdToClose) => {
+    const tabToClose = tabs.find((tab) => tab.id === tabIdToClose) ?? null;
+    if (tabToClose && beforeCloseTabHandlerRef.current) {
+      await beforeCloseTabHandlerRef.current(tabToClose);
+    }
     closeTabsByIds([tabIdToClose]);
-  }, [closeTabsByIds]);
+  }, [closeTabsByIds, tabs]);
 
   const reopenClosedTab = useCallback(() => {
     let restoredTabId = null;
@@ -572,6 +581,7 @@ export function TabProvider({ children }) {
     activateNextTab,
     activatePreviousTab,
     closeTab,
+    registerBeforeCloseTab,
     reopenClosedTab,
     closeOtherTabs,
     closeTabsToRight,
@@ -590,6 +600,7 @@ export function TabProvider({ children }) {
     activateNextTab,
     activatePreviousTab,
     closeTab,
+    registerBeforeCloseTab,
     reopenClosedTab,
     closeOtherTabs,
     closeTabsToRight,

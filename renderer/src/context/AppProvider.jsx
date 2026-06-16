@@ -389,7 +389,7 @@ function createDomesState() {
 }
 
 export function AppProvider({ children }) {
-  const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab } = useTabs();
+  const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab, registerBeforeCloseTab } = useTabs();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
   const [previewEnabled, setPreviewEnabled] = useState(true);
@@ -736,7 +736,22 @@ export function AppProvider({ children }) {
     return item;
   }, [applyHomeData, folderPath, openCanvasFile, refreshHomeData]);
 
-  const showHome = useCallback(async () => {
+  const withTemporaryThumbnailMask = useCallback(async (task) => {
+    const body = document.body;
+    if (!body) {
+      return task();
+    }
+
+    body.classList.add("airpaste-thumbnail-capture");
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return await task();
+    } finally {
+      body.classList.remove("airpaste-thumbnail-capture");
+    }
+  }, []);
+
+  const captureActiveCanvasThumbnail = useCallback(async () => {
     if (folderPath && currentEditor.kind === "canvas" && currentEditor.filePath) {
       try {
         const captureRoot = document.querySelector("[data-airpaste-canvas-capture-root]");
@@ -752,12 +767,13 @@ export function AppProvider({ children }) {
           };
 
           if (clamped.width >= 32 && clamped.height >= 32) {
-            await desktop.workspace.captureCanvasThumbnail(
+            await withTemporaryThumbnailMask(() => desktop.workspace.captureCanvasThumbnail(
               folderPath,
               currentEditor.filePath,
               clamped,
               window.devicePixelRatio || 1,
-            );
+            ));
+            return true;
           }
         }
       } catch {
@@ -765,9 +781,33 @@ export function AppProvider({ children }) {
       }
     }
 
+    return false;
+  }, [currentEditor.filePath, currentEditor.kind, folderPath, withTemporaryThumbnailMask]);
+
+  const showHome = useCallback(async () => {
+    await captureActiveCanvasThumbnail();
+
     showHomeTab();
     if (folderPath) await refreshHomeData(folderPath);
-  }, [currentEditor.filePath, currentEditor.kind, folderPath, refreshHomeData, showHomeTab]);
+  }, [captureActiveCanvasThumbnail, folderPath, refreshHomeData, showHomeTab]);
+
+  const handleBeforeCloseTab = useCallback(async (tab) => {
+    if (!tab || tab.id !== activeTab?.id || tab.type !== "canvas") {
+      return false;
+    }
+
+    const captured = await captureActiveCanvasThumbnail();
+    if (captured && folderPath) {
+      await refreshHomeData(folderPath);
+    }
+
+    return captured;
+  }, [activeTab?.id, captureActiveCanvasThumbnail, folderPath, refreshHomeData]);
+
+  useEffect(() => {
+    registerBeforeCloseTab(handleBeforeCloseTab);
+    return () => registerBeforeCloseTab(null);
+  }, [handleBeforeCloseTab, registerBeforeCloseTab]);
 
   const backfillCanvasThumbnails = useCallback(async (limit = 12) => {
     if (!folderPath) return 0;
