@@ -1,0 +1,5 @@
+- main "Starting AirPaste" [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e7]: A
+    - heading "AirPaste" [level=1] [ref=e8]
+  - generic [ref=e12]: Preparing workspace

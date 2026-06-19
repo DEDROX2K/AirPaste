@@ -4,7 +4,6 @@ import {
   BookOpenText,
   Calculator,
   CalendarDays,
-  Code2,
   Hash,
   Link2,
   ListChecks,
@@ -173,14 +172,12 @@ export default function CanvasDock({
       icon: Target,
       disabled,
       children: [
-        { key: "progress", label: "Progress", icon: Target, onSelect: () => commands?.createProgress?.() },
         { key: "deadline", label: "Deadline", icon: Timer, onSelect: () => commands?.createDeadline?.() },
         { key: "calendar", label: "Calendar", icon: CalendarDays, onSelect: () => commands?.createCalendar?.() },
       ],
     },
     { key: "table", label: "Table", kind: "create", icon: Table2, onSelect: () => commands?.createTable?.(), disabled },
     { key: "rack", label: "Rack", kind: "create", icon: Archive, onSelect: () => commands?.createRack?.(), disabled },
-    { key: "code", label: "Code", kind: "create", icon: Code2, onSelect: () => commands?.createCode?.(), disabled },
     { key: "counter", label: "Counter", kind: "create", icon: Hash, onSelect: () => commands?.createCounter?.(), disabled },
     { key: "link", label: "Link", kind: "create", icon: Link2, onSelect: () => commands?.createLinkFromClipboard?.(), disabled },
     {

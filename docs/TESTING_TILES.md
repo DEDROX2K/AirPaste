@@ -78,7 +78,6 @@ Current seeded rows in `renderer/src/lib/testingTiles.js`:
 - `Notes / Markdown`
 - `Text / Typography`
 - `Tables / Databases`
-- `Development / Technical`
 - `Tracking & Productivity`
 
 ## Expected Seeded Examples
@@ -95,13 +94,9 @@ The target rule is that every implemented tile has representative seeded coverag
   - seeded typography examples exist
 - Database / Table Tile
   - seeded examples exist
-- Code Snippet Tile
-  - seeded examples exist
 - Counter Tile
   - seeded examples exist
 - Deadline Countdown Tile
-  - seeded examples exist
-- Progress Bar Tile
   - seeded examples exist
 
 ### Current Gaps
@@ -112,6 +107,10 @@ The target rule is that every implemented tile has representative seeded coverag
   - no dedicated seeded examples yet
 - Checklist Tile
   - no dedicated seeded examples yet
+- Code Snippet Tile
+  - legacy tile; no longer seeded in the active QA board
+- Progress Bar Tile
+  - legacy tile; no longer seeded in the active QA board
 - Rack Tile
   - no dedicated seeded examples yet
 
@@ -144,16 +143,10 @@ Current behavior:
   - support DEV/testing copy diagnostics
   - support DEV/testing Codex report copy
   - show QA badges for preview outcomes in Testing Tiles
-- Code Snippet Tiles:
-  - support DEV/testing copy diagnostics
-  - support DEV/testing Codex report copy
 - Counter Tiles:
   - support DEV/testing copy diagnostics
   - support DEV/testing Codex report copy
 - Deadline Countdown Tiles:
-  - support DEV/testing copy diagnostics
-  - support DEV/testing Codex report copy
-- Progress Bar Tiles:
   - support DEV/testing copy diagnostics
   - support DEV/testing Codex report copy
 - Other tiles:

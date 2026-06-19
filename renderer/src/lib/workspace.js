@@ -90,8 +90,8 @@ const CHECKLIST_CARD_SIZE = Object.freeze({
 });
 
 const CALENDAR_CARD_SIZE = Object.freeze({
-  width: 980,
-  height: 412,
+  width: 920,
+  height: 468,
 });
 
 const CODE_CARD_SIZE = Object.freeze({
@@ -105,8 +105,8 @@ const COUNTER_CARD_SIZE = Object.freeze({
 });
 
 const DEADLINE_CARD_SIZE = Object.freeze({
-  width: 400,
-  height: 320,
+  width: 480,
+  height: 360,
 });
 
 const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
@@ -137,8 +137,8 @@ const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const CHECKLIST_DEFAULT_TITLE = "Checklist";
 const CALENDAR_DEFAULT_TITLE = "Calendar";
-const CALENDAR_DEFAULT_MONTH = 1;
-const CALENDAR_DEFAULT_YEAR = 2023;
+const CALENDAR_DEFAULT_MONTH = new Date().getMonth();
+const CALENDAR_DEFAULT_YEAR = new Date().getFullYear();
 const CALENDAR_DEFAULT_VIEW = "month";
 const CALENDAR_DEFAULT_THEME_ID = "mist";
 const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";

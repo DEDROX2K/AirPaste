@@ -38,10 +38,10 @@ A tile feature is not complete until:
 | Implemented | Notes & Writing | Note / Markdown Tile | `note` | Scratchpad tile for Markdown notes, explanations, and snippets. | `renderer/src/components/tiles/NoteTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Supports edit/preview. |
 | Implemented | Notes & Writing | Canvas Text Box Tile | `text-box` | Lightweight visible canvas text object for headings, labels, callouts, and annotations. | `renderer/src/components/tiles/TextBoxTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated DEV/testing diagnostics and Codex copy report for text length, line count, preset, size, weight, alignment, and style flags. | Not the same as Note / Markdown Tile. |
 | Implemented | Structured Data | Database / Table Tile | `table` | Lightweight grid tile for small structured datasets. | `renderer/src/components/tiles/TableTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Tracker-style table, not a spreadsheet. |
-| Implemented | Development | Code Snippet Tile | `code` | Syntax-highlighted storage tile for commands, config, SQL, regex, and snippets. | `renderer/src/components/tiles/CodeSnippetTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
+| Implemented | Development | Code Snippet Tile | `code` | Syntax-highlighted storage tile for commands, config, SQL, regex, and snippets. | `renderer/src/components/tiles/CodeSnippetTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
 | Implemented | Tracking & Productivity | Counter Tile | `counter` | Large plus/minus counter for lightweight tracking. | `renderer/src/components/tiles/CounterTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated counter diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
-| Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
-| Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
+| Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Rewritten with a cleaner dashboard-style layout. |
+| Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
 | Implemented | Layout & Containment | Rack Tile | `rack` | Container tile for mounted/slotted child tiles. | `renderer/src/components/tiles/RackTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable container tile. |
 | Planned | Structure & Systems | Node Group Tile | `node-group` | Future grouping/system wrapper for related tiles. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | Interactive | Game Tile | `game` | Future embedded interactive/game surface. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
@@ -437,14 +437,10 @@ A tile feature is not complete until:
   - `renderer/src/systems/commands/useCanvasCommands.js`
   - `renderer/src/components/CanvasWorkspaceView.jsx`
 - Add menu behavior:
-  - Yes
-  - Label: `Code Snippet`
+  - No
+  - Hidden from current creation surfaces and retained for older boards only
 - Testing Tiles examples:
-  - `Start dev server`
-  - `Extract URLs`
-  - `Tile config JSON`
-  - `Debounce helper`
-  - `Recent records query`
+  - None seeded in the current QA board
 - Diagnostics / copy report behavior:
   - Dedicated DEV/testing diagnostics export exists.
   - Dedicated DEV/testing Codex report exists.
@@ -452,6 +448,7 @@ A tile feature is not complete until:
 - Known limitations:
   - Lightweight internal highlighter, not a full parser.
   - Not a runnable IDE.
+  - Hidden from current creation surfaces.
 - Future improvements:
   - More language coverage.
   - More seeded QA examples for long and empty states.
@@ -587,12 +584,10 @@ A tile feature is not complete until:
   - `renderer/src/components/CanvasWorkspaceView.jsx`
   - `renderer/src/lib/testingTiles.js`
 - Add menu behavior:
-  - Yes
-  - Label: `Progress Bar`
+  - No
+  - Hidden from current creation surfaces and retained for older boards only
 - Testing Tiles examples:
-  - `QA rollout`
-  - `Release readiness`
-  - `Checklist sync`
+  - None seeded in the current QA board
 - Diagnostics / copy report behavior:
   - Dedicated DEV/testing diagnostics export exists.
   - Dedicated DEV/testing Codex report exists.
@@ -600,6 +595,7 @@ A tile feature is not complete until:
 - Known limitations:
   - Linked mode only supports checklist tiles in the current canvas.
   - No inverse/segmented progress modes in V1.
+  - Hidden from current creation surfaces.
 - Future improvements:
   - Add seeded linked-checklist examples once checklist QA coverage exists.
   - Consider optional target labels, milestones, and color thresholds.

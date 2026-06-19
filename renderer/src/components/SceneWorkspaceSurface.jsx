@@ -12,6 +12,7 @@ import {
 } from "../lib/canvasText";
 import { LINK_CONTENT_KIND_IMAGE } from "../lib/workspace";
 import { PREVIEW_TIER, TILE_RENDER_STATE } from "../systems/canvas/tileLod";
+import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
 import {
   ensureDitheredPreview,
   getCachedDitheredPreview,
@@ -1384,6 +1385,9 @@ function SceneWorkspaceSurface({
       const tileMeta = tileEntry.tileMeta;
       const renderHint = tileEntry.renderHint;
       const tile = tileEntry.tile;
+      if (!isSceneSafeTile(tile)) {
+        return;
+      }
       const source = sourceByTileIdRef.current.get(tile.id) || "";
       const usePreviewColorBlock = renderHint?.usePreviewColorBlock === true;
       const shouldResolveSource = renderHint?.imageEnabled !== false || usePreviewColorBlock;

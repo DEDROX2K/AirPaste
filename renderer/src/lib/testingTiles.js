@@ -1,10 +1,8 @@
 import {
   createEmptyWorkspace,
-  createCodeCard,
   createCounterCard,
   createDeadlineCard,
   createNoteCard,
-  createProgressCard,
   createLinkCard,
   createTableCard,
   createTextBoxCard,
@@ -308,62 +306,6 @@ const TESTING_TILE_ROWS = Object.freeze([
     ],
   },
   {
-    key: "development-technical",
-    label: "Development / Technical",
-    items: [
-      {
-        kind: "code",
-        options: {
-          title: "Start dev server",
-          language: "bash",
-          code: "npm run dev",
-          wrap: true,
-          showLineNumbers: true,
-        },
-      },
-      {
-        kind: "code",
-        options: {
-          title: "Extract URLs",
-          language: "regex",
-          code: "https?:\\/\\/[^\\s\\\"'<>]+",
-          wrap: true,
-          showLineNumbers: true,
-        },
-      },
-      {
-        kind: "code",
-        options: {
-          title: "Tile config JSON",
-          language: "json",
-          code: "{\n  \"type\": \"code\",\n  \"language\": \"bash\",\n  \"wrap\": true,\n  \"showLineNumbers\": true\n}",
-          wrap: true,
-          showLineNumbers: true,
-        },
-      },
-      {
-        kind: "code",
-        options: {
-          title: "Debounce helper",
-          language: "javascript",
-          code: "function debounce(fn, delay = 250) {\n  let timer;\n  return (...args) => {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn(...args), delay);\n  };\n}",
-          wrap: true,
-          showLineNumbers: true,
-        },
-      },
-      {
-        kind: "code",
-        options: {
-          title: "Recent records query",
-          language: "sql",
-          code: "SELECT id, title, created_at\nFROM tiles\nORDER BY created_at DESC\nLIMIT 20;",
-          wrap: true,
-          showLineNumbers: true,
-        },
-      },
-    ],
-  },
-  {
     key: "tracking-productivity",
     label: "Tracking & Productivity",
     items: [
@@ -401,32 +343,6 @@ const TESTING_TILE_ROWS = Object.freeze([
           value: 42,
           step: 1,
           unit: "tests",
-        },
-      },
-      {
-        kind: "progress",
-        options: {
-          title: "QA rollout",
-          mode: "manual",
-          value: 72,
-          max: 100,
-        },
-      },
-      {
-        kind: "progress",
-        options: {
-          title: "Release readiness",
-          mode: "manual",
-          value: 3,
-          max: 5,
-        },
-      },
-      {
-        kind: "progress",
-        options: {
-          title: "Checklist sync",
-          mode: "linked",
-          linkedTileId: null,
         },
       },
       {
@@ -568,18 +484,6 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
     );
   }
 
-  if (item.kind === "code") {
-    return positionSeedCard(
-      createCodeCard(cards, viewport, null, {
-        width: CARD_WIDTH + 120,
-        height: CARD_HEIGHT + 48,
-        ...(item.options ?? {}),
-      }),
-      rowIndex,
-      columnIndex,
-    );
-  }
-
   if (item.kind === "counter") {
     return positionSeedCard(
       createCounterCard(cards, viewport, null, {
@@ -597,18 +501,6 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
       createDeadlineCard(cards, viewport, null, {
         width: CARD_WIDTH + 60,
         height: CARD_HEIGHT + 40,
-        ...(item.options ?? {}),
-      }),
-      rowIndex,
-      columnIndex,
-    );
-  }
-
-  if (item.kind === "progress") {
-    return positionSeedCard(
-      createProgressCard(cards, viewport, null, {
-        width: CARD_WIDTH + 60,
-        height: CARD_HEIGHT,
         ...(item.options ?? {}),
       }),
       rowIndex,

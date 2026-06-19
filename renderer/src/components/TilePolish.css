@@ -171,8 +171,8 @@
   background: var(--ap-tile-bg-solid) !important;
 }
 
-.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--deadline, .card__surface--progress, .card__surface--code, .card__surface--calendar),
-.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--deadline, .card__surface--progress, .card__surface--code, .card__surface--calendar) {
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code) {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 250, 252, 0.94)),
     var(--ap-tile-bg-subtle) !important;

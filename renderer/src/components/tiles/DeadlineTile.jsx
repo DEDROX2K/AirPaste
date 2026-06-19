@@ -11,6 +11,14 @@ function stopInteractiveKey(event) {
   event.stopPropagation();
 }
 
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function toDateTimeLocalValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function formatCountdownParts(deltaMs, showSeconds) {
   const totalSeconds = Math.max(0, Math.floor(deltaMs / 1000));
   const days = Math.floor(totalSeconds / 86400);
@@ -23,7 +31,9 @@ function formatCountdownParts(deltaMs, showSeconds) {
     hours,
     minutes,
     seconds,
-    primaryLabel: showSeconds
+    primaryValue: days > 0 ? String(days) : pad(hours),
+    primaryUnit: days > 0 ? "days" : "hours",
+    compactLabel: showSeconds
       ? `${days}d ${hours}h ${minutes}m ${seconds}s`
       : `${days}d ${hours}h ${minutes}m`,
   };
@@ -31,16 +41,38 @@ function formatCountdownParts(deltaMs, showSeconds) {
 
 function formatTargetLabel(targetAt) {
   if (!targetAt) {
-    return "Set a date and time";
+    return "Set a deadline";
   }
 
   const parsed = new Date(targetAt);
   return Number.isNaN(parsed.getTime())
     ? "Invalid date"
     : parsed.toLocaleString([], {
-      dateStyle: "medium",
-      timeStyle: "short",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
+}
+
+function buildQuickDeadline(kind) {
+  const date = new Date();
+
+  if (kind === "tomorrow") {
+    date.setDate(date.getDate() + 1);
+    date.setHours(9, 0, 0, 0);
+    return toDateTimeLocalValue(date);
+  }
+
+  if (kind === "next-week") {
+    date.setDate(date.getDate() + 7);
+    date.setHours(9, 0, 0, 0);
+    return toDateTimeLocalValue(date);
+  }
+
+  const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 17, 0, 0, 0);
+  return toDateTimeLocalValue(endOfMonth);
 }
 
 function DeadlineTile({
@@ -62,6 +94,13 @@ function DeadlineTile({
     onDragStart: onBeginDrag,
     onPressStart,
   });
+
+  useEffect(() => {
+    const intervalMs = card.showSeconds ? 1000 : 60000;
+    const intervalId = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(intervalId);
+  }, [card.showSeconds]);
+
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
@@ -71,18 +110,13 @@ function DeadlineTile({
     .filter(Boolean)
     .join(" ");
 
-  useEffect(() => {
-    const intervalMs = card.showSeconds ? 1000 : 60000;
-    const intervalId = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(intervalId);
-  }, [card.showSeconds]);
-
   const countdownState = useMemo(() => {
     if (!card.targetAt) {
       return {
         status: "empty",
-        targetLabel: "Set a date and time",
-        summary: "No deadline selected",
+        statusLabel: "No deadline",
+        targetLabel: "Choose a date to start the countdown.",
+        summary: "Nothing scheduled yet",
         parts: formatCountdownParts(0, card.showSeconds),
       };
     }
@@ -93,8 +127,9 @@ function DeadlineTile({
     if (Number.isNaN(targetMs)) {
       return {
         status: "fallback",
-        targetLabel: "Invalid date",
-        summary: "Check the deadline input",
+        statusLabel: "Invalid",
+        targetLabel: "Check the date format.",
+        summary: "This deadline needs a valid time",
         parts: formatCountdownParts(0, card.showSeconds),
       };
     }
@@ -105,11 +140,14 @@ function DeadlineTile({
 
     return {
       status: overdue ? "overdue" : "success",
+      statusLabel: overdue ? "Overdue" : "On track",
       targetLabel: formatTargetLabel(card.targetAt),
       summary: overdue ? "Past due by" : "Time remaining",
       parts,
     };
   }, [card.showSeconds, card.targetAt, now]);
+
+  const title = typeof card.title === "string" ? card.title : "";
 
   return (
     <TileShell
@@ -126,59 +164,95 @@ function DeadlineTile({
         <div className={surfaceFrameClassName} {...surfaceGesture}>
           <section
             className={`card__surface card__surface--deadline${countdownState.status === "overdue" ? " card__surface--deadline-overdue" : ""}`}
-            aria-label={card.title || "Deadline countdown"}
+            aria-label={title || "Deadline countdown"}
           >
-            <header className="card__deadline-header">
-              <input
-                className="card__deadline-title"
-                type="text"
-                value={card.title ?? ""}
-                placeholder="Launch countdown"
-                aria-label="Deadline title"
-                onPointerDown={stopInteractivePointer}
-                onKeyDown={stopInteractiveKey}
-                onChange={(event) => updateExistingCard(card.id, { title: event.target.value })}
-              />
-              <label className="card__deadline-seconds-toggle" onPointerDown={stopInteractivePointer}>
-                <input
-                  type="checkbox"
-                  checked={card.showSeconds === true}
-                  onKeyDown={stopInteractiveKey}
-                  onChange={(event) => updateExistingCard(card.id, { showSeconds: event.target.checked })}
-                />
-                <span>Seconds</span>
-              </label>
-            </header>
+            <div className="card__deadline-shell">
+              <header className="card__deadline-topbar">
+                <span className={`card__deadline-status card__deadline-status--${countdownState.status}`}>
+                  {countdownState.statusLabel}
+                </span>
 
-            <label className="card__deadline-target-row" onPointerDown={stopInteractivePointer}>
-              <span className="card__deadline-target-label">Deadline</span>
-              <input
-                className="card__deadline-target-input"
-                type="datetime-local"
-                value={card.targetAt ?? ""}
-                aria-label="Deadline date and time"
-                onKeyDown={stopInteractiveKey}
-                onChange={(event) => updateExistingCard(card.id, { targetAt: event.target.value, timezone: "local" })}
-              />
-            </label>
+                <button
+                  type="button"
+                  className={`card__deadline-seconds-toggle${card.showSeconds ? " card__deadline-seconds-toggle--active" : ""}`}
+                  onPointerDown={stopInteractivePointer}
+                  onClick={() => updateExistingCard(card.id, { showSeconds: card.showSeconds !== true })}
+                >
+                  {card.showSeconds ? "Seconds on" : "Seconds off"}
+                </button>
+              </header>
 
-            <div className="card__deadline-countdown">
-              <p className="card__deadline-summary">{countdownState.summary}</p>
-              <p className="card__deadline-primary">{countdownState.parts.primaryLabel}</p>
+              <div className="card__deadline-hero">
+                <div className="card__deadline-copy">
+                  <span className="card__deadline-eyebrow">Deadline</span>
+                  <input
+                    className="card__deadline-title"
+                    type="text"
+                    value={title}
+                    placeholder="Launch countdown"
+                    aria-label="Deadline title"
+                    onPointerDown={stopInteractivePointer}
+                    onKeyDown={stopInteractiveKey}
+                    onChange={(event) => updateExistingCard(card.id, { title: event.target.value })}
+                  />
+                  <p className="card__deadline-target-text">{countdownState.targetLabel}</p>
+                </div>
+
+                <div className="card__deadline-primary-card">
+                  <span className="card__deadline-summary">{countdownState.summary}</span>
+                  <div className="card__deadline-primary">
+                    <span className="card__deadline-primary-value">{countdownState.parts.primaryValue}</span>
+                    <span className="card__deadline-primary-unit">{countdownState.parts.primaryUnit}</span>
+                  </div>
+                  <p className="card__deadline-compact-label">{countdownState.parts.compactLabel}</p>
+                </div>
+              </div>
+
               <div className="card__deadline-parts" aria-hidden="true">
-                <div className="card__deadline-part"><span>{countdownState.parts.days}</span><small>Days</small></div>
-                <div className="card__deadline-part"><span>{countdownState.parts.hours}</span><small>Hours</small></div>
-                <div className="card__deadline-part"><span>{countdownState.parts.minutes}</span><small>Minutes</small></div>
-                {card.showSeconds ? (
-                  <div className="card__deadline-part"><span>{countdownState.parts.seconds}</span><small>Seconds</small></div>
-                ) : null}
+                <div className="card__deadline-part">
+                  <span>{countdownState.parts.days}</span>
+                  <small>Days</small>
+                </div>
+                <div className="card__deadline-part">
+                  <span>{countdownState.parts.hours}</span>
+                  <small>Hours</small>
+                </div>
+                <div className="card__deadline-part">
+                  <span>{countdownState.parts.minutes}</span>
+                  <small>Minutes</small>
+                </div>
+                <div className="card__deadline-part">
+                  <span>{card.showSeconds ? countdownState.parts.seconds : "-"}</span>
+                  <small>Seconds</small>
+                </div>
+              </div>
+
+              <div className="card__deadline-actions">
+                <label className="card__deadline-target-row" onPointerDown={stopInteractivePointer}>
+                  <span className="card__deadline-target-label">Target time</span>
+                  <input
+                    className="card__deadline-target-input"
+                    type="datetime-local"
+                    value={card.targetAt ?? ""}
+                    aria-label="Deadline date and time"
+                    onKeyDown={stopInteractiveKey}
+                    onChange={(event) => updateExistingCard(card.id, { targetAt: event.target.value, timezone: "local" })}
+                  />
+                </label>
+
+                <div className="card__deadline-quick-actions" onPointerDown={stopInteractivePointer}>
+                  <button type="button" className="card__deadline-quick-button" onClick={() => updateExistingCard(card.id, { targetAt: buildQuickDeadline("tomorrow"), timezone: "local" })}>
+                    Tomorrow 9am
+                  </button>
+                  <button type="button" className="card__deadline-quick-button" onClick={() => updateExistingCard(card.id, { targetAt: buildQuickDeadline("next-week"), timezone: "local" })}>
+                    Next week
+                  </button>
+                  <button type="button" className="card__deadline-quick-button" onClick={() => updateExistingCard(card.id, { targetAt: buildQuickDeadline("month-end"), timezone: "local" })}>
+                    Month end
+                  </button>
+                </div>
               </div>
             </div>
-
-            <footer className="card__deadline-footer">
-              <span className={`card__deadline-status card__deadline-status--${countdownState.status}`}>{countdownState.status}</span>
-              <span className="card__deadline-target-text">{countdownState.targetLabel}</span>
-            </footer>
           </section>
         </div>
       </div>

@@ -390,15 +390,16 @@ export function useCanvasCommands({
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
+    const now = new Date();
     const calendar = createNewCalendarCard(centerPoint, {
       title: "Calendar",
-      month: 1,
-      year: 2023,
+      month: now.getMonth(),
+      year: now.getFullYear(),
       view: "month",
       themeId: "mist",
       heightPreset: "compact",
-      width: 980,
-      height: 412,
+      width: 920,
+      height: 468,
     });
 
     log("success", "New calendar created on the canvas", centerPoint);
@@ -460,6 +461,8 @@ export function useCanvasCommands({
       targetAt: "",
       timezone: "local",
       showSeconds: false,
+      width: 480,
+      height: 360,
     });
 
     log("success", "New deadline created on the canvas", centerPoint);
