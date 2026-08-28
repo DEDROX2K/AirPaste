@@ -1148,7 +1148,13 @@ export function useCanvasCommands({
     if (isUrl(text)) {
       log("info", "Pasted URL into canvas center", { url: text, centerPoint });
       const tile = createNewLinkCard(text, centerPoint);
-      toast("info", "Link pasted into the center. Fetching preview...");
+      toast("info", "Ahh, what a boring link. Fine. I will stare into it for you.", {
+        source: "eye",
+        presentation: "oracle",
+        rays: true,
+        wordByWord: true,
+        durationMs: 5200,
+      });
       void queueLinkPreview(tile);
       return;
     }
@@ -1186,7 +1192,13 @@ export function useCanvasCommands({
 
     const centerPoint = preferredCenter ?? getViewportCenter();
     const tile = createNewLinkCard(clipboardText.trim(), centerPoint);
-    toast("info", "Link dropped into place. Fetching preview...");
+    toast("info", "Ahh, what a boring link. Fine. I will stare into it for you.", {
+      source: "eye",
+      presentation: "oracle",
+      rays: true,
+      wordByWord: true,
+      durationMs: 5200,
+    });
     void queueLinkPreview(tile);
     return tile;
   }, [createNewLinkCard, folderPath, getViewportCenter, log, queueLinkPreview, toast]);

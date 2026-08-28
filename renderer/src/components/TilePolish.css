@@ -63,9 +63,9 @@
   filter: none !important;
   box-shadow: none !important;
   transition:
-    transform 160ms var(--ap-tile-ease),
-    box-shadow 160ms ease,
-    filter 160ms ease !important;
+    transform var(--ap-transition-spring),
+    box-shadow var(--ap-transition-normal),
+    filter var(--ap-transition-normal) !important;
 }
 
 .canvas__content .card__surface,
@@ -169,6 +169,80 @@
 .canvas__content .card__surface--video,
 .grid-workspace .card__surface--video {
   background: var(--ap-tile-bg-solid) !important;
+}
+
+.canvas__content .card__surface--music,
+.grid-workspace .card__surface--music,
+.card__surface--music {
+  display: grid !important;
+  place-items: center !important;
+  padding: 20px 34px 20px 18px !important;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.16), transparent 42%),
+    linear-gradient(180deg, #111418, #090b0e) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__record-shell,
+.grid-workspace .card__record-shell,
+.card__record-shell {
+  width: min(calc(100% - 10px), calc(var(--tile-height, 280px) - 28px)) !important;
+  max-width: 100% !important;
+  aspect-ratio: 1 !important;
+  margin-right: 18px !important;
+}
+
+.canvas__content .card__record-sleeve,
+.grid-workspace .card__record-sleeve,
+.card__record-sleeve {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  background: #121418 !important;
+  box-shadow:
+    0 22px 34px rgba(0, 0, 0, 0.36),
+    0 6px 14px rgba(0, 0, 0, 0.22) !important;
+}
+
+.canvas__content .card__record-disc,
+.grid-workspace .card__record-disc,
+.card__record-disc {
+  top: 50% !important;
+  right: -8% !important;
+  width: 88% !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+.card--music.card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.card--music.card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content .card--music.card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content .card--music.card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace .card--music.card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace .card--music.card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+  transform: translateY(-4px) scale(1.012) !important;
+}
+
+.card--music.card--hovered:not(.card--dragging) .card__record-sleeve,
+.card--music.card--focused:not(.card--dragging) .card__record-sleeve,
+.canvas__content .card--music.card--hovered:not(.card--dragging) .card__record-sleeve,
+.canvas__content .card--music.card--focused:not(.card--dragging) .card__record-sleeve,
+.grid-workspace .card--music.card--hovered:not(.card--dragging) .card__record-sleeve,
+.grid-workspace .card--music.card--focused:not(.card--dragging) .card__record-sleeve {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow:
+    0 28px 44px rgba(0, 0, 0, 0.4),
+    0 10px 18px rgba(0, 0, 0, 0.24) !important;
+}
+
+.card--music .card__link-float-overlay__title,
+.canvas__content .card--music .card__link-float-overlay__title,
+.grid-workspace .card--music .card__link-float-overlay__title {
+  background: rgba(10, 10, 12, 0.72) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(12px);
 }
 
 .canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code),
@@ -330,17 +404,19 @@
   letter-spacing: 0 !important;
   text-transform: none !important;
   transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    transform 140ms var(--ap-tile-ease) !important;
+    background-color var(--ap-transition-fast),
+    border-color var(--ap-transition-fast),
+    color var(--ap-transition-fast),
+    box-shadow var(--ap-transition-fast),
+    transform var(--ap-transition-spring) !important;
 }
 
 .canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled),
 .grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled) {
   border-color: var(--ap-tile-line-strong) !important;
   background: rgba(29, 29, 31, 0.055) !important;
-  transform: none !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08) !important;
+  transform: var(--ap-hover-lift-sm) !important;
 }
 
 .canvas__content :is(.card__note-mode-button--active, .card__progress-mode-button--active, .card__calendar-view-button--active, .card__counter-button--primary, .card__link-action--primary, .card__amazon-product-cta),
@@ -363,6 +439,9 @@
   background: rgba(255, 255, 255, 0.9) !important;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
   backdrop-filter: blur(18px) saturate(1.12) !important;
+  transition:
+    box-shadow var(--ap-transition-normal),
+    transform var(--ap-transition-spring) !important;
 }
 
 .canvas__content .card__quick-action,
@@ -379,11 +458,18 @@
   font-size: 11px !important;
   font-weight: 650 !important;
   line-height: 1 !important;
+  transition:
+    background-color var(--ap-transition-fast),
+    color var(--ap-transition-fast),
+    box-shadow var(--ap-transition-fast),
+    transform var(--ap-transition-spring) !important;
 }
 
 .canvas__content .card__quick-action:hover:not(:disabled),
 .grid-workspace .card__quick-action:hover:not(:disabled) {
   background: rgba(29, 29, 31, 0.06) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  transform: var(--ap-hover-lift-sm) !important;
 }
 
 .canvas__content .card__quick-action:disabled,

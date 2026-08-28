@@ -107,6 +107,7 @@ function TextBoxTile({
   const pendingHeightRafRef = useRef(0);
   const latestAppliedSizeRef = useRef({ width: card.width, height: card.height });
   const deferredMeasurePendingRef = useRef(false);
+  const lastEditorSelectionRef = useRef({ start: null, end: null, scrollTop: 0 });
   const isMoving = performanceMode?.simplifyDuringMotion === true;
   const isPassiveTextDisplay = !isEditing;
   const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [card.style]);
@@ -193,7 +194,7 @@ function TextBoxTile({
   }, [draftText, normalizedStyle, card.width]);
 
   useLayoutEffect(() => {
-    if (!measureRef.current || (appearance === "sticky" && isEditing)) {
+    if (!measureRef.current || isEditing) {
       return;
     }
     if (isMoving) {
@@ -236,7 +237,7 @@ function TextBoxTile({
   }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, isMoving, measuredText, normalizedStyle, updateExistingCard]);
 
   useEffect(() => {
-    if (isMoving || !deferredMeasurePendingRef.current) {
+    if (isMoving || isEditing || !deferredMeasurePendingRef.current) {
       return;
     }
     deferredMeasurePendingRef.current = false;
@@ -314,8 +315,22 @@ function TextBoxTile({
         return;
       }
 
-      const nextCaret = textarea.value.length;
-      textarea.setSelectionRange(nextCaret, nextCaret);
+      if (typeof textBoxEditorState?.replacementText === "string") {
+        const nextCaret = textarea.value.length;
+        textarea.setSelectionRange(nextCaret, nextCaret);
+        return;
+      }
+
+      const { start, end, scrollTop } = lastEditorSelectionRef.current;
+      if (Number.isInteger(start) && Number.isInteger(end)) {
+        const nextStart = clamp(start, 0, textarea.value.length);
+        const nextEnd = clamp(end, nextStart, textarea.value.length);
+        textarea.setSelectionRange(nextStart, nextEnd);
+        textarea.scrollTop = Number.isFinite(scrollTop) ? scrollTop : 0;
+        return;
+      }
+
+      textarea.setSelectionRange(0, 0);
     });
 
     return () => cancelAnimationFrame(frame);
@@ -352,6 +367,15 @@ function TextBoxTile({
   };
 
   const handleEditorBlur = (event) => {
+    const target = event.currentTarget;
+    if (target instanceof HTMLTextAreaElement) {
+      lastEditorSelectionRef.current = {
+        start: target.selectionStart,
+        end: target.selectionEnd,
+        scrollTop: target.scrollTop,
+      };
+    }
+
     const nextFocusTarget = event.relatedTarget;
 
     if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-text-toolbar-root='true']")) {

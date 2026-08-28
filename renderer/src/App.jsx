@@ -3,7 +3,6 @@ import { DevConsole } from "./components/DevConsole";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
 import PixelScreenTransition from "./components/PixelScreenTransition";
 import { TopTabBar } from "./components/TopTabBar";
-import { ToastStack } from "./components/ToastStack";
 import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
 import { useTheme } from "./hooks/useTheme";
@@ -233,7 +232,6 @@ export default function App() {
         </div>
       </div>
 
-      <ToastStack />
       {isLoading ? <GlobalLoadingCursor /> : null}
       {import.meta.env.DEV && <DevConsole />}
     </div>

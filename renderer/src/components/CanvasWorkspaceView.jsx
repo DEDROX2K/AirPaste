@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import CanvasAddMenu from "./CanvasAddMenu";
-import CanvasCalculator from "./CanvasCalculator";
-import CanvasDock from "./CanvasDock";
 import CanvasMiniMap from "./CanvasMiniMap";
-import CanvasStopwatch from "./CanvasStopwatch";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
@@ -44,7 +41,6 @@ import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
   DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_SELECT,
-  DRAWING_TOOL_MODE_TEXT,
 } from "../systems/drawing/drawingTypes";
 import {
   buildCanvasSnapUiStatePatch,
@@ -137,38 +133,12 @@ function WorkspaceTopbarTrail() {
   return <header className="workspace-trail" />;
 }
 
-function GridViewFilterToggle({ value, onChange }) {
-  return (
-    <div className="grid-view-filter-toggle" role="tablist" aria-label="Grid tile visibility">
-      <AppButton tone="unstyled"
-        type="button"
-        className={`grid-view-filter-toggle__button${value === "bookmarks" ? " grid-view-filter-toggle__button--active" : ""}`}
-        onClick={() => onChange("bookmarks")}
-        aria-selected={value === "bookmarks"}
-        role="tab"
-      >
-        Show only bookmarks
-      </AppButton>
-      <AppButton tone="unstyled"
-        type="button"
-        className={`grid-view-filter-toggle__button${value === "all" ? " grid-view-filter-toggle__button--active" : ""}`}
-        onClick={() => onChange("all")}
-        aria-selected={value === "all"}
-        role="tab"
-      >
-        Show bookmarks and all the other tiles
-      </AppButton>
-    </div>
-  );
-}
-
 function DrawingToolControls({
   activeTool,
   iconOnly = false,
   onToolChange,
 }) {
   const isHandToolActive = activeTool === DRAWING_TOOL_MODE_HAND;
-  const isTextToolActive = activeTool === DRAWING_TOOL_MODE_TEXT;
   const iconOnlyClassName = iconOnly ? " drawing-tool-controls--icon-only" : "";
 
   return (
@@ -195,17 +165,6 @@ function DrawingToolControls({
         >
           <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/hand-back-left.png")} alt="" aria-hidden="true" />
           {!iconOnly ? <span className="drawing-tool-controls__text">Hand</span> : null}
-        </AppButton>
-        <AppButton tone="unstyled"
-          type="button"
-          className={`drawing-tool-controls__button${isTextToolActive ? " drawing-tool-controls__button--active" : ""}`}
-          onClick={() => onToolChange(DRAWING_TOOL_MODE_TEXT)}
-          aria-label="Switch to text tool"
-          aria-pressed={isTextToolActive}
-          title="Text (T)"
-        >
-          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/text-recognition.png")} alt="" aria-hidden="true" />
-          {!iconOnly ? <span className="drawing-tool-controls__text">Text</span> : null}
         </AppButton>
       </div>
     </div>
@@ -1028,12 +987,9 @@ export default function CanvasWorkspaceView() {
   const { toast } = useToast();
   const [cullingTick, setCullingTick] = useState(0);
   const [textBoxEditorState, setTextBoxEditorState] = useState(null);
-  const [gridTileFilter, setGridTileFilter] = useState("all");
   const [stickerDragState, setStickerDragState] = useState(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const [isStopwatchOpen, setIsStopwatchOpen] = useState(false);
   const [canvasViewportSize, setCanvasViewportSize] = useState({ width: 0, height: 0 });
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const textBoxEditRequestIdRef = useRef(0);
@@ -2149,12 +2105,6 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
-        if (activeKey === "t") {
-          event.preventDefault();
-          setCanvasToolMode(DRAWING_TOOL_MODE_TEXT);
-          return;
-        }
-
         if (activeKey === "s") {
           event.preventDefault();
           const sticky = commands.createSticky();
@@ -2443,16 +2393,6 @@ export default function CanvasWorkspaceView() {
     });
   }, [log, saveHomeUiState, toast]);
 
-  const toggleCalculator = useCallback(() => {
-    setIsStopwatchOpen(false);
-    setIsCalculatorOpen((currentValue) => !currentValue);
-  }, []);
-
-  const toggleStopwatch = useCallback(() => {
-    setIsCalculatorOpen(false);
-    setIsStopwatchOpen((currentValue) => !currentValue);
-  }, []);
-
   const radialMenu = interactions.contextMenu;
   const recoverablePreviewTiles = useMemo(
     () => workspace.cards.filter((card) => shouldRecoverLinkPreviewCard(card)),
@@ -2657,7 +2597,6 @@ export default function CanvasWorkspaceView() {
 
         <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
-            <GridViewFilterToggle value={gridTileFilter} onChange={setGridTileFilter} />
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
             <CanvasAddMenu
               commands={commands}
@@ -2668,7 +2607,7 @@ export default function CanvasWorkspaceView() {
         <WorkspaceTopbarTrail />
         <GridWorkspaceView
           dropImport={dropImport}
-          tileFilter={gridTileFilter}
+          tileFilter="all"
           isDropTarget={dropImport.isDropTarget}
           openTileLink={commands.openTileLink}
           updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
@@ -2709,19 +2648,9 @@ export default function CanvasWorkspaceView() {
               onToolChange={setCanvasToolMode}
             />
           </div>
-          <CanvasDock
-            commands={commands}
-            disabled={!folderPath || folderLoading}
-            isCalculatorOpen={isCalculatorOpen}
-            isStopwatchOpen={isStopwatchOpen}
-            onToggleCalculator={toggleCalculator}
-            onToggleStopwatch={toggleStopwatch}
-          />
         </div>,
         document.body
       )}
-      <CanvasStopwatch isOpen={isStopwatchOpen} />
-      <CanvasCalculator isOpen={isCalculatorOpen} />
 
       {/* ── Top bar ── */}
       <WorkspaceTopbarTrail />

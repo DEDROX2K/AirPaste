@@ -20,16 +20,16 @@ import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import TileShell from "./TileShell";
 
+function clamp(value, minValue, maxValue) {
+  return Math.max(minValue, Math.min(maxValue, value));
+}
+
 const RESIZE_HANDLE_KEYS = [
   { key: "top-left", side: "left" },
   { key: "bottom-left", side: "left" },
   { key: "top-right", side: "right" },
   { key: "bottom-right", side: "right" },
 ];
-
-function clamp(value, minValue, maxValue) {
-  return Math.max(minValue, Math.min(maxValue, value));
-}
 
 function stopInteractivePointer(event) {
   event.stopPropagation();
@@ -130,6 +130,7 @@ function CanvasTextTile({
   const measureRef = useRef(null);
   const resizeStateRef = useRef(null);
   const actionInFlightRef = useRef(false);
+  const lastEditorSelectionRef = useRef({ anchor: null, head: null, scrollTop: 0 });
   const displayModel = useMemo(
     () => deriveCanvasTextDisplayModel(card, isEditing ? draftText : (card.text ?? "")),
     [card, draftText, isEditing],
@@ -341,12 +342,29 @@ function CanvasTextTile({
       view.focus();
       const selectionRange = textBoxEditorState?.selectAll === true
         ? { anchor: 0, head: view.state.doc.length }
-        : { anchor: view.state.doc.length };
+        : typeof textBoxEditorState?.replacementText === "string"
+          ? { anchor: view.state.doc.length, head: view.state.doc.length }
+          : Number.isInteger(lastEditorSelectionRef.current.anchor) && Number.isInteger(lastEditorSelectionRef.current.head)
+            ? {
+              anchor: clamp(lastEditorSelectionRef.current.anchor, 0, view.state.doc.length),
+              head: clamp(lastEditorSelectionRef.current.head, 0, view.state.doc.length),
+            }
+            : { anchor: 0, head: 0 };
       view.dispatch({ selection: selectionRange });
+      view.scrollDOM.scrollTop = Number.isFinite(lastEditorSelectionRef.current.scrollTop)
+        ? lastEditorSelectionRef.current.scrollTop
+        : 0;
       refreshCardHeight(view.contentHeight);
     });
 
     const handleFocusOut = (event) => {
+      const selection = view.state.selection.main;
+      lastEditorSelectionRef.current = {
+        anchor: selection.anchor,
+        head: selection.head,
+        scrollTop: view.scrollDOM.scrollTop,
+      };
+
       const nextFocusTarget = event.relatedTarget;
       if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-canvas-text-action-root='true']")) {
         return;

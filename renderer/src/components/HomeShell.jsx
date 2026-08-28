@@ -14,7 +14,6 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { desktop } from "../lib/desktop";
 import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
 import {
-  Clock,
   FolderOpen,
   FolderPlus,
   Grid2X2,
@@ -26,7 +25,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Search,
   Settings2,
   Sparkles,
   Star,
@@ -36,10 +34,10 @@ import "./HomeShellPrototype.css";
 
 const HOME_MENU_GAP = 8;
 const HOME_MENU_MIN_WIDTH = 176;
+const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
 
 function getResolvedHomeViewMode(uiState) {
   const mode = normalizeHomePreferences(uiState).viewMode;
-  if (mode === "sheets") return "sheets";
   if (mode === "list") return "list";
   return "cards";
 }
@@ -52,7 +50,6 @@ function typeLabel(type) {
 }
 
 function sectionLabel(section) {
-  if (section === "recents") return "Recent";
   if (section === "starred") return "Starred";
   return "All canvases";
 }
@@ -62,9 +59,24 @@ function formatItemCount(count, singular, plural = `${singular}s`) {
 }
 
 function SectionIcon({ section }) {
-  if (section === "recents") return <Clock size={16} aria-hidden="true" />;
   if (section === "starred") return <Star size={16} aria-hidden="true" />;
   return <Home size={16} aria-hidden="true" />;
+}
+
+function IconSidebarToggle({ collapsed = false }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.5" y="4" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d={collapsed ? "m14 9 3 3-3 3" : "m17 9-3 3 3 3"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function buildBrowserItems(items, preferences, searchQuery) {
@@ -361,137 +373,6 @@ function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
   );
 }
 
-function HomeSheetsView({ folderPath, pages, thumbnailPathByCanvasPath, onOpenPage }) {
-  const listRef = useRef(null);
-  const cardRefs = useRef(new Map());
-  const [repeatCount, setRepeatCount] = useState(2);
-  const renderPages = useMemo(() => {
-    if (!Array.isArray(pages) || pages.length === 0) return [];
-    const repeated = [];
-    const count = Math.max(1, repeatCount);
-    for (let i = 0; i < count; i += 1) {
-      pages.forEach((page) => repeated.push({ ...page, __repeatKey: `${i}:${page.sheetId}` }));
-    }
-    return repeated;
-  }, [pages, repeatCount]);
-
-  const [thumbUrlsByCanvasPath, setThumbUrlsByCanvasPath] = useState(() => ({}));
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function resolveThumbs() {
-      if (!folderPath) {
-        setThumbUrlsByCanvasPath({});
-        return;
-      }
-
-      const entries = await Promise.all(Object.entries(thumbnailPathByCanvasPath || {}).map(async ([canvasFilePath, thumbPath]) => {
-        if (!thumbPath) return [canvasFilePath, ""];
-        const resolved = await desktop.workspace.resolveAssetUrl(folderPath, thumbPath, { previewTier: "original" });
-        return [canvasFilePath, resolved || ""];
-      }));
-
-      if (cancelled) return;
-      setThumbUrlsByCanvasPath(Object.fromEntries(entries));
-    }
-
-    void resolveThumbs();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [folderPath, thumbnailPathByCanvasPath]);
-
-  const handleScroll = useCallback(() => {
-    const node = listRef.current;
-    if (!node) return;
-    const nearBottom = node.scrollTop + node.clientHeight > node.scrollHeight - 900;
-    if (nearBottom) {
-      setRepeatCount((count) => Math.min(12, count + 1));
-    }
-  }, []);
-
-  useEffect(() => {
-    const node = listRef.current;
-    if (!node) return undefined;
-
-    let rafId = 0;
-    const tick = () => {
-      const viewportTop = 0;
-      const viewportHeight = node.clientHeight || window.innerHeight || 1;
-      const centerY = viewportTop + viewportHeight * 0.5;
-
-      cardRefs.current.forEach((el) => {
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const cardCenter = rect.top + rect.height * 0.5;
-        const distance = (cardCenter - centerY) / viewportHeight; // ~ -0.5..0.5
-        const clamped = Math.max(-0.8, Math.min(0.8, distance));
-        const abs = Math.abs(clamped);
-        const tilt = clamped * -18; // degrees
-        const scale = 1 - abs * 0.12;
-        const blur = abs * 2.2;
-        el.style.setProperty("--sheet-tilt", `${tilt}deg`);
-        el.style.setProperty("--sheet-scale", `${scale}`);
-        el.style.setProperty("--sheet-blur", `${blur}px`);
-      });
-
-      rafId = window.requestAnimationFrame(tick);
-    };
-
-    rafId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [renderPages.length]);
-
-  if (!Array.isArray(pages) || pages.length === 0) {
-    return (
-      <section className="empty-card home-sheets-empty">
-        <div className="eyebrow">Sheets</div>
-        <h2 className="dialog-title">No canvases yet</h2>
-        <p className="muted-copy">Create canvases to populate this scrollable preview list.</p>
-      </section>
-    );
-  }
-
-  return (
-    <div className="home-browser-sheets home-browser-sheets--scroll" ref={listRef} onScroll={handleScroll}>
-      {renderPages.map((page) => {
-        const thumbUrl = thumbUrlsByCanvasPath[page.canvasFilePath] || "";
-        return (
-          <article
-            key={page.__repeatKey}
-            className="home-sheet-card home-sheet-card--scroll"
-            ref={(node) => {
-              if (!node) {
-                cardRefs.current.delete(page.__repeatKey);
-                return;
-              }
-              cardRefs.current.set(page.__repeatKey, node);
-            }}
-          >
-            <div className="home-sheet-card__titlebar">
-              <span className="home-sheet-card__close">x</span>
-              <span className="home-sheet-card__title">{page.displayName}</span>
-            </div>
-            <button
-              type="button"
-              className="home-sheet-card__surface home-sheet-card__surface--thumb"
-              onClick={() => onOpenPage(page)}
-            >
-              {thumbUrl ? (
-                <img className="home-sheet-card__thumb-image" src={thumbUrl} alt="" loading="lazy" />
-              ) : (
-                <div className="home-sheet-card__thumb-placeholder" aria-hidden="true" />
-              )}
-            </button>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
 function HomeCanvasCardItem({
   item,
   thumbUrl,
@@ -671,33 +552,36 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
 }
 
 function HomeSidebarContent({
-  searchQuery,
-  onSearchChange,
   navigation,
   allCanvasItems,
-  recentCanvasItems,
   homeData,
   folderPath,
   activeDome,
+  collapsed = false,
   onSectionChange,
+  onToggleCollapsed,
   onManageWorkspaces,
 }) {
   return (
     <>
-      <div className="sidebar-section">
-        <label className="workspace-search-shell">
-          <Search size={16} aria-hidden="true" />
-          <input
-            className="workspace-search"
-            value={searchQuery}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search canvases"
-          />
-        </label>
-      </div>
+      {onToggleCollapsed ? (
+        <div className="sidebar-section sidebar-section--tools">
+          <AppButton
+            type="button"
+            tone="surface"
+            size="icon"
+            className="home-sidebar-toggle"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? "Expand home sidebar" : "Collapse home sidebar"}
+            title={collapsed ? "Expand home sidebar" : "Collapse home sidebar"}
+          >
+            <IconSidebarToggle collapsed={collapsed} />
+          </AppButton>
+        </div>
+      ) : null}
 
       <div className="sidebar-section">
-        {["home", "recents", "starred"].map((section) => (
+        {["home", "starred"].map((section) => (
           <AppButton
             key={section}
             type="button"
@@ -707,10 +591,10 @@ function HomeSidebarContent({
           >
             <span className="sidebar-link__label">
               <SectionIcon section={section} />
-              {section === "home" ? "Home" : sectionLabel(section)}
+              <span className="sidebar-link__text">{section === "home" ? "Home" : sectionLabel(section)}</span>
             </span>
             <span className="workspace-badge">
-              {section === "home" ? allCanvasItems.length : (section === "recents" ? recentCanvasItems.length : homeData.starredItems.length)}
+              {section === "home" ? allCanvasItems.length : homeData.starredItems.length}
             </span>
           </AppButton>
         ))}
@@ -724,7 +608,7 @@ function HomeSidebarContent({
         </div>
         <AppButton type="button" tone="surface" className="home-sidebar-action" onClick={onManageWorkspaces}>
           <Settings2 size={16} aria-hidden="true" />
-          Manage Workspaces
+          <span className="home-sidebar-action__label">Manage Workspaces</span>
         </AppButton>
       </div>
     </>
@@ -854,11 +738,9 @@ export default function HomeShell() {
     refreshDomes,
     refreshHomeData,
     removeDome,
-    backfillCanvasThumbnails,
     renameItemEntry,
     revealDome,
     saveHomeUiState,
-    setActiveCanvasPage,
     switchDome,
     toggleItemStarred,
   } = useAppContext();
@@ -868,13 +750,13 @@ export default function HomeShell() {
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchQuery = "";
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
+  const [homeSidebarCollapsed, setHomeSidebarCollapsed] = useState(false);
   const [homeViewMode, setHomeViewMode] = useState(() => getResolvedHomeViewMode(homeData.uiState));
   const listButtonRefs = useRef([]);
   const browserViewMode = homeViewMode;
-  const isSheetsView = browserViewMode === "sheets";
   const isCardsView = browserViewMode === "cards";
 
   useEffect(() => {
@@ -884,6 +766,18 @@ export default function HomeShell() {
     setHomeViewMode(getResolvedHomeViewMode(homeData.uiState));
   }, [homeData.uiState]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      setHomeSidebarCollapsed(window.localStorage.getItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true");
+    } catch {
+      // Ignore persistence failures and keep the default expanded state.
+    }
+  }, []);
+
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
 
   useEffect(() => {
@@ -891,6 +785,18 @@ export default function HomeShell() {
       setSidebarDrawerOpen(false);
     }
   }, [isNarrowDesktop]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isNarrowDesktop) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY, String(homeSidebarCollapsed));
+    } catch {
+      // Ignore persistence failures.
+    }
+  }, [homeSidebarCollapsed, isNarrowDesktop]);
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -1013,6 +919,19 @@ export default function HomeShell() {
     return ordered;
   }, [allCanvasItems, homeData.recentItems]);
 
+  useEffect(() => {
+    if (navigation.selectedSection !== "recents") {
+      return;
+    }
+
+    const nextNavigation = {
+      ...navigation,
+      selectedSection: "home",
+    };
+    setNavigation(nextNavigation);
+    persistHomeContext(nextNavigation, homePreferences);
+  }, [homePreferences, navigation, persistHomeContext]);
+
   const sectionItems = useMemo(() => {
     if (navigation.selectedSection === "recents") return recentCanvasItems;
     if (navigation.selectedSection === "starred") return homeData.starredItems;
@@ -1028,34 +947,6 @@ export default function HomeShell() {
     () => browserItems.filter((item) => item.type === "canvas"),
     [browserItems],
   );
-
-  const sheetPages = useMemo(() => {
-    const pages = [];
-    browserItems
-      .filter((item) => item.type === "canvas")
-      .forEach((item) => {
-        const sourcePages = Array.isArray(item.pages) && item.pages.length > 0
-          ? item.pages
-          : Array.from({ length: Math.max(0, Number(item.pageCount) || 0) }, (_, index) => ({
-            id: `page-${index + 1}`,
-            name: `Page ${index + 1}`,
-          }));
-
-        sourcePages.forEach((page, pageIndex) => {
-          const fallbackName = `Page ${pageIndex + 1}`;
-          const pageName = page.name || fallbackName;
-          pages.push({
-            sheetId: `${item.id || item.path || item.name}:${page.id || pageIndex}`,
-            canvasFilePath: item.filePath,
-            canvasName: item.name,
-            pageId: page.id || "",
-            pageName,
-            displayName: `${item.name} · ${pageName}`,
-          });
-        });
-      });
-    return pages;
-  }, [browserItems]);
 
   useEffect(() => {
     listButtonRefs.current = listButtonRefs.current.slice(0, browserItems.length);
@@ -1112,22 +1003,6 @@ export default function HomeShell() {
     persistHomeContext(navigation, homePreferences, null, { lastOpenedItemPath: entry.path });
   }
 
-  async function handleOpenSheetPage(page) {
-    if (!page?.canvasFilePath) {
-      return;
-    }
-    const canvasEntry = browserItems.find((item) => item.filePath === page.canvasFilePath && item.type === "canvas");
-    if (!canvasEntry) {
-      return;
-    }
-
-    await openHomeItem(canvasEntry);
-    if (page.pageId) {
-      setActiveCanvasPage(page.pageId);
-    }
-    persistHomeContext(navigation, homePreferences, null, { lastOpenedItemPath: canvasEntry.path });
-  }
-
   function describeEmptyState() {
     if (navigation.selectedSection === "recents") {
       return {
@@ -1156,26 +1031,19 @@ export default function HomeShell() {
   const emptyState = describeEmptyState();
   const sectionTitle = sectionLabel(navigation.selectedSection);
   const itemCountLabel = formatItemCount(browserItems.length, "canvas");
-  const statChips = [
-    { key: "all", icon: Home, label: formatItemCount(allCanvasItems.length, "canvas") },
-    { key: "recent", icon: Clock, label: `${recentCanvasItems.length} recent` },
-    { key: "starred", icon: Star, label: `${homeData.starredItems.length} starred` },
-  ];
-
   return (
-    <main ref={shellRef} className={`home-shell${!hasWorkspace ? " home-shell--launch" : ""}`}>
+    <main ref={shellRef} className={`home-shell${!hasWorkspace ? " home-shell--launch" : ""}${homeSidebarCollapsed && hasWorkspace && !isNarrowDesktop ? " home-shell--sidebar-collapsed" : ""}`}>
       {!isNarrowDesktop && hasWorkspace ? (
-        <aside className="home-sidebar">
+        <aside className={`home-sidebar${homeSidebarCollapsed ? " home-sidebar--collapsed" : ""}`}>
           <HomeSidebarContent
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
             navigation={navigation}
             allCanvasItems={allCanvasItems}
-            recentCanvasItems={recentCanvasItems}
             homeData={homeData}
             folderPath={folderPath}
             activeDome={activeDome}
+            collapsed={homeSidebarCollapsed}
             onSectionChange={handleSectionChange}
+            onToggleCollapsed={() => setHomeSidebarCollapsed((current) => !current)}
             onManageWorkspaces={() => setManageDomesOpen(true)}
           />
         </aside>
@@ -1190,14 +1058,6 @@ export default function HomeShell() {
                 Menu
               </AppButton>
             ) : null}
-            <div className="home-toolbar-stats" aria-label="Workspace summary">
-              {statChips.map(({ key, icon: Icon, label }) => (
-                <span key={key} className="home-toolbar-stat">
-                  <Icon size={14} aria-hidden="true" />
-                  {label}
-                </span>
-              ))}
-            </div>
             <div className="home-toolbar-actions">
               <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
                 <Plus size={17} aria-hidden="true" />
@@ -1216,9 +1076,9 @@ export default function HomeShell() {
                   role="tab"
                   aria-label="List view"
                   title="List view"
-                  aria-selected={!isSheetsView && !isCardsView}
-                  aria-pressed={!isSheetsView && !isCardsView}
-                  className={`home-view-toggle__button${!isSheetsView && !isCardsView ? " is-active" : ""}`}
+                  aria-selected={!isCardsView}
+                  aria-pressed={!isCardsView}
+                  className={`home-view-toggle__button${!isCardsView ? " is-active" : ""}`}
                   onClick={() => {
                     const nextPreferences = { ...homePreferences, viewMode: "list" };
                     setHomeViewMode("list");
@@ -1247,24 +1107,6 @@ export default function HomeShell() {
                   <Grid2X2 size={16} aria-hidden="true" />
                   <span>Cards</span>
                 </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-label="Sheets view"
-                  title="Sheets view"
-                  aria-selected={isSheetsView}
-                  aria-pressed={isSheetsView}
-                  className={`home-view-toggle__button${isSheetsView ? " is-active" : ""}`}
-                  onClick={() => {
-                    const nextPreferences = { ...homePreferences, viewMode: "sheets" };
-                    setHomeViewMode("sheets");
-                    setHomePreferences(nextPreferences);
-                    persistHomeContext(navigation, nextPreferences, 0, {}, "sheets");
-                  }}
-                >
-                  <Sparkles size={16} aria-hidden="true" />
-                  <span>Sheets</span>
-                </button>
               </div>
               <AppButton
                 type="button"
@@ -1276,17 +1118,6 @@ export default function HomeShell() {
                 onClick={() => void refreshHomeData(folderPath, navigation.currentFolderPath)}
               >
                 <RefreshCw size={16} aria-hidden="true" />
-              </AppButton>
-              <AppButton
-                type="button"
-                tone="surface"
-                size="icon"
-                aria-label="Refresh canvas previews"
-                title="Refresh canvas previews"
-                disabled={folderLoading}
-                onClick={() => void backfillCanvasThumbnails(12)}
-              >
-                <Sparkles size={16} aria-hidden="true" />
               </AppButton>
               </div>
             </div>
@@ -1321,14 +1152,7 @@ export default function HomeShell() {
                     {searchQuery.trim() ? <span className="browser-panel-header__pill">Filtered</span> : null}
                   </div>
                 </div>
-                {isSheetsView ? (
-                  <HomeSheetsView
-                    folderPath={folderPath}
-                    pages={sheetPages}
-                    thumbnailPathByCanvasPath={Object.fromEntries(canvasItems.map((item) => [item.filePath, item.thumbnailPath]))}
-                    onOpenPage={(page) => void handleOpenSheetPage(page)}
-                  />
-                ) : isCardsView ? (
+                {isCardsView ? (
                   <HomeCardsView
                     folderPath={folderPath}
                     canvases={canvasItems}
@@ -1371,11 +1195,8 @@ export default function HomeShell() {
         <AppSheet open={sidebarDrawerOpen} onOpenChange={setSidebarDrawerOpen}>
           <AppSheetContent side="left" className="home-sidebar home-sidebar--drawer">
             <HomeSidebarContent
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
               navigation={navigation}
               allCanvasItems={allCanvasItems}
-              recentCanvasItems={recentCanvasItems}
               homeData={homeData}
               folderPath={folderPath}
               activeDome={activeDome}

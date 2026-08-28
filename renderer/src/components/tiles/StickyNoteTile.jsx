@@ -83,6 +83,14 @@ function StickyNoteTile({
   const titleInputRef = useRef(null);
   const bodyTextareaRef = useRef(null);
   const saveInFlightRef = useRef(false);
+  const lastEditorSelectionRef = useRef({
+    target: "body",
+    titleStart: null,
+    titleEnd: null,
+    bodyStart: null,
+    bodyEnd: null,
+    bodyScrollTop: 0,
+  });
   const viewModel = useMemo(() => (
     deriveStickyNoteViewModel(isEditing
       ? {
@@ -242,6 +250,7 @@ function StickyNoteTile({
     };
   }, [isEditing, setCanvasInteractionState]);
 
+  // Restore selection only when an edit session starts or the caller issues a new edit request.
   useEffect(() => {
     if (!isEditing) {
       return undefined;
@@ -249,8 +258,14 @@ function StickyNoteTile({
 
     const focusFrame = window.requestAnimationFrame(() => {
       const shouldFocusTitle = typeof textBoxEditorState?.replacementText !== "string"
-        && normalizedStickyDocument.title.trim().length === 0
-        && normalizedStickyDocument.bodyText.trim().length === 0;
+        ? (
+          lastEditorSelectionRef.current.target === "title"
+          || (
+            normalizedStickyDocument.title.trim().length === 0
+            && normalizedStickyDocument.bodyText.trim().length === 0
+          )
+        )
+        : false;
       const target = shouldFocusTitle ? titleInputRef.current : bodyTextareaRef.current;
       target?.focus?.({ preventScroll: true });
 
@@ -263,14 +278,45 @@ function StickyNoteTile({
         return;
       }
 
-      const caret = target.value.length;
-      target.setSelectionRange(caret, caret);
+      if (typeof textBoxEditorState?.replacementText === "string") {
+        const caret = target.value.length;
+        target.setSelectionRange(caret, caret);
+        return;
+      }
+
+      if (target === titleInputRef.current) {
+        const start = lastEditorSelectionRef.current.titleStart;
+        const end = lastEditorSelectionRef.current.titleEnd;
+        if (Number.isInteger(start) && Number.isInteger(end)) {
+          target.setSelectionRange(
+            Math.max(0, Math.min(start, target.value.length)),
+            Math.max(0, Math.min(end, target.value.length)),
+          );
+          return;
+        }
+      } else {
+        const start = lastEditorSelectionRef.current.bodyStart;
+        const end = lastEditorSelectionRef.current.bodyEnd;
+        if (Number.isInteger(start) && Number.isInteger(end)) {
+          target.setSelectionRange(
+            Math.max(0, Math.min(start, target.value.length)),
+            Math.max(0, Math.min(end, target.value.length)),
+          );
+          target.scrollTop = Number.isFinite(lastEditorSelectionRef.current.bodyScrollTop)
+            ? lastEditorSelectionRef.current.bodyScrollTop
+            : 0;
+          return;
+        }
+      }
+
+      target.setSelectionRange(0, 0);
     });
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
     };
-  }, [isEditing, normalizedStickyDocument.bodyText, normalizedStickyDocument.title, textBoxEditorState?.replacementText, textBoxEditorState?.selectAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id, isEditing, textBoxEditorState?.replacementText, textBoxEditorState?.requestId, textBoxEditorState?.selectAll]);
 
   const exitEditMode = useCallback(async ({ restoreCanvasFocus = false } = {}) => {
     if (saveInFlightRef.current) {
@@ -321,6 +367,24 @@ function StickyNoteTile({
   }, [applySourcePayload, card.file?.filePath, card.file?.relativePath, card.id, card.text, card.title, card.titleMode, draftBody, draftTitle, folderPath, onEndTextBoxEdit, source, updateExistingCard]);
 
   const handleEditorBlur = (event) => {
+    const target = event.currentTarget;
+    if (target instanceof HTMLInputElement) {
+      lastEditorSelectionRef.current = {
+        ...lastEditorSelectionRef.current,
+        target: "title",
+        titleStart: target.selectionStart,
+        titleEnd: target.selectionEnd,
+      };
+    } else if (target instanceof HTMLTextAreaElement) {
+      lastEditorSelectionRef.current = {
+        ...lastEditorSelectionRef.current,
+        target: "body",
+        bodyStart: target.selectionStart,
+        bodyEnd: target.selectionEnd,
+        bodyScrollTop: target.scrollTop,
+      };
+    }
+
     const nextFocusTarget = event.relatedTarget;
 
     if (

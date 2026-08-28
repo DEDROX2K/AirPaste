@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AirPaste | Local-first canvas for everything you save</title>
+    <meta
+      name="description"
+      content="AirPaste is a local-first desktop canvas for links, notes, images, and pages. Download the app and keep your workspace on your machine."
+    />
+    <link rel="icon" type="image/png" href="./assets/icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="AirPaste home">
+          <img src="./assets/icon.png" alt="" width="28" height="28" />
+          <span>AirPaste</span>
+        </a>
+        <nav class="topnav" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#download">Download</a>
+          <a href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Desktop app</p>
+            <h1>Save links, notes, images, and pages into one local-first canvas.</h1>
+            <p class="hero-text">
+              AirPaste gives you a spatial workspace for everything you collect, without forcing your ideas into tabs,
+              folders, or another cloud-first dashboard.
+            </p>
+            <div class="hero-actions">
+              <a class="button button--primary" href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">
+                Download AirPaste
+              </a>
+              <a class="button button--ghost" href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">
+                View source
+              </a>
+            </div>
+            <p class="hero-meta">Best for V1: Windows installer via GitHub Releases. macOS and Linux can be added next.</p>
+          </div>
+
+          <div class="hero-visual" aria-hidden="true">
+            <div class="hero-board">
+              <div class="hero-card hero-card--link">
+                <span class="hero-card__label">Link</span>
+                <strong>Launch ideas without losing the source</strong>
+                <span>Open Graph previews, pinning, and quick actions.</span>
+              </div>
+              <div class="hero-card hero-card--note">
+                <span class="hero-card__label">Note</span>
+                <strong>Drop thoughts directly onto the canvas</strong>
+                <span>Keep context, placement, and visual grouping intact.</span>
+              </div>
+              <div class="hero-card hero-card--image">
+                <span class="hero-card__label">Image</span>
+                <strong>Collect screenshots and references fast</strong>
+                <span>Paste from the clipboard and arrange things naturally.</span>
+              </div>
+              <div class="hero-orbit hero-orbit--one"></div>
+              <div class="hero-orbit hero-orbit--two"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="proof-strip" aria-label="Highlights">
+          <article>
+            <strong>Local-first</strong>
+            <span>Your workspace stays on your machine.</span>
+          </article>
+          <article>
+            <strong>Visual canvas</strong>
+            <span>Organize by space instead of by endless lists.</span>
+          </article>
+          <article>
+            <strong>Fast capture</strong>
+            <span>Paste links, text, and images in seconds.</span>
+          </article>
+        </section>
+
+        <section id="features" class="section">
+          <div class="section-heading">
+            <p class="eyebrow">Why it feels different</p>
+            <h2>A simpler site for a simple promise</h2>
+            <p>
+              AirPaste is for the moment when you find something worth keeping and do not want to lose it inside a
+              browser tab graveyard.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-kicker">Capture</span>
+              <h3>Paste almost anything</h3>
+              <p>URLs, text, images, and managed notes land in the same workspace without a complicated setup flow.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-kicker">Organize</span>
+              <h3>Think spatially</h3>
+              <p>Arrange saved items on a canvas so projects stay visual, flexible, and easier to revisit later.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-kicker">Own it</span>
+              <h3>Keep data local</h3>
+              <p>Your app and your saved material stay grounded in local files instead of depending on a web backend.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="download" class="section section--download">
+          <div class="section-heading">
+            <p class="eyebrow">Download</p>
+            <h2>Start with the cheapest release setup</h2>
+            <p>
+              Publish the installer on GitHub Releases, then point this page at the release. That keeps hosting simple
+              and download delivery reliable.
+            </p>
+          </div>
+
+          <div class="download-panel">
+            <div class="download-card download-card--primary">
+              <p class="download-label">Recommended now</p>
+              <h3>Windows installer</h3>
+              <p>Use GitHub Releases for the `.exe` so the website stays lightweight and the binary hosting is handled for you.</p>
+              <a class="button button--primary" href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">
+                Open releases
+              </a>
+            </div>
+
+            <div class="download-card">
+              <p class="download-label">Next up</p>
+              <h3>macOS and Linux</h3>
+              <p>Add extra release assets later without changing the site structure. The CTA layout is already ready for them.</p>
+              <span class="pill">Coming soon</span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>AirPaste is a local-first desktop canvas for collected ideas and references.</p>
+        <div class="footer-links">
+          <a href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">Releases</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

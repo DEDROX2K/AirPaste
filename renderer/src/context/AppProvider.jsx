@@ -977,7 +977,9 @@ export function AppProvider({ children }) {
     return trackLoading(async () => {
       const renamed = item.type === "folder"
         ? await desktop.workspace.renameEntry(folderPath, item.filePath, name)
-        : await desktop.workspace.renameFile(folderPath, item.filePath, name);
+        : item.type === "canvas"
+          ? await desktop.workspace.renameFile(folderPath, item.filePath, name)
+          : await desktop.workspace.renameEntry(folderPath, item.filePath, name);
 
       if (item.type === "folder") {
         setWorkspacesByPath((prev) => {
@@ -1032,7 +1034,11 @@ export function AppProvider({ children }) {
         return true;
       }
 
-      await desktop.workspace.deleteFile(folderPath, item.filePath);
+      if (item.type === "canvas") {
+        await desktop.workspace.deleteFile(folderPath, item.filePath);
+      } else {
+        await desktop.workspace.deleteEntry(folderPath, item.filePath);
+      }
       closeTabsForEntity(item.filePath);
       delete workspaceDraftBaseRef.current[item.filePath];
       setWorkspacesByPath((prev) => {

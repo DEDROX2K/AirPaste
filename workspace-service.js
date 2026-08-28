@@ -481,6 +481,9 @@ function detectType(fileName) {
   if (isCanvasPath(lower)) {
     return "canvas";
   }
+  if (lower.endsWith(".md")) {
+    return "page";
+  }
   const ext = fileExt(lower);
   if (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || DOC_EXTS.has(ext)) {
     return "asset";
@@ -647,10 +650,10 @@ async function scanWorkspace(folderPath) {
       }
 
       items.push({
-        id: null,
+        id: type === "page" ? legacyDocumentId(relPath) : null,
         path: relPath,
         type,
-        name: type === "asset" ? stripExt(entry.name) || entry.name : entry.name,
+        name: type === "asset" || type === "page" ? stripExt(entry.name) || entry.name : entry.name,
         updatedAt: stat.mtime.toISOString(),
         excerpt: "",
       });
@@ -1325,7 +1328,7 @@ async function renameEntry(root, entryPath, nextName) {
   }
 
   const nextBaseName = sanitizeName(nextName, type === "folder" ? "Folder" : "File");
-  const extension = type === "asset" || type === "file" ? path.extname(abs) : "";
+  const extension = type === "asset" || type === "file" || type === "page" ? path.extname(abs) : "";
   const currentBaseName = type === "folder" ? path.basename(abs) : stripExt(path.basename(abs));
 
   if (currentBaseName === nextBaseName) {
@@ -1349,6 +1352,16 @@ async function renameEntry(root, entryPath, nextName) {
   await fs.rename(abs, renamed);
 
   const nextRel = toWorkspaceRel(absRoot, renamed);
+  if (type === "page") {
+    const previousId = legacyDocumentId(rel);
+    const nextId = legacyDocumentId(nextRel);
+    const state = await readWorkspaceState(absRoot);
+    await writeWorkspaceState(absRoot, {
+      recentDocumentIds: state.recentDocumentIds.map((id) => (id === previousId ? nextId : id)),
+      starredDocumentIds: state.starredDocumentIds.map((id) => (id === previousId ? nextId : id)),
+    });
+  }
+
   const uiState = await readUiState(absRoot);
   uiState.currentFolderPath = remapUiStatePath(uiState.currentFolderPath, rel, nextRel) ?? "";
   uiState.lastOpenedItemPath = remapUiStatePath(uiState.lastOpenedItemPath, rel, nextRel) ?? null;
@@ -1381,6 +1394,33 @@ async function deleteEntry(root, entryPath) {
 
   if (type === "canvas") {
     return deleteFile(absRoot, abs);
+  }
+
+  if (type === "page") {
+    let deletedId = null;
+    try {
+      deletedId = legacyDocumentId(rel);
+    } catch {
+      deletedId = null;
+    }
+
+    await fs.rm(abs, { force: true });
+
+    if (deletedId) {
+      const state = await readWorkspaceState(absRoot);
+      await writeWorkspaceState(absRoot, {
+        recentDocumentIds: state.recentDocumentIds.filter((id) => id !== deletedId),
+        starredDocumentIds: state.starredDocumentIds.filter((id) => id !== deletedId),
+      });
+    }
+
+    const uiState = await readUiState(absRoot);
+    if (uiState.lastOpenedItemPath === rel) {
+      uiState.lastOpenedItemPath = null;
+    }
+    await atomicWriteJson(absRoot, uiStatePath(absRoot), uiState);
+
+    return { deleted: true, path: rel };
   }
 
   await fs.rm(abs, { recursive: true, force: true });

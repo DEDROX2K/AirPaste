@@ -1,0 +1,24 @@
+{
+  "id": "5db13a9c-bedf-4b91-854c-7b515a3dcd32",
+  "type": "canvas",
+  "name": "Board",
+  "createdAt": "2026-08-26T15:49:41.668Z",
+  "updatedAt": "2026-08-26T15:49:41.668Z",
+  "nodes": [],
+  "edges": [],
+  "airpaste": {
+    "workspaceVersion": 9,
+    "pageId": "page-1",
+    "pageName": "Page 1",
+    "viewport": {
+      "x": 180,
+      "y": 120,
+      "zoom": 1
+    },
+    "drawings": {
+      "version": 1,
+      "objects": []
+    },
+    "view": null
+  }
+}

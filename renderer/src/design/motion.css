@@ -32,6 +32,10 @@
   --ap-transition-enter:    var(--ap-duration-moderate) var(--ap-ease-decelerate);
   --ap-transition-exit:     var(--ap-duration-normal) var(--ap-ease-accelerate);
   --ap-transition-spring:   var(--ap-duration-moderate) var(--ap-ease-spring);
+  --ap-hover-lift-sm:       translateY(-1px);
+  --ap-hover-lift-md:       translateY(-2px);
+  --ap-hover-scale-sm:      scale(1.01);
+  --ap-press-scale:         scale(0.98);
 }
 
 /* ─── Reduced Motion ───────────────────────────────────────────────────── */

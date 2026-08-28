@@ -35,9 +35,25 @@ function getInstallerPath() {
   return candidates.find((candidatePath) => fsSync.existsSync(candidatePath)) || candidates[0];
 }
 
+function resolveCommand(command) {
+  if (process.platform !== "win32") {
+    return command;
+  }
+
+  if (command === "npm") {
+    return "npm.cmd";
+  }
+
+  if (command === "npx") {
+    return "npx.cmd";
+  }
+
+  return command;
+}
+
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(resolveCommand(command), args, {
       cwd: projectRoot,
       stdio: "inherit",
       shell: process.platform === "win32",
@@ -140,7 +156,8 @@ async function patchExecutableIcon() {
   const unpackedExePath = exeCandidates.find((candidatePath) => fsSync.existsSync(candidatePath)) || exeCandidates[0];
 
   if (!rceditPath) {
-    throw new Error("Could not locate rcedit-x64.exe in the electron-builder cache.");
+    console.warn("Warning: Could not locate rcedit-x64.exe in the electron-builder cache. Skipping executable icon patch.");
+    return false;
   }
 
   if (!(await pathExists(unpackedExePath))) {
@@ -152,6 +169,7 @@ async function patchExecutableIcon() {
     "--set-icon",
     buildIconIcoPath,
   ]);
+  return true;
 }
 
 async function refreshReleaseIcon() {
@@ -161,10 +179,13 @@ async function refreshReleaseIcon() {
 
 async function buildInstallerFromPrepackaged(tempConfigPath) {
   const unpackedDir = getUnpackedDir();
+  const prepackagedArg = process.platform === "win32"
+    ? `"${unpackedDir}"`
+    : unpackedDir;
   await run("npx", [
     "electron-builder",
     "--prepackaged",
-    unpackedDir,
+    prepackagedArg,
     "--win",
     "nsis",
     "--publish",
@@ -183,7 +204,7 @@ async function main() {
     await run("npm", ["run", "build"]);
     tempConfigPath = await writeTempBuilderConfig();
     await buildUnpackedApp(tempConfigPath);
-    await patchExecutableIcon();
+    const iconPatched = await patchExecutableIcon();
     await refreshReleaseIcon();
     await buildInstallerFromPrepackaged(tempConfigPath);
     const unpackedDir = getUnpackedDir();
@@ -192,6 +213,9 @@ async function main() {
     console.log("Windows package ready:");
     console.log(`- ${unpackedDir}`);
     console.log(`- ${getInstallerPath()}`);
+    if (!iconPatched) {
+      console.log("- Note: executable icon patch was skipped because rcedit was unavailable.");
+    }
   } finally {
     if (tempConfigPath) {
       await fs.rm(tempConfigPath, { force: true }).catch(() => {});

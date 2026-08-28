@@ -1,0 +1,59 @@
+{
+  "id": "8babc0f8-982f-45ab-9c7c-7ddb9a385684",
+  "type": "canvas",
+  "name": "Board",
+  "createdAt": "2026-08-26T15:49:11.697Z",
+  "updatedAt": "2026-08-26T15:49:11.745Z",
+  "nodes": [
+    {
+      "id": "tile-1",
+      "type": "text",
+      "x": 10,
+      "y": 20,
+      "width": 240,
+      "height": 80,
+      "airpaste": {
+        "sourceType": "text-box",
+        "card": {
+          "id": "tile-1",
+          "type": "text-box",
+          "text": "Saved edit",
+          "x": 10,
+          "y": 20,
+          "width": 240,
+          "height": 80,
+          "style": {
+            "preset": "simple",
+            "fontSize": 24,
+            "fontWeight": 500,
+            "italic": false,
+            "underline": false,
+            "strike": false,
+            "align": "left",
+            "color": "#111111",
+            "lineHeight": 1.15,
+            "letterSpacing": 0
+          }
+        }
+      },
+      "text": "Saved edit",
+      "label": ""
+    }
+  ],
+  "edges": [],
+  "airpaste": {
+    "workspaceVersion": 9,
+    "pageId": "page-1",
+    "pageName": "Page 1",
+    "viewport": {
+      "x": 180,
+      "y": 120,
+      "zoom": 1
+    },
+    "drawings": {
+      "version": 1,
+      "objects": []
+    },
+    "view": null
+  }
+}

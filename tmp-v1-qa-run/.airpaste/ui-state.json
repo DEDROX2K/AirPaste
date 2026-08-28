@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "homeView": "grid",
+  "sortBy": "updatedAt",
+  "filter": "all",
+  "selectedSection": "home",
+  "currentFolderPath": "",
+  "homeScrollTop": 0,
+  "canvasSnapToGrid": false,
+  "canvasSnapGridSize": 32,
+  "lastOpenedItemPath": "Notes/Daily/Board.canvas",
+  "lastOpenedCanvasPath": "Notes/Daily/Board.canvas",
+  "lastHomeRoute": {
+    "selectedSection": "home",
+    "currentFolderPath": "",
+    "scrollTop": 0
+  }
+}
