@@ -1,6 +1,7 @@
 import TILE_TYPES from "../tiles/tileTypes";
 import {
   CANVAS_TEXT_DEFAULT_SIZE,
+  CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_FORMAT_MARKDOWN,
   CANVAS_TEXT_MIN_HEIGHT,
   CANVAS_TEXT_MIN_WIDTH,
@@ -29,6 +30,7 @@ import {
 } from "../systems/globe/globeLayout";
 import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawingTypes";
 import {
+  normalizeTextBoxStyle,
   normalizeTextBoxText,
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
@@ -55,8 +57,9 @@ export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
 export const RACK_LEFT_CAP_WIDTH = 94;
 export const RACK_RIGHT_CAP_WIDTH = 94;
-export const RACK_HEIGHT = 126;
-export const RACK_TILE_BASELINE = 44;
+export const RACK_HEIGHT = 62;
+export const RACK_MOUNTED_TILE_WIDTH = 200;
+export const RACK_TILE_BASELINE = 26;
 const DEFAULT_PAGE_NAME = "Page 1";
 const LEGACY_FOLDER_CARD_TYPE = "folder";
 const LEGACY_FOLDER_ZONE_GAP = 24;
@@ -522,10 +525,25 @@ function normalizeCanvasTextPayload(card) {
   const text = normalizeCanvasTextContent(
     isLegacyNote ? String(card?.body ?? "") : legacyText,
   );
+  const format = isLegacyTextBox
+    ? CANVAS_TEXT_FORMAT_PLAIN
+    : (card?.format === CANVAS_TEXT_FORMAT_PLAIN ? CANVAS_TEXT_FORMAT_PLAIN : CANVAS_TEXT_FORMAT_MARKDOWN);
   const title = typeof card?.title === "string" ? card.title : "";
   const titleMode = normalizeCanvasTextTitleMode(
     card?.titleMode ?? (isLegacyNote && title.trim().length > 0 ? CANVAS_TEXT_TITLE_MODE_CUSTOM : CANVAS_TEXT_TITLE_MODE_DERIVED),
   );
+  const style = format === CANVAS_TEXT_FORMAT_PLAIN
+    ? normalizeTextBoxStyle(card?.style)
+    : null;
+  const placeholder = format === CANVAS_TEXT_FORMAT_PLAIN && card?.placeholder === true;
+  const placeholderText = format === CANVAS_TEXT_FORMAT_PLAIN
+    ? (typeof card?.placeholderText === "string" && card.placeholderText.length > 0
+      ? card.placeholderText
+      : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT)
+    : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT;
+  const autoWidth = format === CANVAS_TEXT_FORMAT_PLAIN
+    ? card?.autoWidth !== false
+    : false;
 
   if (variant === CANVAS_TEXT_VARIANT_STICKY) {
     const stickyDocument = deriveStickyNoteDocument({
@@ -542,17 +560,25 @@ function normalizeCanvasTextPayload(card) {
       title: stickyDocument.title,
       titleMode: CANVAS_TEXT_TITLE_MODE_CUSTOM,
       file: source === CANVAS_TEXT_SOURCE_FILE ? normalizeCanvasTextFileMeta(card?.file) : null,
+      style: null,
+      placeholder: false,
+      placeholderText: TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+      autoWidth: false,
     };
   }
 
   return {
     source,
     variant,
-    format: CANVAS_TEXT_FORMAT_MARKDOWN,
+    format,
     text,
     title,
     titleMode,
     file: source === CANVAS_TEXT_SOURCE_FILE ? normalizeCanvasTextFileMeta(card?.file) : null,
+    style,
+    placeholder,
+    placeholderText,
+    autoWidth,
   };
 }
 
@@ -1134,14 +1160,21 @@ export function getRackSize(rackCard) {
   };
 }
 
+export function getRackMountedTileScale(tile) {
+  return RACK_MOUNTED_TILE_WIDTH / Math.max(1, tile?.width ?? 1);
+}
+
 export function getRackTileWorldPosition(rackCard, tile, rackIndex = tile?.rackIndex ?? 0) {
   const normalizedIndex = Number.isFinite(rackIndex) ? rackIndex : 0;
   const slotLeft = rackCard.x + RACK_LEFT_CAP_WIDTH + (normalizedIndex * RACK_SLOT_WIDTH);
-  const centeredOffset = (RACK_SLOT_WIDTH - tile.width) / 2;
+  const mountedScale = getRackMountedTileScale(tile);
+  const mountedWidth = tile.width * mountedScale;
+  const mountedHeight = tile.height * mountedScale;
+  const centeredOffset = (RACK_SLOT_WIDTH - mountedWidth) / 2;
 
   return {
     x: slotLeft + centeredOffset,
-    y: rackCard.y + RACK_TILE_BASELINE - tile.height,
+    y: rackCard.y + RACK_TILE_BASELINE - mountedHeight,
   };
 }
 
@@ -1253,11 +1286,11 @@ export function normalizeCard(card, fallbackIndex = 0) {
         : "",
     body: "",
     text: type === CANVAS_TEXT_CARD_TYPE ? canvasText.text : "",
-    style: null,
-    placeholder: false,
+    style: type === CANVAS_TEXT_CARD_TYPE ? canvasText.style : null,
+    placeholder: type === CANVAS_TEXT_CARD_TYPE ? canvasText.placeholder : false,
     appearance: type === CANVAS_TEXT_CARD_TYPE && canvasText.variant === CANVAS_TEXT_VARIANT_STICKY ? "sticky" : "plain",
-    placeholderText: TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
-    autoWidth: false,
+    placeholderText: type === CANVAS_TEXT_CARD_TYPE ? canvasText.placeholderText : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    autoWidth: type === CANVAS_TEXT_CARD_TYPE ? canvasText.autoWidth : false,
     source: type === CANVAS_TEXT_CARD_TYPE ? canvasText.source : CANVAS_TEXT_SOURCE_LOCAL,
     variant: type === CANVAS_TEXT_CARD_TYPE ? canvasText.variant : CANVAS_TEXT_VARIANT_DEFAULT,
     format: type === CANVAS_TEXT_CARD_TYPE ? canvasText.format : "",
@@ -1854,10 +1887,16 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
     type: CANVAS_TEXT_CARD_TYPE,
     source: CANVAS_TEXT_SOURCE_LOCAL,
     variant,
-    format: CANVAS_TEXT_FORMAT_MARKDOWN,
+    format: CANVAS_TEXT_FORMAT_PLAIN,
     title: nextTitle,
     titleMode: nextTitleMode,
     text: nextText,
+    style: normalizeTextBoxStyle(options?.style),
+    placeholder: options?.placeholder === true,
+    placeholderText: typeof options?.placeholderText === "string" && options.placeholderText.length > 0
+      ? options.placeholderText
+      : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+    autoWidth: options?.autoWidth !== false,
     x,
     y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),
@@ -2376,7 +2415,9 @@ export function formatCardSubtitle(card) {
   if (card.type === CANVAS_TEXT_CARD_TYPE) {
     const lineCount = getCanvasTextLineCount(card.text ?? "");
     const sourceLabel = card.source === CANVAS_TEXT_SOURCE_FILE ? "file-backed" : "local";
-    const variantLabel = card.variant === CANVAS_TEXT_VARIANT_STICKY ? "sticky" : "markdown";
+    const variantLabel = card.variant === CANVAS_TEXT_VARIANT_STICKY
+      ? "sticky"
+      : (card.format === CANVAS_TEXT_FORMAT_PLAIN ? "plain text" : "markdown");
     return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${variantLabel} · ${sourceLabel}`;
   }
 

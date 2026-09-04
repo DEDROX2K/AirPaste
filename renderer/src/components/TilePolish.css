@@ -18,7 +18,7 @@
   --ap-tile-radius-inner: 10px;
   --ap-tile-shadow: 0 14px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
   --ap-tile-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055);
-  --ap-tile-shadow-selected: 0 0 0 3px var(--ap-tile-selected-soft), 0 16px 36px rgba(0, 113, 227, 0.12), 0 4px 14px rgba(0, 0, 0, 0.06);
+  --ap-tile-shadow-selected: var(--ap-tile-shadow);
   --ap-tile-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -115,8 +115,9 @@
 .canvas__content .card__surface-frame--selected,
 .grid-workspace .card--selected .card__surface-frame,
 .grid-workspace .card__surface-frame--selected {
-  outline: 0 !important;
-  box-shadow: var(--ap-tile-shadow-selected) !important;
+  outline: 2px solid var(--ap-tile-selected) !important;
+  outline-offset: 3px !important;
+  box-shadow: none !important;
 }
 
 .canvas__content .card--selected .card__surface,
@@ -127,7 +128,23 @@
 .grid-workspace .card__surface-frame--selected .card__record-sleeve {
   border-color: rgba(0, 113, 227, 0.52) !important;
   outline: 0 !important;
-  box-shadow: var(--ap-tile-shadow-selected) !important;
+  box-shadow: var(--ap-tile-shadow) !important;
+}
+
+/* Selection is owned by the shared frame so every tile, including racks, has one fixed-width ring. */
+.canvas__content .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front),
+.grid-workspace .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front) {
+  outline: none !important;
+}
+
+.canvas__content .card__surface-frame--selected .card__surface--text-box,
+.grid-workspace .card__surface-frame--selected .card__surface--text-box {
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface-frame--selected .card__surface--rack::after,
+.grid-workspace .card__surface-frame--selected .card__surface--rack::after {
+  outline: none !important;
 }
 
 .canvas__content .card[data-tile-state="editing"] .card__surface,
@@ -309,27 +326,69 @@
 
 .canvas__content .card__surface--file,
 .grid-workspace .card__surface--file {
+  position: relative !important;
   display: flex !important;
-  min-height: 260px !important;
+  min-height: 280px !important;
   flex-direction: column;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 14px !important;
-  padding: 24px !important;
-  border: 1px solid var(--ap-tile-line) !important;
-  background: var(--ap-tile-bg-solid) !important;
-  box-shadow: var(--ap-tile-shadow) !important;
+  align-items: stretch !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  overflow: hidden !important;
+  padding: 22px !important;
+  border: 1px solid rgba(255, 255, 255, 0.92) !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at 84% 12%, rgba(193, 217, 241, 0.72), transparent 35%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(234, 242, 250, 0.9)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 16px 34px rgba(51, 69, 94, 0.14) !important;
+  transition: transform 220ms var(--ap-tile-ease), box-shadow 220ms var(--ap-tile-ease) !important;
 }
 
 .canvas__content .card__file-hero,
 .grid-workspace .card__file-hero {
-  width: 76px !important;
-  height: 76px !important;
-  border: 1px solid var(--ap-tile-line) !important;
-  border-radius: 20px !important;
+  position: relative !important;
+  width: 82px !important;
+  height: 104px !important;
+  flex: 0 0 auto !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(160, 182, 207, 0.5) !important;
+  border-radius: 18px 18px 15px 15px !important;
   background:
-    linear-gradient(180deg, #ffffff, #f2f3f5) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 8px 20px rgba(0, 0, 0, 0.06) !important;
+    linear-gradient(135deg, transparent 0 72%, rgba(220, 233, 245, 0.9) 72% 100%),
+    linear-gradient(145deg, #ffffff, #e6eff8) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 10px 22px rgba(64, 91, 123, 0.14) !important;
+}
+
+.canvas__content .card__file-hero::before,
+.grid-workspace .card__file-hero::before {
+  position: absolute;
+  top: 22px;
+  left: 18px;
+  width: 45px;
+  height: 6px;
+  border-radius: 999px;
+  background: #90a9c2;
+  box-shadow: 0 15px 0 #b7c7d7, 0 30px 0 #d0dbe6;
+  content: "";
+}
+
+.canvas__content .card__file-hero::after,
+.grid-workspace .card__file-hero::after {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 5px;
+  border: 1px solid rgba(124, 151, 178, 0.34);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #607c99;
+  content: "FILE";
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
 }
 
 .canvas__content .card__file-body,
@@ -341,9 +400,9 @@
   background: transparent !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
-  gap: 8px !important;
-  text-align: center !important;
+  align-items: flex-start !important;
+  gap: 7px !important;
+  text-align: left !important;
 }
 
 .canvas__content .card__file-side-tab,
@@ -356,32 +415,51 @@
   max-width: 100% !important;
   color: var(--ap-tile-ink) !important;
   font-family: inherit !important;
-  font-size: 16px !important;
-  font-weight: 680 !important;
-  letter-spacing: -0.01em !important;
+  font-size: 17px !important;
+  font-weight: 720 !important;
+  letter-spacing: -0.025em !important;
   line-height: 1.2 !important;
   overflow-wrap: anywhere !important;
 }
 
 .canvas__content .card__file-type,
 .grid-workspace .card__file-type {
-  color: var(--ap-tile-muted) !important;
-  font-size: 12px !important;
-  font-weight: 620 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(205, 220, 235, 0.58) !important;
+  color: #607b96 !important;
+  font-size: 10px !important;
+  font-weight: 740 !important;
+  letter-spacing: 0.07em !important;
   text-transform: uppercase;
 }
 
 .canvas__content .card__file-size-pill,
 .grid-workspace .card__file-size-pill {
-  padding: 4px 10px !important;
-  border: 1px solid var(--ap-tile-line) !important;
+  align-self: flex-start !important;
+  margin-top: 3px !important;
+  padding: 4px 9px !important;
+  border: 1px solid rgba(160, 182, 207, 0.44) !important;
   border-radius: 999px !important;
-  background: var(--ap-tile-bg-muted) !important;
-  color: var(--ap-tile-muted) !important;
+  background: rgba(255, 255, 255, 0.58) !important;
+  color: #607b96 !important;
   font-family: inherit !important;
   font-size: 12px !important;
   font-weight: 620 !important;
   line-height: 1.25 !important;
+}
+
+.canvas__content .card--file.card--hovered .card__surface--file,
+.grid-workspace .card--file.card--hovered .card__surface--file {
+  transform: translateY(-4px) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 22px 42px rgba(51, 69, 94, 0.19) !important;
+}
+
+.canvas__content .card--file.card--selected .card__surface--file,
+.grid-workspace .card--file.card--selected .card__surface--file {
+  border-color: rgba(97, 146, 198, 0.7) !important;
 }
 
 .canvas__content :is(.card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle),

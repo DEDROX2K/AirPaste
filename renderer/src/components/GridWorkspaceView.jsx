@@ -3,6 +3,7 @@ import Card from "./Card";
 import { useAppContext } from "../context/useAppContext";
 import { AppEmptyState } from "./ui/app";
 import { isBookmarkLinkCard } from "../lib/workspace";
+import { CANVAS_TEXT_FORMAT_PLAIN } from "../lib/canvasText";
 
 const COLUMN_WIDTH_MIN = 240;
 const COLUMN_WIDTH_MAX = 320;
@@ -549,7 +550,9 @@ export default function GridWorkspaceView({
     setFocusedTileId(null);
   }, [tileFilter, workspace?.cards]);
 
-  const allTiles = useMemo(() => workspace.cards ?? [], [workspace.cards]);
+  const allTiles = useMemo(() => (workspace.cards ?? []).filter((tile) => (
+    !(tile?.type === "canvas-text" && tile?.format === CANVAS_TEXT_FORMAT_PLAIN)
+  )), [workspace.cards]);
   const filteredTiles = useMemo(() => (
     tileFilter === "bookmarks"
       ? allTiles.filter((tile) => isBookmarkLinkCard(tile))

@@ -304,7 +304,6 @@ function LinkTile({
   const { currentEditor, folderPath } = useAppContext();
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const [videoImageIndex, setVideoImageIndex] = useState(0);
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
@@ -377,6 +376,8 @@ function LinkTile({
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const linkDescription = typeof card.description === "string" ? card.description.trim() : "";
   const hasLinkDescription = linkDescription.length > 0;
+  const isDescriptionVisible = tileMeta?.isSelected === true
+    || tileMeta?.interactionState === "selected";
   const fallbackDomainLabel = getAsciiDomain(card.url);
   const fallbackShortLabel = formatShortUrl(card.url).slice(0, 48).toUpperCase();
   const fallbackLogoSrc = getFallbackLogoSrc(card);
@@ -390,7 +391,6 @@ function LinkTile({
     isVideoCard && !isSimplifiedVideoLink ? "card__surface-frame--video" : "",
     isVideoCard && !isSimplifiedVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
-    isDescriptionExpanded ? "card__surface-frame--link-desc-expanded" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -408,29 +408,6 @@ function LinkTile({
     },
   });
 
-  const handleSurfaceClick = (event) => {
-    if (!hasLinkDescription) {
-      return;
-    }
-
-    if (event.defaultPrevented) {
-      return;
-    }
-
-    if (event.button !== 0) {
-      return;
-    }
-
-    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
-      return;
-    }
-
-    if (event.target?.closest?.("button,a,input,textarea,select,[data-canvas-text-action-root='true']")) {
-      return;
-    }
-
-    setIsDescriptionExpanded((value) => !value);
-  };
   const handleCopyLinkQuickAction = async () => {
     try {
       await copyTextToClipboard(card.url);
@@ -445,7 +422,6 @@ function LinkTile({
     setHasLoadedImage(false);
     setLoadedVideoAspectRatio(null);
     setVideoImageIndex(0);
-    setIsDescriptionExpanded(false);
   }, [card.id, card.image, previewSource]);
 
   useEffect(() => {
@@ -737,7 +713,7 @@ function LinkTile({
       onFocusOut={onFocusOut}
     >
       <div className="card__content">
-        <div className={surfaceFrameClassName} {...surfaceGesture} onClick={handleSurfaceClick}>
+        <div className={surfaceFrameClassName} {...surfaceGesture}>
           {isImageTile ? (
             <div
               className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
@@ -759,7 +735,15 @@ function LinkTile({
           </div>
 
           {hasLinkDescription ? (
-            <div className="card__link-desc" aria-label={`Description for ${linkTitle}`}>
+            <div
+              className={`card__link-desc${isDescriptionVisible ? " card__link-desc--visible" : ""}`}
+              aria-label={`Description for ${linkTitle}`}
+              style={isDescriptionVisible ? {
+                opacity: 1,
+                visibility: "visible",
+                transform: "translateY(0px)",
+              } : undefined}
+            >
               <p className="card__link-desc__text">{linkDescription}</p>
             </div>
           ) : null}

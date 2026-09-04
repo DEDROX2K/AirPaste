@@ -30,7 +30,11 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
-import { CANVAS_TEXT_VARIANT_STICKY, getCanvasTextLineCount } from "../lib/canvasText";
+import {
+  CANVAS_TEXT_FORMAT_PLAIN,
+  CANVAS_TEXT_VARIANT_STICKY,
+  getCanvasTextLineCount,
+} from "../lib/canvasText";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
 import { useCanvasCommands } from "../systems/commands/useCanvasCommands";
 import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInteractionSystem";
@@ -974,6 +978,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
+    createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
@@ -991,6 +996,7 @@ export default function CanvasWorkspaceView() {
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
   const [canvasViewportSize, setCanvasViewportSize] = useState({ width: 0, height: 0 });
+  const [canvasEntrySequence, setCanvasEntrySequence] = useState(0);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const textBoxEditRequestIdRef = useRef(0);
   const stickerDragStateRef = useRef(null);
@@ -1063,6 +1069,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
+    createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
     createNewTableCard,
@@ -1521,12 +1528,29 @@ export default function CanvasWorkspaceView() {
       return;
     }
 
+    // Cut is a move operation. Its next paste must use the active canvas
+    // payload even when the system clipboard still contains ordinary text.
+    if (canvasClipboard?.mode === "cut" && pasteCanvasSelection(event)) {
+      return;
+    }
+
+    const clipboardText = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+    const hasClipboardImage = Array.from(event.clipboardData?.items ?? [])
+      .some((item) => item.type.startsWith("image/"));
+
+    // System clipboard content takes priority over an older internal tile
+    // copy, so links, images, and plain text paste as their own tile type.
+    if (clipboardText || hasClipboardImage) {
+      await commands.pasteFromClipboard(event);
+      return;
+    }
+
     if (pasteCanvasSelection(event)) {
       return;
     }
 
     await commands.pasteFromClipboard(event);
-  }, [commands, pasteCanvasSelection]);
+  }, [canvasClipboard?.mode, commands, pasteCanvasSelection]);
 
   useEffect(() => {
     document.addEventListener("paste", handleWorkspacePaste, true);
@@ -1690,6 +1714,19 @@ export default function CanvasWorkspaceView() {
     draggingTileIds: interactions.draggingTileIds,
     visibleWorldRect,
   });
+  const dragVisualTileIdSet = useMemo(() => {
+    const nextTileIds = new Set(draggingTileIdSet);
+
+    // Rack children are positioned from their parent, so they need the same
+    // live delta while the rack is being dragged.
+    interactions.draggingTileIds.forEach((tileId) => {
+      layout.rackTileChildrenByRackId[tileId]?.forEach((childTile) => {
+        nextTileIds.add(childTile.id);
+      });
+    });
+
+    return nextTileIds;
+  }, [draggingTileIdSet, interactions.draggingTileIds, layout.rackTileChildrenByRackId]);
   const viewportZoomForRender = useMemo(() => {
     if (isCanvasMoving) {
       if (!lodFreezeActiveRef.current) {
@@ -1797,6 +1834,11 @@ export default function CanvasWorkspaceView() {
       ? new Set([...interactionOverlayTileIdSet, ...forcedDomFallbackTileIdSet])
       : new Set()
   ), [forcedDomFallbackTileIdSet, interactionOverlayTileIdSet, useSceneSurface]);
+  const rackAttachedTileIdSet = useMemo(() => new Set(
+    Object.entries(layout.tileMetaById)
+      .filter(([, tileMeta]) => tileMeta?.isRackAttached)
+      .map(([tileId]) => tileId),
+  ), [layout.tileMetaById]);
   const tileRenderHintsById = useMemo(() => {
     const previousCache = tileRenderHintCacheRef.current;
     const nextCache = new Map();
@@ -1806,8 +1848,11 @@ export default function CanvasWorkspaceView() {
       const previousHint = previousCache.get(tile.id) ?? null;
       const nextHint = buildTileRenderHint({
         lodLevel: workspaceLodLevel,
-        forceFullFidelity: overlayTileIdSet.has(tile.id),
-        preferSpeed: isCanvasMoving && !overlayTileIdSet.has(tile.id),
+        forceFullFidelity: overlayTileIdSet.has(tile.id) || rackAttachedTileIdSet.has(tile.id),
+        // Keep existing previews mounted while panning or moving a rack.
+        // Swapping render modes mid-drag caused image flicker and full-canvas
+        // repaint glitches on image-heavy workspaces.
+        preferSpeed: false,
         viewportZoom: viewportZoomForRender,
       });
       const stableHint = previousHint && areRenderHintsEqual(previousHint, nextHint)
@@ -1820,7 +1865,7 @@ export default function CanvasWorkspaceView() {
 
     tileRenderHintCacheRef.current = nextCache;
     return nextHints;
-  }, [isCanvasMoving, layout.rootTiles, overlayTileIdSet, viewportZoomForRender, workspaceLodLevel]);
+  }, [layout.rootTiles, overlayTileIdSet, rackAttachedTileIdSet, viewportZoomForRender, workspaceLodLevel]);
   const previewTierCounts = useMemo(() => {
     return layout.rootTiles.reduce((counts, tile) => {
       const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";
@@ -2052,6 +2097,10 @@ export default function CanvasWorkspaceView() {
   }, [canvas, layout.selectedTilesBounds]);
 
   const updateWorkspaceMode = useCallback((mode) => {
+    if (mode !== "grid" && workspaceView.mode === "grid") {
+      setCanvasEntrySequence((sequence) => sequence + 1);
+    }
+
     setWorkspaceView((currentView) => {
       if (mode === "grid") {
         return { ...(currentView ?? {}), mode: "grid" };
@@ -2062,7 +2111,7 @@ export default function CanvasWorkspaceView() {
         mode: "flat",
       };
     });
-  }, [setWorkspaceView]);
+  }, [setWorkspaceView, workspaceView.mode]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -2158,12 +2207,6 @@ export default function CanvasWorkspaceView() {
         if (interactions.selectedTileIds.length > 0) {
           event.preventDefault();
           cutSelectedCanvasSelection();
-          return;
-        }
-      }
-
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v") {
-        if (pasteCanvasSelection(event)) {
           return;
         }
       }
@@ -2406,6 +2449,8 @@ export default function CanvasWorkspaceView() {
   const isDeadlineContextTile = activeContextTile?.type === DEADLINE_CARD_TYPE;
   const isProgressContextTile = activeContextTile?.type === PROGRESS_CARD_TYPE;
   const isTextBoxContextTile = activeContextTile?.type === CANVAS_TEXT_CARD_TYPE;
+  const isPlainTextBoxContextTile = isTextBoxContextTile
+    && activeContextTile?.format === CANVAS_TEXT_FORMAT_PLAIN;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
@@ -2455,6 +2500,24 @@ export default function CanvasWorkspaceView() {
     commands.createRack(radialMenu.worldPoint);
     return true;
   }, [commands, radialMenu]);
+
+  const handleRadialText = useCallback(() => {
+    if (!radialMenu?.worldPoint) {
+      return false;
+    }
+
+    return beginTextBoxCreation(radialMenu.worldPoint);
+  }, [beginTextBoxCreation, radialMenu]);
+
+  const handleRadialEditText = useCallback(() => {
+    if (!isPlainTextBoxContextTile || !activeContextTile) {
+      return false;
+    }
+
+    interactions.selectTile(activeContextTile.id, { forceSingle: true });
+    requestTextBoxEdit(activeContextTile.id, { selectAll: false });
+    return true;
+  }, [activeContextTile, interactions, isPlainTextBoxContextTile, requestTextBoxEdit]);
 
   const handleRadialDelete = useCallback(() => {
     const selectionIds = radialMenu?.selectionIds ?? [];
@@ -2556,6 +2619,7 @@ export default function CanvasWorkspaceView() {
     showSinglePreviewRefresh: radialMenu?.kind === "tile" && canShowRefreshPreviewAction,
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
+    showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     handlers: {
       onCopyCodexReport: handleCopyPreviewCodexReport,
@@ -2570,12 +2634,16 @@ export default function CanvasWorkspaceView() {
       onCreateFolder: handleRadialFolder,
       onCreateRack: handleRadialRack,
       onCreateLink: handleRadialLink,
+      onCreateText: handleRadialText,
+      onEditText: handleRadialEditText,
     },
   }), [
     handleRadialDelete,
     handleRadialFolder,
     handleRadialLink,
     handleRadialRack,
+    handleRadialText,
+    handleRadialEditText,
     handleCopyPreviewCodexReport,
     handleCopyPreviewDiagnostics,
     handleRefreshFailedPreviews,
@@ -2583,6 +2651,7 @@ export default function CanvasWorkspaceView() {
     canCopyPreviewCodexReport,
     canCopyPreviewDiagnostics,
     canShowRefreshPreviewAction,
+    isPlainTextBoxContextTile,
     activeContextTile,
     recoverablePreviewTiles.length,
     radialMenu,
@@ -2660,7 +2729,7 @@ export default function CanvasWorkspaceView() {
         ref={canvas.containerRef}
         id="canvas-board"
         data-airpaste-canvas-capture-root
-        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isCanvasMoving ? " canvas--moving" : ""}`}
+        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
@@ -2765,35 +2834,41 @@ export default function CanvasWorkspaceView() {
               />
             ) : null}
             <div
+              key={canvasEntrySequence}
               ref={canvas.contentRef}
-              className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}`}
+              className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
-              {activeRenderTiles.map((card) => (
-                <Card
+              {activeRenderTiles.map((card, index) => (
+                <div
                   key={card.id}
-                  card={card}
-                  tileMeta={decoratedTileMetaById[card.id]}
-                  viewportZoom={viewportZoomForRender}
-                  renderHint={tileRenderHintsById[card.id]}
-                  dragVisualDelta={interactions.dragVisualDelta}
-                  dragVisualTileIdSet={draggingTileIdSet}
-                  childTiles={layout.rackTileChildrenByRackId[card.id] ?? []}
-                  rackState={layout.rackStateById[card.id] ?? null}
-                  performanceMode={performanceMode}
-                  onBeginDrag={interactions.beginTileDrag}
-                  onContextMenu={interactions.handleTileContextMenu}
-                  onHoverChange={interactions.handleTileHoverChange}
-                  onFocusIn={interactions.handleTileFocusIn}
-                  onFocusOut={interactions.handleTileFocusOut}
-                  onOpenLink={commands.openTileLink}
-                  onMediaLoad={commands.updateTileFromMediaLoad}
-                  onPressStart={interactions.handleTilePressStart}
-                  onRetry={commands.retryTilePreview}
-                  canvasToolMode={canvasToolMode}
-                  textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
-                  onRequestTextBoxEdit={requestTextBoxEdit}
-                  onEndTextBoxEdit={clearTextBoxEditState}
-                />
+                  className="canvas__entry-item"
+                  style={{ "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms` }}
+                >
+                  <Card
+                    card={card}
+                    tileMeta={decoratedTileMetaById[card.id]}
+                    viewportZoom={viewportZoomForRender}
+                    renderHint={tileRenderHintsById[card.id]}
+                    dragVisualDelta={interactions.dragVisualDelta}
+                    dragVisualTileIdSet={dragVisualTileIdSet}
+                    childTiles={layout.rackTileChildrenByRackId[card.id] ?? []}
+                    rackState={layout.rackStateById[card.id] ?? null}
+                    performanceMode={performanceMode}
+                    onBeginDrag={interactions.beginTileDrag}
+                    onContextMenu={interactions.handleTileContextMenu}
+                    onHoverChange={interactions.handleTileHoverChange}
+                    onFocusIn={interactions.handleTileFocusIn}
+                    onFocusOut={interactions.handleTileFocusOut}
+                    onOpenLink={commands.openTileLink}
+                    onMediaLoad={commands.updateTileFromMediaLoad}
+                    onPressStart={interactions.handleTilePressStart}
+                    onRetry={commands.retryTilePreview}
+                    canvasToolMode={canvasToolMode}
+                    textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
+                    onRequestTextBoxEdit={requestTextBoxEdit}
+                    onEndTextBoxEdit={clearTextBoxEditState}
+                  />
+                </div>
               ))}
             </div>
           </>

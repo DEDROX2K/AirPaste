@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { recordDerivedMetric } from "../../lib/perf";
 import {
+  getRackMountedTileScale,
   getRackSlotCount,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
@@ -16,19 +17,14 @@ import {
 } from "./tileLayout";
 
 function getRackAttachedStyleVars(tile, entry, zIndex) {
-  const rackScale = Math.max(
-    0.5,
-    Math.min(
-      0.74,
-      164 / Math.max(1, tile.width),
-      210 / Math.max(1, tile.height),
-    ),
-  );
-  const rackHoverScale = Math.min(0.82, rackScale + 0.08);
+  const rackScale = getRackMountedTileScale(tile);
 
-  return getTileStyleVars(tile, zIndex, entry.x, entry.y, entry.width, entry.height, {
-    "--rack-card-scale": String(rackScale),
-    "--rack-hover-card-scale": String(rackHoverScale),
+  return getTileStyleVars(tile, zIndex, entry.x, entry.y, tile.width, tile.height, {
+    // The mounted box owns the visible coordinates and hit area. The original
+    // tile dimensions stay available to the inner content before it is scaled.
+    "--tile-layout-width": `${entry.width}px`,
+    "--tile-layout-height": `${entry.height}px`,
+    "--tile-content-scale": String(rackScale),
     "--rack-slot-index": String(entry.rackSlotIndex ?? 0),
   });
 }
@@ -65,8 +61,17 @@ export function useTileLayoutSystem({
       return canvasEntries;
     }
 
-    return canvasEntries.filter((entry) => rectsIntersect(visibleWorldRect, entry.rect));
-  }, [canvasEntries, visibleWorldRect]);
+    return canvasEntries.filter((entry) => {
+      const isDirectlyDragged = draggingTileIdSet.has(entry.tile.id);
+      const isChildOfDraggedRack = Boolean(entry.rackId && draggingTileIdSet.has(entry.rackId));
+
+      // A rack's persisted coordinates do not update until drop. Keep its
+      // mounted children rendered while it crosses the viewport boundary.
+      return isDirectlyDragged
+        || isChildOfDraggedRack
+        || rectsIntersect(visibleWorldRect, entry.rect);
+    });
+  }, [canvasEntries, draggingTileIdSet, visibleWorldRect]);
   const rackTileChildrenByRackId = useMemo(() => Object.fromEntries(
     tiles
       .filter((tile) => tile.type === RACK_CARD_TYPE)
@@ -108,7 +113,9 @@ export function useTileLayoutSystem({
         const parentRackSelected = Boolean(parentRackId && selectedTileIdSet.has(parentRackId));
         const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
         const flags = {
-          isDragging: draggingTileIdSet.has(tile.id) || parentRackDragging,
+          // Mounted children move with their rack through dragVisualDelta,
+          // but must not receive the direct-drag visual transforms themselves.
+          isDragging: draggingTileIdSet.has(tile.id),
           isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
           isFocused: focusedTileId === tile.id || parentRackFocused,
           isHovered: hoveredTileId === tile.id,

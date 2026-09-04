@@ -150,6 +150,15 @@ export default function App() {
       return undefined;
     }
 
+    const previousIsCanvas = previousEditorKey.startsWith("canvas:");
+    const currentIsCanvas = currentEditorKey.startsWith("canvas:");
+
+    // Reserve the full-screen effect for entering or leaving a workspace.
+    // Moving between pages within an open canvas should feel instantaneous.
+    if (previousIsCanvas === currentIsCanvas) {
+      return undefined;
+    }
+
     const pointer = window[LAST_POINTER_POSITION_KEY];
     const fallbackOrigin = {
       x: Math.round(window.innerWidth / 2),
@@ -159,8 +168,8 @@ export default function App() {
     setScreenTransition({
       id: Date.now(),
       origin: pointer && Number.isFinite(pointer.x) && Number.isFinite(pointer.y) ? pointer : fallbackOrigin,
-      fromLabel: previousEditorKey.startsWith("canvas") ? "canvas" : "home",
-      toLabel: currentEditorKey.startsWith("canvas") ? "canvas" : "home",
+      fromLabel: previousIsCanvas ? "canvas" : "home",
+      toLabel: currentIsCanvas ? "canvas" : "home",
     });
 
     window.clearTimeout(transitionTimeoutRef.current);

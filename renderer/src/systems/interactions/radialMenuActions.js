@@ -1,16 +1,16 @@
 const CANVAS_ACTION_ORDER = [
   "refresh-failed-previews",
   "snapping",
-  "folder",
+  "text",
   "rack",
   "link",
 ];
 
 const TILE_ACTION_ORDER = [
+  "edit-text",
   "refresh-preview",
   "copy-preview-diagnostics",
   "copy-codex-report",
-  "folder",
   "rack",
   "link",
   "delete",
@@ -29,6 +29,7 @@ export function buildRadialMenuActions({
   showSinglePreviewRefresh = false,
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
+  showEditText = false,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
@@ -104,6 +105,30 @@ export function buildRadialMenuActions({
         activeLabel: snapEnabled ? "Grid On" : "Grid Off",
         isActive: snapEnabled,
         onTrigger: handlers.onToggleSnapping,
+      };
+    }
+
+    if (id === "text") {
+      return {
+        id,
+        label: "Add text",
+        kind: "action",
+        activeLabel: "Label",
+        onTrigger: handlers.onCreateText,
+      };
+    }
+
+    if (id === "edit-text") {
+      if (!showEditText) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Edit text",
+        kind: "action",
+        activeLabel: "Enter",
+        onTrigger: handlers.onEditText,
       };
     }
 

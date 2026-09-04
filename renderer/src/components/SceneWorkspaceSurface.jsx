@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { desktop } from "../lib/desktop";
 import {
+  CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_SOURCE_FILE,
   CANVAS_TEXT_VARIANT_STICKY,
   STICKY_NOTE_BODY_PLACEHOLDER,
@@ -702,7 +703,37 @@ function drawSceneGenericCanvasTextTile(ctx, tile, bounds, renderState, isCanvas
   );
 }
 
+function drawScenePlainCanvasTextLabel(ctx, tile, bounds) {
+  const text = typeof tile?.text === "string" && tile.text.length > 0
+    ? tile.text
+    : "Add text";
+  const insetX = bounds.x + 2;
+  const insetY = bounds.y + 4;
+
+  ctx.save();
+  ctx.fillStyle = tile?.placeholder === true
+    ? "rgba(31, 31, 31, 0.5)"
+    : "#1f1f1f";
+  ctx.font = '500 48px "Segoe UI", sans-serif';
+  ctx.textBaseline = "top";
+  drawClampedText(
+    ctx,
+    text,
+    insetX,
+    insetY,
+    Math.max(20, bounds.width - 4),
+    56,
+    Math.max(1, Math.floor((bounds.height - 8) / 56)),
+  );
+  ctx.restore();
+}
+
 function drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  if (tile?.format === CANVAS_TEXT_FORMAT_PLAIN) {
+    drawScenePlainCanvasTextLabel(ctx, tile, bounds);
+    return;
+  }
+
   if (tile?.variant !== CANVAS_TEXT_VARIANT_STICKY) {
     drawSceneGenericCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving);
     return;

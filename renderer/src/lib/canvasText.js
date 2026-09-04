@@ -2,6 +2,7 @@ export const CANVAS_TEXT_SOURCE_LOCAL = "local";
 export const CANVAS_TEXT_SOURCE_FILE = "file";
 export const CANVAS_TEXT_VARIANT_DEFAULT = "default";
 export const CANVAS_TEXT_VARIANT_STICKY = "sticky";
+export const CANVAS_TEXT_FORMAT_PLAIN = "plain";
 export const CANVAS_TEXT_FORMAT_MARKDOWN = "markdown";
 export const CANVAS_TEXT_TITLE_MODE_DERIVED = "derived";
 export const CANVAS_TEXT_TITLE_MODE_CUSTOM = "custom";

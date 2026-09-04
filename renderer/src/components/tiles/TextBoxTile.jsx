@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useAppContext } from "../../context/useAppContext";
 import {
   getTextBoxFontFamily,
-  normalizeTextBoxStyle,
+  TEXT_BOX_DEFAULT_STYLE,
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
@@ -110,7 +110,7 @@ function TextBoxTile({
   const lastEditorSelectionRef = useRef({ start: null, end: null, scrollTop: 0 });
   const isMoving = performanceMode?.simplifyDuringMotion === true;
   const isPassiveTextDisplay = !isEditing;
-  const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [card.style]);
+  const normalizedStyle = TEXT_BOX_DEFAULT_STYLE;
   const isPlainTextLayer = appearance !== "sticky";
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const isTextToolActive = canvasToolMode === DRAWING_TOOL_MODE_TEXT;
@@ -470,7 +470,7 @@ function TextBoxTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className={`card__surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
+          <section className={`card__text-box-surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
             {isEditing ? (
               <textarea
                 ref={textareaRef}

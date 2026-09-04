@@ -11,7 +11,12 @@ import ProgressTile from "./ProgressTile";
 import RackTile from "./RackTile";
 import StickyNoteTile from "./StickyNoteTile";
 import TableTile from "./TableTile";
-import { CANVAS_TEXT_VARIANT_STICKY } from "../../lib/canvasText";
+import TextBoxTile from "./TextBoxTile";
+import {
+  CANVAS_TEXT_FORMAT_PLAIN,
+  CANVAS_TEXT_SOURCE_FILE,
+  CANVAS_TEXT_VARIANT_STICKY,
+} from "../../lib/canvasText";
 import TILE_TYPES from "../../tiles/tileTypes";
 
 const tileRegistry = {
@@ -68,6 +73,16 @@ export function getTileRegistration(cardOrType) {
   ) {
     return {
       Component: StickyNoteTile,
+    };
+  }
+
+  if (
+    tileType === TILE_TYPES.CANVAS_TEXT
+    && cardOrType?.source !== CANVAS_TEXT_SOURCE_FILE
+    && cardOrType?.format === CANVAS_TEXT_FORMAT_PLAIN
+  ) {
+    return {
+      Component: TextBoxTile,
     };
   }
 

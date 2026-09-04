@@ -40,4 +40,3 @@ export function isSceneSafeTile(tile) {
 
   return false;
 }
-

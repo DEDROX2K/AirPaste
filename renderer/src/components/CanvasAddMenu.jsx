@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
 
 const MENU_ITEMS = [
-  { key: "text-card", label: "Text card", icon: "notes" },
+  { key: "text-card", label: "Text", icon: "text" },
   { key: "vault-note", label: "Add note from vault", icon: "notes" },
   { key: "checklist", label: "Checklist", icon: "checklist" },
   { key: "table", label: "Table", icon: "table" },

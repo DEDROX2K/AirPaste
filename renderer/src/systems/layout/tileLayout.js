@@ -1,13 +1,14 @@
 import {
+  getRackMountedTileScale,
   getRackSize,
   getRackTileWorldPosition,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
 
 export const MARQUEE_DRAG_THRESHOLD = 6;
-export const RACK_DROP_REACH = 520;
-export const RACK_DROP_SIDE_PADDING = 28;
-export const RACK_DROP_BOTTOM_PADDING = 36;
+export const RACK_DROP_REACH = 220;
+export const RACK_DROP_SIDE_PADDING = 18;
+export const RACK_DROP_BOTTOM_PADDING = 18;
 
 export function normalizeRect(startX, startY, endX, endY) {
   const left = Math.min(startX, endX);
@@ -151,6 +152,9 @@ export function getRackDropRect(rackTile) {
 
 export function getRackAttachedTileEntry(rackTile, childTile, index) {
   const worldPosition = getRackTileWorldPosition(rackTile, childTile, index);
+  const mountedScale = getRackMountedTileScale(childTile);
+  const mountedWidth = childTile.width * mountedScale;
+  const mountedHeight = childTile.height * mountedScale;
 
   return {
     tile: childTile,
@@ -161,16 +165,16 @@ export function getRackAttachedTileEntry(rackTile, childTile, index) {
     localY: worldPosition.y - rackTile.y,
     x: worldPosition.x,
     y: worldPosition.y,
-    width: childTile.width,
-    height: childTile.height,
+    width: mountedWidth,
+    height: mountedHeight,
     rackSlotIndex: index,
     rect: {
       left: worldPosition.x,
       top: worldPosition.y,
-      right: worldPosition.x + childTile.width,
-      bottom: worldPosition.y + childTile.height,
-      width: childTile.width,
-      height: childTile.height,
+      right: worldPosition.x + mountedWidth,
+      bottom: worldPosition.y + mountedHeight,
+      width: mountedWidth,
+      height: mountedHeight,
     },
   };
 }

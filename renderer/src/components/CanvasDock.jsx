@@ -159,7 +159,7 @@ export default function CanvasDock({
       icon: PenLine,
       disabled,
       children: [
-        { key: "text-card", label: "Text card", icon: Type, onSelect: () => commands?.createTextCard?.() },
+        { key: "text-card", label: "Text", icon: Type, onSelect: () => commands?.createTextCard?.() },
         { key: "vault-note", label: "Vault note", icon: BookOpenText, onSelect: () => commands?.addNoteFromVault?.() },
         { key: "checklist", label: "Checklist", icon: ListChecks, onSelect: () => commands?.createChecklist?.() },
         { key: "sticky", label: "Sticky note", icon: StickyNote, onSelect: () => commands?.createSticky?.() },

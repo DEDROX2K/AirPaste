@@ -238,6 +238,7 @@ export function useCanvasCommands({
   createNewDeadlineCard,
   createNewLinkCard,
   createNewCanvasTextCard,
+  createNewTextBoxCard,
   createNewProgressCard,
   createNewRackCard,
   createNewTableCard,
@@ -478,19 +479,16 @@ export function useCanvasCommands({
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const note = createNewCanvasTextCard(centerPoint, {
-      source: CANVAS_TEXT_SOURCE_LOCAL,
-      variant: CANVAS_TEXT_VARIANT_DEFAULT,
-      titleMode: CANVAS_TEXT_TITLE_MODE_DERIVED,
+    const note = createNewTextBoxCard(centerPoint, {
       text: typeof options?.text === "string" ? options.text : "",
       width: options?.width,
       height: options?.height,
     });
 
-    log("success", "New text card created on the canvas", centerPoint);
-    toast("success", "Text card dropped into place.");
+    log("success", "New plain text object created on the canvas", centerPoint);
+    toast("success", "Text dropped into place.");
     return note;
-  }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
+  }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
 
   const createNote = useCallback((preferredCenter = null) => {
     return createTextCard(preferredCenter);
@@ -1099,7 +1097,8 @@ export function useCanvasCommands({
 
     const centerPoint = getViewportCenter();
     const clipboardData = event.clipboardData;
-    const text = clipboardData?.getData("text/plain")?.trim() ?? "";
+    const rawText = clipboardData?.getData("text/plain") ?? "";
+    const text = rawText.trim();
 
     try {
       const pastedImage = await readClipboardImage(clipboardData);
@@ -1158,7 +1157,16 @@ export function useCanvasCommands({
       void queueLinkPreview(tile);
       return;
     }
+
+    const textTile = createTextCard(centerPoint, { text: rawText });
+    if (textTile) {
+      log("success", "Pasted text into canvas center", {
+        characterCount: rawText.length,
+        centerPoint,
+      });
+    }
   }, [
+    createTextCard,
     createNewLinkCard,
     folderPath,
     getViewportCenter,
