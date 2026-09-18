@@ -1058,19 +1058,12 @@ export default function HomeShell() {
                 Menu
               </AppButton>
             ) : null}
-            <div className="home-toolbar-actions">
-              <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
-                <Plus size={17} aria-hidden="true" />
-                Create Canvas
-              </AppButton>
-              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
-                <Import size={16} aria-hidden="true" />
-                Import
-              </AppButton>
+            <div className="home-toolbar-title">
+              <span className="home-toolbar-title__eyebrow">Workspace</span>
+              <h1>{sectionTitle}</h1>
             </div>
             <div className="toolbar-cluster toolbar-cluster--secondary">
-              <div className="home-toolbar-tools">
-                <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
+              <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
                 <button
                   type="button"
                   role="tab"
@@ -1119,7 +1112,16 @@ export default function HomeShell() {
               >
                 <RefreshCw size={16} aria-hidden="true" />
               </AppButton>
-              </div>
+            </div>
+            <div className="home-toolbar-actions">
+              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
+                <Import size={16} aria-hidden="true" />
+                Import
+              </AppButton>
+              <AppButton type="button" tone="accent" onClick={() => openCreateDialog("canvas", "Canvas")}>
+                <Plus size={17} aria-hidden="true" />
+                Create Canvas
+              </AppButton>
             </div>
           </div>
         ) : null}

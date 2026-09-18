@@ -12,6 +12,7 @@ import "./final-overrides.css";
 import "./components/HomeShellPremium.css";
 import "./components/TilePolish.css";
 import "./components/CanvasDockPolish.css";
+import "./components/SimpleUi.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <StrictMode>

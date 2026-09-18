@@ -1,0 +1,635 @@
+/* Final UI foundation: one neutral visual language for Home and open workspaces. */
+
+:root {
+  --ap-simple-page: #f8f9fa;
+  --ap-simple-surface: #ffffff;
+  --ap-simple-subtle: #f6f7f8;
+  --ap-simple-hover: #f1f3f4;
+  --ap-simple-active: #e8eaed;
+  --ap-simple-line: #dadce0;
+  --ap-simple-line-strong: #bdc1c6;
+  --ap-simple-ink: #202124;
+  --ap-simple-muted: #5f6368;
+  --ap-simple-radius-control: 8px;
+  --ap-simple-radius-surface: 12px;
+  --ap-tile-bg: #ffffff;
+  --ap-tile-bg-solid: #ffffff;
+  --ap-tile-bg-muted: #f6f7f8;
+  --ap-tile-bg-subtle: #f8f9fa;
+  --ap-tile-ink: #202124;
+  --ap-tile-muted: #5f6368;
+  --ap-tile-line: #dadce0;
+  --ap-tile-line-strong: #bdc1c6;
+  --ap-tile-selected: #202124;
+  --ap-tile-selected-soft: transparent;
+  --ap-tile-radius: var(--ap-simple-radius-surface);
+  --ap-tile-radius-inner: var(--ap-simple-radius-control);
+  --ap-tile-shadow: none;
+  --ap-tile-shadow-hover: none;
+  --ap-tile-shadow-selected: none;
+}
+
+body,
+.app-window,
+.app-shell__view-container {
+  background: var(--ap-simple-page) !important;
+  color: var(--ap-simple-ink) !important;
+}
+
+/* Home */
+.home-shell,
+.home-shell--launch,
+.workspace-main,
+.workspace-main-content,
+.browser-panel,
+.home-content,
+.home-browser-grid,
+.home-browser-list {
+  background: var(--ap-simple-surface) !important;
+  background-image: none !important;
+}
+
+.home-shell {
+  gap: 0 !important;
+}
+
+.home-sidebar,
+.home-toolbar-shell,
+.browser-panel,
+.browser-panel-header {
+  border-color: var(--ap-simple-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.home-sidebar {
+  background: var(--ap-simple-surface) !important;
+  background-image: none !important;
+}
+
+.home-toolbar-shell,
+.browser-panel-header {
+  background: var(--ap-simple-surface) !important;
+}
+
+:is(.home-canvas-card, .browser-card, .empty-card, .workspace-launch__panel, .dialog-card) {
+  border: 1px solid var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-surface) !important;
+  background: var(--ap-simple-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+:is(.home-canvas-card, .browser-card):hover {
+  border-color: var(--ap-simple-line-strong) !important;
+  background: var(--ap-simple-subtle) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:is(.sidebar-link, .home-sidebar-action, .home-folder-tree__button, .home-sidebar-section, .list-row, .home-browser-entry, .left-pages-panel__item) {
+  border-radius: var(--ap-simple-radius-control) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+:is(.sidebar-link, .home-sidebar-action, .home-folder-tree__button, .home-sidebar-section, .list-row, .home-browser-entry, .left-pages-panel__item):hover {
+  background: var(--ap-simple-hover) !important;
+  color: var(--ap-simple-ink) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:is(.sidebar-link.is-active, .home-sidebar-section--active, .home-folder-tree__row--active .home-folder-tree__button, .home-folder-tree__root--active, .left-pages-panel__item--active) {
+  border-color: transparent !important;
+  background: var(--ap-simple-active) !important;
+  color: var(--ap-simple-ink) !important;
+  box-shadow: none !important;
+}
+
+/* Shared controls, menus, and feedback surfaces. */
+:is(.home-view-toggle, .workspace-view-toggle, .drawing-tool-controls, .grid-view-filter-toggle, .canvas-win-strip, .canvas-dock__rail, .canvas-dock__fan, .tile-context-menu, .zoom-menu__menu, .canvas-minimap__panel) {
+  border: 1px solid var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-surface) !important;
+  background: var(--ap-simple-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:is(button, .button, .ap-ui-button, .home-button, .home-view-toggle__button, .workspace-view-toggle__button, .drawing-tool-controls__button, .grid-view-filter-toggle__button, .canvas-dock__item, .canvas-dock__fan-item, .zoom-menu__trigger, .canvas-minimap__toggle, .left-pages-panel__icon-button, .tile-context-menu__action) {
+  border-radius: var(--ap-simple-radius-control) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+:is(.home-view-toggle__button--active, .workspace-view-toggle__button--active, .drawing-tool-controls__button--active, .grid-view-filter-toggle__button--active, .canvas-dock__item--active, .canvas-dock__item--utility.canvas-dock__item--active) {
+  border-color: var(--ap-simple-line-strong) !important;
+  background: var(--ap-simple-active) !important;
+  color: var(--ap-simple-ink) !important;
+  box-shadow: none !important;
+}
+
+:is(button, .button, .ap-ui-button, .home-button, .home-view-toggle__button, .workspace-view-toggle__button, .drawing-tool-controls__button, .grid-view-filter-toggle__button, .canvas-dock__item, .canvas-dock__fan-item, .zoom-menu__trigger, .canvas-minimap__toggle, .left-pages-panel__icon-button, .tile-context-menu__action):hover:not(:disabled) {
+  background: var(--ap-simple-hover) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:is(button, .button, .ap-ui-button, .home-button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--ap-simple-ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+/* Open workspace */
+.app-shell__workspace-layout {
+  gap: 0 !important;
+  padding: 0 !important;
+  background: var(--ap-simple-page) !important;
+}
+
+.app-shell__workspace-layout .left-pages-panel {
+  border: 0 !important;
+  border-right: 1px solid var(--ap-simple-line) !important;
+  border-radius: 0 !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+}
+
+.app-shell__workspace-layout .left-pages-panel__header {
+  border-bottom-color: var(--ap-simple-line) !important;
+}
+
+.app-shell__workspace-layout .canvas-stage {
+  --canvas-board-inset: 0px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--ap-simple-page) !important;
+  box-shadow: none !important;
+}
+
+.app-shell__workspace-layout #canvas-board {
+  inset: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+}
+
+#titlebar-right-slot .canvas-toolbar-shell--right .zoom-menu__trigger {
+  border: 1px solid var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-control) !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Tile chrome stays quiet so content remains the focus. */
+.canvas__content :is(.card__surface, .card__record-sleeve, .card__video-frame),
+.grid-workspace :is(.card__surface, .card__record-sleeve, .card__video-frame) {
+  border: 1px solid var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-surface) !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging) .card__surface,
+.grid-workspace .card--hovered:not(.card--dragging) .card__surface {
+  border-color: var(--ap-simple-line-strong) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--selected .card__surface-frame,
+.canvas__content .card__surface-frame--selected,
+.grid-workspace .card--selected .card__surface-frame,
+.grid-workspace .card__surface-frame--selected {
+  outline: 2px solid var(--ap-simple-ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front),
+.grid-workspace .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front) {
+  border-color: var(--ap-simple-line) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--dragging .card__surface,
+.grid-workspace .card--dragging .card__surface,
+.canvas__content .card[data-tile-state="editing"] .card__surface,
+.grid-workspace .card[data-tile-state="editing"] .card__surface {
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface--file,
+.grid-workspace .card__surface--file {
+  border-color: var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-surface) !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__file-hero,
+.grid-workspace .card__file-hero {
+  border-color: var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-control) !important;
+  background: var(--ap-simple-subtle) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__file-hero::before,
+.grid-workspace .card__file-hero::before {
+  background: var(--ap-simple-muted) !important;
+  box-shadow: 0 15px 0 #9aa0a6, 0 30px 0 #c7cacf !important;
+}
+
+.canvas__content .card__file-hero::after,
+.grid-workspace .card__file-hero::after,
+.canvas__content .card__file-type,
+.grid-workspace .card__file-type,
+.canvas__content .card__file-size-pill,
+.grid-workspace .card__file-size-pill {
+  border-color: var(--ap-simple-line) !important;
+  background: var(--ap-simple-subtle) !important;
+  color: var(--ap-simple-muted) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--file.card--hovered .card__surface--file,
+.grid-workspace .card--file.card--hovered .card__surface--file {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.canvas__content :is(.card__quick-actions, .card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle),
+.grid-workspace :is(.card__quick-actions, .card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle) {
+  border: 1px solid var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-control) !important;
+  background: var(--ap-simple-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.canvas__content :is(.card__quick-action, .card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action),
+.grid-workspace :is(.card__quick-action, .card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action) {
+  border-color: var(--ap-simple-line) !important;
+  border-radius: var(--ap-simple-radius-control) !important;
+  background: var(--ap-simple-surface) !important;
+  color: var(--ap-simple-ink) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+@media (max-width: 900px) {
+  .app-shell__workspace-layout {
+    padding: 0 !important;
+  }
+}
+
+/* Home refinement — a restrained desktop workspace with Figma-like hierarchy. */
+.home-shell {
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+  background: #f7f7f8 !important;
+}
+
+.home-sidebar {
+  padding: 18px 12px !important;
+  border-right: 1px solid #e4e4e7 !important;
+  background: #ffffff !important;
+}
+
+.sidebar-section {
+  gap: 3px !important;
+}
+
+.home-sidebar .sidebar-link {
+  min-height: 36px !important;
+  padding: 8px 10px !important;
+  border-radius: 7px !important;
+  color: #55565c !important;
+}
+
+.home-sidebar .sidebar-link:hover {
+  background: #f5f5f6 !important;
+}
+
+.home-sidebar .sidebar-link.is-active {
+  background: #ececee !important;
+  color: #202124 !important;
+}
+
+.workspace-badge {
+  padding: 1px 6px !important;
+  border-radius: 999px !important;
+  background: #f0f0f1 !important;
+  color: #74757b !important;
+  font-size: 11px !important;
+}
+
+.workspace-main {
+  padding: 32px 40px 40px !important;
+  gap: 24px !important;
+  background: #f7f7f8 !important;
+}
+
+.home-toolbar-shell {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  min-height: 52px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.home-toolbar-title {
+  min-width: 168px;
+  margin-right: auto;
+}
+
+.home-toolbar-title__eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: #87888e;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.home-toolbar-title h1 {
+  margin: 0;
+  color: #202124;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+
+.home-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-toolbar-actions .ap-ui-button {
+  min-height: 34px !important;
+  border: 1px solid #dedee2 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #3f4045 !important;
+  font-size: 13px !important;
+  font-weight: 560 !important;
+}
+
+.home-toolbar-actions .ap-ui-button--accent {
+  border-color: #0d99ff !important;
+  background: #0d99ff !important;
+  color: #ffffff !important;
+}
+
+.home-toolbar-actions .ap-ui-button--accent:hover {
+  background: #078be9 !important;
+}
+
+.toolbar-cluster--secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.home-view-toggle {
+  gap: 2px !important;
+  padding: 3px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: #eaeaec !important;
+}
+
+.home-view-toggle__button {
+  min-width: 72px !important;
+  min-height: 30px !important;
+  gap: 7px;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #6d6e74 !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.home-view-toggle__button.is-active {
+  background: #ffffff !important;
+  color: #202124 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12) !important;
+}
+
+.workspace-main-content {
+  margin: 0 !important;
+  border: 1px solid #e3e3e6 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.browser-panel,
+.browser-panel-header {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+}
+
+.browser-panel-header {
+  min-height: 58px;
+  padding: 0 20px !important;
+  border-bottom: 1px solid #ececef !important;
+}
+
+.panel-title {
+  color: #28292e !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.browser-panel-header__pill {
+  border: 1px solid #e2e2e5 !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #74757b !important;
+  font-size: 12px !important;
+  font-weight: 560 !important;
+}
+
+.home-browser-cards {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 20px !important;
+}
+
+.home-canvas-card {
+  border: 1px solid #e3e3e6 !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.home-canvas-card:hover {
+  border-color: #cfcfd5 !important;
+  background: #ffffff !important;
+  box-shadow: 0 5px 16px rgba(25, 25, 28, .06) !important;
+  transform: translateY(-1px) !important;
+}
+
+.home-canvas-card__thumb {
+  aspect-ratio: 16 / 9 !important;
+  background: #f4f4f5 !important;
+  border-bottom: 1px solid #e8e8eb;
+}
+
+.home-canvas-card__thumb-placeholder {
+  background: linear-gradient(135deg, #f5f5f7, #ececf0) !important;
+}
+
+.home-canvas-card__meta {
+  padding: 12px 14px 14px !important;
+  gap: 5px !important;
+}
+
+.home-canvas-card__title {
+  color: #292a2f !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 620 !important;
+}
+
+.home-canvas-card__subtitle,
+.home-canvas-card__summary {
+  color: #77787f !important;
+  font-size: 12px !important;
+}
+
+.home-canvas-card__toolbar {
+  top: 8px !important;
+  right: 8px !important;
+}
+
+.home-canvas-card__icon-button {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  border: 1px solid #e1e1e4 !important;
+  border-radius: 6px !important;
+  background: rgba(255,255,255,.92) !important;
+  color: #65666c !important;
+}
+
+.home-canvas-card__icon-button:hover {
+  background: #ffffff !important;
+  color: #202124 !important;
+  transform: none !important;
+}
+
+@media (max-width: 1079px) {
+  .home-shell { grid-template-columns: 1fr !important; }
+  .workspace-main { padding: 20px !important; }
+  .home-toolbar-shell { flex-wrap: wrap !important; }
+  .home-toolbar-title { flex: 1 1 100%; }
+}
+
+/* Home uses separate, softly elevated surfaces inspired by Pixel's Material UI. */
+.home-shell {
+  gap: 14px !important;
+  padding: 14px !important;
+  background:
+    radial-gradient(circle at 78% 10%, rgba(186, 220, 246, 0.62), transparent 30%),
+    radial-gradient(circle at 22% 92%, rgba(225, 211, 248, 0.56), transparent 34%),
+    linear-gradient(145deg, #eff4f7, #f8f7fb 48%, #edf1f8) !important;
+}
+
+.home-sidebar,
+.home-toolbar-shell,
+.workspace-main-content {
+  border: 1px solid rgba(255, 255, 255, 0.82) !important;
+  background: rgba(250, 252, 255, 0.7) !important;
+  box-shadow:
+    0 14px 32px rgba(76, 88, 110, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(24px) saturate(1.12);
+}
+
+.home-sidebar { border-radius: 28px !important; }
+
+.workspace-main {
+  padding: 4px 4px 4px 2px !important;
+  gap: 12px !important;
+  background: transparent !important;
+}
+
+.home-toolbar-shell {
+  min-height: 64px !important;
+  padding: 10px 12px !important;
+  border-radius: 22px !important;
+}
+
+.workspace-main-content {
+  border-radius: 28px !important;
+  background: rgba(252, 253, 255, 0.76) !important;
+  box-shadow:
+    0 20px 48px rgba(76, 88, 110, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+}
+
+.home-toolbar-actions .ap-ui-button,
+.toolbar-cluster--secondary > .ap-ui-button {
+  min-height: 38px !important;
+  border: 1px solid rgba(83, 98, 122, 0.14) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: #374151 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+}
+
+.home-toolbar-actions .ap-ui-button--accent {
+  border-color: #1769e0 !important;
+  background: #1769e0 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(23, 105, 224, 0.22) !important;
+}
+
+.home-toolbar-actions .ap-ui-button--accent:hover { background: #0f5cc7 !important; }
+
+.home-view-toggle {
+  padding: 4px !important;
+  border: 1px solid rgba(83, 98, 122, 0.12) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+}
+
+.home-view-toggle__button { border-radius: 12px !important; }
+
+.home-canvas-card,
+.browser-card {
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  box-shadow:
+    0 10px 24px rgba(76, 88, 110, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+}
+
+.home-canvas-card:hover,
+.browser-card:hover {
+  box-shadow:
+    0 16px 30px rgba(76, 88, 110, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
+  transform: translateY(-3px) !important;
+}
