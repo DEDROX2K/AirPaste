@@ -1,14 +1,8 @@
-# AirPaste
+﻿# AirPaste
+
+![AirPaste](./3.png)
 
 AirPaste is a local-first desktop canvas app for capturing links, text, images, and managed notes into a single folder workspace. It stores everything in a local JSON file and keeps UI state, layout, and content in one place.
-
-## What’s in this version
-
-- Canvas + app shell restyle with a semantic design system (Apple-style greyscale tokens) in `renderer/src/design/theme.css` and `renderer/src/design/tokens.css`.
-- Shared app primitives (buttons, panels, window frame pieces) aligned to the new tokens in `renderer/src/components/ui/app/AppPrimitives.css`.
-- Titlebar tabs + top chrome polish in `renderer/src/components/TopTabBar.css` and `renderer/src/components/HomeShellPrototype.css`.
-- CSS layering tightened by moving “last mile” overrides into `renderer/src/final-overrides.css` and keeping global entry styles in `renderer/src/index.css`.
-- Design references and prototypes kept under `docs/design/` for quick iteration without touching runtime code.
 
 ## Features
 
@@ -18,6 +12,10 @@ AirPaste is a local-first desktop canvas app for capturing links, text, images, 
 - Selection, drag, context menu, and toolbar actions
 - Manual creation for checklist, note, table, code snippet, and rack tiles
 - Rack tiles with mount/hover/out-of-zone states
+
+![](./1.png)
+
+![](./2.png)
 
 ## Project Structure
 
@@ -98,7 +96,7 @@ AirPaste/
 - `renderer/src/design/theme.css`: semantic tokens + theme mappings (`[data-theme="light"]` / `[data-theme="dark"]`)
 - `renderer/src/components/ui/app/AppPrimitives.css`: reusable app chrome and primitives, consuming semantic tokens
 - `renderer/src/index.css`: global entry point styles and layout glue
-- `renderer/src/final-overrides.css`: the “last file wins” override layer (keep this small and intentional)
+- `renderer/src/final-overrides.css`: the "last file wins" override layer (keep this small and intentional)
 - `docs/design/*`: design-system sandbox files (not runtime critical; safe to iterate)
 
 ### Storage model
@@ -140,7 +138,7 @@ If Electron keeps showing its default icon in dev, restart `npm run dev` after c
 
 ## Notes
 
-- Keep `scratch/` for one-off scripts or experiments; don’t rely on it in production code.
+- Keep `scratch/` for one-off scripts or experiments; don't rely on it in production code.
 - Open Graph scraping uses `open-graph-scraper`, and screenshot fallback uses Electron's own hidden browser window capture.
 
 ## Troubleshooting
