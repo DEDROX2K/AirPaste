@@ -13,6 +13,7 @@ import "./components/HomeShellPremium.css";
 import "./components/TilePolish.css";
 import "./components/CanvasDockPolish.css";
 import "./components/SimpleUi.css";
+import "./components/MonochromeUi.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <StrictMode>

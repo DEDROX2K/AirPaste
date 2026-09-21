@@ -1,0 +1,159 @@
+/* Final visual owner: a quiet, neutral UI with no competing accent colour. */
+:root {
+  --ap-premium-bg: #f2f2f3;
+  --ap-premium-bg-2: #fafafa;
+  --ap-premium-ink: #242426;
+  --ap-premium-muted: #747477;
+  --ap-premium-accent: #343436;
+  --ap-premium-accent-2: #6e6e73;
+  --ap-premium-warm: #6e6e73;
+  --ap-dock-bg: rgba(242, 242, 243, 0.84);
+  --ap-dock-accent: #343436;
+  --ap-tile-selected: #3a3a3c;
+  --ap-tile-selected-soft: rgba(58, 58, 60, 0.14);
+  --ap-tile-merge: #626266;
+  --ap-tile-danger: #626266;
+  --ap-status-success-bg: rgba(0, 0, 0, 0.06);
+  --ap-status-success-text: #3a3a3c;
+  --ap-status-success-border: rgba(0, 0, 0, 0.14);
+  --ap-status-warning-bg: rgba(0, 0, 0, 0.06);
+  --ap-status-warning-text: #3a3a3c;
+  --ap-status-warning-border: rgba(0, 0, 0, 0.14);
+  --ap-status-danger-bg: rgba(0, 0, 0, 0.08);
+  --ap-status-danger-text: #242426;
+  --ap-status-danger-border: rgba(0, 0, 0, 0.18);
+}
+
+.home-shell {
+  background: linear-gradient(145deg, #f1f1f2, #fafafa 48%, #eeeeef) !important;
+}
+
+:is(.home-sidebar, .home-toolbar-shell, .workspace-main-content) {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+}
+
+.workspace-main-content {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+:is(.sidebar-link.is-active, .canvas-dock__item--active, .canvas-dock__item--utility.canvas-dock__item--active) {
+  border-color: rgba(0, 0, 0, 0.16) !important;
+  background: rgba(0, 0, 0, 0.07) !important;
+  color: #242426 !important;
+}
+
+:is(.ap-ui-button--accent, .home-toolbar-actions .ap-ui-button--accent, .toolbar-cluster--secondary > .ap-ui-button--accent) {
+  border-color: #343436 !important;
+  background: #343436 !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16) !important;
+}
+
+:is(.ap-ui-button--accent, .home-toolbar-actions .ap-ui-button--accent):hover:not(:disabled) {
+  background: #4a4a4d !important;
+}
+
+.boot-splash__progress span {
+  background: linear-gradient(90deg, #343436, #858588) !important;
+}
+
+:is(.canvas-dock__item:focus-visible, .titlebar-command-chip:focus-visible, .titlebar-tab:focus-visible, .ap-ui-button:focus-visible, .sidebar-link:focus-visible, .home-view-toggle__button:focus-visible) {
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.11), 0 0 0 1px rgba(0, 0, 0, 0.38) !important;
+}
+
+.canvas-dock__indicator {
+  background: #343436 !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+:is(.canvas__content, .grid-workspace) .card__surface-frame--selected {
+  outline-color: #3a3a3c !important;
+}
+
+:is(.canvas__content, .grid-workspace) :is(.card--selected .card__surface, .card__surface-frame--selected .card__surface) {
+  border-color: rgba(0, 0, 0, 0.34) !important;
+}
+
+:is(.canvas__content, .grid-workspace) .card[data-tile-state="editing"] .card__surface {
+  border-color: rgba(0, 0, 0, 0.34) !important;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.09), var(--ap-tile-shadow) !important;
+}
+
+:is(.canvas__content, .grid-workspace) :is(.card__surface-frame--merge-target, .card--merge-target .card__surface-frame, .card--folder-group-target .card__surface-frame, .card--folder-group-armed .card__surface-frame) {
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.32), var(--ap-tile-shadow) !important;
+}
+
+/* Neutralize the remaining blue-tinted gradients in the persistent shell without desaturating content previews. */
+:is(.canvas-dock__rail, .canvas-win-strip, .titlebar-root) {
+  backdrop-filter: blur(24px) saturate(0) !important;
+}
+
+.card__quick-action,
+.card__retry {
+  border-color: rgba(0, 0, 0, 0.16) !important;
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #3a3a3c !important;
+}
+
+/* Store cards use the same quiet hierarchy as link fallbacks, without Amazon's warm palette. */
+:is(.canvas__content, .grid-workspace) .card__surface--amazon-product {
+  background: #f5f5f5 !important;
+  color: #3a3a3c !important;
+}
+
+.card__amazon-product-media {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.09) !important;
+  background: #e4e4e5 !important;
+}
+
+.card__amazon-product-image {
+  filter: grayscale(1) contrast(0.94) !important;
+}
+
+.card__amazon-product-placeholder {
+  color: #7a7a7d !important;
+  background: #dedee0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.card__amazon-product-body {
+  padding: 16px !important;
+  gap: 10px !important;
+}
+
+:is(.card__amazon-product-domain, .card__amazon-product-asin) {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  background: rgba(0, 0, 0, 0.045) !important;
+  color: #6a6a6d !important;
+}
+
+.card__amazon-product-title {
+  color: #363638 !important;
+  font-weight: 650 !important;
+}
+
+.card__amazon-product-description,
+.card__amazon-product-rating {
+  color: #77777a !important;
+}
+
+.card__amazon-product-price {
+  color: #363638 !important;
+}
+
+.card__amazon-product-cta {
+  border-color: #3a3a3c !important;
+  background: #3a3a3c !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.card__amazon-product-cta:hover:not(:disabled) {
+  background: #57575a !important;
+  border-color: #57575a !important;
+}

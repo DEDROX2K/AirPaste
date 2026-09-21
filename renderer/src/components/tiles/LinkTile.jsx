@@ -56,27 +56,12 @@ function isTwitterLikeSource(card) {
   return sourceType === "twitter" || sourceType === "x" || url.includes("twitter.com/") || url.includes("x.com/");
 }
 
-function getAsciiDomain(url) {
+function getLinkDomain(url) {
   try {
-    const hostname = new URL(url).hostname.replace(/^www\./i, "");
-    return hostname.toUpperCase();
+    return new URL(url).hostname.replace(/^www\./i, "");
   } catch {
-    return "UNTITLED.LINK";
+    return "Untitled link";
   }
-}
-
-function getFallbackLogoSrc(card) {
-  const favicon = typeof card?.favicon === "string" ? card.favicon.trim() : "";
-  if (favicon) {
-    return favicon;
-  }
-
-  const url = typeof card?.url === "string" ? card.url.trim() : "";
-  if (!url) {
-    return "";
-  }
-
-  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(url)}`;
 }
 
 function findPreviewDiagnosticReason(card) {
@@ -363,13 +348,12 @@ function LinkTile({
     : mediaSrc;
   const shouldRenderImage = Boolean(activeVideoImageSrc) && !hasImageError && renderHint?.imageEnabled !== false;
   const isPreviewLoading = !isImageTile && card.status === "loading" && !hasTerminalPreviewState(card) && !shouldRenderImage;
-  const isAsciiFallbackActive = !isImageTile && !shouldRenderImage && !isPreviewLoading;
+  const isPreviewFallbackActive = !isImageTile && !shouldRenderImage && !isPreviewLoading;
   const shouldPreserveMediaAspect = shouldRenderImage
     && !isStickerTile
     && !isMusicCard
     && (isImageTile || isSimplifiedVideoLink || !isVideoCard);
   const shouldUseNaturalMediaLayout = shouldPreserveMediaAspect && !isImageTile;
-  const fallbackBadgeLabel = isTwitterLikeLink ? "X/TWITTER FALLBACK TILE" : "LINK FALLBACK TILE";
   const previewFallbackReason = formatPreviewFallbackReason(card, hasImageError);
   const enableReveal = !isStickerTile && renderHint?.disableImageReveal !== true;
   const hasLinkUrl = typeof card.url === "string" && card.url.trim().length > 0;
@@ -378,16 +362,14 @@ function LinkTile({
   const hasLinkDescription = linkDescription.length > 0;
   const isDescriptionVisible = tileMeta?.isSelected === true
     || tileMeta?.interactionState === "selected";
-  const fallbackDomainLabel = getAsciiDomain(card.url);
-  const fallbackShortLabel = formatShortUrl(card.url).slice(0, 48).toUpperCase();
-  const fallbackLogoSrc = getFallbackLogoSrc(card);
+  const fallbackDomainLabel = getLinkDomain(card.url);
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     isStickerTile ? "card__surface-frame--sticker" : "",
     isMusicCard ? "card__surface-frame--music" : "",
-    isAsciiFallbackActive ? "card__surface-frame--paper-fallback" : "",
+    isPreviewFallbackActive ? "card__surface-frame--preview-fallback" : "",
     isVideoCard && !isSimplifiedVideoLink ? "card__surface-frame--video" : "",
     isVideoCard && !isSimplifiedVideoLink ? `card__surface-frame--video-${videoRecipe.key}` : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
@@ -625,28 +607,13 @@ function LinkTile({
           <p className="card__link-loading-label">Loading preview</p>
         </div>
       ) : (
-        <div className="card__fallback-paper" role="note" aria-label={`Fallback preview for ${linkTitle}`}>
-          <div className="card__fallback-paper__tear" />
-          <div className="card__fallback-paper__body">
-            <div className="card__fallback-paper__head">
-              <div className="card__fallback-paper__logo-wrap" aria-hidden="true">
-                {fallbackLogoSrc ? (
-                  <img className="card__fallback-paper__logo" src={fallbackLogoSrc} alt="" />
-                ) : (
-                  <span className="card__fallback-paper__logo-fallback">{fallbackDomainLabel.slice(0, 1)}</span>
-                )}
-              </div>
-            </div>
-            <p className="card__fallback-paper__rule">--------------------------------</p>
-            <p className="card__fallback-paper__line">{fallbackBadgeLabel}</p>
-            <p className="card__fallback-paper__line">{fallbackShortLabel || "NO PREVIEW AVAILABLE"}</p>
-            <p className="card__fallback-paper__rule">--------------------------------</p>
-            <p className="card__fallback-paper__line">STATUS: {String(card.status || "READY").toUpperCase()}</p>
-            <p className="card__fallback-paper__line">SOURCE: {String(card.sourceType || "LINK").toUpperCase()}</p>
-            <p className="card__fallback-paper__rule">--------------------------------</p>
-            <p className="card__fallback-paper__foot">:: ASCII PREVIEW ::</p>
-            <p className="card__fallback-paper__ascii">[] [] [] [] [] []</p>
+        <div className="card__preview-fallback" role="note" aria-label={`Preview unavailable for ${linkTitle}`}>
+          <span className="card__preview-fallback__icon" aria-hidden="true">↗</span>
+          <div className="card__preview-fallback__details">
+            <p className="card__preview-fallback__title">{linkTitle}</p>
+            <p className="card__preview-fallback__domain">{fallbackDomainLabel}</p>
           </div>
+          <p className="card__preview-fallback__status">{previewFallbackReason || "Preview unavailable"}</p>
         </div>
       )}
     </>
@@ -723,7 +690,7 @@ function LinkTile({
             </div>
           ) : (
             <div
-              className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isAsciiFallbackActive ? " card__surface--paper-fallback" : ""}`}
+              className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isVideoCard && !isSimplifiedVideoLink ? " card__surface--video" : ""}${isSimplifiedVideoLink ? " card__surface--link-plain" : ""}${isStickerTile ? " card__surface--sticker" : ""}${isPreviewFallbackActive ? " card__surface--preview-fallback" : ""}`}
               aria-label={linkTitle}
             >
               {mediaMarkup}

@@ -316,12 +316,12 @@
   box-shadow: none !important;
 }
 
-.canvas__content :is(.card__fallback-paper, .card__surface--paper-fallback),
-.grid-workspace :is(.card__fallback-paper, .card__surface--paper-fallback) {
-  border: 1px solid var(--ap-tile-line) !important;
+.canvas__content :is(.card__preview-fallback, .card__surface--preview-fallback),
+.grid-workspace :is(.card__preview-fallback, .card__surface--preview-fallback) {
+  border: 1px solid #aeb0b5 !important;
   border-radius: var(--ap-tile-radius) !important;
-  background: var(--ap-tile-bg-solid) !important;
-  box-shadow: var(--ap-tile-shadow) !important;
+  background: #d5d6d9 !important;
+  box-shadow: none !important;
 }
 
 .canvas__content .card__surface--file,

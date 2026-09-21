@@ -180,7 +180,7 @@ function AmazonProductTile({
                 />
               ) : (
                 <div className="card__amazon-product-placeholder">
-                  <span>Amazon</span>
+                  <span>Product preview unavailable</span>
                 </div>
               )}
             </div>

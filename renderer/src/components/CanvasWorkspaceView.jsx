@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
-import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
@@ -957,7 +956,6 @@ export default function CanvasWorkspaceView() {
     commitWorkspaceChange,
     currentEditor,
     discardWorkspaceDraft,
-    folderLoading,
     folderPath,
     homeData,
     openTestingTilesCanvas,
@@ -2667,10 +2665,6 @@ export default function CanvasWorkspaceView() {
         <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-            <CanvasAddMenu
-              commands={commands}
-              disabled={!folderPath || folderLoading}
-            />
           </div>
         </div>
         <WorkspaceTopbarTrail />
