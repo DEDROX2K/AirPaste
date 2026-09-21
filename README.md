@@ -2,156 +2,146 @@
 
 ![AirPaste](./3.png)
 
-AirPaste is a local-first desktop canvas app for capturing links, text, images, and managed notes into a single folder workspace. It stores everything in a local JSON file and keeps UI state, layout, and content in one place.
+> A local-first desktop canvas for saving links, text, and images — the way your brain actually works.
+
+**AirPaste** is an open-source Electron app that gives you an infinite canvas workspace to capture anything from your clipboard — URLs with auto-fetched Open Graph previews, images, notes, code snippets, checklists, and more. Everything lives in a single local JSON file. No cloud. No subscription. No \$20/month.
+
+---
+
+## Why I built this
+
+Most "save for later" tools either lock your data in the cloud, charge a subscription, or make it a pain to get things out. AirPaste keeps everything local, in a format you own, with a canvas UI that lets you spatially organise your thoughts the way you actually think.
+
+---
 
 ## Features
 
-- Global paste support for URL, text, and image from clipboard
-- Auto Open Graph link preview with fallback on failure
-- Infinite zoom + pan canvas with tile positioning
-- Selection, drag, context menu, and toolbar actions
-- Manual creation for checklist, note, table, code snippet, and rack tiles
-- Rack tiles with mount/hover/out-of-zone states
+- **Instant clipboard capture** — paste a URL, image, or text directly onto the canvas
+- **Auto Open Graph previews** — links automatically fetch title, description, and cover art
+- **Infinite zoom & pan canvas** — built on Konva for smooth, performant 2D rendering
+- **Multiple tile types** — links, images, notes, checklists, tables, code snippets, and rack tiles
+- **Rich text editing** — notes use Tiptap (ProseMirror) with markdown support
+- **Code tiles** — powered by CodeMirror 6 with syntax highlighting
+- **Multi-page workspaces** — organise content across named tabs within a single file
+- **Drag, resize, group, context menu** — full canvas interaction model
+- **Local-first storage** — workspace is a single `data.json` file; atomic writes with backup logic
+- **Light / dark theme** — semantic CSS token system, Apple-style greyscale palette
+- **Cross-platform** — builds to `.exe` (Windows NSIS), `.dmg` (macOS), and `.AppImage` (Linux)
+
+---
 
 ![](./1.png)
 
 ![](./2.png)
 
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Shell | Electron 37 |
+| Renderer | React 19 + Vite 7 |
+| Canvas | Konva / react-konva |
+| Rich text | Tiptap 3 (ProseMirror) |
+| Code editor | CodeMirror 6 |
+| UI components | Radix UI primitives |
+| Animations | Framer Motion |
+| 3D (experimental) | Three.js + React Three Fiber |
+| Styling | Tailwind CSS + custom CSS token system |
+| Link previews | open-graph-scraper + Electron hidden window screenshot fallback |
+| Storage | Local JSON with atomic write + backup |
+
+---
+
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start in development mode (Vite + Electron, concurrently)
+npm run dev
+
+# Build the renderer bundle
+npm run build
+
+# Package into a distributable (output in release/)
+npm run package
+```
+
+> Requires **Node >= 22**
+
+---
+
 ## Project Structure
 
 ```
 AirPaste/
-├── build/
-│   └── logo.png                    # icon used by Electron
-├── dist-renderer/                 # generated production bundle
-├── public/                        # static assets (manifest, images)
-│   ├── rack/                      # rack pieces (SVG)
-│   ├── tilesimg/                  # tile images
-│   └── icons/
+├── main.js                    # Electron main process
+├── preload.js                 # Context bridge (IPC)
+├── workspace-service.js       # Atomic file read/write logic
 ├── renderer/
-│   ├── index.html
 │   └── src/
-│       ├── App.jsx
-│       ├── main.jsx
-│       ├── index.css
-│       ├── final-overrides.css
-│       ├── styles.css                  # legacy / experimental CSS (large; being phased down)
+│       ├── App.jsx            # Root component + canvas HUD
 │       ├── design/
-│       │   ├── theme.css               # semantic theme tokens (light/dark)
-│       │   └── tokens.css              # base tokens (typography, radii, shadows, etc.)
-│       ├── components/
-│       │   ├── Card.jsx
-│       │   ├── CanvasDock.jsx
-│       │   ├── DevConsole.jsx
-│       │   ├── SplashScreen.jsx
-│       │   ├── TopTabBar.jsx
-│       │   ├── TopTabBar.css
-│       │   ├── TileContextMenu.jsx
-│       │   ├── ToastStack.jsx
-│       │   ├── HomeShellPrototype.css
-│       │   └── tiles/
-│       │       ├── RackTile.jsx
-│       │       └── TileShell.jsx
-│       ├── context/
-│       │   ├── AppContext.js
-│       │   ├── AppProvider.jsx
-│       │   ├── LogContext.js
-│       │   ├── LogProvider.jsx
-│       │   ├── ToastContext.js
-│       │   └── ToastProvider.jsx
-│       ├── hooks/
-│       │   ├── useCanvas.js
-│       │   ├── useLog.js
-│       │   ├── useTheme.js
-│       │   └── useToast.js
-│       ├── lib/
-│       │   └── workspace.js
-│       └── utils/
-│           └── searchTiles.js
-├── main.js
-├── preload.js
-├── package.json
-├── vite.config.mjs
-└── README.md
+│       │   ├── tokens.css     # Base design tokens
+│       │   └── theme.css      # Semantic tokens (light/dark)
+│       ├── components/        # UI components (tiles, toolbar, shell)
+│       ├── context/           # React context providers
+│       ├── hooks/             # useCanvas, useTheme, useToast, useLog
+│       └── lib/               # Workspace utilities
+├── docs/
+│   ├── TILE_BOOK.md           # Tile type specifications
+│   └── TESTING_TILES.md       # QA rules per tile type
+└── build/
+    └── logo.png               # App icon
 ```
-
-## Core Architecture
-
-### Electron main (`main.js`)
-- Creates browser window with `icon` and custom title
-- Loads `dist-renderer/index.html` in packaged mode, or Vite dev URL in dev
-- Handles file operations for `data.json` workspaces
-- Manages IPC channels (`airpaste:openFolder`, `airpaste:getLastFolder`, `airpaste:loadWorkspace`, `airpaste:saveWorkspace`, `airpaste:fetchLinkPreview`)
-- Restores workspace with backup/temp atomic write logic
-
-### Renderer (`renderer/src`)
-- `App.jsx`: Main UI entry, includes custom titlebar integration and canvas HUD
-- `useCanvas` for pointer, drag, zoom, pan interaction flow
-- `AppProvider` + context providers for workspace state, logs, toasts
-- `RackTile` uses 3-part wood asset layout with slot strip + count display
-- `SplashScreen` renders until user click after boot restore
-
-### Styling model (CSS)
-- `renderer/src/design/tokens.css`: low-level tokens (font stacks, shadows, radii, spacing primitives)
-- `renderer/src/design/theme.css`: semantic tokens + theme mappings (`[data-theme="light"]` / `[data-theme="dark"]`)
-- `renderer/src/components/ui/app/AppPrimitives.css`: reusable app chrome and primitives, consuming semantic tokens
-- `renderer/src/index.css`: global entry point styles and layout glue
-- `renderer/src/final-overrides.css`: the "last file wins" override layer (keep this small and intentional)
-- `docs/design/*`: design-system sandbox files (not runtime critical; safe to iterate)
-
-### Storage model
-
-Workspace storage and tile schema evolve over time.
-
-For the current tile model, type inventory, and tile lifecycle rules, use:
-
-- [docs/TILE_BOOK.md](docs/TILE_BOOK.md)
-- [docs/TESTING_TILES.md](docs/TESTING_TILES.md)
-- [docs/README.md](docs/README.md)
-
-## Build and run
-
-- `npm install`
-- `npm run dev` (concurrently starts Vite + Electron)
-- `npm run check:tiles` (verifies registered tile type IDs are represented in the tile book)
-- `npm run build` (renderer bundle)
-- `npm run package` (electron-builder output in `release/`)
-
-## Tile Documentation
-
-- Tile source of truth: [docs/TILE_BOOK.md](docs/TILE_BOOK.md)
-- Testing Tiles QA rules: [docs/TESTING_TILES.md](docs/TESTING_TILES.md)
-- Docs index and trust boundaries: [docs/README.md](docs/README.md)
-
-## Icon setup
-
-Ensure your application icon is in `build/logo.png`. The window and packaged app icon is configured in `main.js`:
-
-```js
-new BrowserWindow({
-  icon: path.join(__dirname, "build", "logo.png"),
-  ...
-});
-```
-
-If Electron keeps showing its default icon in dev, restart `npm run dev` after closing existing Electron windows.
-
-## Notes
-
-- Keep `scratch/` for one-off scripts or experiments; don't rely on it in production code.
-- Open Graph scraping uses `open-graph-scraper`, and screenshot fallback uses Electron's own hidden browser window capture.
-
-## Troubleshooting
-
-- Error: `ENOENT ... rename ... airpaste.json.tmp -> airpaste.json`
-  - Cause: concurrent saves colliding on the same temp filename.
-  - Fix: use unique temp files per write operation and queue canvas/page save/load operations by workspace.
-  - Action: restart the app after pulling latest `main.js` and `workspace-service.js`.
-
-- Image tiles load and then disappear after moving around
-  - Cause: remount/reload pressure and image-reveal failure paths.
-  - Fix: single-path image loading with stable fallback behavior and no image-hiding optimization mode.
 
 ---
 
-For detailed contributor notes, inspect the source code in `renderer/src` and `main.js`.
+## Architecture Notes
+
+### Electron ↔ Renderer (IPC)
+The main process exposes a minimal set of IPC channels via `preload.js`:
+
+| Channel | Purpose |
+|---|---|
+| `airpaste:openFolder` | Open workspace folder picker |
+| `airpaste:loadWorkspace` | Read `data.json` from disk |
+| `airpaste:saveWorkspace` | Atomic write with `.tmp` + rename |
+| `airpaste:fetchLinkPreview` | OG scrape + screenshot fallback |
+
+### Canvas model
+The canvas is built on **Konva** with a custom `useCanvas` hook managing pointer events, drag, zoom, pan, and selection state. Tiles are rendered as React components inside a `Stage → Layer` tree.
+
+### Design system
+A two-layer CSS token system:
+- **`tokens.css`** — raw values (font stacks, radii, shadows, spacing)
+- **`theme.css`** — semantic aliases mapped to `[data-theme="light"]` / `[data-theme="dark"]`
+
+All component styles consume semantic tokens, never raw values, keeping theming a single-file concern.
+
+### Storage
+Workspaces are plain JSON. Writes go through an atomic pattern: write to `.tmp`, then `rename` over the target. A rotating backup is kept to recover from corruption.
+
+---
+
+## Roadmap
+
+- [ ] Shareable workspaces (export / import)
+- [ ] In-canvas search across all tiles
+- [ ] Plugin tile API
+- [ ] Collaborative cursors (local network)
+
+---
+
+## Contributing
+
+This is an active personal project. Issues and PRs are welcome. See [`docs/TILE_BOOK.md`](docs/TILE_BOOK.md) for the tile spec before adding new tile types.
+
+---
+
+## License
+
+ISC — free to use, fork, and build on.
