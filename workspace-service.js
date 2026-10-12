@@ -1544,6 +1544,8 @@ async function createMarkdownFile(root, name, content = "", targetFolderPath = "
 }
 
 module.exports = {
+  atomicWriteJson,
+  atomicWriteText,
   createCanvas,
   createMarkdownFile,
   createDome,

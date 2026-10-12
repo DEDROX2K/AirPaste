@@ -32,6 +32,16 @@ export default [
     },
   },
   {
+    files: ["test/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     files: ["renderer/src/**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: "latest",
