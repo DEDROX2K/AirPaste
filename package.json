@@ -99,6 +99,8 @@
     "files": [
       "dist-renderer/**/*",
       "main.js",
+      "main/**/*",
+      "shared/**/*",
       "build/**/*",
       "preview/**/*",
       "workspace-service.js",

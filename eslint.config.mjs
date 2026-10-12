@@ -18,6 +18,7 @@ export default [
   {
     files: [
       "*.js",
+      "main/**/*.js",
       "preview/**/*.js",
       "scripts/**/*.js",
     ],
