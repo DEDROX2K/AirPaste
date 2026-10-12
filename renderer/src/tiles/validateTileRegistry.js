@@ -1,11 +1,3 @@
-function hasValidDefaultSize(defaultSize) {
-  return Boolean(
-    defaultSize
-    && Number.isFinite(defaultSize.width)
-    && Number.isFinite(defaultSize.height),
-  );
-}
-
 export function validateTileRegistry(registry) {
   if (!registry || typeof registry !== "object") {
     throw new Error("Tile registry must be an object.");
@@ -30,12 +22,10 @@ export function validateTileRegistry(registry) {
       errors.push(`Tile registry entry "${entryKey}" is missing "displayName".`);
     }
 
-    if (!hasValidDefaultSize(entry.defaultSize)) {
-      errors.push(`Tile registry entry "${entryKey}" is missing a valid "defaultSize".`);
-    }
-
-    if (!entry.capabilities || typeof entry.capabilities !== "object") {
-      errors.push(`Tile registry entry "${entryKey}" is missing "capabilities".`);
+    // Not a strict typeof === "function" check: several tile components are
+    // wrapped in React.memo()/forwardRef(), whose typeof is "object".
+    if (!entry.Component) {
+      errors.push(`Tile registry entry "${entryKey}" is missing a "Component".`);
     }
   }
 

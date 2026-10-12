@@ -9,7 +9,14 @@ import FileTile from "../components/tiles/FileTile";
 import LinkTile from "../components/tiles/LinkTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
+import StickyNoteTile from "../components/tiles/StickyNoteTile";
 import TableTile from "../components/tiles/TableTile";
+import TextBoxTile from "../components/tiles/TextBoxTile";
+import {
+  CANVAS_TEXT_FORMAT_PLAIN,
+  CANVAS_TEXT_SOURCE_FILE,
+  CANVAS_TEXT_VARIANT_STICKY,
+} from "../lib/canvasText";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
 
@@ -27,317 +34,159 @@ const GameTile = createPlaceholderTile("Game");
 const Model3DTile = createPlaceholderTile("3D Model");
 const PhysicsItemTile = createPlaceholderTile("Physics Item");
 
+// NOTE: this is the one canonical tile type -> component registry. It used
+// to be duplicated across this file and components/tiles/tileRegistry.js,
+// which had drifted apart (the other copy was the one actually wired into
+// rendering via Card.jsx; this file's `defaultSize`/`capabilities` fields
+// were unused dead metadata that had gone stale -- e.g. its Calendar and
+// Deadline sizes, and all three canvas-text-family sizes, no longer matched
+// the real defaults in lib/workspace.js's getCardSize/defaultTextCardSize).
+// Rather than carry that stale data forward, sizing stays owned solely by
+// lib/workspace.js; this registry only tracks what's safe to track without
+// a second source of truth: display metadata and component resolution.
 const tileRegistry = {
   [TILE_TYPES.FILE]: {
     type: TILE_TYPES.FILE,
     displayName: "File Tile",
     status: "stable",
-    component: FileTile,
-    defaultSize: { width: 344, height: 436 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: false,
-      container: false,
-      navigation: true,
-      physics: false,
-      lazy: false,
-    },
+    Component: FileTile,
   },
   [TILE_TYPES.LINK]: {
     type: TILE_TYPES.LINK,
     displayName: "Link Tile",
     status: "stable",
-    component: LinkTile,
-    defaultSize: { width: 340, height: 280 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: false,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: LinkTile,
   },
   [TILE_TYPES.AMAZON_PRODUCT]: {
     type: TILE_TYPES.AMAZON_PRODUCT,
     displayName: "Amazon Product Tile",
     status: "stable",
-    component: AmazonProductTile,
-    defaultSize: { width: 340, height: 388 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: false,
-      container: false,
-      navigation: true,
-      physics: false,
-      lazy: false,
-    },
+    Component: AmazonProductTile,
   },
   [TILE_TYPES.CALENDAR]: {
     type: TILE_TYPES.CALENDAR,
     displayName: "Calendar Tile",
     status: "stable",
-    component: CalendarTile,
-    defaultSize: { width: 980, height: 412 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: CalendarTile,
   },
   [TILE_TYPES.CHECKLIST]: {
     type: TILE_TYPES.CHECKLIST,
     displayName: "Checklist Tile",
     status: "stable",
-    component: ChecklistTile,
-    defaultSize: { width: 380, height: 360 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: ChecklistTile,
   },
   [TILE_TYPES.CODE]: {
     type: TILE_TYPES.CODE,
     displayName: "Code Snippet Tile",
     status: "stable",
-    component: CodeSnippetTile,
-    defaultSize: { width: 520, height: 360 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: CodeSnippetTile,
   },
   [TILE_TYPES.COUNTER]: {
     type: TILE_TYPES.COUNTER,
     displayName: "Counter Tile",
     status: "stable",
-    component: CounterTile,
-    defaultSize: { width: 360, height: 300 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: CounterTile,
   },
   [TILE_TYPES.DEADLINE]: {
     type: TILE_TYPES.DEADLINE,
     displayName: "Deadline Countdown Tile",
     status: "stable",
-    component: DeadlineTile,
-    defaultSize: { width: 400, height: 320 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: DeadlineTile,
   },
   [TILE_TYPES.CANVAS_TEXT]: {
     type: TILE_TYPES.CANVAS_TEXT,
     displayName: "Canvas Text Tile",
     status: "stable",
-    component: CanvasTextTile,
-    defaultSize: { width: 420, height: 220 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: true,
-      container: false,
-      navigation: true,
-      physics: false,
-      lazy: false,
-    },
+    Component: CanvasTextTile,
   },
   [TILE_TYPES.NOTE]: {
     type: TILE_TYPES.NOTE,
     displayName: "Note Tile",
     status: "stable",
-    component: CanvasTextTile,
-    defaultSize: { width: 420, height: 220 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: CanvasTextTile,
   },
   [TILE_TYPES.TABLE]: {
     type: TILE_TYPES.TABLE,
     displayName: "Table Tile",
     status: "stable",
-    component: TableTile,
-    defaultSize: { width: 560, height: 360 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: TableTile,
   },
   [TILE_TYPES.TEXT_BOX]: {
     type: TILE_TYPES.TEXT_BOX,
     displayName: "Canvas Text Box Tile",
     status: "stable",
-    component: CanvasTextTile,
-    defaultSize: { width: 420, height: 220 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: CanvasTextTile,
   },
   [TILE_TYPES.PROGRESS]: {
     type: TILE_TYPES.PROGRESS,
     displayName: "Progress Bar Tile",
     status: "stable",
-    component: ProgressTile,
-    defaultSize: { width: 400, height: 280 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: true,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: ProgressTile,
   },
   [TILE_TYPES.RACK]: {
     type: TILE_TYPES.RACK,
     displayName: "Rack Tile",
     status: "stable",
-    component: RackTile,
-    defaultSize: { width: 836, height: 126 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: false,
-      editable: false,
-      container: true,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: RackTile,
   },
   [TILE_TYPES.NODE_GROUP]: {
     type: TILE_TYPES.NODE_GROUP,
     displayName: "Node Group Tile",
     status: "planned",
-    component: NodeGroupTile,
-    defaultSize: { width: 420, height: 280 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: true,
-      container: true,
-      navigation: false,
-      physics: false,
-      lazy: false,
-    },
+    Component: NodeGroupTile,
   },
   [TILE_TYPES.GAME]: {
     type: TILE_TYPES.GAME,
     displayName: "Game Tile",
     status: "planned",
-    component: GameTile,
-    defaultSize: { width: 480, height: 320 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: false,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: true,
-    },
+    Component: GameTile,
   },
   [TILE_TYPES.MODEL_3D]: {
     type: TILE_TYPES.MODEL_3D,
     displayName: "3D Model Tile",
     status: "planned",
-    component: Model3DTile,
-    defaultSize: { width: 480, height: 320 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: false,
-      container: false,
-      navigation: false,
-      physics: false,
-      lazy: true,
-    },
+    Component: Model3DTile,
   },
   [TILE_TYPES.PHYSICS_ITEM]: {
     type: TILE_TYPES.PHYSICS_ITEM,
     displayName: "Physics Item Tile",
     status: "planned",
-    component: PhysicsItemTile,
-    defaultSize: { width: 240, height: 240 },
-    capabilities: {
-      draggable: true,
-      selectable: true,
-      resizable: true,
-      editable: false,
-      container: false,
-      navigation: false,
-      physics: true,
-      lazy: true,
-    },
+    Component: PhysicsItemTile,
   },
 };
 
 if (import.meta.env.DEV) {
   validateTileRegistry(tileRegistry);
+}
+
+// Resolves the component for an actual card instance, not just its type:
+// the canvas-text family (canvas-text/note/text-box) renders one of three
+// different components depending on the card's variant/format/source.
+export function getTileRegistration(cardOrType) {
+  const tileType = typeof cardOrType === "string" ? cardOrType : cardOrType?.type;
+
+  if (
+    tileType === TILE_TYPES.CANVAS_TEXT
+    && cardOrType?.variant === CANVAS_TEXT_VARIANT_STICKY
+  ) {
+    return {
+      ...tileRegistry[tileType],
+      Component: StickyNoteTile,
+    };
+  }
+
+  if (
+    tileType === TILE_TYPES.CANVAS_TEXT
+    && cardOrType?.source !== CANVAS_TEXT_SOURCE_FILE
+    && cardOrType?.format === CANVAS_TEXT_FORMAT_PLAIN
+  ) {
+    return {
+      ...tileRegistry[tileType],
+      Component: TextBoxTile,
+    };
+  }
+
+  return tileRegistry[tileType] ?? tileRegistry[TILE_TYPES.LINK];
 }
 
 export function getTileDefinition(tileType) {

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { recordCardRender } from "../lib/perf";
-import { getTileRegistration } from "./tiles/tileRegistry";
+import { getTileRegistration } from "../tiles/tileRegistry";
 
 function Card(props) {
   recordCardRender(props.card?.id, props.card?.type);
