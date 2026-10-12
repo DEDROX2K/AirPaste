@@ -13,3 +13,10 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+
+# Manual QA scratch domes/logs -- never commit these going forward.
+# (A number of pre-existing tmp-* directories are already tracked from
+# before this rule; useful ones have been deliberately copied into
+# test/fixtures/ instead of being purged from history.)
+tmp-*/
+tmp-dev-logs/

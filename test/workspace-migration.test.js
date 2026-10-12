@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   WORKSPACE_SCHEMA_VERSION,
   createEmptyWorkspace,
@@ -67,9 +67,11 @@ describe("normalizeWorkspace / migrateWorkspace", () => {
   });
 
   it(
-    "documents the known v13-v17 migration gap: a workspace stuck at v12 is stamped " +
-      "to the current version with no explicit transform applied (see rewrite plan Phase 1B)",
+    "migrates a v12 workspace all the way to current through explicit v13-17 branches, " +
+      "not just a forced version stamp (regression test for the former v13-17 gap, Phase 1B)",
     () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       const v12Workspace = {
         version: 12,
         name: "Pre-gap Dome",
@@ -90,15 +92,18 @@ describe("normalizeWorkspace / migrateWorkspace", () => {
 
       const normalized = normalizeWorkspace(v12Workspace);
 
-      // This is a CHARACTERIZATION test, not an endorsement: it locks in
-      // today's behavior (version is forced to WORKSPACE_SCHEMA_VERSION purely
-      // by normalizer defaults) so that Phase 1B's explicit v13->17 migration
-      // steps have a clear "before" baseline to change. If this test starts
-      // failing because migrateWorkspace now has real v13-17 branches, that is
-      // expected -- update this test to assert the new explicit transform
-      // instead of deleting it.
       expect(normalized.version).toBe(WORKSPACE_SCHEMA_VERSION);
       expect(normalized.cards).toHaveLength(1);
+
+      // migrateWorkspace logs a dev warning if its explicit ladder doesn't
+      // reach WORKSPACE_SCHEMA_VERSION on its own (see the gap it's guarding
+      // against above). Asserting this was never called proves the v13-17
+      // branches actually ran, rather than the version merely being forced
+      // by normalizeWorkspace's own stamping regardless of what migrateWorkspace
+      // returned -- which is exactly how the old gap stayed invisible.
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     },
   );
 });

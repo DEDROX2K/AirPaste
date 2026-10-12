@@ -25,10 +25,12 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   Settings2,
   Sparkles,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import "./HomeShellPrototype.css";
 
@@ -750,7 +752,11 @@ export default function HomeShell() {
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
-  const searchQuery = "";
+  // Stopgap, in-memory substring filter over data already loaded for the
+  // current folder -- no IPC/index involved. The real search-index-backed
+  // implementation lands later; buildBrowserItems' signature is kept stable
+  // so that swap stays contained to this one call site.
+  const [searchQuery, setSearchQuery] = useState("");
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [homeSidebarCollapsed, setHomeSidebarCollapsed] = useState(false);
@@ -1063,6 +1069,34 @@ export default function HomeShell() {
               <h1>{sectionTitle}</h1>
             </div>
             <div className="toolbar-cluster toolbar-cluster--secondary">
+              <div className="home-search">
+                <Search size={14} aria-hidden="true" className="home-search__icon" />
+                <input
+                  type="text"
+                  className="home-search__input"
+                  placeholder="Search this workspace"
+                  aria-label="Search this workspace"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && searchQuery) {
+                      event.preventDefault();
+                      setSearchQuery("");
+                    }
+                  }}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    className="home-search__clear"
+                    aria-label="Clear search"
+                    title="Clear search"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
               <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
                 <button
                   type="button"

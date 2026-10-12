@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "type": "canvas",
+  "name": "Alpha",
+  "createdAt": "2026-04-20T21:14:28.340Z",
+  "updatedAt": "2026-04-20T21:14:28.340Z",
+  "viewport": {
+    "x": 180,
+    "y": 120,
+    "zoom": 1
+  },
+  "cards": [],
+  "drawings": {
+    "version": 1,
+    "objects": []
+  }
+}

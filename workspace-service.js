@@ -12,6 +12,14 @@ const {
   serializeJsonCanvasDocument,
   stripCanvasSuffix,
 } = require("./json-canvas");
+// Single source of truth shared with the renderer (renderer/src/lib/workspace.js)
+// via shared/workspace-schema.json -- do not hardcode this number here.
+const { WORKSPACE_SCHEMA_VERSION } = require("./shared/workspace-schema.json");
+// A workspace file with no version field at all predates versioning entirely;
+// treat it as the oldest possible version so the renderer's migration chain
+// (which also defaults a missing version to 1) runs in full, rather than
+// skipping legacy transforms because it was mistaken for already-current.
+const UNVERSIONED_WORKSPACE_FALLBACK_VERSION = 1;
 
 const INTERNAL_DIR = ".airpaste";
 const TMP_DIR = "tmp";
@@ -46,7 +54,7 @@ const DEFAULT_DRAWINGS = Object.freeze({
 });
 
 const DEFAULT_WORKSPACE = Object.freeze({
-  version: 9,
+  version: WORKSPACE_SCHEMA_VERSION,
   activePageId: "page-1",
   pages: [{
     id: "page-1",
@@ -695,7 +703,7 @@ async function loadCanvas(filePath) {
   const workspace = isJsonCanvasDocument(raw) || isJsonCanvasPath(abs)
     ? parseJsonCanvasDocument(raw, stripCanvasSuffix(path.basename(abs)))
     : {
-      version: Number.isFinite(raw.version) ? raw.version : DEFAULT_WORKSPACE.version,
+      version: Number.isFinite(raw.version) ? raw.version : UNVERSIONED_WORKSPACE_FALLBACK_VERSION,
       name: firstString(raw.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
       activePageId: firstString(raw.activePageId, DEFAULT_WORKSPACE.activePageId),
       pages: normalizeCanvasPages(raw),
@@ -732,7 +740,7 @@ async function saveCanvas(filePath, data, options = null) {
   const currentWorkspace = isJsonCanvasDocument(current) || isJsonCanvasPath(abs)
     ? parseJsonCanvasDocument(current, stripCanvasSuffix(path.basename(abs)))
     : {
-      version: Number.isFinite(current.version) ? current.version : DEFAULT_WORKSPACE.version,
+      version: Number.isFinite(current.version) ? current.version : UNVERSIONED_WORKSPACE_FALLBACK_VERSION,
       name: firstString(current.name, stripCanvasSuffix(path.basename(abs)), "Canvas"),
       activePageId: firstString(current.activePageId, DEFAULT_WORKSPACE.activePageId),
       pages: normalizeCanvasPages(current),
@@ -752,7 +760,14 @@ async function saveCanvas(filePath, data, options = null) {
     view: input.view ?? currentWorkspace.view,
   });
   const nextWorkspace = {
-    version: Number.isFinite(currentWorkspace.version) ? currentWorkspace.version : DEFAULT_WORKSPACE.version,
+    // Always the current schema version, never carried over from the file on
+    // disk: the renderer has already normalized `pages` to the current shape
+    // before calling saveCanvas (see renderer/src/lib/workspace.js's
+    // normalizeWorkspace), even on a partial/dirty-field save, so the file's
+    // stamped version must advance too. Persisting a stale version here was
+    // the bug that let on-disk files report an outdated schema version
+    // forever (see rewrite plan Phase 1A).
+    version: WORKSPACE_SCHEMA_VERSION,
     id: firstString(current.id, input.id, randomUUID()),
     name: nextName,
     activePageId: firstString(
@@ -776,7 +791,7 @@ async function saveCanvas(filePath, data, options = null) {
       updatedAt: nowIso(),
     })
     : {
-      version: 9,
+      version: WORKSPACE_SCHEMA_VERSION,
       type: "canvas",
       id: nextWorkspace.id,
       name: nextWorkspace.name,

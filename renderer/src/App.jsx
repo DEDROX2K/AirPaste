@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DevConsole } from "./components/DevConsole";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
 import PixelScreenTransition from "./components/PixelScreenTransition";
 import { TopTabBar } from "./components/TopTabBar";
@@ -224,12 +225,28 @@ export default function App() {
         <div className="app-shell__view-container">
           <Suspense fallback={<AppViewFallback />}>
             {currentEditor.kind === "canvas" ? (
-              <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
-                <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
-                <CanvasWorkspaceView />
-              </div>
+              <ErrorBoundary
+                key={currentEditorKey}
+                label="canvas"
+                title="This canvas couldn't be displayed"
+                description="Your data on disk has not been changed. Try again, or go back to Home and reopen it."
+              >
+                <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
+                  <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
+                  <CanvasWorkspaceView />
+                </div>
+              </ErrorBoundary>
             ) : null}
-            {currentEditor.kind === "home" ? <HomeShell /> : null}
+            {currentEditor.kind === "home" ? (
+              <ErrorBoundary
+                key={currentEditorKey}
+                label="home"
+                title="Home couldn't be displayed"
+                description="Your files on disk have not been changed. Try again, or restart AirPaste."
+              >
+                <HomeShell />
+              </ErrorBoundary>
+            ) : null}
           </Suspense>
           <PixelScreenTransition
             active={Boolean(screenTransition)}

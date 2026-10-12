@@ -1,4 +1,5 @@
 import TILE_TYPES from "../tiles/tileTypes";
+import workspaceSchema from "../../../shared/workspace-schema.json";
 import {
   CANVAS_TEXT_DEFAULT_SIZE,
   CANVAS_TEXT_FORMAT_PLAIN,
@@ -51,7 +52,9 @@ export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const TEXT_BOX_CARD_TYPE = TILE_TYPES.TEXT_BOX;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
-export const WORKSPACE_SCHEMA_VERSION = 17;
+// Single source of truth shared with the main process (workspace-service.js)
+// via shared/workspace-schema.json -- do not hardcode this number here.
+export const WORKSPACE_SCHEMA_VERSION = workspaceSchema.WORKSPACE_SCHEMA_VERSION;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
 export const RACK_MIN_SLOTS = 3;
 export const RACK_SLOT_WIDTH = 216;
@@ -1498,6 +1501,62 @@ function migrateWorkspace(rawWorkspace) {
       ...nextWorkspace,
       version: 12,
     };
+  }
+
+  // Versions 13-17 never changed the *shape* of any pre-existing card type --
+  // each bump shipped purely additive new tile types (checklist/code/note/
+  // table at v14, the dock UI at v15, the calendar tile at v16, another dock
+  // pass at v17), which `normalizeCard` already defaults correctly for old
+  // data with zero cards of the new types. These branches are therefore
+  // no-ops today, but are written explicitly (rather than left as a gap) so
+  // a *future* version bump that does change an existing type's shape has an
+  // obvious place to add a real transform, and so the version-reached check
+  // below can catch a forgotten branch instead of silently masking it.
+  if (version < 13) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 13,
+    };
+  }
+
+  if (version < 14) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 14,
+    };
+  }
+
+  if (version < 15) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 15,
+    };
+  }
+
+  if (version < 16) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 16,
+    };
+  }
+
+  if (version < 17) {
+    nextWorkspace = {
+      ...nextWorkspace,
+      version: 17,
+    };
+  }
+
+  if (nextWorkspace.version < WORKSPACE_SCHEMA_VERSION && typeof console !== "undefined") {
+    // A version bump landed without a corresponding migration branch above.
+    // This does not block loading (normalizeWorkspace still stamps the
+    // current version), but it means any shape change that bump introduced
+    // for pre-existing card types has not been explicitly migrated -- treat
+    // this warning as a signal to add the missing branch, not to ignore it.
+    console.warn(
+      `[workspace] migrateWorkspace only reached version ${nextWorkspace.version}, `
+      + `expected ${WORKSPACE_SCHEMA_VERSION}. Add an explicit migration branch for the gap.`,
+    );
   }
 
   return nextWorkspace;
