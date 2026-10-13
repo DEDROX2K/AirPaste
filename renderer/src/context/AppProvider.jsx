@@ -26,6 +26,7 @@ import {
   updateCard,
   updateCards,
 } from "../lib/workspace";
+import { clearCanvasPathKeyedRefs, migrateCanvasPathKeyedRefs } from "../lib/canvasPathKeyedRefs";
 import { desktop } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
 import {
@@ -266,6 +267,7 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
   };
 }
 
+
 function buildCanvasSavePayload(workspace, dirtyFields = null) {
   const payload = {};
 
@@ -414,6 +416,20 @@ export function AppProvider({ children }) {
   const workspacesRef = useRef(workspacesByPath);
   const activeCanvasPathRef = useRef(null);
   const canvasClipboardRef = useRef(null);
+
+  // Stable handle on every canvas-path-keyed save-tracking ref, for
+  // migrateCanvasPathKeyedRefs/clearCanvasPathKeyedRefs to walk when a path
+  // is renamed or deleted. The refs themselves never change identity, so
+  // memoizing with an empty dependency array keeps this array reference
+  // stable too.
+  const canvasSaveTrackingRefs = useMemo(() => [
+    pendingCanvasSaveRef,
+    pendingCanvasDirtyFieldsRef,
+    lastSavedCanvasWorkspaceRef,
+    lastObservedCanvasWorkspaceRef,
+    skipCanvasSaveRef,
+    canvasInteractionStateRef,
+  ], []);
 
   useEffect(() => {
     workspacesRef.current = workspacesByPath;
@@ -1106,6 +1122,7 @@ export function AppProvider({ children }) {
               workspaceDraftBaseRef.current[replacementKey] = workspaceDraftBaseRef.current[key];
               delete workspaceDraftBaseRef.current[key];
             }
+            migrateCanvasPathKeyedRefs(canvasSaveTrackingRefs, key, replacementKey);
           }
           return next;
         });
@@ -1114,6 +1131,7 @@ export function AppProvider({ children }) {
       }
 
       rebindTabEntity(item.filePath, renamed.filePath, renamed.name);
+      migrateCanvasPathKeyedRefs(canvasSaveTrackingRefs, item.filePath, renamed.filePath);
       setWorkspacesByPath((prev) => {
         if (!prev[item.filePath]) return prev;
         const next = { ...prev };
@@ -1128,7 +1146,7 @@ export function AppProvider({ children }) {
       await refreshHomeData(folderPath);
       return renamed;
     }, "Renaming item");
-  }, [folderPath, rebindTabEntity, refreshHomeData, trackLoading]);
+  }, [canvasSaveTrackingRefs, folderPath, rebindTabEntity, refreshHomeData, trackLoading]);
 
   const deleteItemEntry = useCallback(async (item) => {
     if (!folderPath || !item?.filePath) return false;
@@ -1138,6 +1156,7 @@ export function AppProvider({ children }) {
         const workspaceKeys = Object.keys(workspacesRef.current).filter((key) => isSameOrDescendantPath(key, item.filePath));
         workspaceKeys.forEach((key) => closeTabsForEntity(key));
         workspaceKeys.forEach((key) => { delete workspaceDraftBaseRef.current[key]; });
+        workspaceKeys.forEach((key) => clearCanvasPathKeyedRefs(canvasSaveTrackingRefs, key));
         setWorkspacesByPath((prev) => {
           const next = { ...prev };
           workspaceKeys.forEach((key) => { delete next[key]; });
@@ -1154,6 +1173,7 @@ export function AppProvider({ children }) {
       }
       closeTabsForEntity(item.filePath);
       delete workspaceDraftBaseRef.current[item.filePath];
+      clearCanvasPathKeyedRefs(canvasSaveTrackingRefs, item.filePath);
       setWorkspacesByPath((prev) => {
         const next = { ...prev };
         delete next[item.filePath];
@@ -1162,7 +1182,7 @@ export function AppProvider({ children }) {
       await refreshHomeData(folderPath);
       return true;
     }, "Deleting item");
-  }, [closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
+  }, [canvasSaveTrackingRefs, closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
 
   const toggleItemStarred = useCallback(async (filePath, starred) => {
     if (!folderPath || !filePath) return null;
