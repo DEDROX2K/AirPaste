@@ -498,18 +498,28 @@ function parseJsonCanvasDocument(raw, fallbackName = "Canvas") {
     view,
     airpaste: null,
   };
-  const otherPages = Array.isArray(airpaste.pages)
-    ? airpaste.pages
-      .filter((page) => isObject(page) && page.id !== pageId)
-      .map((page) => cloneStructuredValue(page))
-    : [];
+
+  // The stash also records the page *order* (createCanvasPage/
+  // reorderCanvasPages let the user control this), so it's used as the
+  // canonical ordering, with the active page's entry swapped out for the
+  // freshly-rebuilt one above rather than appended wherever it lands.
+  const storedPages = Array.isArray(airpaste.pages) ? airpaste.pages.filter(isObject) : [];
+  const pages = storedPages.length > 0
+    ? storedPages.map((page) => (page.id === pageId ? activePage : cloneStructuredValue(page)))
+    : [activePage];
+
+  if (storedPages.length > 0 && !storedPages.some((page) => page.id === pageId)) {
+    // Defensive: a stash that doesn't even list the active page shouldn't be
+    // able to make that page disappear (e.g. a hand-edited or corrupt file).
+    pages.unshift(activePage);
+  }
 
   return {
     version: Number.isFinite(airpaste.workspaceVersion) ? airpaste.workspaceVersion : 10,
     name: firstString(raw?.name, fallbackName, "Canvas"),
     activePageId: pageId,
     airpaste: Object.keys(boardAirpaste).length > 0 ? boardAirpaste : null,
-    pages: [activePage, ...otherPages],
+    pages,
   };
 }
 

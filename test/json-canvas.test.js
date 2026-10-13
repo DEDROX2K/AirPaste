@@ -238,4 +238,30 @@ describe("json-canvas multi-page round trip (regression: a second page used to b
     const activePage = parsed.pages.find((page) => page.id === parsed.activePageId);
     expect(activePage.tiles[0].text).toBe("Notes on page two");
   });
+
+  it(
+    "preserves page order (user-controlled via reorderCanvasPages) across a save/load cycle, " +
+      "regardless of which page happens to be active",
+    () => {
+      const withThreePages = buildTwoPageWorkspace("page-1");
+      const pageThree = {
+        id: "page-3",
+        name: "Page 3",
+        viewport: { x: 0, y: 0, zoom: 1 },
+        drawings: { version: 1, objects: [] },
+        view: null,
+        cards: [],
+        groups: [],
+        edges: [],
+      };
+      // User-reordered: page-3, page-1, page-2 -- deliberately not the order
+      // they were created in, and not "active page first" either.
+      withThreePages.pages = [pageThree, withThreePages.pages[0], withThreePages.pages[1]];
+      withThreePages.activePageId = "page-2";
+
+      const parsed = parseJsonCanvasDocument(serializeJsonCanvasDocument(withThreePages));
+
+      expect(parsed.pages.map((page) => page.id)).toEqual(["page-3", "page-1", "page-2"]);
+    },
+  );
 });
