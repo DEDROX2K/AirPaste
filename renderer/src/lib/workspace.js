@@ -105,6 +105,12 @@ import {
   FILE_DEFAULT_TITLE,
   normalizeFileAttachment,
 } from "../tiles/file/model";
+import {
+  RACK_CARD_SIZE,
+  RACK_DEFAULT_DESCRIPTION,
+  RACK_DEFAULT_TITLE,
+  normalizeRackTileIds,
+} from "../tiles/rack/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
@@ -116,6 +122,7 @@ export { createCodeCard } from "../tiles/code/model";
 export { createCalendarCard } from "../tiles/calendar/model";
 export { createTableCard } from "../tiles/table/model";
 export { createFileCard } from "../tiles/file/model";
+export { createRackCard } from "../tiles/rack/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -173,13 +180,6 @@ const STICKY_TEXT_BOX_CARD_SIZE = CANVAS_TEXT_STICKY_SIZE;
 const TEXT_BOX_MIN_WIDTH = CANVAS_TEXT_MIN_WIDTH;
 const TEXT_BOX_MIN_HEIGHT = CANVAS_TEXT_MIN_HEIGHT;
 
-const RACK_CARD_SIZE = Object.freeze({
-  width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
-  height: RACK_HEIGHT,
-});
-
-const RACK_DEFAULT_TITLE = "Rack";
-const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
@@ -458,12 +458,6 @@ function normalizeLanguageHints(languageHints) {
     : [];
 }
 
-
-function normalizeRackTileIds(tileIds) {
-  return Array.isArray(tileIds)
-    ? [...new Set(tileIds.filter((tileId) => typeof tileId === "string" && tileId.trim().length > 0))]
-    : [];
-}
 
 function normalizeLegacyFolderChildLayouts(childIds, childLayouts) {
   const safeLayouts = childLayouts && typeof childLayouts === "object" ? childLayouts : {};
@@ -1495,34 +1489,6 @@ export function getNextCardPosition(
     height: size.height,
   };
 }
-
-export function createRackCard(cards, viewport, preferredCenter = null, options = {}) {
-  const title = firstString(options?.title, RACK_DEFAULT_TITLE);
-  const description = firstString(options?.description, RACK_DEFAULT_DESCRIPTION);
-  const tileIds = normalizeRackTileIds(options?.tileIds);
-  const minSlots = Math.max(
-    RACK_MIN_SLOTS,
-    Number.isFinite(options?.minSlots) ? options.minSlots : RACK_MIN_SLOTS,
-  );
-  const position = getNextCardPosition(cards, viewport, RACK_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: RACK_CARD_TYPE,
-    title,
-    description,
-    tileIds,
-    minSlots,
-    x: position.x,
-    y: position.y,
-    width: position.width,
-    height: position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
 
 export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
