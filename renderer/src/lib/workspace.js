@@ -100,6 +100,11 @@ import {
   normalizeTableColumns,
   normalizeTableRows,
 } from "../tiles/table/model";
+import {
+  FILE_CARD_SIZE,
+  FILE_DEFAULT_TITLE,
+  normalizeFileAttachment,
+} from "../tiles/file/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
@@ -110,6 +115,7 @@ export { createChecklistCard } from "../tiles/checklist/model";
 export { createCodeCard } from "../tiles/code/model";
 export { createCalendarCard } from "../tiles/calendar/model";
 export { createTableCard } from "../tiles/table/model";
+export { createFileCard } from "../tiles/file/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -154,11 +160,6 @@ const LINK_CARD_SIZE = Object.freeze({
   height: 280,
 });
 
-const FILE_CARD_SIZE = Object.freeze({
-  width: 344,
-  height: 436,
-});
-
 const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   width: 340,
   height: 388,
@@ -178,7 +179,6 @@ const RACK_CARD_SIZE = Object.freeze({
 });
 
 const RACK_DEFAULT_TITLE = "Rack";
-const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
@@ -332,36 +332,8 @@ function normalizeLinkAsset(asset) {
   };
 }
 
-function normalizeFileExtension(value) {
+export function normalizeFileExtension(value) {
   return typeof value === "string" ? value.trim().replace(/^\.+/, "").toLowerCase() : "";
-}
-
-function normalizeFileAttachment(file) {
-  if (!file || typeof file !== "object") {
-    return null;
-  }
-
-  const relativePath = typeof file.relativePath === "string" ? file.relativePath.trim() : "";
-
-  if (!relativePath) {
-    return null;
-  }
-
-  const fileName = typeof file.fileName === "string" ? file.fileName.trim() : "";
-  const extension = normalizeFileExtension(
-    typeof file.extension === "string" && file.extension.trim().length > 0
-      ? file.extension
-      : fileName.split(".").pop(),
-  );
-
-  return {
-    relativePath,
-    filePath: typeof file.filePath === "string" ? file.filePath : "",
-    fileName,
-    extension,
-    mimeType: typeof file.mimeType === "string" ? file.mimeType : "",
-    sizeBytes: Number.isFinite(file.sizeBytes) ? Math.max(0, file.sizeBytes) : 0,
-  };
 }
 
 function normalizeLegacyFolderChildIds(childIds) {
@@ -1679,25 +1651,6 @@ export function createCanvasTextCard(cards, viewport, preferredCenter = null, op
   }
 
   return createNoteCard(cards, viewport, preferredCenter, options);
-}
-
-export function createFileCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, FILE_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-  const file = normalizeFileAttachment(options?.file);
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: FILE_CARD_TYPE,
-    title: firstString(options?.title, file?.fileName, FILE_DEFAULT_TITLE),
-    file,
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
 }
 
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
