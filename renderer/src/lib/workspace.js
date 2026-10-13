@@ -80,6 +80,20 @@ import {
   CODE_DEFAULT_TITLE,
   normalizeCodeLanguage,
 } from "../tiles/code/model";
+import {
+  CALENDAR_CARD_SIZE,
+  CALENDAR_DEFAULT_HEIGHT_PRESET,
+  CALENDAR_DEFAULT_MONTH,
+  CALENDAR_DEFAULT_THEME_ID,
+  CALENDAR_DEFAULT_TITLE,
+  CALENDAR_DEFAULT_VIEW,
+  CALENDAR_DEFAULT_YEAR,
+  normalizeCalendarHeightPreset,
+  normalizeCalendarMonth,
+  normalizeCalendarThemeId,
+  normalizeCalendarView,
+  normalizeCalendarYear,
+} from "../tiles/calendar/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
@@ -88,6 +102,7 @@ export { createProgressCard } from "../tiles/progress/model";
 export { createDeadlineCard } from "../tiles/deadline/model";
 export { createChecklistCard } from "../tiles/checklist/model";
 export { createCodeCard } from "../tiles/code/model";
+export { createCalendarCard } from "../tiles/calendar/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -142,11 +157,6 @@ const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   height: 388,
 });
 
-const CALENDAR_CARD_SIZE = Object.freeze({
-  width: 920,
-  height: 468,
-});
-
 const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
 
 const TABLE_CARD_SIZE = Object.freeze({
@@ -168,12 +178,6 @@ const RACK_CARD_SIZE = Object.freeze({
 const RACK_DEFAULT_TITLE = "Rack";
 const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
-const CALENDAR_DEFAULT_TITLE = "Calendar";
-const CALENDAR_DEFAULT_MONTH = new Date().getMonth();
-const CALENDAR_DEFAULT_YEAR = new Date().getFullYear();
-const CALENDAR_DEFAULT_VIEW = "month";
-const CALENDAR_DEFAULT_THEME_ID = "mist";
-const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const TABLE_DEFAULT_TITLE = "Untitled table";
 const TABLE_COLUMN_KINDS = Object.freeze(["text", "number", "checkbox", "date"]);
@@ -383,32 +387,6 @@ function normalizeLegacyFolderChildIds(childIds) {
 
 function isLinkLikeType(type) {
   return type === TILE_TYPES.LINK || type === AMAZON_PRODUCT_CARD_TYPE;
-}
-
-function normalizeCalendarMonth(month) {
-  return Number.isFinite(month)
-    ? Math.max(0, Math.min(11, Math.round(month)))
-    : CALENDAR_DEFAULT_MONTH;
-}
-
-function normalizeCalendarYear(year) {
-  return Number.isFinite(year)
-    ? Math.max(1970, Math.min(9999, Math.round(year)))
-    : CALENDAR_DEFAULT_YEAR;
-}
-
-function normalizeCalendarView(view) {
-  return view === "week" ? "week" : CALENDAR_DEFAULT_VIEW;
-}
-
-function normalizeCalendarThemeId(themeId) {
-  return typeof themeId === "string" && themeId.trim().length > 0
-    ? themeId.trim()
-    : CALENDAR_DEFAULT_THEME_ID;
-}
-
-function normalizeCalendarHeightPreset(heightPreset) {
-  return heightPreset === "tall" ? "tall" : CALENDAR_DEFAULT_HEIGHT_PRESET;
 }
 
 function normalizeCanvasTextFileMeta(file) {
@@ -1668,27 +1646,6 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-export function createCalendarCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, CALENDAR_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: CALENDAR_CARD_TYPE,
-    title: firstString(options?.title, CALENDAR_DEFAULT_TITLE),
-    month: normalizeCalendarMonth(options?.month),
-    year: normalizeCalendarYear(options?.year),
-    view: normalizeCalendarView(options?.view),
-    themeId: normalizeCalendarThemeId(options?.themeId),
-    heightPreset: normalizeCalendarHeightPreset(options?.heightPreset),
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
 
 export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
