@@ -94,6 +94,12 @@ import {
   normalizeCalendarView,
   normalizeCalendarYear,
 } from "../tiles/calendar/model";
+import {
+  TABLE_CARD_SIZE,
+  TABLE_DEFAULT_TITLE,
+  normalizeTableColumns,
+  normalizeTableRows,
+} from "../tiles/table/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
@@ -103,6 +109,7 @@ export { createDeadlineCard } from "../tiles/deadline/model";
 export { createChecklistCard } from "../tiles/checklist/model";
 export { createCodeCard } from "../tiles/code/model";
 export { createCalendarCard } from "../tiles/calendar/model";
+export { createTableCard } from "../tiles/table/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -159,11 +166,6 @@ const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
 
 const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
 
-const TABLE_CARD_SIZE = Object.freeze({
-  width: 560,
-  height: 360,
-});
-
 const TEXT_BOX_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
 const STICKY_TEXT_BOX_CARD_SIZE = CANVAS_TEXT_STICKY_SIZE;
 
@@ -179,23 +181,6 @@ const RACK_DEFAULT_TITLE = "Rack";
 const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
 const NOTE_DEFAULT_TITLE = "Untitled note";
-const TABLE_DEFAULT_TITLE = "Untitled table";
-const TABLE_COLUMN_KINDS = Object.freeze(["text", "number", "checkbox", "date"]);
-const TABLE_DEFAULT_COLUMNS = Object.freeze([
-  Object.freeze({ id: "col_name", name: "Name", kind: "text" }),
-  Object.freeze({ id: "col_status", name: "Status", kind: "text" }),
-  Object.freeze({ id: "col_notes", name: "Notes", kind: "text" }),
-]);
-const TABLE_DEFAULT_ROWS = Object.freeze([
-  Object.freeze({
-    id: "row_1",
-    cells: Object.freeze({
-      col_name: "",
-      col_status: "",
-      col_notes: "",
-    }),
-  }),
-]);
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
 const IMAGE_CARD_FIXED_WIDTH = 240;
@@ -501,86 +486,6 @@ function normalizeLanguageHints(languageHints) {
     : [];
 }
 
-function normalizeTableColumnKind(kind) {
-  return TABLE_COLUMN_KINDS.includes(kind) ? kind : "text";
-}
-
-function createDefaultTableColumns() {
-  return TABLE_DEFAULT_COLUMNS.map((column) => ({ ...column }));
-}
-
-function createDefaultTableRows(columns = TABLE_DEFAULT_COLUMNS) {
-  const safeColumns = Array.isArray(columns) && columns.length > 0
-    ? columns
-    : TABLE_DEFAULT_COLUMNS;
-
-  return [
-    {
-      id: "row_1",
-      cells: Object.fromEntries(
-        safeColumns.map((column) => [
-          column.id,
-          normalizeTableCellValue(column.kind, TABLE_DEFAULT_ROWS[0]?.cells?.[column.id]),
-        ]),
-      ),
-    },
-  ];
-}
-
-function normalizeTableColumns(columns) {
-  const normalizedColumns = Array.isArray(columns)
-    ? columns
-      .map((column, index) => ({
-        id: typeof column?.id === "string" && column.id.trim().length > 0
-          ? column.id.trim()
-          : `col_${index + 1}`,
-        name: typeof column?.name === "string" && column.name.trim().length > 0
-          ? column.name
-          : `Column ${index + 1}`,
-        kind: normalizeTableColumnKind(column?.kind),
-      }))
-      .filter((column) => column.id.length > 0)
-    : [];
-
-  return normalizedColumns.length > 0 ? normalizedColumns : createDefaultTableColumns();
-}
-
-function normalizeTableCellValue(kind, value) {
-  if (kind === "checkbox") {
-    return value === true;
-  }
-
-  return typeof value === "string"
-    ? value
-    : (value == null ? "" : String(value));
-}
-
-function normalizeTableRows(rows, columns) {
-  const safeColumns = Array.isArray(columns) && columns.length > 0
-    ? columns
-    : createDefaultTableColumns();
-  const normalizedRows = Array.isArray(rows)
-    ? rows
-      .map((row, index) => {
-        const safeCells = row?.cells && typeof row.cells === "object" ? row.cells : {};
-
-        return {
-          id: typeof row?.id === "string" && row.id.trim().length > 0
-            ? row.id.trim()
-            : `row_${index + 1}`,
-          cells: Object.fromEntries(
-            safeColumns.map((column) => [
-              column.id,
-              normalizeTableCellValue(column.kind, safeCells[column.id]),
-            ]),
-          ),
-        };
-      })
-      .filter((row) => row.id.length > 0)
-    : [];
-
-  return normalizedRows.length > 0 ? normalizedRows : createDefaultTableRows(safeColumns);
-}
 
 function normalizeRackTileIds(tileIds) {
   return Array.isArray(tileIds)
@@ -1674,27 +1579,6 @@ export function createNoteCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-
-export function createTableCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, TABLE_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-  const columns = normalizeTableColumns(options?.columns);
-  const rows = normalizeTableRows(options?.rows, columns);
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: TABLE_CARD_TYPE,
-    title: firstString(options?.title, TABLE_DEFAULT_TITLE),
-    columns,
-    rows,
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
 
 export function createTextBoxCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
