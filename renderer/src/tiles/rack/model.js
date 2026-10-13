@@ -3,20 +3,16 @@ import {
   getNextCardPosition,
   nowIso,
   normalizeCard,
-  RACK_HEIGHT,
-  RACK_LEFT_CAP_WIDTH,
   RACK_MIN_SLOTS,
-  RACK_RIGHT_CAP_WIDTH,
-  RACK_SLOT_WIDTH,
 } from "../../lib/workspace";
 import TILE_TYPES from "../tileTypes";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 
-export const RACK_CARD_SIZE = Object.freeze({
-  width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
-  height: RACK_HEIGHT,
-});
+// RACK_CARD_SIZE itself (not re-exported here) is defined and exported
+// directly from lib/workspace.js, not here -- see the comment there for why
+// (it's computed from geometry constants at module top level, which can't
+// safely happen on this side of the circular import).
 
 export const RACK_DEFAULT_TITLE = "Rack";
 export const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";

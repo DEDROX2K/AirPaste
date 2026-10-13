@@ -90,7 +90,6 @@ import {
   normalizeFileAttachment,
 } from "../tiles/file/model";
 import {
-  RACK_CARD_SIZE,
   RACK_DEFAULT_DESCRIPTION,
   RACK_DEFAULT_TITLE,
   normalizeRackTileIds,
@@ -153,6 +152,19 @@ export const RACK_RIGHT_CAP_WIDTH = 94;
 export const RACK_HEIGHT = 62;
 export const RACK_MOUNTED_TILE_WIDTH = 200;
 export const RACK_TILE_BASELINE = 26;
+// Defined here (not in tiles/rack/model.js) because it's computed from the
+// geometry constants directly above at module-evaluation time. Since those
+// constants are themselves imported back into tiles/rack/model.js (which
+// this file also imports from, for normalizeRackTileIds/createRackCard),
+// computing this in rack/model.js instead would read them before lib/
+// workspace.js's own top-level code has run -- ES module imports are
+// hoisted and evaluated before the importing module's body, so the circular
+// reference would throw "Cannot access ... before initialization" under
+// native ESM (Vite dev), even though a bundler like Rollup can mask it.
+export const RACK_CARD_SIZE = Object.freeze({
+  width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
+  height: RACK_HEIGHT,
+});
 const DEFAULT_PAGE_NAME = "Page 1";
 const LEGACY_FOLDER_CARD_TYPE = "folder";
 const LEGACY_FOLDER_ZONE_GAP = 24;
