@@ -13,6 +13,15 @@ function isYouTubeHost(url) {
   return /(?:^|\.)youtube\.com$/i.test(getUrlHostname(url)) || /(?:^|\.)youtu\.be$/i.test(getUrlHostname(url));
 }
 
+// music.youtube.com shares youtube.com's domain (and so matches
+// isYouTubeHost/isYouTubeWatchUrl too), but it's a music host, not a video
+// one -- it must be excluded from the YouTube-video classification so it
+// falls through to the generic resolver, which already treats it as music
+// (see MUSIC_HOSTS in constants.js and isMusicHost's use in generic.js).
+function isYouTubeMusicHost(url) {
+  return getUrlHostname(url) === "music.youtube.com";
+}
+
 function isVimeoHost(url) {
   return /(?:^|\.)vimeo\.com$/i.test(getUrlHostname(url));
 }
@@ -153,7 +162,7 @@ function classifyPreviewTarget(url) {
     };
   }
 
-  if (isYouTubeShortUrl(url)) {
+  if (!isYouTubeMusicHost(url) && isYouTubeShortUrl(url)) {
     return {
       classification: "youtube-shorts-video",
       resolverKey: "youtube-shorts",
@@ -163,7 +172,7 @@ function classifyPreviewTarget(url) {
     };
   }
 
-  if (isYouTubeWatchUrl(url) || isYouTubeShortHostUrl(url)) {
+  if (!isYouTubeMusicHost(url) && (isYouTubeWatchUrl(url) || isYouTubeShortHostUrl(url))) {
     return {
       classification: "youtube-video",
       resolverKey: "youtube",

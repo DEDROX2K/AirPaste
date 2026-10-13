@@ -284,6 +284,14 @@ function isLikelyPreviewImageUrl(url) {
       || normalizedUrl.includes("pbs.twimg.com/ext_tw_video_thumb/")
       || normalizedUrl.includes("i.pinimg.com/")
       || normalizedUrl.includes("i.ytimg.com/")
+      // Spotify's oEmbed thumbnails (scdn.co, spotifycdn.com) and YouTube
+      // Music's og:image cover art (yt3.googleusercontent.com) are served
+      // from extensionless, hash-based paths -- without these, every music
+      // preview silently fell through to "thumbnail missing" even though
+      // the resolver itself found a perfectly good image URL.
+      || normalizedUrl.includes("scdn.co/")
+      || normalizedUrl.includes("spotifycdn.com/")
+      || normalizedUrl.includes("yt3.googleusercontent.com/")
     );
 }
 
@@ -595,6 +603,7 @@ module.exports = {
   capturePreviewScreenshot,
   closePreviewBrowser,
   fetchJson,
+  isLikelyPreviewImageUrl,
   resolveGenericLinkPreview,
   resolvePreviewImage,
 };
