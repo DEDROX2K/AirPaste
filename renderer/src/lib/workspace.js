@@ -69,12 +69,25 @@ import {
   normalizeDeadlineTargetAt,
   normalizeDeadlineTimezone,
 } from "../tiles/deadline/model";
+import {
+  CHECKLIST_CARD_SIZE,
+  CHECKLIST_DEFAULT_TITLE,
+  normalizeChecklistItems,
+} from "../tiles/checklist/model";
+import {
+  CODE_CARD_SIZE,
+  CODE_DEFAULT_LANGUAGE,
+  CODE_DEFAULT_TITLE,
+  normalizeCodeLanguage,
+} from "../tiles/code/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
 export { createCounterCard } from "../tiles/counter/model";
 export { createProgressCard } from "../tiles/progress/model";
 export { createDeadlineCard } from "../tiles/deadline/model";
+export { createChecklistCard } from "../tiles/checklist/model";
+export { createCodeCard } from "../tiles/code/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -129,19 +142,9 @@ const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   height: 388,
 });
 
-const CHECKLIST_CARD_SIZE = Object.freeze({
-  width: 380,
-  height: 360,
-});
-
 const CALENDAR_CARD_SIZE = Object.freeze({
   width: 920,
   height: 468,
-});
-
-const CODE_CARD_SIZE = Object.freeze({
-  width: 520,
-  height: 360,
 });
 
 const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
@@ -165,24 +168,14 @@ const RACK_CARD_SIZE = Object.freeze({
 const RACK_DEFAULT_TITLE = "Rack";
 const FILE_DEFAULT_TITLE = "Untitled file";
 const RACK_DEFAULT_DESCRIPTION = "Mounted display rack";
-const CHECKLIST_DEFAULT_TITLE = "Checklist";
 const CALENDAR_DEFAULT_TITLE = "Calendar";
 const CALENDAR_DEFAULT_MONTH = new Date().getMonth();
 const CALENDAR_DEFAULT_YEAR = new Date().getFullYear();
 const CALENDAR_DEFAULT_VIEW = "month";
 const CALENDAR_DEFAULT_THEME_ID = "mist";
 const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";
-const CODE_DEFAULT_TITLE = "Untitled snippet";
-const CODE_DEFAULT_LANGUAGE = "plain";
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const TABLE_DEFAULT_TITLE = "Untitled table";
-const CHECKLIST_DEFAULT_ITEMS = Object.freeze([
-  Object.freeze({
-    id: "item-1",
-    text: "",
-    checked: false,
-  }),
-]);
 const TABLE_COLUMN_KINDS = Object.freeze(["text", "number", "checkbox", "date"]);
 const TABLE_DEFAULT_COLUMNS = Object.freeze([
   Object.freeze({ id: "col_name", name: "Name", kind: "text" }),
@@ -198,20 +191,6 @@ const TABLE_DEFAULT_ROWS = Object.freeze([
       col_notes: "",
     }),
   }),
-]);
-const CODE_SUPPORTED_LANGUAGES = Object.freeze([
-  "plain",
-  "bash",
-  "javascript",
-  "typescript",
-  "json",
-  "css",
-  "html",
-  "sql",
-  "regex",
-  "python",
-  "markdown",
-  "yaml",
 ]);
 const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
@@ -406,30 +385,6 @@ function isLinkLikeType(type) {
   return type === TILE_TYPES.LINK || type === AMAZON_PRODUCT_CARD_TYPE;
 }
 
-function normalizeChecklistItems(items) {
-  const normalizedItems = Array.isArray(items)
-    ? items
-      .map((item, index) => {
-        const text = typeof item?.text === "string" ? item.text : "";
-        const checked = item?.checked === true;
-        const itemId = typeof item?.id === "string" && item.id.trim().length > 0
-          ? item.id.trim()
-          : `item-${index + 1}`;
-
-        return {
-          id: itemId,
-          text,
-          checked,
-        };
-      })
-      .filter((item) => item.id.length > 0)
-    : [];
-
-  return normalizedItems.length > 0
-    ? normalizedItems
-    : CHECKLIST_DEFAULT_ITEMS.map((item) => ({ ...item }));
-}
-
 function normalizeCalendarMonth(month) {
   return Number.isFinite(month)
     ? Math.max(0, Math.min(11, Math.round(month)))
@@ -454,10 +409,6 @@ function normalizeCalendarThemeId(themeId) {
 
 function normalizeCalendarHeightPreset(heightPreset) {
   return heightPreset === "tall" ? "tall" : CALENDAR_DEFAULT_HEIGHT_PRESET;
-}
-
-function normalizeCodeLanguage(language) {
-  return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
 }
 
 function normalizeCanvasTextFileMeta(file) {
@@ -1717,24 +1668,6 @@ export function createRackCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-export function createChecklistCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, CHECKLIST_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: CHECKLIST_CARD_TYPE,
-    title: firstString(options?.title, CHECKLIST_DEFAULT_TITLE),
-    items: normalizeChecklistItems(options?.items),
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
 export function createCalendarCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CALENDAR_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
@@ -1748,27 +1681,6 @@ export function createCalendarCard(cards, viewport, preferredCenter = null, opti
     view: normalizeCalendarView(options?.view),
     themeId: normalizeCalendarThemeId(options?.themeId),
     heightPreset: normalizeCalendarHeightPreset(options?.heightPreset),
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
-export function createCodeCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, CODE_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: CODE_CARD_TYPE,
-    title: firstString(options?.title, CODE_DEFAULT_TITLE),
-    language: normalizeCodeLanguage(options?.language),
-    code: typeof options?.code === "string" ? options.code : "",
-    wrap: options?.wrap !== false,
-    showLineNumbers: options?.showLineNumbers !== false,
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,
