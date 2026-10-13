@@ -36,6 +36,25 @@ import {
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
 } from "./textBoxStyle";
+// Per-tile-type data model modules (Phase 2B extraction). These import
+// normalizeCard/getNextCardPosition/firstString/nowIso back from this file,
+// which creates a two-way circular import between this module and each
+// tiles/<type>/model.js -- safe under ESM/Vite because every usage on both
+// sides happens inside function bodies, never at module-evaluation time.
+import {
+  COUNTER_CARD_SIZE,
+  COUNTER_DEFAULT_STEP,
+  COUNTER_DEFAULT_TITLE,
+  COUNTER_DEFAULT_UNIT,
+  COUNTER_DEFAULT_VALUE,
+  normalizeCounterStep,
+  normalizeCounterUnit,
+  normalizeCounterValue,
+} from "../tiles/counter/model";
+// Re-exported so existing `import { createCounterCard } from "../lib/workspace"`
+// call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
+// need to change -- the implementation lives in tiles/counter/model.js now.
+export { createCounterCard } from "../tiles/counter/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -105,11 +124,6 @@ const CODE_CARD_SIZE = Object.freeze({
   height: 360,
 });
 
-const COUNTER_CARD_SIZE = Object.freeze({
-  width: 360,
-  height: 300,
-});
-
 const DEADLINE_CARD_SIZE = Object.freeze({
   width: 480,
   height: 360,
@@ -150,10 +164,6 @@ const CALENDAR_DEFAULT_THEME_ID = "mist";
 const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";
 const CODE_DEFAULT_TITLE = "Untitled snippet";
 const CODE_DEFAULT_LANGUAGE = "plain";
-const COUNTER_DEFAULT_TITLE = "Counter";
-const COUNTER_DEFAULT_VALUE = 0;
-const COUNTER_DEFAULT_STEP = 1;
-const COUNTER_DEFAULT_UNIT = "";
 const DEADLINE_DEFAULT_TITLE = "Launch countdown";
 const DEADLINE_DEFAULT_TIMEZONE = "local";
 const PROGRESS_DEFAULT_TITLE = "Feature progress";
@@ -203,7 +213,7 @@ const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallba
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
 const IMAGE_CARD_FIXED_WIDTH = 240;
 
-function nowIso() {
+export function nowIso() {
   return new Date().toISOString();
 }
 
@@ -223,7 +233,7 @@ function generateWorkspaceEntityId(prefix = "item") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function firstString(...values) {
+export function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
 }
 
@@ -444,18 +454,6 @@ function normalizeCalendarHeightPreset(heightPreset) {
 
 function normalizeCodeLanguage(language) {
   return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
-}
-
-function normalizeCounterValue(value) {
-  return Number.isFinite(value) ? Number(value) : COUNTER_DEFAULT_VALUE;
-}
-
-function normalizeCounterStep(step) {
-  return Number.isFinite(step) && Number(step) > 0 ? Number(step) : COUNTER_DEFAULT_STEP;
-}
-
-function normalizeCounterUnit(unit) {
-  return typeof unit === "string" ? unit : COUNTER_DEFAULT_UNIT;
 }
 
 function normalizeDeadlineTargetAt(targetAt) {
@@ -1793,26 +1791,6 @@ export function createCodeCard(cards, viewport, preferredCenter = null, options 
     code: typeof options?.code === "string" ? options.code : "",
     wrap: options?.wrap !== false,
     showLineNumbers: options?.showLineNumbers !== false,
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
-export function createCounterCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, COUNTER_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: COUNTER_CARD_TYPE,
-    title: firstString(options?.title, COUNTER_DEFAULT_TITLE),
-    value: normalizeCounterValue(options?.value),
-    step: normalizeCounterStep(options?.step),
-    unit: normalizeCounterUnit(options?.unit),
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,
