@@ -3790,6 +3790,22 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   background: transparent;
 }
 
+/* The base .card__surface clips its own content (overflow: hidden) so a
+   generic link thumbnail never spills past its box -- but the whole point
+   of the record design is for the disc to slide out past the sleeve's own
+   edge on hover. Without this, the disc (and the sleeve's bordered frame
+   from .card__surface--link below) made the music tile read as content
+   trapped in a generic box instead of a distinct object.
+   Combined with .card__surface--link for specificity: every music card
+   also carries .card__surface--link, whose own `border` rule (further
+   down this file) has equal specificity to a bare .card__surface--music
+   selector, so source order alone would let it win. */
+.card__surface--link.card__surface--music {
+  overflow: visible;
+  background: transparent;
+  border: none;
+}
+
 .card__surface--video {
   background:
     linear-gradient(180deg, rgba(248, 248, 248, 0.98), rgba(233, 231, 228, 0.98));
