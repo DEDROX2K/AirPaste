@@ -417,23 +417,35 @@ export function TabProvider({ children }) {
     }
   }, []);
 
-  const closeOtherTabs = useCallback((tabId) => {
-    closeTabsByIds(tabs.filter((tab) => tab.id !== HOME_TAB_ID && tab.id !== tabId).map((tab) => tab.id));
-  }, [closeTabsByIds, tabs]);
+  const closeOtherTabs = useCallback(async (tabId) => {
+    const idsToClose = tabs.filter((tab) => tab.id !== HOME_TAB_ID && tab.id !== tabId).map((tab) => tab.id);
+    const activeTabBeingClosed = idsToClose.includes(activeTabId)
+      ? tabs.find((tab) => tab.id === activeTabId)
+      : null;
+    if (activeTabBeingClosed && beforeCloseTabHandlerRef.current) {
+      await beforeCloseTabHandlerRef.current(activeTabBeingClosed);
+    }
+    closeTabsByIds(idsToClose);
+  }, [activeTabId, closeTabsByIds, tabs]);
 
-  const closeTabsToRight = useCallback((tabId) => {
+  const closeTabsToRight = useCallback(async (tabId) => {
     const currentIndex = tabs.findIndex((tab) => tab.id === tabId);
     if (currentIndex === -1) {
       return;
     }
 
-    closeTabsByIds(
-      tabs
-        .slice(currentIndex + 1)
-        .filter((tab) => tab.id !== HOME_TAB_ID)
-        .map((tab) => tab.id),
-    );
-  }, [closeTabsByIds, tabs]);
+    const idsToClose = tabs
+      .slice(currentIndex + 1)
+      .filter((tab) => tab.id !== HOME_TAB_ID)
+      .map((tab) => tab.id);
+    const activeTabBeingClosed = idsToClose.includes(activeTabId)
+      ? tabs.find((tab) => tab.id === activeTabId)
+      : null;
+    if (activeTabBeingClosed && beforeCloseTabHandlerRef.current) {
+      await beforeCloseTabHandlerRef.current(activeTabBeingClosed);
+    }
+    closeTabsByIds(idsToClose);
+  }, [activeTabId, closeTabsByIds, tabs]);
 
   const updateTabViewState = useCallback((tabId, viewStateUpdate) => {
     setTabs((currentTabs) => currentTabs.map((tab) => {

@@ -420,6 +420,116 @@ export function AppProvider({ children }) {
     activeCanvasPathRef.current = activeTab?.type === "canvas" ? activeTab.entityId : null;
   }, [activeTab, workspacesByPath]);
 
+  // Performs an immediate (non-debounced) save for one canvas if it has a
+  // pending dirty save, regardless of whether it's the currently active tab.
+  // This is the one function that must run to completion before any code
+  // path discards a canvas's in-memory state (closing its tab, switching
+  // domes, quitting the app) -- otherwise whatever hasn't been written to
+  // disk yet is gone for good, with no history to recover it from. Mirrors
+  // the debounced autosave's own save logic exactly, just parameterized by
+  // path and runnable on demand instead of waiting for CANVAS_SAVE_DELAY_MS.
+  const flushCanvasSave = useCallback(async (canvasPath) => {
+    if (!canvasPath || !pendingCanvasSaveRef.current[canvasPath]) {
+      return;
+    }
+
+    const canvas = workspacesRef.current[canvasPath];
+    const workspaceToSave = normalizeWorkspaceHistory(canvas).present;
+    if (!workspaceToSave) {
+      return;
+    }
+
+    const dirtyFields = pendingCanvasDirtyFieldsRef.current[canvasPath];
+    const savePayload = buildCanvasSavePayload(workspaceToSave, dirtyFields);
+    const changedKeys = Object.keys(savePayload);
+
+    if (!changedKeys.length) {
+      pendingCanvasSaveRef.current[canvasPath] = false;
+      return;
+    }
+
+    const totalStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const serializeStart = totalStart;
+    let serializedPayload = "";
+
+    try {
+      serializedPayload = JSON.stringify(savePayload);
+    } catch (serializeError) {
+      recordSaveSample({
+        path: canvasPath, serializeMs: 0, saveMs: 0, totalMs: 0, payloadBytes: 0, status: "error",
+      });
+      setError(serializeError?.message || "Unable to serialize the current canvas.");
+      return;
+    }
+
+    const serializeMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - serializeStart;
+    const saveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+    try {
+      await desktop.workspace.saveCanvas(canvasPath, savePayload, {
+        partial: true,
+        returnWorkspace: false,
+        changedKeys,
+      });
+
+      const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const latestCanvas = workspacesRef.current[canvasPath];
+      const latestWorkspace = normalizeWorkspaceHistory(latestCanvas).present;
+      const hasNewerChanges = latestWorkspace !== workspaceToSave;
+
+      if (hasNewerChanges) {
+        pendingCanvasSaveRef.current[canvasPath] = true;
+        pendingCanvasDirtyFieldsRef.current[canvasPath] = mergeCanvasDirtyFields(
+          pendingCanvasDirtyFieldsRef.current[canvasPath],
+          getCanvasDirtyFields(workspaceToSave, latestWorkspace),
+        );
+      } else {
+        pendingCanvasSaveRef.current[canvasPath] = false;
+        pendingCanvasDirtyFieldsRef.current[canvasPath] = {
+          pages: false, activePageId: false, name: false, airpaste: false,
+        };
+        lastSavedCanvasWorkspaceRef.current[canvasPath] = workspaceToSave;
+      }
+
+      recordSaveSample({
+        path: canvasPath,
+        serializeMs,
+        saveMs: saveEnd - saveStart,
+        totalMs: saveEnd - totalStart,
+        payloadBytes: serializedPayload.length,
+        status: "success",
+      });
+    } catch (saveError) {
+      const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      pendingCanvasSaveRef.current[canvasPath] = true;
+      recordSaveSample({
+        path: canvasPath,
+        serializeMs,
+        saveMs: saveEnd - saveStart,
+        totalMs: saveEnd - totalStart,
+        payloadBytes: serializedPayload.length,
+        status: "error",
+      });
+      setError(saveError.message || "Unable to save the current canvas.");
+    }
+  }, [setError]);
+
+  // Flushes every canvas with an unsaved pending change, not just the active
+  // one -- used right before anything abandons in-memory workspace state
+  // wholesale (switching/closing domes, quitting the app).
+  const flushAllPendingCanvasSaves = useCallback(async () => {
+    const pendingPaths = Object.keys(pendingCanvasSaveRef.current).filter(
+      (path) => pendingCanvasSaveRef.current[path],
+    );
+
+    if (pendingPaths.length === 0) {
+      return;
+    }
+
+    clearTimeout(saveTimeoutRef.current);
+    await Promise.all(pendingPaths.map((path) => flushCanvasSave(path)));
+  }, [flushCanvasSave]);
+
   const currentEditor = useMemo(() => {
     if (!activeTab || activeTab.type !== "canvas") return { kind: "home" };
     return {
@@ -469,7 +579,8 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  const clearWorkspaceState = useCallback(() => {
+  const clearWorkspaceState = useCallback(async () => {
+    await flushAllPendingCanvasSaves().catch(() => {});
     setFolderPath(null);
     setHomeData(createHomeState());
     setWorkspacesByPath({});
@@ -481,7 +592,7 @@ export function AppProvider({ children }) {
     lastObservedCanvasWorkspaceRef.current = {};
     workspaceDraftBaseRef.current = {};
     showHomeTab();
-  }, [showHomeTab]);
+  }, [flushAllPendingCanvasSaves, showHomeTab]);
 
   const applyDomesState = useCallback((payload) => {
     setDomesState({
@@ -510,6 +621,7 @@ export function AppProvider({ children }) {
     setFolderLoading(true);
     setError("");
     try {
+      await flushAllPendingCanvasSaves().catch(() => {});
       await desktop.workspace.loadWorkspace(nextFolderPath);
       const payload = await desktop.workspace.getHomeData(nextFolderPath);
       setFolderPath(nextFolderPath);
@@ -527,12 +639,12 @@ export function AppProvider({ children }) {
       return nextFolderPath;
     } catch (loadError) {
       setError(loadError.message || "Unable to open that folder.");
-      clearWorkspaceState();
+      await clearWorkspaceState();
       return null;
     } finally {
       setFolderLoading(false);
     }
-  }, [applyHomeData, clearWorkspaceState, refreshDomes, showHomeTab]);
+  }, [applyHomeData, clearWorkspaceState, flushAllPendingCanvasSaves, refreshDomes, showHomeTab]);
 
   const openExistingWorkspace = useCallback(async () => {
     try {
@@ -561,7 +673,7 @@ export function AppProvider({ children }) {
       return await loadFolder(dome.path);
     } catch (createError) {
       setError(createError.message || "Unable to create Dome in this folder.");
-      clearWorkspaceState();
+      await clearWorkspaceState();
       return null;
     } finally {
       setFolderLoading(false);
@@ -594,7 +706,7 @@ export function AppProvider({ children }) {
         await loadFolder(active.path);
       }
     } else if (!payload?.activeDomeId) {
-      clearWorkspaceState();
+      await clearWorkspaceState();
     }
     return payload;
   }, [applyDomesState, clearWorkspaceState, folderPath, loadFolder]);
@@ -797,12 +909,13 @@ export function AppProvider({ children }) {
     }
 
     const captured = await captureActiveCanvasThumbnail();
+    await flushAllPendingCanvasSaves().catch(() => {});
     if (captured && folderPath) {
       await refreshHomeData(folderPath);
     }
 
     return captured;
-  }, [activeTab?.id, captureActiveCanvasThumbnail, folderPath, refreshHomeData]);
+  }, [activeTab?.id, captureActiveCanvasThumbnail, flushAllPendingCanvasSaves, folderPath, refreshHomeData]);
 
   useEffect(() => {
     registerBeforeCloseTab(handleBeforeCloseTab);
@@ -1565,105 +1678,10 @@ export function AppProvider({ children }) {
         return;
       }
 
-      const canvas = workspacesRef.current[activeCanvasPath];
-      const workspaceToSave = normalizeWorkspaceHistory(canvas).present;
-      if (!workspaceToSave) return;
-      const dirtyFields = pendingCanvasDirtyFieldsRef.current[activeCanvasPath];
-      const savePayload = buildCanvasSavePayload(workspaceToSave, dirtyFields);
-      const changedKeys = Object.keys(savePayload);
-
-      if (!changedKeys.length) {
-        pendingCanvasSaveRef.current[activeCanvasPath] = false;
-        return;
-      }
-
-      const totalStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const serializeStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      let serializedPayload = "";
-
-      try {
-        serializedPayload = JSON.stringify(savePayload);
-      } catch (serializeError) {
-        recordSaveSample({
-          path: activeCanvasPath,
-          serializeMs: 0,
-          saveMs: 0,
-          totalMs: 0,
-          payloadBytes: 0,
-          status: "error",
-        });
-        setError(serializeError?.message || "Unable to serialize the current canvas.");
-        return;
-      }
-
-      const serializeEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const serializeMs = serializeEnd - serializeStart;
-
-      if (canvasInteractionStateRef.current[activeCanvasPath]) {
-        pendingCanvasSaveRef.current[activeCanvasPath] = true;
-        return;
-      }
-
-      const saveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-
-      void desktop.workspace.saveCanvas(activeCanvasPath, savePayload, {
-        partial: true,
-        returnWorkspace: false,
-        changedKeys,
-      })
-        .then(() => {
-          const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
-          const saveMs = saveEnd - saveStart;
-          const totalMs = saveEnd - totalStart;
-          const latestCanvas = workspacesRef.current[activeCanvasPath];
-          const latestWorkspace = normalizeWorkspaceHistory(latestCanvas).present;
-          const hasNewerChanges = latestWorkspace !== workspaceToSave;
-
-          if (hasNewerChanges) {
-            pendingCanvasSaveRef.current[activeCanvasPath] = true;
-            pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = mergeCanvasDirtyFields(
-              pendingCanvasDirtyFieldsRef.current[activeCanvasPath],
-              getCanvasDirtyFields(workspaceToSave, latestWorkspace),
-            );
-          } else {
-            pendingCanvasSaveRef.current[activeCanvasPath] = false;
-            pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
-              pages: false,
-              activePageId: false,
-              name: false,
-              airpaste: false,
-            };
-            lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToSave;
-          }
-
-          recordSaveSample({
-            path: activeCanvasPath,
-            serializeMs,
-            saveMs,
-            totalMs,
-            payloadBytes: serializedPayload.length,
-            status: "success",
-          });
-        })
-        .catch((saveError) => {
-          const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
-          const saveMs = saveEnd - saveStart;
-          const totalMs = saveEnd - totalStart;
-
-          pendingCanvasSaveRef.current[activeCanvasPath] = true;
-          recordSaveSample({
-            path: activeCanvasPath,
-            serializeMs,
-            saveMs,
-            totalMs,
-            payloadBytes: serializedPayload.length,
-            status: "error",
-          });
-          setError(saveError.message || "Unable to save the current canvas.");
-        });
+      void flushCanvasSave(activeCanvasPath);
     }, CANVAS_SAVE_DELAY_MS);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [canvasInteractionVersion, folderPath, workspaceHistory.present]);
+  }, [canvasInteractionVersion, flushCanvasSave, folderPath, workspaceHistory.present]);
 
   const value = useMemo(() => ({
     activeDome,
@@ -1699,6 +1717,7 @@ export function AppProvider({ children }) {
     deleteItemEntry,
     domes: domesState.recentDomes,
     error,
+    flushAllPendingCanvasSaves,
     folderLoading,
     folderPath,
     homeData,
@@ -1767,6 +1786,7 @@ export function AppProvider({ children }) {
     deleteItemEntry,
     domesState.recentDomes,
     error,
+    flushAllPendingCanvasSaves,
     folderLoading,
     folderPath,
     homeData,

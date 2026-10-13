@@ -107,6 +107,7 @@ export default function App() {
     booting,
     currentEditor,
     error,
+    flushAllPendingCanvasSaves,
     isLoading,
     loadingLabel,
     setError,
@@ -132,7 +133,17 @@ export default function App() {
     desktop.window.close();
   }, [markWindowClosing]);
 
-  useEffect(() => desktop.window.onPrepareClose(markWindowClosing), [markWindowClosing]);
+  const handlePrepareClose = useCallback(() => {
+    markWindowClosing();
+    // Flush any debounced-but-unsaved canvas edits before the window is
+    // allowed to actually close; main.js waits for this acknowledgment
+    // (with its own safety-net timeout) rather than closing on a blind timer.
+    Promise.resolve(flushAllPendingCanvasSaves?.())
+      .catch(() => {})
+      .finally(() => desktop.window.notifyReadyToClose?.());
+  }, [flushAllPendingCanvasSaves, markWindowClosing]);
+
+  useEffect(() => desktop.window.onPrepareClose(handlePrepareClose), [handlePrepareClose]);
 
   useEffect(() => () => {
     window.clearTimeout(transitionTimeoutRef.current);

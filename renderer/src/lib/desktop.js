@@ -105,6 +105,7 @@ export const desktop = {
     maximize: () => electronBridge.maximize?.(),
     close: () => electronBridge.close?.(),
     onPrepareClose: (listener) => electronBridge.onPrepareClose?.(listener) ?? (() => { }),
+    notifyReadyToClose: () => electronBridge.notifyReadyToClose?.(),
     resizeStart: (direction) => electronBridge.resizeStart?.(direction),
     resizeMove: (deltaX, deltaY) => electronBridge.resizeMove?.(deltaX, deltaY),
     resizeEnd: () => electronBridge.resizeEnd?.(),

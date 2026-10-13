@@ -4,10 +4,15 @@ const path = require("node:path");
 const context = require("./context");
 
 const WINDOW_CLOSE_ANIMATION_MS = 190;
+// Upper bound on how long quitting can wait for the renderer to flush pending
+// autosaves before closing anyway -- protects against a hung or crashed
+// renderer blocking the app from ever closing.
+const WINDOW_CLOSE_SAFETY_TIMEOUT_MS = 4000;
 
 let activeWindowResizeSession = null;
 let allowImmediateWindowClose = false;
-let pendingWindowCloseTimeout = null;
+let closeFlushPending = false;
+let pendingCloseReadyResolve = null;
 
 function resolveWindowIconPath() {
   const iconCandidates = [
@@ -31,11 +36,46 @@ function getDevServerUrl() {
   return "http://127.0.0.1:5173";
 }
 
+// Asks the renderer to flush any pending debounced autosave before the
+// window is actually allowed to close, instead of closing on a blind timer
+// (which used to drop whatever was still in the 420ms autosave debounce when
+// the app quit shortly after an edit). The renderer acknowledges via
+// "window:ready-to-close" once its flush settles; WINDOW_CLOSE_SAFETY_TIMEOUT_MS
+// guarantees this can never block the app from closing indefinitely.
+function requestGracefulClose(onReady) {
+  const mainWindow = context.mainWindow;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    onReady();
+    return;
+  }
+
+  if (closeFlushPending) {
+    // A close/quit is already being flushed; this request will be satisfied
+    // when that one finishes and the window actually closes.
+    return;
+  }
+  closeFlushPending = true;
+
+  const closeRequestedAt = Date.now();
+  mainWindow.webContents.send("window:prepare-close");
+
+  const finish = () => {
+    if (!closeFlushPending) return;
+    closeFlushPending = false;
+    pendingCloseReadyResolve = null;
+    clearTimeout(safetyTimer);
+    const elapsedMs = Date.now() - closeRequestedAt;
+    const remainingAnimationMs = Math.max(0, WINDOW_CLOSE_ANIMATION_MS - elapsedMs);
+    setTimeout(onReady, remainingAnimationMs);
+  };
+
+  pendingCloseReadyResolve = finish;
+  const safetyTimer = setTimeout(finish, WINDOW_CLOSE_SAFETY_TIMEOUT_MS);
+}
+
 async function createWindow() {
   const windowIconPath = resolveWindowIconPath();
   allowImmediateWindowClose = false;
-  clearTimeout(pendingWindowCloseTimeout);
-  pendingWindowCloseTimeout = null;
 
   const mainWindow = new BrowserWindow({
     width: 1440,
@@ -80,12 +120,10 @@ async function createWindow() {
     }
 
     event.preventDefault();
-    mainWindow.webContents.send("window:prepare-close");
-    clearTimeout(pendingWindowCloseTimeout);
-    pendingWindowCloseTimeout = setTimeout(() => {
+    requestGracefulClose(() => {
       allowImmediateWindowClose = true;
       mainWindow?.close();
-    }, WINDOW_CLOSE_ANIMATION_MS);
+    });
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -199,11 +237,14 @@ function registerIpc() {
   ipcMain.on("window:resizeEnd", () => {
     activeWindowResizeSession = null;
   });
+
+  ipcMain.on("window:ready-to-close", () => {
+    pendingCloseReadyResolve?.();
+  });
 }
 
 function markImmediateCloseAllowed() {
   allowImmediateWindowClose = true;
-  clearTimeout(pendingWindowCloseTimeout);
 }
 
 module.exports = {
@@ -211,4 +252,5 @@ module.exports = {
   getDevServerUrl,
   markImmediateCloseAllowed,
   registerIpc,
+  requestGracefulClose,
 };

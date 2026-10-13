@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("window:prepare-close", handler);
     return () => ipcRenderer.removeListener("window:prepare-close", handler);
   },
+  notifyReadyToClose: () => ipcRenderer.send("window:ready-to-close"),
   usesCustomTitlebar: true,
   usesCustomWindowResize: false,
 });
