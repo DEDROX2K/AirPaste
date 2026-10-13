@@ -51,10 +51,30 @@ import {
   normalizeCounterUnit,
   normalizeCounterValue,
 } from "../tiles/counter/model";
-// Re-exported so existing `import { createCounterCard } from "../lib/workspace"`
+import {
+  PROGRESS_CARD_SIZE,
+  PROGRESS_DEFAULT_MAX,
+  PROGRESS_DEFAULT_MODE,
+  PROGRESS_DEFAULT_TITLE,
+  PROGRESS_DEFAULT_VALUE,
+  normalizeProgressLinkedTileId,
+  normalizeProgressMax,
+  normalizeProgressMode,
+  normalizeProgressValue,
+} from "../tiles/progress/model";
+import {
+  DEADLINE_CARD_SIZE,
+  DEADLINE_DEFAULT_TIMEZONE,
+  DEADLINE_DEFAULT_TITLE,
+  normalizeDeadlineTargetAt,
+  normalizeDeadlineTimezone,
+} from "../tiles/deadline/model";
+// Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
-// need to change -- the implementation lives in tiles/counter/model.js now.
+// need to change -- the implementations live in tiles/<type>/model.js now.
 export { createCounterCard } from "../tiles/counter/model";
+export { createProgressCard } from "../tiles/progress/model";
+export { createDeadlineCard } from "../tiles/deadline/model";
 
 export const RACK_CARD_TYPE = TILE_TYPES.RACK;
 export const FILE_CARD_TYPE = TILE_TYPES.FILE;
@@ -124,17 +144,7 @@ const CODE_CARD_SIZE = Object.freeze({
   height: 360,
 });
 
-const DEADLINE_CARD_SIZE = Object.freeze({
-  width: 480,
-  height: 360,
-});
-
 const NOTE_CARD_SIZE = CANVAS_TEXT_DEFAULT_SIZE;
-
-const PROGRESS_CARD_SIZE = Object.freeze({
-  width: 400,
-  height: 280,
-});
 
 const TABLE_CARD_SIZE = Object.freeze({
   width: 560,
@@ -164,12 +174,6 @@ const CALENDAR_DEFAULT_THEME_ID = "mist";
 const CALENDAR_DEFAULT_HEIGHT_PRESET = "compact";
 const CODE_DEFAULT_TITLE = "Untitled snippet";
 const CODE_DEFAULT_LANGUAGE = "plain";
-const DEADLINE_DEFAULT_TITLE = "Launch countdown";
-const DEADLINE_DEFAULT_TIMEZONE = "local";
-const PROGRESS_DEFAULT_TITLE = "Feature progress";
-const PROGRESS_DEFAULT_MODE = "manual";
-const PROGRESS_DEFAULT_VALUE = 0;
-const PROGRESS_DEFAULT_MAX = 100;
 const NOTE_DEFAULT_TITLE = "Untitled note";
 const TABLE_DEFAULT_TITLE = "Untitled table";
 const CHECKLIST_DEFAULT_ITEMS = Object.freeze([
@@ -454,32 +458,6 @@ function normalizeCalendarHeightPreset(heightPreset) {
 
 function normalizeCodeLanguage(language) {
   return CODE_SUPPORTED_LANGUAGES.includes(language) ? language : CODE_DEFAULT_LANGUAGE;
-}
-
-function normalizeDeadlineTargetAt(targetAt) {
-  return typeof targetAt === "string" ? targetAt : "";
-}
-
-function normalizeDeadlineTimezone(timezone) {
-  return timezone === DEADLINE_DEFAULT_TIMEZONE ? DEADLINE_DEFAULT_TIMEZONE : DEADLINE_DEFAULT_TIMEZONE;
-}
-
-function normalizeProgressMode(mode) {
-  return mode === "linked" ? "linked" : PROGRESS_DEFAULT_MODE;
-}
-
-function normalizeProgressValue(value) {
-  return Number.isFinite(value) ? Number(value) : PROGRESS_DEFAULT_VALUE;
-}
-
-function normalizeProgressMax(max) {
-  return Number.isFinite(max) && Number(max) > 0 ? Number(max) : PROGRESS_DEFAULT_MAX;
-}
-
-function normalizeProgressLinkedTileId(linkedTileId) {
-  return typeof linkedTileId === "string" && linkedTileId.trim().length > 0
-    ? linkedTileId.trim()
-    : null;
 }
 
 function normalizeCanvasTextFileMeta(file) {
@@ -1800,26 +1778,6 @@ export function createCodeCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-export function createDeadlineCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, DEADLINE_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: DEADLINE_CARD_TYPE,
-    title: firstString(options?.title, DEADLINE_DEFAULT_TITLE),
-    targetAt: normalizeDeadlineTargetAt(options?.targetAt),
-    timezone: normalizeDeadlineTimezone(options?.timezone),
-    showSeconds: options?.showSeconds === true,
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
 export function createNoteCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, CANVAS_TEXT_CARD_TYPE, preferredCenter);
   const timestamp = nowIso();
@@ -1847,26 +1805,6 @@ export function createNoteCard(cards, viewport, preferredCenter = null, options 
   });
 }
 
-export function createProgressCard(cards, viewport, preferredCenter = null, options = {}) {
-  const position = getNextCardPosition(cards, viewport, PROGRESS_CARD_TYPE, preferredCenter);
-  const timestamp = nowIso();
-
-  return normalizeCard({
-    id: crypto.randomUUID(),
-    type: PROGRESS_CARD_TYPE,
-    title: firstString(options?.title, PROGRESS_DEFAULT_TITLE),
-    mode: normalizeProgressMode(options?.mode),
-    value: normalizeProgressValue(options?.value),
-    max: normalizeProgressMax(options?.max),
-    linkedTileId: normalizeProgressLinkedTileId(options?.linkedTileId),
-    x: position.x,
-    y: position.y,
-    width: Number.isFinite(options?.width) ? options.width : position.width,
-    height: Number.isFinite(options?.height) ? options.height : position.height,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
 
 export function createTableCard(cards, viewport, preferredCenter = null, options = {}) {
   const position = getNextCardPosition(cards, viewport, TABLE_CARD_TYPE, preferredCenter);
