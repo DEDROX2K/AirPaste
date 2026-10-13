@@ -30,18 +30,18 @@ A running before/after log of the incremental rewrite. See [the rewrite plan](.)
 | IPC regression coverage | None | New test mocking `electron` via `require.cache` injection, asserting all 44 `ipcMain.handle` + 6 `ipcMain.on` channels are registered exactly once |
 | Packaging | — | Fixed `electron-builder`'s `files` list, which would have silently excluded the new `main/` and `shared/` directories from production builds |
 
-## Phase 2B — Tile registry + `normalizeCard` (in progress)
+## Phase 2B — Tile registry + `normalizeCard` extraction (done)
 
 | Area | Before | After |
 |---|---|---|
 | Tile registries | Two separate tables: `renderer/src/tiles/tileRegistry.js` (347 lines, rich metadata, **unused by anything**) and `renderer/src/components/tiles/tileRegistry.js` (90 lines, the one `Card.jsx` actually used) | Merged into one canonical file. The dead registry's cached tile sizes had drifted from reality (wrong for Calendar, Deadline, and the whole canvas-text family) — dropped rather than carried forward as "documentation" that was already wrong |
 | Tile rendering coverage | No test for `getTileRegistration`, the dispatch every rendered tile goes through | 17-case regression test covering all tile types plus the sticky-note/text-box variant-detection edge cases |
 | `normalizeCard` coverage | Zero tests for the ~180-line function every tile's data flows through on every load/save/create/update | Characterization tests across all 12 tile types, plus idempotency and unknown-type handling. Surfaced two pre-existing findings: the Deadline tile's `timezone` field is fully non-functional (flagged separately), and legacy "note"-type cards read content from `body`, not `text` |
-| Per-tile data model | All 12 tile types' normalize/create logic lived inline in one 2,500-line `lib/workspace.js` | Extraction in progress, one type at a time, verified against the tests above after each. Counter is done (`renderer/src/tiles/counter/model.js`); the rest are next |
+| Per-tile data model | All 12 tile types' normalize/create logic lived inline in one 2,539-line `lib/workspace.js` | Extracted into 11 `renderer/src/tiles/<type>/model.js` files (1,041 lines total); `lib/workspace.js` drops to 1,701 lines (-33%), keeping only the orchestration that genuinely needs cross-type awareness (the central `normalizeCard`/`getCardSize` dispatchers, same reasoning as `migrateWorkspace`) |
+| Dev-server-only crash | — | Caught live (prod build alone wouldn't have shown it): `RACK_CARD_SIZE` computed itself from imported constants at module top level, and the resulting circular import threw a "before initialization" error under native ESM (Vite dev) even though Rollup's bundled production build silently tolerated it. Fixed by keeping that one computed constant next to the geometry values it derives from |
 
 ## Still ahead
 
-- Finish the `normalizeCard` extraction (11 more tile types)
 - Split `AppProvider.jsx` (the ~1,800-line global state context) into narrower contexts
 - Split `CanvasWorkspaceView.jsx` (the ~2,900-line canvas orchestrator) — highest-risk piece, scheduled last
 - A decision from the project owner on the dead Three.js "globe" canvas view — unlike the Phase 2A dead code, this looks like paused feature work rather than superseded infrastructure, so it's gated behind a flag rather than deleted
