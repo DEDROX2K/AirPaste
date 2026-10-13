@@ -132,3 +132,110 @@ describe("json-canvas round trip", () => {
     expect(serialized.edges).toHaveLength(0);
   });
 });
+
+describe("json-canvas multi-page round trip (regression: a second page used to be " +
+  "silently discarded on the very next save, unrecoverable after closing the app)", () => {
+  function buildTwoPageWorkspace(activePageId = "page-2") {
+    const original = buildWorkspaceDocument();
+    const pageTwo = {
+      id: "page-2",
+      name: "Page 2",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      drawings: { version: 1, objects: [] },
+      view: null,
+      cards: [
+        {
+          id: "card-note-1",
+          type: "canvas-text",
+          text: "Notes on page two",
+          x: 10,
+          y: 10,
+          width: 200,
+          height: 100,
+          airpaste: null,
+        },
+      ],
+      groups: [],
+      edges: [],
+    };
+
+    return {
+      ...original,
+      activePageId,
+      pages: [...original.pages, pageTwo],
+    };
+  }
+
+  it("keeps the second page after a single save -> load cycle, whichever page is active", () => {
+    const withPageTwoActive = buildTwoPageWorkspace("page-2");
+
+    const serialized = serializeJsonCanvasDocument(withPageTwoActive);
+    const parsed = parseJsonCanvasDocument(serialized);
+
+    expect(parsed.pages).toHaveLength(2);
+    expect(parsed.activePageId).toBe("page-2");
+
+    const pageOne = parsed.pages.find((page) => page.id === "page-1");
+    const pageTwo = parsed.pages.find((page) => page.id === "page-2");
+    expect(pageOne.tiles[0]).toMatchObject({ id: "card-link-1" });
+    expect(pageTwo.tiles[0] ?? pageTwo.cards?.[0]).toMatchObject({ id: "card-note-1", text: "Notes on page two" });
+  });
+
+  it(
+    "survives the exact reported scenario: create page 2, edit it, close (save with page 2 " +
+      "active), reopen, switch back to page 1, save again, reopen once more",
+    () => {
+      const afterCreatingAndEditingPageTwo = buildTwoPageWorkspace("page-2");
+
+      // "Close and reopen" -- one save/load cycle while page 2 is still active.
+      const afterFirstReopen = parseJsonCanvasDocument(
+        serializeJsonCanvasDocument(afterCreatingAndEditingPageTwo),
+      );
+      expect(afterFirstReopen.pages.map((page) => page.id).sort()).toEqual(["page-1", "page-2"]);
+
+      // Switch the active page back to page 1 (a very ordinary thing to do)
+      // and save again -- this is exactly the step that used to make page 2
+      // vanish, because the old serializer only ever wrote the *active*
+      // page's content into nodes/edges and had nowhere else to put the rest.
+      const withPageOneActive = { ...afterFirstReopen, activePageId: "page-1" };
+      const afterSecondReopen = parseJsonCanvasDocument(
+        serializeJsonCanvasDocument(withPageOneActive),
+      );
+
+      expect(afterSecondReopen.pages.map((page) => page.id).sort()).toEqual(["page-1", "page-2"]);
+      const recoveredPageTwo = afterSecondReopen.pages.find((page) => page.id === "page-2");
+      expect(recoveredPageTwo.cards ?? recoveredPageTwo.tiles).toContainEqual(
+        expect.objectContaining({ id: "card-note-1", text: "Notes on page two" }),
+      );
+    },
+  );
+
+  it("still loads a genuinely old single-page file with no airpaste.pages stash at all", () => {
+    const legacySingleActivePage = buildWorkspaceDocument();
+    const serialized = serializeJsonCanvasDocument(legacySingleActivePage);
+    delete serialized.airpaste.pages; // simulate a file saved before this fix existed
+
+    const parsed = parseJsonCanvasDocument(serialized);
+    expect(parsed.pages).toHaveLength(1);
+    expect(parsed.pages[0].tiles[0]).toMatchObject({ id: "card-link-1" });
+  });
+
+  it("always rebuilds the active page from nodes/edges, never from its own entry in the stash", () => {
+    const withPageTwoActive = buildTwoPageWorkspace("page-2");
+    const serialized = serializeJsonCanvasDocument(withPageTwoActive);
+
+    // Make the active page's entry in the airpaste.pages stash stale/wrong,
+    // the way it would be if an external tool (or a future bug) only ever
+    // updated nodes/edges without keeping the stash in sync. The active
+    // page's reconstruction must still come from nodes/edges, exactly as it
+    // did before this fix -- the stash is only ever consulted for pages that
+    // have no representation in nodes/edges at all.
+    serialized.airpaste.pages = serialized.airpaste.pages.map((page) => (
+      page.id === "page-2" ? { ...page, cards: [{ id: "card-note-1", type: "canvas-text", text: "STALE" }] } : page
+    ));
+
+    const parsed = parseJsonCanvasDocument(serialized);
+    const activePage = parsed.pages.find((page) => page.id === parsed.activePageId);
+    expect(activePage.tiles[0].text).toBe("Notes on page two");
+  });
+});

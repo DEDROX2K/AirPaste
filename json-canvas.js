@@ -478,23 +478,38 @@ function parseJsonCanvasDocument(raw, fallbackName = "Canvas") {
   delete boardAirpaste.viewport;
   delete boardAirpaste.drawings;
   delete boardAirpaste.view;
+  delete boardAirpaste.pages;
+
+  // The JSON Canvas spec has no concept of multiple pages per file -- nodes/
+  // edges can only ever represent one page's worth of content. The active
+  // page is always rebuilt from nodes/edges above (never from the stash
+  // below), so an external edit to this file (e.g. opening it in Obsidian)
+  // is never silently discarded. Every *other* page only ever exists in
+  // this airpaste.pages stash, written by serializeJsonCanvasDocument,
+  // because there is nowhere else for it to live in this file format.
+  const activePage = {
+    id: pageId,
+    name: pageName,
+    viewport,
+    tiles,
+    drawings,
+    edges,
+    groups,
+    view,
+    airpaste: null,
+  };
+  const otherPages = Array.isArray(airpaste.pages)
+    ? airpaste.pages
+      .filter((page) => isObject(page) && page.id !== pageId)
+      .map((page) => cloneStructuredValue(page))
+    : [];
 
   return {
     version: Number.isFinite(airpaste.workspaceVersion) ? airpaste.workspaceVersion : 10,
     name: firstString(raw?.name, fallbackName, "Canvas"),
     activePageId: pageId,
     airpaste: Object.keys(boardAirpaste).length > 0 ? boardAirpaste : null,
-    pages: [{
-      id: pageId,
-      name: pageName,
-      viewport,
-      tiles,
-      drawings,
-      edges,
-      groups,
-      view,
-      airpaste: null,
-    }],
+    pages: [activePage, ...otherPages],
   };
 }
 
@@ -529,6 +544,14 @@ function serializeJsonCanvasDocument(workspaceDocument, options = {}) {
       viewport: normalizeViewport(activePage?.viewport),
       drawings: normalizeDrawings(activePage?.drawings),
       view: activePage?.view === null || isObject(activePage?.view) ? cloneStructuredValue(activePage.view) : null,
+      // Full fidelity stash for every page, including the active one (parsed
+      // back out by parseJsonCanvasDocument, which ignores the active page's
+      // entry here in favor of nodes/edges above -- see the comment there).
+      // Without this, the JSON Canvas spec's single nodes/edges array has no
+      // way to represent a second page at all: it would be silently dropped
+      // on the very next save, surviving only until the app was closed and
+      // reopened, with no way to recover it afterwards.
+      pages: pages.length > 0 ? cloneStructuredValue(pages) : [],
     },
   };
 }
