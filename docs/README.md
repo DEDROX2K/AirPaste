@@ -6,6 +6,8 @@ This directory contains canonical, supporting, and historical AirPaste documenta
 
 Start here for all future tile work.
 
+- [PRODUCT_VISION.md](./PRODUCT_VISION.md)
+  - The actual product goal (rich, custom per-tile UI, local-first for performance headroom) and the gap between that and today's prototype-level tiles. Read this before scoping new tile/UI work.
 - [UI_GUIDE.md](./UI_GUIDE.md)
   - Canonical UI direction for shell, controls, tiles, menus, spacing, and responsive behavior.
 - [TILE_BOOK.md](./TILE_BOOK.md)
