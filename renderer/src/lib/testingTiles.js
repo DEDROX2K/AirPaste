@@ -115,6 +115,34 @@ const TESTING_TILE_ROWS = Object.freeze([
     ],
   },
   {
+    key: "music-spotify",
+    label: "Music / Spotify",
+    items: [
+      {
+        kind: "music",
+        url: "https://open.spotify.com/track/sample-track-one",
+        title: "Sample Track One",
+        siteName: "Spotify",
+        image: "/tilesimg/files.png",
+      },
+      {
+        kind: "music",
+        url: "https://open.spotify.com/album/sample-album-two",
+        title: "Sample Album Two",
+        siteName: "Spotify",
+        image: "/tilesimg/note.png",
+      },
+      {
+        kind: "music",
+        url: "https://open.spotify.com/track/sample-no-art",
+        title: "No artwork yet",
+        siteName: "Spotify",
+        image: "",
+        status: "loading",
+      },
+    ],
+  },
+  {
     key: "notes-markdown",
     label: "Notes / Markdown",
     items: [
@@ -502,6 +530,24 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
         width: CARD_WIDTH + 60,
         height: CARD_HEIGHT + 40,
         ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "music") {
+    return positionSeedCard(
+      createLinkCard(cards, viewport, item.url, null, {
+        width: CARD_WIDTH,
+        height: CARD_HEIGHT,
+        previewKind: "music",
+        status: item.status ?? "ready",
+        image: item.image ?? "",
+        title: item.title,
+        siteName: item.siteName ?? "Spotify",
+        sourceType: "spotify",
+        contentType: "audio",
       }),
       rowIndex,
       columnIndex,

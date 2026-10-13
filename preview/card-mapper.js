@@ -4,7 +4,9 @@ const LINK_CONTENT_KIND_IMAGE = "image";
 const { PREVIEW_KIND, PREVIEW_STATE_VALUES, PREVIEW_STATUS } = require("./constants");
 const { getHostname } = require("./utils");
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
-const IMAGE_CARD_FIXED_WIDTH = 240;
+// Matches LINK_CARD_SIZE/AMAZON_PRODUCT_CARD_SIZE's width -- see the same
+// constant in renderer/src/systems/import/imageSizing.js for why.
+const IMAGE_CARD_FIXED_WIDTH = 340;
 
 function getImageCardSizeFromAspectRatio(aspectRatio) {
   if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {

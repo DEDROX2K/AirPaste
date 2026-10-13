@@ -1,23 +1,18 @@
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
-const IMAGE_CARD_FIXED_WIDTH = 240;
+// Matches LINK_CARD_SIZE/AMAZON_PRODUCT_CARD_SIZE's width so every link-like
+// tile lines up to the same column width -- only the height varies with the
+// media's real aspect ratio. (Previously 240px, narrower than every other
+// tile, which made image/media tiles look like an odd one out.)
+const IMAGE_CARD_FIXED_WIDTH = 340;
 const STICKER_TILE_MAX_WIDTH = 188;
 const STICKER_TILE_MAX_HEIGHT = 188;
 const STICKER_TILE_MIN_SIDE = 92;
 
-export function getImageTileSize(width, height, previewKind = "default") {
+export function getImageTileSize(width, height) {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return {
       width: 340,
       height: 280,
-    };
-  }
-
-  if (previewKind === "music") {
-    const side = Math.round(IMAGE_CARD_FIXED_WIDTH);
-
-    return {
-      width: side,
-      height: side,
     };
   }
 

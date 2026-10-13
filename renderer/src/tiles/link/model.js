@@ -24,7 +24,9 @@ export const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
 export const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
 
 const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
-const IMAGE_CARD_FIXED_WIDTH = 240;
+// Matches LINK_CARD_SIZE/AMAZON_PRODUCT_CARD_SIZE's width -- see the same
+// constant in renderer/src/systems/import/imageSizing.js for why.
+const IMAGE_CARD_FIXED_WIDTH = 340;
 
 export function isLinkLikeType(type) {
   return type === LINK_CARD_TYPE || type === AMAZON_PRODUCT_CARD_TYPE;

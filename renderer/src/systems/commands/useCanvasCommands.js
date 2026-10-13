@@ -32,6 +32,7 @@ import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 import { getRenderableTileEntries } from "../layout/tileLayout";
+import { LINK_CARD_SIZE } from "../../tiles/link/model";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
@@ -1019,10 +1020,23 @@ export function useCanvasCommands({
   }, [commitWorkspaceChange, folderPath, log, toast]);
 
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
+    const isAtDefaultLinkSize = Number.isFinite(tile?.width) && Number.isFinite(tile?.height)
+      && Math.abs(tile.width - LINK_CARD_SIZE.width) <= 1
+      && Math.abs(tile.height - LINK_CARD_SIZE.height) <= 1;
+
     if (
       !tile?.id
       || tile?.type !== "link"
-      || tile?.contentKind !== LINK_CONTENT_KIND_IMAGE
+      // Video tiles keep a fixed outer box and letterbox their own frame to
+      // the real aspect ratio instead (see --video-media-aspect in
+      // LinkTile.jsx) -- resizing the whole tile here would fight that.
+      || tile?.contentType === "video"
+      // Pasted/dropped images are expected to resize to their real aspect
+      // ratio right away. For a fetched preview thumbnail, only do this
+      // once, while the tile is still at the untouched default size --
+      // otherwise a later preview refresh (retryTilePreview) could silently
+      // snap a tile the person deliberately resized back to "fit the image".
+      || (tile?.contentKind !== LINK_CONTENT_KIND_IMAGE && !isAtDefaultLinkSize)
       || !Number.isFinite(mediaWidth)
       || !Number.isFinite(mediaHeight)
       || mediaWidth <= 0
@@ -1031,7 +1045,7 @@ export function useCanvasCommands({
       return;
     }
 
-    const nextSize = getImageTileSize(mediaWidth, mediaHeight, tile.previewKind);
+    const nextSize = getImageTileSize(mediaWidth, mediaHeight);
 
     if (
       Math.abs(tile.width - nextSize.width) <= 1
@@ -1043,6 +1057,7 @@ export function useCanvasCommands({
     updateExistingCard(tile.id, {
       width: nextSize.width,
       height: nextSize.height,
+      mediaAspectRatio: mediaWidth / mediaHeight,
     });
   }, [updateExistingCard]);
 
