@@ -20,6 +20,13 @@
   --ap-tile-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055);
   --ap-tile-shadow-selected: var(--ap-tile-shadow);
   --ap-tile-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Own tokens, not --ap-tile-shadow*: SimpleUi.css's later "Final UI
+     foundation" pass zeroes --ap-tile-shadow/-hover to `none` for Home-UI
+     purposes, which would silently kill this too if reused. */
+  --ap-widget-shadow-resting: 0 1px 3px rgba(0, 0, 0, 0.06), 0 10px 24px rgba(0, 0, 0, 0.08);
+  --ap-widget-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.07), 0 16px 36px rgba(0, 0, 0, 0.12);
+  --ap-widget-shadow-drag: 0 6px 10px rgba(0, 0, 0, 0.1), 0 28px 56px rgba(0, 0, 0, 0.18);
 }
 
 .canvas__content .card,
@@ -260,6 +267,63 @@
   background: rgba(10, 10, 12, 0.72) !important;
   color: rgba(255, 255, 255, 0.92) !important;
   backdrop-filter: blur(12px);
+}
+
+/* Widget elevation layer: these types previously fell through to the
+   shared blanket .card__surface rule above (flat line border, shadow
+   forced off) -- the same bordered-box treatment regardless of type,
+   instead of their own identity like the music/file exceptions above
+   already have. Soft elevation instead of a hard border is what makes
+   each read as its own object resting on the canvas, not content boxed
+   into one uniform panel. */
+.canvas__content :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+:is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  border: none !important;
+  box-shadow: var(--ap-widget-shadow-resting) !important;
+}
+
+.canvas__content :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+:is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  overflow: visible !important;
+}
+
+/* code keeps its own distinct dark-card shadow rather than the generic
+   widget one (its dark background reads differently against the canvas). */
+.canvas__content .card__surface--code,
+.grid-workspace .card__surface--code,
+.card__surface--code {
+  box-shadow:
+    0 22px 40px rgba(10, 13, 20, 0.28),
+    inset 0 1px 0 rgba(148, 163, 184, 0.16) !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.card--hovered:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.card--focused:not(.card--dragging):not(.card--selected) :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  box-shadow: var(--ap-widget-shadow-hover) !important;
+}
+
+.canvas__content .card--dragging :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace .card--dragging :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.card--dragging :is(.card__surface--link:not(.card__surface--music), .card__surface--amazon-product, .card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  box-shadow: var(--ap-widget-shadow-drag) !important;
+}
+
+/* The blanket hover rule above forces transform: none !important on every
+   tile's frame -- these 8 types get an actual lift instead, the same way
+   .card--music already gets its own translateY(-4px) scale(1.012) above. */
+:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+  transform: translateY(-3px) !important;
 }
 
 .canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code),

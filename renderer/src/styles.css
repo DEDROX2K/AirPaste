@@ -11810,7 +11810,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
 .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .card__surface-frame--selected .card__surface:not(.card__surface--music),
@@ -11833,8 +11833,16 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-radius: 24px;
 }
 
+/* "UI cleanup pass" (above) deliberately flattened every tile to one
+   uniform bordered, shadowless box. The goal now is the opposite: every
+   tile should read as its own object resting on the canvas -- liftable,
+   never contained in another UI box -- so this supersedes that with a
+   shared soft-elevation shell instead of a hard border. .card__surface--
+   file/sticker/rack/music/etc. already have their own bespoke shell
+   (untouched here); .card__surface--code keeps its own distinct dark-card
+   shadow (see the box-shadow: none removed further down this file) rather
+   than taking this generic one. */
 .card__surface--link,
-.card__surface--file,
 .card__surface--amazon-product,
 .card__surface--checklist,
 .card__surface--note,
@@ -11842,8 +11850,53 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__surface--counter,
 .card__surface--deadline,
 .card__surface--progress {
-  border: 1px solid var(--ap-tile-border);
-  box-shadow: none;
+  border: none;
+  box-shadow: var(--ap-shadow-sm);
+}
+
+.card__surface--checklist,
+.card__surface--note,
+.card__surface--table,
+.card__surface--counter,
+.card__surface--deadline,
+.card__surface--progress {
+  overflow: visible;
+}
+
+.card--hovered:not(.card--dragging):not(.card--selected) .card__surface:is(
+    .card__surface--link,
+    .card__surface--amazon-product,
+    .card__surface--checklist,
+    .card__surface--note,
+    .card__surface--table,
+    .card__surface--counter,
+    .card__surface--deadline,
+    .card__surface--progress
+  ),
+.card--focused:not(.card--dragging):not(.card--selected) .card__surface:is(
+    .card__surface--link,
+    .card__surface--amazon-product,
+    .card__surface--checklist,
+    .card__surface--note,
+    .card__surface--table,
+    .card__surface--counter,
+    .card__surface--deadline,
+    .card__surface--progress
+  ) {
+  box-shadow: var(--ap-shadow-md);
+}
+
+.card--dragging .card__surface:is(
+    .card__surface--link,
+    .card__surface--amazon-product,
+    .card__surface--checklist,
+    .card__surface--note,
+    .card__surface--table,
+    .card__surface--counter,
+    .card__surface--deadline,
+    .card__surface--progress
+  ) {
+  box-shadow: var(--ap-shadow-xl);
 }
 
 .card__surface--preview-fallback {
@@ -12022,7 +12075,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__surface--code {
   border-radius: 24px;
   border-color: rgba(69, 65, 60, 0.64);
-  box-shadow: none;
 }
 
 .card__surface-frame--selected .card__surface--checklist,
@@ -12806,7 +12858,6 @@ body {
 .card__folder-zone-canvas,
 .card__folder-zone-list {
   border-color: #000 !important;
-  box-shadow: none !important;
 }
 
 .card__surface:not(.card__surface--code) {
