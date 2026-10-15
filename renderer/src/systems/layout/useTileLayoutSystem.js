@@ -117,6 +117,11 @@ export function useTileLayoutSystem({
           // but must not receive the direct-drag visual transforms themselves.
           isDragging: draggingTileIdSet.has(tile.id),
           isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
+          // Tiles use this to suppress description/detail text once more
+          // than one tile is selected at once -- rendering every selected
+          // tile's full detail text simultaneously is the expensive case,
+          // not showing it for exactly one.
+          isMultiSelect: selectedTileIds.length > 1,
           isFocused: focusedTileId === tile.id || parentRackFocused,
           isHovered: hoveredTileId === tile.id,
           isMergeTarget: false,
@@ -165,6 +170,7 @@ export function useTileLayoutSystem({
     rackDropPreview,
     rackTileChildrenByRackId,
     selectedTileIdSet,
+    selectedTileIds.length,
   ]);
 
   const rackStateById = useMemo(() => {

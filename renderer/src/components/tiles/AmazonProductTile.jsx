@@ -195,7 +195,10 @@ function AmazonProductTile({
 
               <h3 className="card__amazon-product-title">{title}</h3>
 
-              {card.description && renderHint?.simplify !== true ? (
+              {card.description
+                && renderHint?.simplify !== true
+                && tileMeta?.isSelected === true
+                && tileMeta?.isMultiSelect !== true ? (
                 <p className="card__amazon-product-description">{card.description}</p>
               ) : null}
 

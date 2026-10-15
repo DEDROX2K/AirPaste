@@ -12,7 +12,7 @@ import {
   recordTextTileSizeWrite,
 } from "../../lib/perf";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
-import { DRAWING_TOOL_MODE_SELECT, DRAWING_TOOL_MODE_TEXT } from "../../systems/drawing/drawingTypes";
+import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import TileShell from "./TileShell";
 
 const MIN_TEXT_BOX_WIDTH = 140;
@@ -113,7 +113,6 @@ function TextBoxTile({
   const normalizedStyle = TEXT_BOX_DEFAULT_STYLE;
   const isPlainTextLayer = appearance !== "sticky";
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
-  const isTextToolActive = canvasToolMode === DRAWING_TOOL_MODE_TEXT;
   const isAutoWidth = isPlainTextLayer && card.autoWidth !== false;
   const isPlaceholderText = card.placeholder === true && !isEditing;
   const displayText = isPlaceholderText ? placeholderText : (card.text ?? "");
@@ -155,7 +154,10 @@ function TextBoxTile({
     card,
     canDrag: !isEditing && isSelectToolActive,
     onActivate: () => {
-      if (isTextToolActive) {
+      // The plain text layer behaves like Figma's text tool: a single tap
+      // edits instantly, no double-tap. Sticky notes keep the double-tap
+      // requirement so a single tap can still just select/move them.
+      if (isPlainTextLayer) {
         onRequestTextBoxEdit(card.id, { selectAll: false });
       }
     },

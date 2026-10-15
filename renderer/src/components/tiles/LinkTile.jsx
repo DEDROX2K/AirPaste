@@ -360,8 +360,14 @@ function LinkTile({
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const linkDescription = typeof card.description === "string" ? card.description.trim() : "";
   const hasLinkDescription = linkDescription.length > 0;
-  const isDescriptionVisible = tileMeta?.isSelected === true
-    || tileMeta?.interactionState === "selected";
+  // Every tile shows a title except direct images -- the image itself is
+  // the content, a title line would just restate "Imported image".
+  const isTitleVisible = !isImageTile;
+  // Detail text (description) only earns its render cost for a single
+  // selected tile; selecting several at once would mean paying that cost
+  // for all of them at once for no one tile's benefit.
+  const isDescriptionVisible = (tileMeta?.isSelected === true || tileMeta?.interactionState === "selected")
+    && tileMeta?.isMultiSelect !== true;
   const fallbackDomainLabel = getLinkDomain(card.url);
   const surfaceFrameClassName = [
     "card__surface-frame",
@@ -697,9 +703,11 @@ function LinkTile({
             </div>
           )}
 
-          <div className="card__link-float-overlay" aria-hidden="true">
-            <div className="card__link-float-overlay__title">{linkTitle}</div>
-          </div>
+          {isTitleVisible ? (
+            <div className="card__link-float-overlay" aria-hidden="true">
+              <div className="card__link-float-overlay__title">{linkTitle}</div>
+            </div>
+          ) : null}
 
           {hasLinkDescription ? (
             <div
