@@ -262,6 +262,54 @@
   backdrop-filter: blur(12px);
 }
 
+/* Widget shell: these types still fell through to the generic rule above
+   (line ~71) -- a 1px border plus a shadow, same as link/amazon-product
+   there. The border is what made them read as boxed; the shadow (and its
+   hover growth two rules up, and its drag growth below) was already
+   right, so only the border needs removing here, not a parallel shadow
+   system. overflow stays hidden for link/amazon-product (they still crop
+   an edge-to-edge thumbnail image to their rounded corners); the other six
+   are pure text/UI with nothing that needs clipping, so they can let
+   content escape their bounds if a future custom design wants that. */
+.canvas__content .card__surface--link:not(.card__surface--music),
+.grid-workspace .card__surface--link:not(.card__surface--music),
+.canvas__content .card__surface--amazon-product,
+.grid-workspace .card__surface--amazon-product,
+.canvas__content :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  border: none !important;
+}
+
+.canvas__content :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+  overflow: visible !important;
+}
+
+/* The generic hover rule above (line ~97) forces transform: none !important
+   on every tile's frame except music/file/sticker, which each define their
+   own lift. These get an actual lift too, on the same model. */
+:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+  transform: translateY(-3px) !important;
+}
+
+/* code's own border color and shadow (styles.css) aren't !important, so the
+   generic rule above (line ~80) was winning with --ap-tile-line and
+   --ap-tile-shadow instead -- same bordered-box symptom, different cause
+   (a losing specificity fight, not a missing exception). */
+.canvas__content .card__surface--code,
+.grid-workspace .card__surface--code,
+.card__surface--code {
+  border-color: rgba(110, 118, 145, 0.22) !important;
+  box-shadow:
+    0 22px 40px rgba(10, 13, 20, 0.28),
+    inset 0 1px 0 rgba(148, 163, 184, 0.16) !important;
+}
+
 .canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code),
 .grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code) {
   background:

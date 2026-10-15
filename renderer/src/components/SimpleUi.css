@@ -12,22 +12,19 @@
   --ap-simple-muted: #5f6368;
   --ap-simple-radius-control: 8px;
   --ap-simple-radius-surface: 12px;
-  --ap-tile-bg: #ffffff;
-  --ap-tile-bg-solid: #ffffff;
-  --ap-tile-bg-muted: #f6f7f8;
-  --ap-tile-bg-subtle: #f8f9fa;
-  --ap-tile-ink: #202124;
-  --ap-tile-muted: #5f6368;
-  --ap-tile-line: #dadce0;
-  --ap-tile-line-strong: #bdc1c6;
-  --ap-tile-selected: #202124;
-  --ap-tile-selected-soft: transparent;
-  --ap-tile-radius: var(--ap-simple-radius-surface);
-  --ap-tile-radius-inner: var(--ap-simple-radius-control);
-  --ap-tile-shadow: none;
-  --ap-tile-shadow-hover: none;
-  --ap-tile-shadow-selected: none;
 }
+
+/* This file used to also redefine every --ap-tile-* token (bg/ink/line/
+   shadow/radius) here, globally, even though nothing in this file ever
+   reads var(--ap-tile-*) -- it exists purely for Home/open-workspace chrome
+   (--ap-simple-*, used throughout below). Those tokens are TilePolish.css's,
+   consumed by its tile rules; redefining them here silently neutered
+   TilePolish's shadows (--ap-tile-shadow: none) and recolored its borders
+   gray, with no selector-level override needed to do it -- confirmed via
+   computed styles showing TilePolish's own border rule rendering with this
+   file's color. Removed along with the selector-based tile-chrome section
+   above for the same reason: this file has no legitimate claim on tile
+   tokens at all. */
 
 body,
 .app-window,
@@ -186,102 +183,17 @@ body,
   backdrop-filter: none !important;
 }
 
-/* Tile chrome stays quiet so content remains the focus. */
-.canvas__content :is(.card__surface, .card__record-sleeve, .card__video-frame),
-.grid-workspace :is(.card__surface, .card__record-sleeve, .card__video-frame) {
-  border: 1px solid var(--ap-simple-line) !important;
-  border-radius: var(--ap-simple-radius-surface) !important;
-  background: var(--ap-simple-surface) !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card--hovered:not(.card--dragging) .card__surface,
-.grid-workspace .card--hovered:not(.card--dragging) .card__surface {
-  border-color: var(--ap-simple-line-strong) !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card--selected .card__surface-frame,
-.canvas__content .card__surface-frame--selected,
-.grid-workspace .card--selected .card__surface-frame,
-.grid-workspace .card__surface-frame--selected {
-  outline: 2px solid var(--ap-simple-ink) !important;
-  outline-offset: 2px !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front),
-.grid-workspace .card__surface-frame--selected :is(.card__surface, .card__record-sleeve, .card__folder-front) {
-  border-color: var(--ap-simple-line) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card--dragging .card__surface,
-.grid-workspace .card--dragging .card__surface,
-.canvas__content .card[data-tile-state="editing"] .card__surface,
-.grid-workspace .card[data-tile-state="editing"] .card__surface {
-  box-shadow: none !important;
-}
-
-.canvas__content .card__surface--file,
-.grid-workspace .card__surface--file {
-  border-color: var(--ap-simple-line) !important;
-  border-radius: var(--ap-simple-radius-surface) !important;
-  background: var(--ap-simple-surface) !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card__file-hero,
-.grid-workspace .card__file-hero {
-  border-color: var(--ap-simple-line) !important;
-  border-radius: var(--ap-simple-radius-control) !important;
-  background: var(--ap-simple-subtle) !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card__file-hero::before,
-.grid-workspace .card__file-hero::before {
-  background: var(--ap-simple-muted) !important;
-  box-shadow: 0 15px 0 #9aa0a6, 0 30px 0 #c7cacf !important;
-}
-
-.canvas__content .card__file-hero::after,
-.grid-workspace .card__file-hero::after,
-.canvas__content .card__file-type,
-.grid-workspace .card__file-type,
-.canvas__content .card__file-size-pill,
-.grid-workspace .card__file-size-pill {
-  border-color: var(--ap-simple-line) !important;
-  background: var(--ap-simple-subtle) !important;
-  color: var(--ap-simple-muted) !important;
-  box-shadow: none !important;
-}
-
-.canvas__content .card--file.card--hovered .card__surface--file,
-.grid-workspace .card--file.card--hovered .card__surface--file {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-.canvas__content :is(.card__quick-actions, .card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle),
-.grid-workspace :is(.card__quick-actions, .card__note-mode-toggle, .card__progress-mode-toggle, .card__calendar-view-toggle) {
-  border: 1px solid var(--ap-simple-line) !important;
-  border-radius: var(--ap-simple-radius-control) !important;
-  background: var(--ap-simple-surface) !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-}
-
-.canvas__content :is(.card__quick-action, .card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action),
-.grid-workspace :is(.card__quick-action, .card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action) {
-  border-color: var(--ap-simple-line) !important;
-  border-radius: var(--ap-simple-radius-control) !important;
-  background: var(--ap-simple-surface) !important;
-  color: var(--ap-simple-ink) !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
+/* Tile chrome (border/shadow/overflow for .card__surface and friends inside
+   .canvas__content/.grid-workspace) used to be re-flattened here -- "stays
+   quiet so content remains the focus" -- directly fighting
+   TilePolish.css's richer, more complete per-type tile design (music's dark
+   theme, file's folder illustration, the soft-elevation widget shell for
+   checklist/note/table/counter/deadline/progress/link/amazon-product) that
+   loads before this file. TilePolish.css is the actual, intended, maintained
+   owner of tile chrome -- see its own header comment -- so this section was
+   removed rather than given yet another override on top; this file still
+   owns the Home/open-workspace UI (sidebar, toolbar, buttons) above and
+   below this comment, none of which touches tile surfaces. */
 
 @media (max-width: 900px) {
   .app-shell__workspace-layout {
