@@ -1,0 +1,27 @@
+/**
+ * AirPaste Design System — cursors.css
+ *
+ * Wires up the custom pixel-art cursors (public/Cursor/*.svg) as the app's
+ * default and interactive cursors. These are first-draft assets — hotspots
+ * are approximate until the final cursor set is delivered.
+ */
+
+:root {
+  --ap-cursor-default: url("/Cursor/cursor_default.svg") 2 2, default;
+  --ap-cursor-pointer: url("/Cursor/cursor_pointer.svg") 11 2, pointer;
+}
+
+html,
+body {
+  cursor: var(--ap-cursor-default);
+}
+
+a[href],
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+.ap-ui-button:not(:disabled),
+input[type="checkbox"],
+input[type="radio"],
+select {
+  cursor: var(--ap-cursor-pointer);
+}

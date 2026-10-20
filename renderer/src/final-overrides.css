@@ -122,8 +122,15 @@
 
 /* Global Cursor & Font Normalize */
 body, .home-shell, button, input {
-  cursor: default !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+}
+
+body, .home-shell, input {
+  cursor: var(--ap-cursor-default, default) !important;
+}
+
+button {
+  cursor: var(--ap-cursor-pointer, pointer) !important;
 }
 
 /* Home Shell Structure */

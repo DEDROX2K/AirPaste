@@ -20,3 +20,6 @@
 
 /* 4. Motion — animation tokens, keyframes, transition utilities */
 @import './motion.css';
+
+/* 5. Cursors — custom pixel-art cursor wiring */
+@import './cursors.css';
