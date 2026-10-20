@@ -434,3 +434,29 @@ export function findRackDropTarget({
 
   return bestTarget;
 }
+
+// findRackDropTarget returns a fresh object every time it finds a match, even
+// when the match is the same rack/slot as the previous call (the common case
+// while a pointer lingers over one rack) -- useTileLayoutSystem's tileMetaById
+// memo depends on this value, so a merely-equal-but-not-identical object was
+// busting that memo and rebuilding every visible tile's layout on every one
+// of those pointermoves. Callers should route a new result through this
+// before calling their state setter, keeping the previous reference when
+// nothing meaningful changed.
+export function isSameRackDropPreview(a, b) {
+  if (a === b) {
+    return true;
+  }
+
+  if (!a || !b) {
+    return false;
+  }
+
+  return a.rackId === b.rackId
+    && a.targetTileId === b.targetTileId
+    && a.slotIndex === b.slotIndex
+    && a.dropRect?.left === b.dropRect?.left
+    && a.dropRect?.top === b.dropRect?.top
+    && a.dropRect?.right === b.dropRect?.right
+    && a.dropRect?.bottom === b.dropRect?.bottom;
+}

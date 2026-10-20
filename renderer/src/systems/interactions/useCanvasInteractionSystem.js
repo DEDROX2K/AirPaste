@@ -13,6 +13,7 @@ import {
   getRenderableTileEntryById,
   getTileByIdMap,
   getSelectedTileIdsInRect,
+  isSameRackDropPreview,
   MARQUEE_DRAG_THRESHOLD,
   normalizeRect,
 } from "../layout/tileLayout";
@@ -667,7 +668,34 @@ export function useCanvasInteractionSystem({
   }, [canvas]);
 
   useEffect(() => {
+    // Native pointermove can fire far faster than the display can paint
+    // (especially on high-poll-rate mice/trackpads). Each event used to
+    // run world-point conversion, snapping and a React state update
+    // synchronously, so on a fast pointer the drag did more work than the
+    // screen could ever show -- wasted renders that still cost a commit
+    // each. Coalescing to one flush per animation frame keeps dragging at
+    // display refresh rate regardless of how often the OS reports moves;
+    // dragState.lastDelta (what finishDrag commits on drop) is still
+    // whatever the latest flushed frame set it to, at most ~16ms stale.
+    let pendingMoveEvent = null;
+    let moveRafId = 0;
+
+    function flushPendingMove() {
+      moveRafId = 0;
+      const event = pendingMoveEvent;
+      pendingMoveEvent = null;
+      if (event) {
+        processPointerMove(event);
+      }
+    }
+
     function finishDrag(event = null) {
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+        moveRafId = 0;
+      }
+      pendingMoveEvent = null;
+
       const dragState = dragStateRef.current;
 
       if (!dragState) {
@@ -746,7 +774,7 @@ export function useCanvasInteractionSystem({
       }
     }
 
-    function handlePointerMove(event) {
+    function processPointerMove(event) {
       const dragState = dragStateRef.current;
 
       if (!dragState) {
@@ -832,7 +860,9 @@ export function useCanvasInteractionSystem({
         });
         const rackHitTestEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
         recordHitTestSample("rack-drop", rackHitTestEnd - rackHitTestStart, rackHitTestMetrics);
-        setRackDropPreview(nextRackDropPreview);
+        setRackDropPreview((currentPreview) => (
+          isSameRackDropPreview(currentPreview, nextRackDropPreview) ? currentPreview : nextRackDropPreview
+        ));
       } else {
         clearRackDropPreview();
       }
@@ -853,6 +883,19 @@ export function useCanvasInteractionSystem({
       recordPointerMoveSample(durationMs);
     }
 
+    function handlePointerMove(event) {
+      if (!dragStateRef.current) {
+        return;
+      }
+
+      pendingMoveEvent = event;
+      if (moveRafId) {
+        return;
+      }
+
+      moveRafId = requestAnimationFrame(flushPendingMove);
+    }
+
     function handlePointerUp(event) {
       finishDrag(event);
     }
@@ -870,6 +913,9 @@ export function useCanvasInteractionSystem({
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+      }
       window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", handlePointerUp, true);
       window.removeEventListener("pointercancel", handlePointerUp, true);
