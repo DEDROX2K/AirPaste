@@ -18,7 +18,10 @@
   --ap-tile-radius-inner: 10px;
   --ap-tile-shadow: 0 14px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
   --ap-tile-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055);
-  --ap-tile-shadow-selected: var(--ap-tile-shadow);
+  /* Selected reads as "picked up off the table", so it carries a softer,
+     thicker shadow than hover rather than a ring/outline -- a held piece of
+     paper doesn't grow a box around it, it casts a bigger shadow. */
+  --ap-tile-shadow-selected: 0 28px 56px rgba(0, 0, 0, 0.16), 0 10px 24px rgba(0, 0, 0, 0.09), 0 2px 7px rgba(0, 0, 0, 0.06);
   --ap-tile-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -118,8 +121,7 @@
 .canvas__content .card__surface-frame--selected,
 .grid-workspace .card--selected .card__surface-frame,
 .grid-workspace .card__surface-frame--selected {
-  outline: 2px solid var(--ap-tile-selected) !important;
-  outline-offset: 3px !important;
+  outline: 0 !important;
   box-shadow: none !important;
 }
 
@@ -129,9 +131,8 @@
 .grid-workspace .card__surface-frame--selected .card__surface,
 .canvas__content .card__surface-frame--selected .card__record-sleeve,
 .grid-workspace .card__surface-frame--selected .card__record-sleeve {
-  border-color: rgba(0, 113, 227, 0.52) !important;
   outline: 0 !important;
-  box-shadow: var(--ap-tile-shadow) !important;
+  box-shadow: var(--ap-tile-shadow-selected) !important;
 }
 
 /* Selection is owned by the shared frame so every tile, including racks, has one fixed-width ring. */

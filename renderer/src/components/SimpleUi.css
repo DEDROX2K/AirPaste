@@ -171,8 +171,18 @@ body,
   inset: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
-  background: var(--ap-simple-surface) !important;
+  background: #ececec !important;
   box-shadow: none !important;
+}
+
+/* #canvas-board paints opaque right up to the canvas edges, so its own
+   background (not .canvas-stage's, which sits fully hidden behind it) is
+   what the user actually sees -- confirmed via computed-style inspection,
+   not by reading the cascade order. Same reasoning for overriding
+   --grid-line here rather than at its :root[data-theme="light"] definition:
+   that definition is shared by other (non-canvas) consumers. */
+.app-shell__workspace-layout .canvas__grid {
+  --grid-line: #d9d9d9 !important;
 }
 
 #titlebar-right-slot .canvas-toolbar-shell--right .zoom-menu__trigger {
