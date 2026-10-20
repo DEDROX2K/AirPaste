@@ -1638,6 +1638,57 @@ option {
   }
 }
 
+/* Tethering: "select a few tiles, float them together with strings
+   attached" (see CanvasTetherLines.jsx / useCanvasCommands.js
+   tetherSelectedTiles). Lines sit at z-index 0, same as the density zones,
+   below every tile; the float/bob animation is applied to .canvas__entry-
+   item (the plain wrapper div around each <Card>), never to
+   .card__surface-frame itself, so it can never collide with that element's
+   own drag-transform or entry-animation (see canvas-tile-settle-in above). */
+.canvas__tether-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.canvas__tether-svg {
+  position: absolute;
+  overflow: visible;
+}
+
+.canvas__tether-string {
+  stroke: rgba(29, 29, 31, 0.28);
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+}
+
+.canvas__tether-knot {
+  fill: rgba(29, 29, 31, 0.36);
+}
+
+.canvas__entry-item--tethered {
+  animation: canvas-tether-float var(--tether-bob-duration, 6s) ease-in-out infinite;
+  animation-delay: var(--tether-bob-delay, 0s);
+}
+
+@keyframes canvas-tether-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(var(--tether-bob-drift, 6px), -9px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__entry-item--tethered {
+    animation: none;
+  }
+}
+
 .canvas__grid {
   pointer-events: none;
   background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px));

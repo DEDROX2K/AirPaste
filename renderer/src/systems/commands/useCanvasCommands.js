@@ -15,6 +15,10 @@ import {
   removeCard,
   removeTileFromRack,
   shouldRecoverLinkPreviewCard,
+  tetherTiles,
+  TETHER_MAX_TILES,
+  TETHER_MIN_TILES,
+  untetherTile,
   updateCards,
 } from "../../lib/workspace";
 import {
@@ -1117,6 +1121,51 @@ export function useCanvasCommands({
     }
   }, [commitWorkspaceChange, folderPath, log, toast]);
 
+  const tetherSelectedTiles = useCallback((tileIds) => {
+    const normalizedIds = Array.isArray(tileIds) ? [...new Set(tileIds.filter(Boolean))] : [];
+
+    if (normalizedIds.length < TETHER_MIN_TILES) {
+      toast("warn", `Select at least ${TETHER_MIN_TILES} tiles to tether.`);
+      return;
+    }
+
+    const clipped = normalizedIds.length > TETHER_MAX_TILES;
+    const tetheredIds = normalizedIds.slice(0, TETHER_MAX_TILES);
+
+    try {
+      commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => (
+        tetherTiles(page, tetheredIds, page.cards) ?? page
+      )));
+      log("info", "Tethered tiles", { tileIds: tetheredIds });
+      toast(
+        "success",
+        clipped
+          ? `Tethered the first ${TETHER_MAX_TILES} tiles (max per tether).`
+          : `Tethered ${tetheredIds.length} tiles.`,
+      );
+    } catch (tetherError) {
+      const message = tetherError?.message || "Unable to tether these tiles.";
+      log("error", "Failed to tether tiles", message);
+      toast("error", message);
+    }
+  }, [commitWorkspaceChange, log, toast]);
+
+  const untetherTileCommand = useCallback((tileId) => {
+    if (!tileId) {
+      return;
+    }
+
+    try {
+      commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => untetherTile(page, tileId)));
+      log("info", "Removed tile from tether", { tileId });
+      toast("success", "Tether removed.");
+    } catch (untetherError) {
+      const message = untetherError?.message || "Unable to remove this tether.";
+      log("error", "Failed to remove tether", message);
+      toast("error", message);
+    }
+  }, [commitWorkspaceChange, log, toast]);
+
   const updateTileFromMediaLoad = useCallback((tile, mediaWidth, mediaHeight) => {
     const isAtDefaultLinkSize = Number.isFinite(tile?.width) && Number.isFinite(tile?.height)
       && Math.abs(tile.width - LINK_CARD_SIZE.width) <= 1
@@ -1530,6 +1579,8 @@ export function useCanvasCommands({
     deleteTile,
     deleteTiles,
     deleteGroups,
+    tetherSelectedTiles,
+    untetherTile: untetherTileCommand,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,
@@ -1573,6 +1624,8 @@ export function useCanvasCommands({
     deleteTile,
     deleteTiles,
     deleteGroups,
+    tetherSelectedTiles,
+    untetherTileCommand,
     openTileLink,
     openWorkspaceFolder,
     pasteFromClipboard,

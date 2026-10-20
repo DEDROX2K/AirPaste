@@ -14,6 +14,8 @@ const TILE_ACTION_ORDER = [
   "webclip",
   "copy-preview-diagnostics",
   "copy-codex-report",
+  "tether",
+  "untether",
   "rack",
   "link",
   "delete",
@@ -36,6 +38,9 @@ export function buildRadialMenuActions({
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
   showEditText = false,
+  showTether = false,
+  tetherCount = 0,
+  showUntether = false,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
@@ -194,6 +199,33 @@ export function buildRadialMenuActions({
         tone: "danger",
         activeLabel: selectionCount > 1 ? `${selectionCount} selected` : "",
         onTrigger: handlers.onDeleteSelection,
+      };
+    }
+
+    if (id === "tether") {
+      if (!showTether) {
+        return null;
+      }
+
+      return {
+        id,
+        label: `Tether ${tetherCount} tiles`,
+        kind: "action",
+        activeLabel: "Float",
+        onTrigger: handlers.onTether,
+      };
+    }
+
+    if (id === "untether") {
+      if (!showUntether) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Remove tether",
+        kind: "action",
+        onTrigger: handlers.onUntether,
       };
     }
 

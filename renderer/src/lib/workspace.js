@@ -394,6 +394,99 @@ function cloneStructuredArray(value) {
   ));
 }
 
+export const TETHER_MAX_TILES = 10;
+export const TETHER_MIN_TILES = 2;
+
+function normalizeTethers(tethers, cards) {
+  const cardIdSet = new Set((Array.isArray(cards) ? cards : []).map((card) => card.id));
+  const claimedTileIds = new Set();
+  const nextTethers = [];
+
+  (Array.isArray(tethers) ? tethers : []).forEach((tether) => {
+    const tileIds = Array.isArray(tether?.tileIds)
+      ? [...new Set(tether.tileIds)].filter((tileId) => cardIdSet.has(tileId) && !claimedTileIds.has(tileId))
+      : [];
+
+    if (tileIds.length < TETHER_MIN_TILES) {
+      return;
+    }
+
+    const clampedTileIds = tileIds.slice(0, TETHER_MAX_TILES);
+    clampedTileIds.forEach((tileId) => claimedTileIds.add(tileId));
+
+    nextTethers.push({
+      id: typeof tether?.id === "string" && tether.id.trim().length > 0 ? tether.id : generateWorkspaceEntityId("tether"),
+      tileIds: clampedTileIds,
+    });
+  });
+
+  return nextTethers;
+}
+
+/**
+ * Arranges `tileIds` into a small floating cluster centered on their
+ * current combined centroid (a simple ring layout, radius scaled to the
+ * group's own tile sizes) and records them as one tether group. Tiles
+ * already tethered elsewhere are first released from their old group.
+ */
+export function tetherTiles(page, tileIds, cards) {
+  const cardById = Object.fromEntries(cards.map((card) => [card.id, card]));
+  const candidateIds = [...new Set(tileIds)].filter((tileId) => cardById[tileId]);
+
+  if (candidateIds.length < TETHER_MIN_TILES) {
+    return null;
+  }
+
+  const clampedIds = candidateIds.slice(0, TETHER_MAX_TILES);
+  const members = clampedIds.map((tileId) => cardById[tileId]);
+
+  const centroid = members.reduce(
+    (acc, card) => ({
+      x: acc.x + (card.x + card.width / 2) / members.length,
+      y: acc.y + (card.y + card.height / 2) / members.length,
+    }),
+    { x: 0, y: 0 },
+  );
+
+  const averageSpan = members.reduce((acc, card) => acc + Math.max(card.width, card.height), 0) / members.length;
+  const ringRadius = members.length <= 1 ? 0 : Math.max(averageSpan * 0.9, (averageSpan + 40) * members.length / (2 * Math.PI));
+
+  const nextCardById = {};
+  members.forEach((card, index) => {
+    const angle = (index / members.length) * Math.PI * 2 - Math.PI / 2;
+    const centerX = centroid.x + Math.cos(angle) * ringRadius;
+    const centerY = centroid.y + Math.sin(angle) * ringRadius;
+    nextCardById[card.id] = {
+      ...card,
+      x: centerX - card.width / 2,
+      y: centerY - card.height / 2,
+    };
+  });
+
+  const nextCards = cards.map((card) => nextCardById[card.id] ?? card);
+  const releasedTethers = (page.tethers ?? [])
+    .map((tether) => ({ ...tether, tileIds: tether.tileIds.filter((tileId) => !clampedIds.includes(tileId)) }))
+    .filter((tether) => tether.tileIds.length >= TETHER_MIN_TILES);
+
+  const newTether = { id: generateWorkspaceEntityId("tether"), tileIds: clampedIds };
+
+  return {
+    ...page,
+    cards: nextCards,
+    tethers: [...releasedTethers, newTether],
+  };
+}
+
+/** Removes a single tile from whatever tether group it belongs to; the
+ * group dissolves entirely if that drops it below TETHER_MIN_TILES. */
+export function untetherTile(page, tileId) {
+  const nextTethers = (page.tethers ?? [])
+    .map((tether) => ({ ...tether, tileIds: tether.tileIds.filter((memberId) => memberId !== tileId) }))
+    .filter((tether) => tether.tileIds.length >= TETHER_MIN_TILES);
+
+  return { ...page, tethers: nextTethers };
+}
+
 function deepCloneStructuredValue(value) {
   if (value === null || value === undefined) {
     return value;
@@ -547,6 +640,7 @@ function normalizeWorkspacePage(page, fallbackIndex = 0) {
     drawings: normalizeDrawings(page?.drawings),
     edges: cloneStructuredArray(page?.edges),
     groups: cloneStructuredArray(page?.groups),
+    tethers: normalizeTethers(page?.tethers, cards),
     airpaste: page?.airpaste && typeof page.airpaste === "object"
       ? deepCloneStructuredValue(page.airpaste)
       : null,
@@ -570,6 +664,7 @@ function normalizeWorkspacePages(workspace) {
       drawings: workspace?.drawings,
       edges: workspace?.edges,
       groups: workspace?.groups,
+      tethers: workspace?.tethers,
     }, 0),
   ];
 }
@@ -592,6 +687,7 @@ export function createWorkspacePage(name = "", index = 0) {
     drawings: createEmptyDrawings(),
     edges: [],
     groups: [],
+    tethers: [],
     airpaste: null,
   }, index);
 }
@@ -986,6 +1082,7 @@ export function normalizeWorkspace(workspace) {
     drawings: activePage.drawings,
     edges: activePage.edges,
     groups: activePage.groups,
+    tethers: activePage.tethers,
     airpaste: safeWorkspace?.airpaste && typeof safeWorkspace.airpaste === "object"
       ? deepCloneStructuredValue(safeWorkspace.airpaste)
       : null,

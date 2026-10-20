@@ -7,8 +7,10 @@ import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
+import CanvasTetherLines from "./canvas/CanvasTetherLines";
 import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
+import { hashStringToUnitInterval } from "../lib/hashStringToUnitInterval";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
 import { useToast } from "../hooks/useToast";
@@ -29,6 +31,8 @@ import {
   removeCard,
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
+  TETHER_MAX_TILES,
+  TETHER_MIN_TILES,
 } from "../lib/workspace";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
@@ -2478,6 +2482,20 @@ export default function CanvasWorkspaceView() {
     && activeContextTile?.format === CANVAS_TEXT_FORMAT_PLAIN;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
+  const contextMenuSelectionCount = radialMenu?.kind === "tile" ? (radialMenu?.selectionIds?.length ?? 0) : 0;
+  const showTetherAction = contextMenuSelectionCount >= TETHER_MIN_TILES;
+  const isActiveContextTileTethered = Boolean(
+    activeContextTile?.id
+    && (workspace.tethers ?? []).some((tether) => tether.tileIds.includes(activeContextTile.id)),
+  );
+  // Deliberately independent of tileMetaById (see CanvasDensityZones for why):
+  // this only depends on workspace.tethers, not on anything that changes
+  // per drag frame.
+  const tetheredTileIdSet = useMemo(() => {
+    const ids = new Set();
+    (workspace.tethers ?? []).forEach((tether) => tether.tileIds.forEach((tileId) => ids.add(tileId)));
+    return ids;
+  }, [workspace.tethers]);
   const canShowWebclipAction = isBookmarkLinkCard(activeContextTile)
     && Boolean(activeContextTile?.url?.trim());
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
@@ -2577,6 +2595,25 @@ export default function CanvasWorkspaceView() {
     commands.deleteTiles(selectionIds);
     return true;
   }, [commands, radialMenu]);
+
+  const handleRadialTether = useCallback(() => {
+    const selectionIds = radialMenu?.selectionIds ?? [];
+    if (selectionIds.length < TETHER_MIN_TILES) {
+      return false;
+    }
+
+    commands.tetherSelectedTiles(selectionIds);
+    return true;
+  }, [commands, radialMenu]);
+
+  const handleRadialUntether = useCallback(() => {
+    if (!activeContextTile?.id) {
+      return false;
+    }
+
+    commands.untetherTile(activeContextTile.id);
+    return true;
+  }, [activeContextTile, commands]);
 
   const handleRadialLink = useCallback(async () => {
     if (!radialMenu?.worldPoint) {
@@ -2683,6 +2720,9 @@ export default function CanvasWorkspaceView() {
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
+    showTether: radialMenu?.kind === "tile" && showTetherAction,
+    tetherCount: Math.min(contextMenuSelectionCount, TETHER_MAX_TILES),
+    showUntether: radialMenu?.kind === "tile" && isActiveContextTileTethered,
     handlers: {
       onCopyCodexReport: handleCopyPreviewCodexReport,
       onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
@@ -2701,6 +2741,8 @@ export default function CanvasWorkspaceView() {
       onCreateStickyNote: handleRadialCreateStickyNote,
       onCreateMarkdownNote: handleRadialCreateMarkdownNote,
       onEditText: handleRadialEditText,
+      onTether: handleRadialTether,
+      onUntether: handleRadialUntether,
     },
   }), [
     handleRadialDelete,
@@ -2711,6 +2753,8 @@ export default function CanvasWorkspaceView() {
     handleRadialCreateStickyNote,
     handleRadialCreateMarkdownNote,
     handleRadialEditText,
+    handleRadialTether,
+    handleRadialUntether,
     handleCopyPreviewCodexReport,
     handleCopyPreviewDiagnostics,
     handleRefreshFailedPreviews,
@@ -2726,6 +2770,9 @@ export default function CanvasWorkspaceView() {
     radialMenu,
     snapSettings.enabled,
     toggleCanvasSnapping,
+    showTetherAction,
+    contextMenuSelectionCount,
+    isActiveContextTileTethered,
   ]);
 
   // ── Grid View short-circuit ─────────────────────────────────────────────
@@ -2904,11 +2951,22 @@ export default function CanvasWorkspaceView() {
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
               <CanvasDensityZones tiles={filteredTiles} />
-              {activeRenderTiles.map((card, index) => (
+              <CanvasTetherLines tethers={workspace.tethers} tiles={filteredTiles} />
+              {activeRenderTiles.map((card, index) => {
+                const isTethered = tetheredTileIdSet.has(card.id);
+                const tetherPhase = isTethered ? hashStringToUnitInterval(card.id) : 0;
+                return (
                 <div
                   key={card.id}
-                  className="canvas__entry-item"
-                  style={{ "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms` }}
+                  className={`canvas__entry-item${isTethered ? " canvas__entry-item--tethered" : ""}`}
+                  style={{
+                    "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
+                    ...(isTethered ? {
+                      "--tether-bob-delay": `${-tetherPhase * 6}s`,
+                      "--tether-bob-duration": `${5.2 + tetherPhase * 2.4}s`,
+                      "--tether-bob-drift": `${(tetherPhase - 0.5) * 10}px`,
+                    } : null),
+                  }}
                 >
                   <Card
                     card={card}
@@ -2935,9 +2993,11 @@ export default function CanvasWorkspaceView() {
                     onEndTextBoxEdit={clearTextBoxEditState}
                   />
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
+
         
 
         {interactions.marqueeBox ? (
