@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   buildHomeRouteState,
@@ -12,7 +11,23 @@ import {
 } from "../lib/home";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { desktop } from "../lib/desktop";
-import { AppButton, AppSheet, AppSheetContent } from "./ui/app";
+import {
+  AppButton,
+  AppDialog,
+  AppDialogContent,
+  AppDialogDescription,
+  AppDialogFooter,
+  AppDialogHeader,
+  AppDialogTitle,
+  AppDropdownMenu,
+  AppDropdownMenuContent,
+  AppDropdownMenuItem,
+  AppDropdownMenuSeparator,
+  AppDropdownMenuTrigger,
+  AppInput,
+  AppSheet,
+  AppSheetContent,
+} from "./ui/app";
 import {
   FolderOpen,
   FolderPlus,
@@ -32,10 +47,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import "./HomeShellPrototype.css";
+import "./HomeShell.css";
 
-const HOME_MENU_GAP = 8;
-const HOME_MENU_MIN_WIDTH = 176;
 const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
 
 function getResolvedHomeViewMode(uiState) {
@@ -105,78 +118,40 @@ function itemKey(item) {
   return item.id || item.filePath || item.path || item.name;
 }
 
-function getHomeMenuPosition(anchorRect, menuWidth, menuHeight) {
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-
-  const openUpward = anchorRect.bottom + HOME_MENU_GAP + menuHeight > viewportHeight - HOME_MENU_GAP
-    && anchorRect.top - HOME_MENU_GAP - menuHeight >= HOME_MENU_GAP;
-
-  const preferredX = anchorRect.right - menuWidth;
-  const preferredY = openUpward
-    ? anchorRect.top - HOME_MENU_GAP - menuHeight
-    : anchorRect.bottom + HOME_MENU_GAP;
-
-  return {
-    x: Math.min(
-      Math.max(HOME_MENU_GAP, preferredX),
-      Math.max(HOME_MENU_GAP, viewportWidth - menuWidth - HOME_MENU_GAP),
-    ),
-    y: Math.min(
-      Math.max(HOME_MENU_GAP, preferredY),
-      Math.max(HOME_MENU_GAP, viewportHeight - menuHeight - HOME_MENU_GAP),
-    ),
-  };
-}
-
-function BrowserEntryMenu({ item, anchorRect, onRename, onDelete, onToggleStar, onClose }) {
-  const portalRoot = typeof document !== "undefined" ? document.body : null;
-  const menuRef = useRef(null);
-  const [position, setPosition] = useState(() => ({
-    x: Math.max(HOME_MENU_GAP, (anchorRect?.right ?? HOME_MENU_GAP) - HOME_MENU_MIN_WIDTH),
-    y: Math.max(HOME_MENU_GAP, (anchorRect?.bottom ?? HOME_MENU_GAP) + HOME_MENU_GAP),
-  }));
-
-  useLayoutEffect(() => {
-    if (!anchorRect || !menuRef.current) {
-      return;
-    }
-
-    const rect = menuRef.current.getBoundingClientRect();
-    setPosition(getHomeMenuPosition(anchorRect, Math.max(HOME_MENU_MIN_WIDTH, rect.width), rect.height));
-  }, [anchorRect, item?.starred]);
-
-  if (!portalRoot || !anchorRect) {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      className="menu-card is-dropdown home-entry-menu"
-      role="menu"
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        minWidth: `${HOME_MENU_MIN_WIDTH}px`,
-      }}
-    >
-      <div className="menu-list">
-        <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onToggleStar(item); onClose(); }}>
-          <Star size={15} aria-hidden="true" />
+function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleStar, triggerClassName, triggerLabel }) {
+  return (
+    <AppDropdownMenu open={open} onOpenChange={onOpenChange}>
+      <AppDropdownMenuTrigger asChild>
+        <AppButton
+          type="button"
+          tone="unstyled"
+          className={triggerClassName}
+          aria-label={triggerLabel}
+          title="More actions"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </AppButton>
+      </AppDropdownMenuTrigger>
+      <AppDropdownMenuContent align="end" sideOffset={6} onClick={(event) => event.stopPropagation()}>
+        <AppDropdownMenuItem onSelect={() => onToggleStar(item)}>
+          <Star size={14} aria-hidden="true" fill={item.starred ? "currentColor" : "none"} />
           {item.starred ? "Remove star" : "Add star"}
-        </AppButton>
-        <AppButton type="button" tone="surface" className="dropdown-item browser-entry-menu__action" onClick={() => { onRename(item); onClose(); }}>
-          <Pencil size={15} aria-hidden="true" />
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem onSelect={() => onRename(item)}>
+          <Pencil size={14} aria-hidden="true" />
           Rename
-        </AppButton>
-        <AppButton type="button" tone="danger" className="dropdown-item browser-entry-menu__action browser-entry-menu__action--danger" onClick={() => { onDelete(item); onClose(); }}>
-          <Trash2 size={15} aria-hidden="true" />
+        </AppDropdownMenuItem>
+        <AppDropdownMenuSeparator />
+        <AppDropdownMenuItem
+          className="text-[#ff3b30] focus:bg-[rgba(255,59,48,0.12)] focus:text-[#ff3b30]"
+          onSelect={() => onDelete(item)}
+        >
+          <Trash2 size={14} aria-hidden="true" />
           Delete
-        </AppButton>
-      </div>
-    </div>,
-    portalRoot,
+        </AppDropdownMenuItem>
+      </AppDropdownMenuContent>
+    </AppDropdownMenu>
   );
 }
 
@@ -184,20 +159,18 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
   const primaryMeta = item.type !== "folder"
     ? `Edited ${formatRelativeTime(item.updatedAt)}`
     : (item.path || "Workspace root");
-  const menuButtonRef = useRef(null);
   const stats = [
     { label: "Tiles", value: Number.isFinite(item.tileCount) ? item.tileCount : 0 },
     { label: "Pages", value: Number.isFinite(item.pageCount) ? item.pageCount : 0 },
   ];
-  const anchorRect = menuButtonRef.current?.getBoundingClientRect() ?? null;
 
   if (viewMode === "list") {
     return (
-      <div className={`list-row${isActive ? " is-selected" : ""}`}>
+      <div className={`ap-home-row${isActive ? " is-selected" : ""}`}>
         <button
           ref={listButtonRef}
           type="button"
-          className="list-row-button"
+          className="ap-home-row__button"
           onClick={() => onOpen(item)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
@@ -212,79 +185,68 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
             }
           }}
         >
-          <div className="list-row-copy">
-            <div className="list-row-kicker">{typeLabel(item.type)}</div>
-            <div className="list-row-title">{item.name}</div>
-            <p className="muted-copy list-row-subtitle">{primaryMeta}</p>
-          </div>
+          <span className="ap-home-row__kicker">{typeLabel(item.type)}</span>
+          <span className="ap-home-row__title">{item.name}</span>
+          <span className="ap-home-row__subtitle">{primaryMeta}</span>
         </button>
-        <div className="list-row-actions">
-          <div className="list-row-stats" aria-label={`${item.name} stats`}>
+        <div className="ap-home-row__actions">
+          <div className="ap-home-row__stats" aria-label={`${item.name} stats`}>
             {stats.map((stat) => (
-              <div key={stat.label} className="list-row-stat">
-                <span className="list-row-stat__value">{stat.value}</span>
-                <span className="list-row-stat__label">{stat.label}</span>
+              <div key={stat.label} className="ap-home-row__stat">
+                <span className="ap-home-row__stat-value">{stat.value}</span>
+                <span className="ap-home-row__stat-label">{stat.label}</span>
               </div>
             ))}
           </div>
-          <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-            <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button list-row-inline-action" aria-label={`More actions for ${item.name}`} title="More actions" onClick={() => onMenuToggle(itemKey(item))}>
-              <MoreHorizontal size={16} aria-hidden="true" />
-            </AppButton>
-          </div>
           <button
             type="button"
-            className={`list-row-star-button list-row-inline-action${item.starred ? " is-starred" : ""}`}
+            className={`ap-home-row__icon-btn${item.starred ? " is-starred" : ""}`}
             aria-label={item.starred ? "Remove star" : "Add star"}
             onClick={(event) => {
               event.stopPropagation();
               onToggleStar(item);
             }}
           >
-            <Star size={16} aria-hidden="true" className="list-row-star-icon" />
+            <Star size={15} aria-hidden="true" fill={item.starred ? "currentColor" : "none"} />
           </button>
-          {menuOpen ? (
-            <BrowserEntryMenu
-              item={item}
-              anchorRect={anchorRect}
-              onRename={onRename}
-              onDelete={onDelete}
-              onToggleStar={onToggleStar}
-              onClose={onMenuClose}
-            />
-          ) : null}
+          <HomeEntryMenu
+            item={item}
+            open={menuOpen}
+            onOpenChange={(next) => (next ? onMenuToggle(itemKey(item)) : onMenuClose())}
+            onRename={onRename}
+            onDelete={onDelete}
+            onToggleStar={onToggleStar}
+            triggerClassName={`ap-home-row__icon-btn${menuOpen ? " is-open" : ""}`}
+            triggerLabel={`More actions for ${item.name}`}
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <article className={`browser-card${isActive ? " is-selected" : ""}${menuOpen ? " is-menu-open" : ""}`}>
-      <button type="button" className="browser-card-button" onClick={() => onOpen(item)}>
-        <div className="browser-card-thumb" />
-        <div className="browser-card-copy">
-          <h4 className="browser-card-title">{item.name}</h4>
-          <p className="muted-copy">{primaryMeta}</p>
+    <article className={`ap-home-card${isActive ? " is-selected" : ""}${menuOpen ? " is-menu-open" : ""}`}>
+      <div className="ap-home-card__toolbar">
+        <HomeEntryMenu
+          item={item}
+          open={menuOpen}
+          onOpenChange={(next) => (next ? onMenuToggle(itemKey(item)) : onMenuClose())}
+          onRename={onRename}
+          onDelete={onDelete}
+          onToggleStar={onToggleStar}
+          triggerClassName="ap-home-card__icon-btn"
+          triggerLabel={`More actions for ${item.name}`}
+        />
+      </div>
+      <button type="button" className="ap-home-card__hit" onClick={() => onOpen(item)}>
+        <div className="ap-home-card__thumb">
+          <div className="ap-home-card__thumb-placeholder" aria-hidden="true" />
+        </div>
+        <div className="ap-home-card__body">
+          <div className="ap-home-card__title">{item.name}</div>
+          <div className="ap-home-card__subtitle">{primaryMeta}</div>
         </div>
       </button>
-      <div className="browser-card-actions">
-        <AppButton type="button" tone="surface" className="home-card-action is-flex" onClick={() => onOpen(item)}>Open</AppButton>
-        <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-          <AppButton ref={menuButtonRef} type="button" tone="surface" size="icon" className="mini-button" aria-label={`More actions for ${item.name}`} title="More actions" onClick={() => onMenuToggle(itemKey(item))}>
-            <MoreHorizontal size={16} aria-hidden="true" />
-          </AppButton>
-        </div>
-        {menuOpen ? (
-          <BrowserEntryMenu
-            item={item}
-            anchorRect={anchorRect}
-            onRename={onRename}
-            onDelete={onDelete}
-            onToggleStar={onToggleStar}
-            onClose={onMenuClose}
-          />
-        ) : null}
-      </div>
     </article>
   );
 }
@@ -293,17 +255,17 @@ function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorks
   const recentDomes = Array.isArray(domes) ? domes.slice(0, 4) : [];
 
   return (
-    <section className="workspace-launch" aria-label="Workspace launcher">
-      <div className="workspace-launch__hero">
-        <div className="workspace-launch__eyebrow">
-          <Sparkles size={15} aria-hidden="true" />
+    <section className="ap-home-launch" aria-label="Workspace launcher">
+      <div className="ap-home-launch__hero">
+        <span className="ap-home-launch__eyebrow">
+          <Sparkles size={13} aria-hidden="true" />
           AirPaste
-        </div>
-        <h1 className="workspace-launch__title">Start with a workspace.</h1>
-        <p className="workspace-launch__copy">
-          Open an existing workspace or create a new one.
+        </span>
+        <h1 className="ap-home-launch__title">Start with a workspace.</h1>
+        <p className="ap-home-launch__copy">
+          Open an existing workspace or create a new one to begin saving.
         </p>
-        <div className="workspace-launch__actions">
+        <div className="ap-home-launch__actions">
           <AppButton type="button" tone="accent" size="lg" disabled={folderLoading} onClick={onOpenWorkspace}>
             <FolderOpen size={18} aria-hidden="true" />
             Open Workspace
@@ -315,37 +277,37 @@ function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorks
         </div>
       </div>
 
-      <div className="workspace-launch__panel">
-        <div className="workspace-launch__panel-header">
+      <div className="ap-home-launch__panel">
+        <div className="ap-home-launch__panel-header">
           <div>
-            <div className="eyebrow is-clean">Recent workspaces</div>
-            <h2 className="workspace-launch__panel-title">Pick up where you left off</h2>
+            <div className="ap-home-launch__panel-eyebrow">Recent workspaces</div>
+            <h2 className="ap-home-launch__panel-title">Pick up where you left off</h2>
           </div>
           <AppButton type="button" tone="surface" size="icon" aria-label="Manage workspaces" title="Manage workspaces" onClick={onManageWorkspaces}>
-            <Settings2 size={17} aria-hidden="true" />
+            <Settings2 size={16} aria-hidden="true" />
           </AppButton>
         </div>
 
-        <div className="workspace-launch__recent-list">
+        <div className="ap-home-launch__recent-list">
           {recentDomes.length > 0 ? recentDomes.map((dome) => (
             <button
               key={dome.id}
               type="button"
-              className={`workspace-launch__recent${dome.id === activeDome?.id ? " is-active" : ""}`}
+              className={`ap-home-launch__recent${dome.id === activeDome?.id ? " is-active" : ""}`}
               disabled={folderLoading}
               onClick={() => onOpenDome(dome.id)}
             >
-              <span className="workspace-launch__recent-icon">
-                <FolderOpen size={18} aria-hidden="true" />
+              <span className="ap-home-launch__recent-icon">
+                <FolderOpen size={17} aria-hidden="true" />
               </span>
-              <span className="workspace-launch__recent-copy">
-                <span className="workspace-launch__recent-name">{dome.name || folderNameFromPath(dome.path)}</span>
-                <span className="workspace-launch__recent-path">{dome.path || "Workspace path unavailable"}</span>
+              <span className="ap-home-launch__recent-copy">
+                <span className="ap-home-launch__recent-name">{dome.name || folderNameFromPath(dome.path)}</span>
+                <span className="ap-home-launch__recent-path">{dome.path || "Workspace path unavailable"}</span>
               </span>
             </button>
           )) : (
-            <div className="workspace-launch__empty-recent">
-              <FolderOpen size={20} aria-hidden="true" />
+            <div className="ap-home-launch__empty-recent">
+              <FolderOpen size={18} aria-hidden="true" />
               <span>No recent workspaces yet.</span>
             </div>
           )}
@@ -357,11 +319,14 @@ function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorks
 
 function BrowserEmptyState({ title, description, onNewCanvas, onImportFiles }) {
   return (
-    <section className="empty-card browser-empty-state">
-      <div className="eyebrow is-clean">Workspace</div>
-      <h2 className="dialog-title">{title}</h2>
-      <p className="muted-copy">{description}</p>
-      <div className="dome-actions">
+    <section className="ap-home-empty">
+      <div className="ap-home-empty__icon">
+        <Sparkles size={22} aria-hidden="true" />
+      </div>
+      <span className="ap-home-empty__eyebrow">Workspace</span>
+      <h2 className="ap-home-empty__title">{title}</h2>
+      <p className="ap-home-empty__copy">{description}</p>
+      <div className="ap-home-empty__actions">
         <AppButton type="button" tone="accent" onClick={onNewCanvas}>
           <Plus size={16} aria-hidden="true" />
           Create Canvas
@@ -386,21 +351,18 @@ function HomeCanvasCardItem({
   onMenuToggle,
   onMenuClose,
 }) {
-  const menuButtonRef = useRef(null);
-  const anchorRect = menuButtonRef.current?.getBoundingClientRect() ?? null;
   const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
   const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
   const editedLabel = `Edited ${formatRelativeTime(item.updatedAt)}`;
   const summaryLabel = `${formatItemCount(tileCount, "tile")} · ${formatItemCount(pageCount, "page")}`;
 
   return (
-    <article className={`home-canvas-card${item.starred ? " is-starred" : ""}`} role="listitem">
-      <div className="home-canvas-card__toolbar">
+    <article className={`ap-home-card${item.starred ? " is-starred" : ""}${menuOpen ? " is-menu-open" : ""}`} role="listitem">
+      <div className="ap-home-card__toolbar">
         <AppButton
           type="button"
-          tone="surface"
-          size="icon"
-          className={`home-canvas-card__icon-button${item.starred ? " is-active" : ""}`}
+          tone="unstyled"
+          className={`ap-home-card__icon-btn${item.starred ? " is-active" : ""}`}
           aria-label={item.starred ? `Unstar ${item.name}` : `Star ${item.name}`}
           title={item.starred ? "Remove star" : "Add star"}
           onClick={(event) => {
@@ -408,54 +370,37 @@ function HomeCanvasCardItem({
             onToggleStar(item);
           }}
         >
-          <Star size={15} aria-hidden="true" />
+          <Star size={14} aria-hidden="true" fill={item.starred ? "currentColor" : "none"} />
         </AppButton>
-        <div className={`menu-shell${menuOpen ? " is-open" : ""}`}>
-          <AppButton
-            ref={menuButtonRef}
-            type="button"
-            tone="surface"
-            size="icon"
-            className="home-canvas-card__icon-button"
-            aria-label={`More actions for ${item.name}`}
-            title="More actions"
-            onClick={(event) => {
-              event.stopPropagation();
-              onMenuToggle();
-            }}
-          >
-            <MoreHorizontal size={15} aria-hidden="true" />
-          </AppButton>
-        </div>
-        {menuOpen ? (
-          <BrowserEntryMenu
-            item={item}
-            anchorRect={anchorRect}
-            onRename={onRename}
-            onDelete={onDelete}
-            onToggleStar={onToggleStar}
-            onClose={onMenuClose}
-          />
-        ) : null}
+        <HomeEntryMenu
+          item={item}
+          open={menuOpen}
+          onOpenChange={(next) => (next ? onMenuToggle() : onMenuClose())}
+          onRename={onRename}
+          onDelete={onDelete}
+          onToggleStar={onToggleStar}
+          triggerClassName="ap-home-card__icon-btn"
+          triggerLabel={`More actions for ${item.name}`}
+        />
       </div>
       <button
         type="button"
-        className="home-canvas-card__hit"
+        className="ap-home-card__hit"
         onClick={() => onOpenCanvas(item)}
       >
-        <div className="home-canvas-card__thumb">
+        <div className="ap-home-card__thumb">
           {thumbUrl ? (
-            <img className="home-canvas-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+            <img className="ap-home-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
           ) : (
-            <div className="home-canvas-card__thumb-placeholder" aria-hidden="true" />
+            <div className="ap-home-card__thumb-placeholder" aria-hidden="true" />
           )}
         </div>
-        <div className="home-canvas-card__meta">
-          <div className="home-canvas-card__heading">
-            <div className="home-canvas-card__title">{item.name}</div>
-            <div className="home-canvas-card__subtitle">{editedLabel}</div>
+        <div className="ap-home-card__body">
+          <div className="ap-home-card__heading">
+            <div className="ap-home-card__title">{item.name}</div>
+            <div className="ap-home-card__subtitle">{editedLabel}</div>
           </div>
-          <div className="home-canvas-card__summary">{summaryLabel}</div>
+          <div className="ap-home-card__summary">{summaryLabel}</div>
         </div>
       </button>
     </article>
@@ -494,43 +439,21 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
     };
   }, [canvases, folderPath]);
 
-  useEffect(() => {
-    if (!openMenuKey) return undefined;
-
-    function handlePointerDown(event) {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest(".home-entry-menu") || target?.closest(".home-canvas-card__toolbar")) {
-        return;
-      }
-      setOpenMenuKey(null);
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setOpenMenuKey(null);
-      }
-    }
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [openMenuKey]);
-
   if (!Array.isArray(canvases) || canvases.length === 0) {
     return (
-      <section className="empty-card home-cards-empty">
-        <div className="eyebrow">Cards</div>
-        <h2 className="dialog-title">No canvases yet</h2>
-        <p className="muted-copy">Create a canvas to see it appear here as a card with a live preview.</p>
+      <section className="ap-home-empty">
+        <div className="ap-home-empty__icon">
+          <Grid2X2 size={22} aria-hidden="true" />
+        </div>
+        <span className="ap-home-empty__eyebrow">Cards</span>
+        <h2 className="ap-home-empty__title">No canvases yet</h2>
+        <p className="ap-home-empty__copy">Create a canvas to see it appear here as a card with a live preview.</p>
       </section>
     );
   }
 
   return (
-    <div className="home-browser-cards" role="list">
+    <div className="ap-home-grid" role="list">
       {canvases.map((item) => {
         const key = itemKey(item);
         const thumbUrl = thumbUrls[itemKey(item)] || "";
@@ -567,12 +490,11 @@ function HomeSidebarContent({
   return (
     <>
       {onToggleCollapsed ? (
-        <div className="sidebar-section sidebar-section--tools">
+        <div className="ap-home-sidebar__toggle-row">
           <AppButton
             type="button"
             tone="surface"
             size="icon"
-            className="home-sidebar-toggle"
             onClick={onToggleCollapsed}
             aria-label={collapsed ? "Expand home sidebar" : "Collapse home sidebar"}
             title={collapsed ? "Expand home sidebar" : "Collapse home sidebar"}
@@ -582,35 +504,40 @@ function HomeSidebarContent({
         </div>
       ) : null}
 
-      <div className="sidebar-section">
+      <nav className="ap-home-sidebar__nav" aria-label="Workspace sections">
         {["home", "starred"].map((section) => (
           <AppButton
             key={section}
             type="button"
-            tone="surface"
-            className={`sidebar-link${navigation.selectedSection === section ? " is-active" : ""}`}
+            tone="unstyled"
+            className={`ap-home-nav-link${navigation.selectedSection === section ? " is-active" : ""}`}
+            title={section === "home" ? "Home" : sectionLabel(section)}
             onClick={() => void onSectionChange(section)}
           >
-            <span className="sidebar-link__label">
+            <span className="ap-home-nav-link__label">
               <SectionIcon section={section} />
-              <span className="sidebar-link__text">{section === "home" ? "Home" : sectionLabel(section)}</span>
+              <span className="ap-home-nav-link__text">{section === "home" ? "Home" : sectionLabel(section)}</span>
             </span>
-            <span className="workspace-badge">
+            <span className="ap-home-nav-link__badge">
               {section === "home" ? allCanvasItems.length : homeData.starredItems.length}
             </span>
           </AppButton>
         ))}
-      </div>
+      </nav>
 
-      <div className="sidebar-section is-bottom">
-        <div className="sidebar-workspace-card">
-          <div className="sidebar-workspace-card__label">Workspace</div>
-          <h3 className="brand-wordmark">{activeDome?.name || "AirPaste"}</h3>
-          <p className="sidebar-path" title={folderPath || activeDome?.path || "Workspace path unavailable."}>{folderPath || activeDome?.path || "Workspace path unavailable."}</p>
+      <div className="ap-home-sidebar__spacer" />
+
+      <div className="ap-home-sidebar__footer">
+        <div className="ap-home-workspace-card">
+          <span className="ap-home-workspace-card__label">Workspace</span>
+          <h3 className="ap-home-workspace-card__name">{activeDome?.name || "AirPaste"}</h3>
+          <p className="ap-home-workspace-card__path" title={folderPath || activeDome?.path || "Workspace path unavailable."}>
+            {folderPath || activeDome?.path || "Workspace path unavailable."}
+          </p>
         </div>
-        <AppButton type="button" tone="surface" className="home-sidebar-action" onClick={onManageWorkspaces}>
-          <Settings2 size={16} aria-hidden="true" />
-          <span className="home-sidebar-action__label">Manage Workspaces</span>
+        <AppButton type="button" tone="surface" className="ap-home-sidebar-action" onClick={onManageWorkspaces} title="Manage Workspaces">
+          <Settings2 size={15} aria-hidden="true" />
+          <span className="ap-home-sidebar-action__label">Manage Workspaces</span>
         </AppButton>
       </div>
     </>
@@ -618,102 +545,89 @@ function HomeSidebarContent({
 }
 
 function TextPromptDialog({ open, title, description, confirmLabel, value, disabled, onChange, onCancel, onConfirm }) {
-  if (!open) return null;
-
   return (
-    <div className="dialog-overlay" onMouseDown={onCancel}>
-      <div className="dialog-card is-small" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="dialog-header">
-          <h3 className="dialog-title">{title}</h3>
-        </div>
-        <div className="dialog-body">
-          <p className="muted-copy">{description}</p>
-          <input
-            className="workspace-search"
-            value={value}
-            autoFocus
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !disabled) {
-                event.preventDefault();
-                onConfirm();
-              }
-            }}
-          />
-        </div>
-        <div className="dialog-actions is-padded">
+    <AppDialog open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
+      <AppDialogContent className="max-w-sm">
+        <AppDialogHeader>
+          <AppDialogTitle>{title}</AppDialogTitle>
+          <AppDialogDescription>{description}</AppDialogDescription>
+        </AppDialogHeader>
+        <AppInput
+          value={value}
+          autoFocus
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !disabled) {
+              event.preventDefault();
+              onConfirm();
+            }
+          }}
+        />
+        <AppDialogFooter>
           <AppButton type="button" tone="surface" onClick={onCancel}>Cancel</AppButton>
           <AppButton type="button" tone="accent" disabled={disabled} onClick={onConfirm}>{confirmLabel}</AppButton>
-        </div>
-      </div>
-    </div>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
   );
 }
 
 function ConfirmDialog({ open, title, description, disabled, onCancel, onConfirm }) {
-  if (!open) return null;
-
   return (
-    <div className="dialog-overlay" onMouseDown={onCancel}>
-      <div className="dialog-card is-small" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="dialog-header">
-          <h3 className="dialog-title">{title}</h3>
-        </div>
-        <div className="dialog-body">
-          <p className="muted-copy">{description}</p>
-        </div>
-        <div className="dialog-actions is-padded">
+    <AppDialog open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
+      <AppDialogContent className="max-w-sm">
+        <AppDialogHeader>
+          <AppDialogTitle>{title}</AppDialogTitle>
+          <AppDialogDescription>{description}</AppDialogDescription>
+        </AppDialogHeader>
+        <AppDialogFooter>
           <AppButton type="button" tone="surface" onClick={onCancel}>Cancel</AppButton>
           <AppButton type="button" tone="danger" disabled={disabled} onClick={onConfirm}>Delete</AppButton>
-        </div>
-      </div>
-    </div>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
   );
 }
 
 function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onClose, onRefresh, onCreateNew, onOpenFolder, onOpenDome, onRevealDome, onRemoveDome }) {
-  if (!open) return null;
-
   return (
-    <div className="dialog-overlay" onMouseDown={onClose}>
-      <div className="dialog-card is-large" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="dialog-header">
-          <h3 className="dialog-title">Manage Workspaces</h3>
-        </div>
-        <div className="dialog-body">
-          <p className="muted-copy">Switch, reveal, remove, or create workspaces.</p>
-          <div className="workspace-main-content">
-            {domes.length === 0 ? (
-              <div className="muted-copy">No workspaces yet.</div>
-            ) : (
-              domes.map((dome) => (
-                <div key={dome.id} className="dome-list-row">
-                  <div>
-                    <div className="dome-name">{dome.name}{dome.id === activeDomeId ? " (active)" : ""}</div>
-                    <div className="muted-copy">
-                      {dome.path}
-                      {dome.exists === false ? " · Missing" : ""}
-                      {dome.valid === false ? " · Needs initialization" : ""}
-                    </div>
-                  </div>
-                  <div className="dome-actions">
-                    <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</AppButton>
-                    <AppButton type="button" tone="surface" onClick={() => onRevealDome(dome.path)}>Reveal</AppButton>
-                    <AppButton type="button" tone="danger" onClick={() => onRemoveDome(dome.id)}>Remove</AppButton>
+    <AppDialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <AppDialogContent className="max-w-xl">
+        <AppDialogHeader>
+          <AppDialogTitle>Manage Workspaces</AppDialogTitle>
+          <AppDialogDescription>Switch, reveal, remove, or create workspaces.</AppDialogDescription>
+        </AppDialogHeader>
+        <div className="ap-home-dome-list">
+          {domes.length === 0 ? (
+            <p className="ap-home-empty__copy">No workspaces yet.</p>
+          ) : (
+            domes.map((dome) => (
+              <div key={dome.id} className="ap-home-dome-row">
+                <div>
+                  <div className="ap-home-dome-row__name">{dome.name}{dome.id === activeDomeId ? " (active)" : ""}</div>
+                  <div className="ap-home-dome-row__meta">
+                    {dome.path}
+                    {dome.exists === false ? " · Missing" : ""}
+                    {dome.valid === false ? " · Needs initialization" : ""}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="ap-home-dome-row__actions">
+                  <AppButton type="button" tone="surface" size="sm" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</AppButton>
+                  <AppButton type="button" tone="surface" size="sm" onClick={() => onRevealDome(dome.path)}>Reveal</AppButton>
+                  <AppButton type="button" tone="danger" size="sm" onClick={() => onRemoveDome(dome.id)}>Remove</AppButton>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-        <div className="dialog-actions is-padded">
+        <AppDialogFooter>
           <AppButton type="button" tone="surface" onClick={onClose}>Close</AppButton>
           <AppButton type="button" tone="surface" onClick={onRefresh}>Refresh</AppButton>
           <AppButton type="button" tone="surface" onClick={onCreateNew}>Create New</AppButton>
           <AppButton type="button" tone="accent" onClick={onOpenFolder}>Open Folder</AppButton>
-        </div>
-      </div>
-    </div>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
   );
 }
 
@@ -803,27 +717,6 @@ export default function HomeShell() {
       // Ignore persistence failures.
     }
   }, [homeSidebarCollapsed, isNarrowDesktop]);
-
-  useEffect(() => {
-    const handlePointerDown = (event) => {
-      if (!event.target.closest(".menu-shell") && !event.target.closest(".home-entry-menu")) {
-        setOpenMenuKey("");
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
-
-  useEffect(() => {
-    if (!openMenuKey) {
-      return undefined;
-    }
-
-    const handleViewportChange = () => setOpenMenuKey("");
-    window.addEventListener("resize", handleViewportChange);
-    return () => window.removeEventListener("resize", handleViewportChange);
-  }, [openMenuKey]);
 
   useEffect(() => {
     if (!bodyRef.current) return;
@@ -1038,9 +931,12 @@ export default function HomeShell() {
   const sectionTitle = sectionLabel(navigation.selectedSection);
   const itemCountLabel = formatItemCount(browserItems.length, "canvas");
   return (
-    <main ref={shellRef} className={`home-shell${!hasWorkspace ? " home-shell--launch" : ""}${homeSidebarCollapsed && hasWorkspace && !isNarrowDesktop ? " home-shell--sidebar-collapsed" : ""}`}>
+    <main
+      ref={shellRef}
+      className={`ap-home${!hasWorkspace ? " ap-home--launch" : ""}${homeSidebarCollapsed && hasWorkspace && !isNarrowDesktop ? " ap-home--sidebar-collapsed" : ""}${isNarrowDesktop && hasWorkspace ? " ap-home--no-sidebar" : ""}`}
+    >
       {!isNarrowDesktop && hasWorkspace ? (
-        <aside className={`home-sidebar${homeSidebarCollapsed ? " home-sidebar--collapsed" : ""}`}>
+        <aside className={`ap-home-sidebar${homeSidebarCollapsed ? " ap-home-sidebar--collapsed" : ""}`}>
           <HomeSidebarContent
             navigation={navigation}
             allCanvasItems={allCanvasItems}
@@ -1055,25 +951,25 @@ export default function HomeShell() {
         </aside>
       ) : null}
 
-      <section className="workspace-main">
+      <section className="ap-home-main">
         {hasWorkspace ? (
-          <div className="home-toolbar-shell">
+          <div className="ap-home-toolbar">
             {isNarrowDesktop ? (
-              <AppButton type="button" tone="surface" className="home-sidebar-trigger" onClick={() => setSidebarDrawerOpen(true)}>
+              <AppButton type="button" tone="surface" className="ap-home-sidebar-trigger" onClick={() => setSidebarDrawerOpen(true)}>
                 <Menu size={17} aria-hidden="true" />
                 Menu
               </AppButton>
             ) : null}
-            <div className="home-toolbar-title">
-              <span className="home-toolbar-title__eyebrow">Workspace</span>
-              <h1>{sectionTitle}</h1>
+            <div className="ap-home-toolbar__heading">
+              <span className="ap-home-toolbar__eyebrow">Workspace</span>
+              <h1 className="ap-home-toolbar__title">{sectionTitle}</h1>
             </div>
-            <div className="toolbar-cluster toolbar-cluster--secondary">
-              <div className="home-search">
-                <Search size={14} aria-hidden="true" className="home-search__icon" />
-                <input
+            <div className="ap-home-toolbar__controls">
+              <div className="ap-home-search">
+                <Search size={14} aria-hidden="true" className="ap-home-search__icon" />
+                <AppInput
                   type="text"
-                  className="home-search__input"
+                  className="ap-home-search__input"
                   placeholder="Search this workspace"
                   aria-label="Search this workspace"
                   value={searchQuery}
@@ -1088,7 +984,7 @@ export default function HomeShell() {
                 {searchQuery ? (
                   <button
                     type="button"
-                    className="home-search__clear"
+                    className="ap-home-search__clear"
                     aria-label="Clear search"
                     title="Clear search"
                     onClick={() => setSearchQuery("")}
@@ -1097,7 +993,7 @@ export default function HomeShell() {
                   </button>
                 ) : null}
               </div>
-              <div className="home-view-toggle" role="tablist" aria-label="Home view mode">
+              <div className="ap-home-view-toggle" role="tablist" aria-label="Home view mode">
                 <button
                   type="button"
                   role="tab"
@@ -1105,7 +1001,7 @@ export default function HomeShell() {
                   title="List view"
                   aria-selected={!isCardsView}
                   aria-pressed={!isCardsView}
-                  className={`home-view-toggle__button${!isCardsView ? " is-active" : ""}`}
+                  className={`ap-home-view-toggle__btn${!isCardsView ? " is-active" : ""}`}
                   onClick={() => {
                     const nextPreferences = { ...homePreferences, viewMode: "list" };
                     setHomeViewMode("list");
@@ -1113,7 +1009,7 @@ export default function HomeShell() {
                     persistHomeContext(navigation, nextPreferences, 0, {}, "list");
                   }}
                 >
-                  <LayoutList size={16} aria-hidden="true" />
+                  <LayoutList size={15} aria-hidden="true" />
                   <span>List</span>
                 </button>
                 <button
@@ -1123,7 +1019,7 @@ export default function HomeShell() {
                   title="Card view"
                   aria-selected={isCardsView}
                   aria-pressed={isCardsView}
-                  className={`home-view-toggle__button${isCardsView ? " is-active" : ""}`}
+                  className={`ap-home-view-toggle__btn${isCardsView ? " is-active" : ""}`}
                   onClick={() => {
                     const nextPreferences = { ...homePreferences, viewMode: "cards" };
                     setHomeViewMode("cards");
@@ -1131,7 +1027,7 @@ export default function HomeShell() {
                     persistHomeContext(navigation, nextPreferences, 0, {}, "cards");
                   }}
                 >
-                  <Grid2X2 size={16} aria-hidden="true" />
+                  <Grid2X2 size={15} aria-hidden="true" />
                   <span>Cards</span>
                 </button>
               </div>
@@ -1147,7 +1043,7 @@ export default function HomeShell() {
                 <RefreshCw size={16} aria-hidden="true" />
               </AppButton>
             </div>
-            <div className="home-toolbar-actions">
+            <div className="ap-home-toolbar__actions">
               <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
                 <Import size={16} aria-hidden="true" />
                 Import
@@ -1160,7 +1056,7 @@ export default function HomeShell() {
           </div>
         ) : null}
 
-        <div ref={bodyRef} className="workspace-main-content" onScroll={handleBodyScroll}>
+        <div ref={bodyRef} className="ap-home-content" onScroll={handleBodyScroll}>
           {!hasWorkspace ? (
             <WorkspaceLaunchScreen
               domes={domes}
@@ -1179,57 +1075,55 @@ export default function HomeShell() {
               onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
             />
           ) : (
-            <>
-              <section className="browser-panel">
-                <div className="browser-panel-header">
-                  <h3 className="panel-title">{sectionTitle}</h3>
-                  <div className="browser-panel-header__meta">
-                    <span className="browser-panel-header__pill">{itemCountLabel}</span>
-                    {searchQuery.trim() ? <span className="browser-panel-header__pill">Filtered</span> : null}
-                  </div>
+            <section className="ap-home-panel">
+              <div className="ap-home-panel-header">
+                <h3 className="ap-home-panel-header__title">{sectionTitle}</h3>
+                <div className="ap-home-panel-header__meta">
+                  <span className="ap-home-pill">{itemCountLabel}</span>
+                  {searchQuery.trim() ? <span className="ap-home-pill">Filtered</span> : null}
                 </div>
-                {isCardsView ? (
-                  <HomeCardsView
-                    folderPath={folderPath}
-                    canvases={canvasItems}
-                    onOpenCanvas={(entry) => void handleOpenEntry(entry)}
-                    onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
-                    onDelete={(entry) => setConfirmDialog({ target: entry })}
-                    onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
-                  />
-                ) : (
-                  <div className={`home-browser-${browserViewMode}`}>
-                    {browserItems.map((item, index) => (
-                      <BrowserCard
-                        key={itemKey(item)}
-                        item={item}
-                        viewMode={browserViewMode}
-                        isActive={item.path === activeItemPath}
-                        menuOpen={openMenuKey === itemKey(item)}
-                        onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
-                        onMenuClose={() => setOpenMenuKey("")}
-                        onOpen={(entry) => void handleOpenEntry(entry)}
-                        onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
-                        onDelete={(entry) => setConfirmDialog({ target: entry })}
-                        onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
-                        onFocusPrev={() => listButtonRefs.current[Math.max(0, index - 1)]?.focus?.()}
-                        onFocusNext={() => listButtonRefs.current[Math.min(browserItems.length - 1, index + 1)]?.focus?.()}
-                        listButtonRef={(node) => {
-                          listButtonRefs.current[index] = node;
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
+              </div>
+              {isCardsView ? (
+                <HomeCardsView
+                  folderPath={folderPath}
+                  canvases={canvasItems}
+                  onOpenCanvas={(entry) => void handleOpenEntry(entry)}
+                  onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                  onDelete={(entry) => setConfirmDialog({ target: entry })}
+                  onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                />
+              ) : (
+                <div className="ap-home-list">
+                  {browserItems.map((item, index) => (
+                    <BrowserCard
+                      key={itemKey(item)}
+                      item={item}
+                      viewMode={browserViewMode}
+                      isActive={item.path === activeItemPath}
+                      menuOpen={openMenuKey === itemKey(item)}
+                      onMenuToggle={(key) => setOpenMenuKey((current) => current === key ? "" : key)}
+                      onMenuClose={() => setOpenMenuKey("")}
+                      onOpen={(entry) => void handleOpenEntry(entry)}
+                      onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                      onDelete={(entry) => setConfirmDialog({ target: entry })}
+                      onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                      onFocusPrev={() => listButtonRefs.current[Math.max(0, index - 1)]?.focus?.()}
+                      onFocusNext={() => listButtonRefs.current[Math.min(browserItems.length - 1, index + 1)]?.focus?.()}
+                      listButtonRef={(node) => {
+                        listButtonRefs.current[index] = node;
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           )}
         </div>
       </section>
 
       {isNarrowDesktop ? (
         <AppSheet open={sidebarDrawerOpen} onOpenChange={setSidebarDrawerOpen}>
-          <AppSheetContent side="left" className="home-sidebar home-sidebar--drawer">
+          <AppSheetContent side="left" className="ap-home-sidebar ap-home-sidebar--drawer">
             <HomeSidebarContent
               navigation={navigation}
               allCanvasItems={allCanvasItems}

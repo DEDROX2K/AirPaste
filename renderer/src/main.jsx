@@ -9,7 +9,6 @@ import "./index.css";
 import "./design/index.css";
 import "./styles.css";
 import "./final-overrides.css";
-import "./components/HomeShellPremium.css";
 import "./components/TilePolish.css";
 import "./components/CanvasDockPolish.css";
 import "./components/SimpleUi.css";
