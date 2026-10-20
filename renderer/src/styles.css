@@ -1595,6 +1595,49 @@ option {
   display: block;
 }
 
+/* Generative zone structure, step one: a soft halo of thicker dots around
+   any cluster of 5+ tiles sitting close together (see
+   useCanvasDensityZones.js). Lives inside .canvas__content so it shares the
+   tiles' own world-space coordinates and pan/zoom transform -- no viewport
+   math needed here. Sits at z-index 0, below every tile (the lowest a tile
+   itself ever sits is 1, see tileLayout.js getTileLayer). */
+.canvas__density-zones {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.canvas__density-zone {
+  position: absolute;
+  border-radius: 50%;
+  background-image: radial-gradient(circle, var(--grid-line-strong) 2.6px, transparent 2.6px);
+  background-size: var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px);
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.5) 55%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.5) 55%, transparent 78%);
+  opacity: 0;
+  animation: canvas-density-zone-in 480ms ease-out forwards;
+}
+
+@keyframes canvas-density-zone-in {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__density-zone {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .canvas__grid {
   pointer-events: none;
   background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px));

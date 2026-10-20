@@ -6,6 +6,7 @@ import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
+import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
@@ -2902,6 +2903,7 @@ export default function CanvasWorkspaceView() {
               ref={canvas.contentRef}
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
+              <CanvasDensityZones tiles={filteredTiles} />
               {activeRenderTiles.map((card, index) => (
                 <div
                   key={card.id}
