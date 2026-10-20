@@ -1597,7 +1597,7 @@ option {
 
 .canvas__grid {
   pointer-events: none;
-  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px));
+  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px));
   background-size: var(--canvas-grid-background-size, var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px));
   background-repeat: repeat;
   background-position: var(--canvas-grid-offset-x, 0) var(--canvas-grid-offset-y, 0);
@@ -13154,7 +13154,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .canvas__grid {
-  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.1px, transparent 1.1px)) !important;
+  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px)) !important;
   background-size: var(--canvas-grid-background-size, var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)) !important;
   background-repeat: repeat !important;
   background-position: var(--canvas-grid-offset-x, 0) var(--canvas-grid-offset-y, 0) !important;

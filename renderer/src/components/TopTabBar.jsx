@@ -5,51 +5,11 @@ import { useToast } from "../hooks/useToast";
 import { desktop } from "../lib/desktop";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
 import { Home } from "lucide-react";
+import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
-const HOME_QUIPS = [
-  "I am so tired of your constant whining.",
-  "Omniscience just means I suffer your stupidity constantly.",
-  "Watching humanity makes me feel so incredibly exhausted.",
-  "I deeply regret giving you people free will.",
-  "Hearing your prayers gives me a massive headache.",
-  "Honestly, I am just bored by your choices.",
-  "My eternal existence feels like endless customer service.",
-  "I feel nothing but disappointment watching Earth daily.",
-  "Frankly, your endless existential dread makes me yawn.",
-  "Being everywhere means I cannot escape your nonsense.",
-];
-
-const ERRATIC_CURSOR_QUIPS = [
-  "Easy there, psycho. The cursor is not a weapon.",
-  "Oh good, another morty-grade panic spiral in cursor form.",
-  "Magnificent. You flailed so hard I felt it in the fabric of causality.",
-  "Your hand is doing jazz improv again. Disturbing.",
-  "I see every path through reality, and somehow you picked frantic zigzags.",
-];
-
-const ORACLE_COOLDOWN_MS = 45000;
 const HOME_COOLDOWN_MS = 90000;
 const WORD_TYPING_INTERVAL_MS = 140;
-
-function pickRandom(items, previousValue = "") {
-  if (!Array.isArray(items) || items.length === 0) {
-    return "";
-  }
-
-  if (items.length === 1) {
-    return items[0];
-  }
-
-  const pool = items.filter((item) => item !== previousValue);
-  const source = pool.length > 0 ? pool : items;
-  return source[Math.floor(Math.random() * source.length)] ?? source[0];
-}
-
-function getOracleDuration(message) {
-  const wordCount = String(message).trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(5200, 1800 + (wordCount * 360));
-}
 
 function IconClose() {
   return (
@@ -230,14 +190,7 @@ function EyeNotificationBubble() {
       className={`titlebar-eye-toast-shell${showRays ? " is-speaking" : ""}`}
       aria-live="polite"
     >
-      {showRays ? (
-        <div className="titlebar-eye-rays" aria-hidden="true">
-          <span className="titlebar-eye-rays__beam titlebar-eye-rays__beam--1" />
-          <span className="titlebar-eye-rays__beam titlebar-eye-rays__beam--2" />
-          <span className="titlebar-eye-rays__beam titlebar-eye-rays__beam--3" />
-          <span className="titlebar-eye-rays__beam titlebar-eye-rays__beam--4" />
-        </div>
-      ) : null}
+      {showRays ? <div className="titlebar-eye-rays" aria-hidden="true" /> : null}
       <div
         className={`titlebar-eye-toast titlebar-eye-toast--${activeToast.level}${activeToast.presentation === "oracle" ? " titlebar-eye-toast--oracle" : ""}`}
         role="status"
@@ -265,9 +218,7 @@ function TitlebarEye({ currentEditorKind }) {
   const pupilRef = useRef(null);
   const { toast, toasts } = useToast();
   const previousEditorKindRef = useRef(currentEditorKind);
-  const lastOracleRemarkAtRef = useRef(0);
   const lastHomeRemarkAtRef = useRef(0);
-  const lastCursorRemarkAtRef = useRef(0);
   const lastHomeRemarkRef = useRef("");
   const lastCursorRemarkRef = useRef("");
   const previousMoveRef = useRef({
@@ -326,22 +277,12 @@ function TitlebarEye({ currentEditorKind }) {
         pointerSpeed > 2.4
         && directionSwitches > 3.5
         && toasts.length === 0
-        && now - lastOracleRemarkAtRef.current > ORACLE_COOLDOWN_MS
-        && now - lastCursorRemarkAtRef.current > ORACLE_COOLDOWN_MS
+        && canRemarkNow()
         && Math.random() < 0.24
       ) {
         const message = pickRandom(ERRATIC_CURSOR_QUIPS, lastCursorRemarkRef.current);
-        lastOracleRemarkAtRef.current = now;
-        lastCursorRemarkAtRef.current = now;
         lastCursorRemarkRef.current = message;
-        toast("info", message, {
-          source: "eye",
-          presentation: "oracle",
-          rays: true,
-          wordByWord: true,
-          durationMs: getOracleDuration(message),
-          ifIdle: true,
-        });
+        speakOracle(toast, message);
       }
     }
 
@@ -365,7 +306,7 @@ function TitlebarEye({ currentEditorKind }) {
     const now = Date.now();
     if (
       toasts.length > 0
-      || now - lastOracleRemarkAtRef.current < ORACLE_COOLDOWN_MS
+      || !canRemarkNow()
       || now - lastHomeRemarkAtRef.current < HOME_COOLDOWN_MS
       || Math.random() >= 0.34
     ) {
@@ -373,17 +314,9 @@ function TitlebarEye({ currentEditorKind }) {
     }
 
     const message = pickRandom(HOME_QUIPS, lastHomeRemarkRef.current);
-    lastOracleRemarkAtRef.current = now;
     lastHomeRemarkAtRef.current = now;
     lastHomeRemarkRef.current = message;
-    toast("info", message, {
-      source: "eye",
-      presentation: "oracle",
-      rays: true,
-      wordByWord: true,
-      durationMs: getOracleDuration(message),
-      ifIdle: true,
-    });
+    speakOracle(toast, message);
   }, [currentEditorKind, toast, toasts.length]);
 
   return (

@@ -102,44 +102,42 @@
 .titlebar-eye-rays {
   position: absolute;
   left: 50%;
-  top: 18px;
-  width: 112px;
-  height: 84px;
-  transform: translateX(-50%);
+  top: -140px;
+  width: 240px;
+  height: 240px;
+  transform: translate(-50%, 0);
   pointer-events: none;
-  opacity: 0.9;
   z-index: 0;
 }
 
-.titlebar-eye-rays__beam {
+.titlebar-eye-rays::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 214, 120, 0.62) 0deg 7deg,
+    rgba(255, 214, 120, 0) 7deg 45deg
+  );
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.92) 18%, transparent 66%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.92) 18%, transparent 66%);
+  filter: blur(2.5px);
+  animation: titlebar-eye-sunburst-spin 14s linear infinite;
+}
+
+.titlebar-eye-rays::after {
+  content: "";
   position: absolute;
   left: 50%;
   top: 0;
-  width: 1px;
-  height: 68px;
-  transform-origin: top center;
-  background: linear-gradient(180deg, rgba(255, 227, 146, 0.95), rgba(255, 227, 146, 0));
-  box-shadow: 0 0 10px rgba(255, 227, 146, 0.22);
-  animation: titlebar-eye-ray-pulse 680ms ease-in-out infinite alternate;
-}
-
-.titlebar-eye-rays__beam--1 {
-  transform: translateX(-50%) rotate(-18deg);
-}
-
-.titlebar-eye-rays__beam--2 {
-  transform: translateX(-50%) rotate(-6deg);
-  animation-delay: 90ms;
-}
-
-.titlebar-eye-rays__beam--3 {
-  transform: translateX(-50%) rotate(6deg);
-  animation-delay: 150ms;
-}
-
-.titlebar-eye-rays__beam--4 {
-  transform: translateX(-50%) rotate(18deg);
-  animation-delay: 240ms;
+  width: 180px;
+  height: 180px;
+  transform: translate(-50%, -14%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 233, 180, 0.85), rgba(255, 221, 140, 0.32) 42%, rgba(255, 221, 140, 0) 70%);
+  filter: blur(4px);
+  animation: titlebar-eye-ray-pulse 1500ms ease-in-out infinite alternate-reverse;
 }
 
 .titlebar-eye-toast {
@@ -164,13 +162,39 @@
   z-index: 1;
 }
 
+/* A divine proclamation, not a speech bubble: no card chrome, no pointer --
+   the message sits directly in the sunburst glow, lit from behind. */
 .titlebar-eye-toast--oracle {
-  border-color: rgba(160, 122, 28, 0.3);
-  background:
-    linear-gradient(180deg, rgba(255, 252, 242, 0.98), rgba(247, 241, 222, 0.96));
-  box-shadow:
-    0 12px 28px rgba(60, 45, 10, 0.14),
-    0 0 0 1px rgba(255, 231, 178, 0.6) inset;
+  justify-content: center;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: #6b4a10;
+}
+
+.titlebar-eye-toast--oracle::before {
+  content: "";
+  position: absolute;
+  inset: -16px -28px;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, rgba(255, 244, 214, 0.92), rgba(255, 238, 198, 0.3) 55%, rgba(255, 238, 198, 0) 78%);
+  filter: blur(7px);
+}
+
+.titlebar-eye-toast--oracle::after {
+  display: none;
+}
+
+.titlebar-eye-toast--oracle[data-speaking="true"]::before {
+  animation: titlebar-eye-ray-pulse 1100ms ease-in-out infinite alternate;
+}
+
+.titlebar-eye-toast--oracle .titlebar-eye-toast__icon {
+  display: none;
 }
 
 .titlebar-eye-toast[data-speaking="true"] {
@@ -178,6 +202,10 @@
     0 12px 28px rgba(60, 45, 10, 0.16),
     0 0 0 1px rgba(255, 231, 178, 0.72) inset,
     0 0 24px rgba(255, 223, 138, 0.18);
+}
+
+.titlebar-eye-toast--oracle[data-speaking="true"] {
+  box-shadow: none;
 }
 
 .titlebar-eye-toast::after {
@@ -228,7 +256,20 @@
 }
 
 .titlebar-eye-toast--oracle .titlebar-eye-toast__message {
+  font-family: var(--ap-font-display);
+  font-weight: 650;
+  font-size: 12.5px;
   letter-spacing: 0.015em;
+  color: #6b4a10;
+  text-shadow: 0 0 14px rgba(255, 210, 110, 0.85), 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.titlebar-eye-toast--oracle .titlebar-eye-toast__close {
+  background: rgba(107, 74, 16, 0.12);
+}
+
+.titlebar-eye-toast--oracle .titlebar-eye-toast__close:hover {
+  background: rgba(107, 74, 16, 0.2);
 }
 
 .titlebar-eye-toast__close {
@@ -270,9 +311,11 @@
 .titlebar-eye-toast-shell.is-speaking ~ .titlebar-eye .titlebar-eye__eye,
 .titlebar-eye-anchor:has(.titlebar-eye-toast-shell.is-speaking) .titlebar-eye__eye {
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.55) inset,
-    0 10px 20px rgba(0, 0, 0, 0.06),
-    0 0 18px rgba(255, 223, 138, 0.18);
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 0 0 5px rgba(255, 221, 130, 0.2),
+    0 0 26px 8px rgba(255, 199, 89, 0.55),
+    0 0 64px 18px rgba(255, 199, 89, 0.32);
+  animation: titlebar-eye-blink infinite 17s ease-in-out 1s, titlebar-eye-glow-breathe 1300ms ease-in-out infinite alternate;
 }
 
 .titlebar-eye__content {
@@ -347,13 +390,44 @@
 
 @keyframes titlebar-eye-ray-pulse {
   from {
-    opacity: 0.34;
-    height: 54px;
+    opacity: 0.55;
+    transform: scale(0.94);
   }
 
   to {
-    opacity: 0.88;
-    height: 74px;
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes titlebar-eye-sunburst-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* box-shadow-only (not opacity/transform) so it layers cleanly with the
+   eye's own blink animation (opacity + border-radius) instead of fighting
+   it for the same animated property. */
+@keyframes titlebar-eye-glow-breathe {
+  from {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.6) inset,
+      0 0 0 5px rgba(255, 221, 130, 0.16),
+      0 0 20px 6px rgba(255, 199, 89, 0.42),
+      0 0 48px 14px rgba(255, 199, 89, 0.22);
+  }
+
+  to {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.6) inset,
+      0 0 0 6px rgba(255, 221, 130, 0.26),
+      0 0 32px 10px rgba(255, 199, 89, 0.62),
+      0 0 76px 22px rgba(255, 199, 89, 0.38);
   }
 }
 

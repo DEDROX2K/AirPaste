@@ -34,6 +34,7 @@ import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 import { getRenderableTileEntries } from "../layout/tileLayout";
 import { LINK_CARD_SIZE } from "../../tiles/link/model";
+import { maybeRemark, NOTE_CREATE_QUIPS, TILE_CREATE_QUIPS, TILE_DELETE_QUIPS } from "../../lib/eyeCommentary";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
@@ -435,6 +436,7 @@ export function useCanvasCommands({
 
     log("success", "New rack created on the canvas", centerPoint);
     toast("success", "Rack dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return rack;
   }, [createNewRackCard, folderPath, getViewportCenter, log, toast]);
 
@@ -450,6 +452,7 @@ export function useCanvasCommands({
 
     log("success", "New checklist created on the canvas", centerPoint);
     toast("success", "Checklist dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return checklist;
   }, [createNewChecklistCard, folderPath, getViewportCenter, log, toast]);
 
@@ -475,6 +478,7 @@ export function useCanvasCommands({
 
     log("success", "New calendar created on the canvas", centerPoint);
     toast("success", "Calendar dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return calendar;
   }, [createNewCalendarCard, folderPath, getViewportCenter, log, toast]);
 
@@ -496,6 +500,7 @@ export function useCanvasCommands({
 
     log("success", "New code snippet created on the canvas", centerPoint);
     toast("success", "Code snippet dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return codeTile;
   }, [createNewCodeCard, folderPath, getViewportCenter, log, toast]);
 
@@ -516,6 +521,7 @@ export function useCanvasCommands({
 
     log("success", "New counter created on the canvas", centerPoint);
     toast("success", "Counter dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return counter;
   }, [createNewCounterCard, folderPath, getViewportCenter, log, toast]);
 
@@ -538,6 +544,7 @@ export function useCanvasCommands({
 
     log("success", "New deadline created on the canvas", centerPoint);
     toast("success", "Deadline dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return deadline;
   }, [createNewDeadlineCard, folderPath, getViewportCenter, log, toast]);
 
@@ -557,6 +564,7 @@ export function useCanvasCommands({
 
     log("success", "New plain text object created on the canvas", centerPoint);
     toast("success", "Text dropped into place.");
+    maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
     return note;
   }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
 
@@ -582,6 +590,7 @@ export function useCanvasCommands({
 
     log("success", "New progress tile created on the canvas", centerPoint);
     toast("success", "Progress tile dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return progress;
   }, [createNewProgressCard, folderPath, getViewportCenter, log, toast]);
 
@@ -597,6 +606,7 @@ export function useCanvasCommands({
 
     log("success", "New table created on the canvas", centerPoint);
     toast("success", "Table dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return table;
   }, [createNewTableCard, folderPath, getViewportCenter, log, toast]);
 
@@ -623,6 +633,7 @@ export function useCanvasCommands({
 
     log("success", "New sticky note created on the canvas", centerPoint);
     toast("success", "Sticky note dropped into place.");
+    maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
     return sticky;
   }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
 
@@ -638,6 +649,7 @@ export function useCanvasCommands({
 
     log("success", "New markdown note created on the canvas", centerPoint);
     toast("success", "Markdown note dropped into place.");
+    maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
     return note;
   }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
 
@@ -1064,6 +1076,7 @@ export function useCanvasCommands({
       deleteExistingCard(tile.id);
       log("info", `Deleted card ${tile.id}`);
       toast("success", "Tile deleted.");
+      maybeRemark(toast, TILE_DELETE_QUIPS, "delete");
     } catch (deleteError) {
       const message = deleteError?.message || "Unable to delete this tile.";
       log("error", `Failed to delete card ${tile.id}`, message);
@@ -1096,6 +1109,7 @@ export function useCanvasCommands({
         count: normalizedIds.length,
       });
       toast("success", normalizedIds.length === 1 ? "Tile deleted." : `${normalizedIds.length} tiles deleted.`);
+      maybeRemark(toast, TILE_DELETE_QUIPS, "delete");
     } catch (deleteError) {
       const message = deleteError?.message || "Unable to delete these tiles.";
       log("error", "Failed to delete selected tiles", message);

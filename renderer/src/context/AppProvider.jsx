@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContext } from "./AppContext";
 import { useTabs } from "./useTabs";
+import { useToast } from "../hooks/useToast";
+import { maybeRemark, WORKSPACE_OPEN_QUIPS } from "../lib/eyeCommentary";
 import {
   createWorkspacePage,
   createCanvasTextCard,
@@ -392,6 +394,7 @@ function createDomesState() {
 
 export function AppProvider({ children }) {
   const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab, registerBeforeCloseTab } = useTabs();
+  const { toast } = useToast();
   const [booting, setBooting] = useState(true);
   const [folderPath, setFolderPath] = useState(null);
   const [previewEnabled, setPreviewEnabled] = useState(true);
@@ -652,6 +655,7 @@ export function AppProvider({ children }) {
       applyHomeData(payload);
       showHomeTab();
       void refreshDomes().catch(() => {});
+      maybeRemark(toast, WORKSPACE_OPEN_QUIPS, "workspace-open");
       return nextFolderPath;
     } catch (loadError) {
       setError(loadError.message || "Unable to open that folder.");
@@ -660,7 +664,7 @@ export function AppProvider({ children }) {
     } finally {
       setFolderLoading(false);
     }
-  }, [applyHomeData, clearWorkspaceState, flushAllPendingCanvasSaves, refreshDomes, showHomeTab]);
+  }, [applyHomeData, clearWorkspaceState, flushAllPendingCanvasSaves, refreshDomes, showHomeTab, toast]);
 
   const openExistingWorkspace = useCallback(async () => {
     try {
