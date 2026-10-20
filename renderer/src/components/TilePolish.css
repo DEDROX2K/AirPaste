@@ -232,6 +232,46 @@
   box-shadow: none !important;
 }
 
+/* Plain text-box tiles ("click canvas, type text") are an annotation, not a
+   card -- styles.css's own base rule already sets transparent background/
+   border for this (border-radius: var(--ap-radius-md) ~= 10px), but without
+   !important, so it was falling through to the generic white card above.
+   Same bug as rack/sticker/sticky-note/canvas-text, different fix: this one
+   keeps a small 10px radius (matching its own original intent) rather than
+   going fully to 0, since it's still a lightly-bounded text region, not a
+   fully bespoke shape. */
+.canvas__content .card__surface--text-box,
+.grid-workspace .card__surface--text-box,
+.card__surface--text-box {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--ap-tile-radius-inner) !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--text-box,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--text-box,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--text-box,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--text-box {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* The text-box tile's own "sticky" appearance (card.appearance === "sticky",
+   a distinct, possibly-unreachable concept from StickyNoteTile's own
+   variant -- see project memory) carries BOTH .card__surface--text-box and
+   .card__surface--text-box-sticky on the same element. Its yellow-paper
+   look (styles.css) also lacks !important, so without this it would be
+   swallowed by the plain .card__surface--text-box exception above. */
+.canvas__content .card__surface--text-box-sticky,
+.grid-workspace .card__surface--text-box-sticky,
+.card__surface--text-box-sticky {
+  border-radius: 2px !important;
+  background: linear-gradient(180deg, #ffd86f 0%, #ffd45d 100%) !important;
+  border: 1px solid rgba(187, 145, 43, 0.18) !important;
+  box-shadow: 0 5px 14px rgba(145, 114, 42, 0.22) !important;
+}
+
 /* Sticky note (a chamfered paper note with its own black header bar) and
    the long-form canvas-text note (plain text on canvas, no card chrome)
    are bespoke, non-rectangular-identity tiles just like rack/sticker above
