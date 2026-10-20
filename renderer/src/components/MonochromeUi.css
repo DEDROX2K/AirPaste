@@ -24,34 +24,20 @@
   --ap-status-danger-border: rgba(0, 0, 0, 0.18);
 }
 
-.home-shell {
-  background: linear-gradient(145deg, #f1f1f2, #fafafa 48%, #eeeeef) !important;
-}
-
-:is(.home-sidebar, .home-toolbar-shell, .workspace-main-content) {
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  background: rgba(255, 255, 255, 0.74) !important;
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
-}
-
-.workspace-main-content {
-  background: rgba(255, 255, 255, 0.82) !important;
-}
-
-:is(.sidebar-link.is-active, .canvas-dock__item--active, .canvas-dock__item--utility.canvas-dock__item--active) {
+:is(.canvas-dock__item--active, .canvas-dock__item--utility.canvas-dock__item--active) {
   border-color: rgba(0, 0, 0, 0.16) !important;
   background: rgba(0, 0, 0, 0.07) !important;
   color: #242426 !important;
 }
 
-:is(.ap-ui-button--accent, .home-toolbar-actions .ap-ui-button--accent, .toolbar-cluster--secondary > .ap-ui-button--accent) {
+.ap-ui-button--accent {
   border-color: #343436 !important;
   background: #343436 !important;
   color: #fff !important;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16) !important;
 }
 
-:is(.ap-ui-button--accent, .home-toolbar-actions .ap-ui-button--accent):hover:not(:disabled) {
+.ap-ui-button--accent:hover:not(:disabled) {
   background: #4a4a4d !important;
 }
 
@@ -59,7 +45,7 @@
   background: linear-gradient(90deg, #343436, #858588) !important;
 }
 
-:is(.canvas-dock__item:focus-visible, .titlebar-command-chip:focus-visible, .titlebar-tab:focus-visible, .ap-ui-button:focus-visible, .sidebar-link:focus-visible, .home-view-toggle__button:focus-visible) {
+:is(.canvas-dock__item:focus-visible, .titlebar-command-chip:focus-visible, .titlebar-tab:focus-visible, .ap-ui-button:focus-visible) {
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.11), 0 0 0 1px rgba(0, 0, 0, 0.38) !important;
 }
 

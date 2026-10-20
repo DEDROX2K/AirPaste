@@ -232,6 +232,53 @@
   box-shadow: none !important;
 }
 
+/* Sticky note (a chamfered paper note with its own black header bar) and
+   the long-form canvas-text note (plain text on canvas, no card chrome)
+   are bespoke, non-rectangular-identity tiles just like rack/sticker above
+   -- same bug, same fix: each already sets background: transparent/border:
+   none for itself in styles.css, but without !important, so both were
+   rendering inside the generic white rounded card instead of their own
+   shape. */
+.canvas__content .card__surface--sticky-note,
+.grid-workspace .card__surface--sticky-note,
+.card__surface--sticky-note,
+.canvas__content .card__surface--canvas-text,
+.grid-workspace .card__surface--canvas-text,
+.card__surface--canvas-text {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticky-note,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--sticky-note,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticky-note,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--sticky-note,
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--canvas-text,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--canvas-text,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--canvas-text,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--canvas-text {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Calendar keeps its own distinct, more-rounded identity (32px radius,
+   frosted background) instead of the generic card look -- same missing-
+   !important bug as above, different fix: unlike the bespoke shapes,
+   calendar still wants a visible card surface, just its own one. It then
+   follows the same "flush until touched" rule as every other tile via the
+   existing generic hover/selected rules above, which still match it since
+   it keeps the base .card__surface class. */
+.canvas__content .card__surface--calendar,
+.grid-workspace .card__surface--calendar,
+.card__surface--calendar {
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 32px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+}
+
 .canvas__content .card__record-shell,
 .grid-workspace .card__record-shell,
 .card__record-shell {
