@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AppLaunchSplash from "./components/AppLaunchSplash";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
@@ -271,6 +272,7 @@ export default function App() {
 
       {isLoading ? <GlobalLoadingCursor /> : null}
       {import.meta.env.DEV && <DevConsole />}
+      <AppLaunchSplash />
     </div>
   );
 }
