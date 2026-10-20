@@ -5,6 +5,7 @@ import {
   shouldRecoverLinkPreviewCard,
 } from "../../lib/workspace";
 import { useAppContext } from "../../context/useAppContext";
+import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
 import { recordImageSample, recordPreviewTierSelection } from "../../lib/perf";
 import {
@@ -291,7 +292,9 @@ function LinkTile({
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
   const [videoImageIndex, setVideoImageIndex] = useState(0);
+  const [webclipSrc, setWebclipSrc] = useState("");
   const isImageTile = card.contentKind === LINK_CONTENT_KIND_IMAGE;
+  const isWebclipMode = !isImageTile && card.previewMode === "webclip" && Boolean(card.webclipImagePath);
   const isStickerTile = isImageTile && card.sourceType === "sticker";
   const isVideoCard = card.contentType === "video";
   const isMusicCard = card.previewKind === "music" && Boolean(card.image);
@@ -411,6 +414,25 @@ function LinkTile({
     setLoadedVideoAspectRatio(null);
     setVideoImageIndex(0);
   }, [card.id, card.image, previewSource]);
+
+  useEffect(() => {
+    if (!card.webclipImagePath) {
+      setWebclipSrc("");
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    desktop.workspace.resolveAssetUrl(folderPath, card.webclipImagePath).then((resolvedUrl) => {
+      if (!cancelled) {
+        setWebclipSrc(resolvedUrl || "");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [card.webclipImagePath, folderPath]);
 
   useEffect(() => {
     if (!isVideoCard) {
@@ -687,7 +709,25 @@ function LinkTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          {isImageTile ? (
+          {isWebclipMode ? (
+            <div className="card__surface card__surface--link card__surface--link-webclip" aria-label={linkTitle}>
+              {webclipSrc ? (
+                <img
+                  className="card__link-webclip-image"
+                  src={webclipSrc}
+                  alt={linkTitle}
+                  draggable={false}
+                />
+              ) : (
+                <div className="card__link-webclip-loading" aria-hidden="true">
+                  <div className="card__link-loading-ring card__link-loading-ring--outer" />
+                  <div className="card__link-loading-ring card__link-loading-ring--middle" />
+                  <div className="card__link-loading-ring card__link-loading-ring--inner" />
+                  <p className="card__link-loading-label">Loading webclip</p>
+                </div>
+              )}
+            </div>
+          ) : isImageTile ? (
             <div
               className={`card__surface card__surface--link${shouldUseNaturalMediaLayout ? " card__surface--link-natural" : ""}${shouldPreserveMediaAspect && !shouldUseNaturalMediaLayout ? " card__surface--link-transparent" : ""}${isMusicCard ? " card__surface--music" : ""}${isStickerTile ? " card__surface--sticker" : ""}`}
               aria-label={linkTitle}

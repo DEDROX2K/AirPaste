@@ -2451,6 +2451,8 @@ export default function CanvasWorkspaceView() {
     && activeContextTile?.format === CANVAS_TEXT_FORMAT_PLAIN;
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
+  const canShowWebclipAction = isBookmarkLinkCard(activeContextTile)
+    && Boolean(activeContextTile?.url?.trim());
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
     && (
       isBookmarkLinkCard(activeContextTile)
@@ -2555,6 +2557,22 @@ export default function CanvasWorkspaceView() {
     return commands.refreshTilePreview(activeContextTile);
   }, [activeContextTile, commands]);
 
+  const handleToggleWebclip = useCallback(async () => {
+    if (!activeContextTile) {
+      return false;
+    }
+
+    if (activeContextTile.previewMode === "webclip") {
+      return commands.setLinkPreviewMode(activeContextTile, "standard");
+    }
+
+    if (activeContextTile.webclipImagePath) {
+      return commands.setLinkPreviewMode(activeContextTile, "webclip");
+    }
+
+    return commands.captureTileWebclip(activeContextTile);
+  }, [activeContextTile, commands]);
+
   const handleCopyPreviewDiagnostics = useCallback(async () => {
     if (!canCopyPreviewDiagnostics || !activeContextTile) {
       return false;
@@ -2615,6 +2633,9 @@ export default function CanvasWorkspaceView() {
     deleteDisabled: (radialMenu?.selectionIds?.length ?? 0) === 0,
     failedPreviewRefreshCount: radialMenu?.kind === "canvas" ? recoverablePreviewTiles.length : 0,
     showSinglePreviewRefresh: radialMenu?.kind === "tile" && canShowRefreshPreviewAction,
+    showWebclip: radialMenu?.kind === "tile" && canShowWebclipAction,
+    isWebclipActive: activeContextTile?.previewMode === "webclip",
+    webclipPending: activeContextTile?.webclipStatus === "capturing",
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
@@ -2624,6 +2645,7 @@ export default function CanvasWorkspaceView() {
       onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
       onRefreshFailedPreviews: handleRefreshFailedPreviews,
       onRefreshPreview: handleRefreshTilePreview,
+      onToggleWebclip: handleToggleWebclip,
       onToggleSnapping: () => {
         toggleCanvasSnapping();
         return true;
@@ -2649,6 +2671,8 @@ export default function CanvasWorkspaceView() {
     canCopyPreviewCodexReport,
     canCopyPreviewDiagnostics,
     canShowRefreshPreviewAction,
+    canShowWebclipAction,
+    handleToggleWebclip,
     isPlainTextBoxContextTile,
     activeContextTile,
     recoverablePreviewTiles.length,

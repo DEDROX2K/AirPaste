@@ -3790,6 +3790,33 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   background: transparent;
 }
 
+/* Webclip mode: card.height is set to match the captured page's own aspect
+   ratio (see captureTileWebclip/setLinkPreviewMode), so the image just fills
+   the tile at 100% -- no letterboxing math needed here. */
+.card__surface--link-webclip {
+  display: block;
+  overflow: hidden;
+  background: var(--ap-tile-bg-solid, #ffffff);
+}
+
+.card__link-webclip-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.card__link-webclip-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+}
+
 /* The base .card__surface clips its own content (overflow: hidden) so a
    generic link thumbnail never spills past its box -- but the whole point
    of the record design is for the disc to slide out past the sleeve's own

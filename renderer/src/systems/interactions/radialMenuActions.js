@@ -9,6 +9,7 @@ const CANVAS_ACTION_ORDER = [
 const TILE_ACTION_ORDER = [
   "edit-text",
   "refresh-preview",
+  "webclip",
   "copy-preview-diagnostics",
   "copy-codex-report",
   "rack",
@@ -27,6 +28,9 @@ export function buildRadialMenuActions({
   failedPreviewRefreshCount = 0,
   singlePreviewRefreshDisabled = false,
   showSinglePreviewRefresh = false,
+  showWebclip = false,
+  isWebclipActive = false,
+  webclipPending = false,
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
   showEditText = false,
@@ -67,6 +71,23 @@ export function buildRadialMenuActions({
         isDisabled: singlePreviewRefreshDisabled,
         activeLabel: singlePreviewRefreshDisabled ? "Loading" : "",
         onTrigger: handlers.onRefreshPreview,
+      };
+    }
+
+    if (id === "webclip") {
+      if (!showWebclip) {
+        return null;
+      }
+
+      return {
+        id,
+        label: isWebclipActive ? "Standard preview" : "Webclip",
+        kind: "toggle",
+        placement: "pill",
+        isActive: isWebclipActive,
+        isDisabled: webclipPending,
+        activeLabel: webclipPending ? "Capturing" : "",
+        onTrigger: handlers.onToggleWebclip,
       };
     }
 

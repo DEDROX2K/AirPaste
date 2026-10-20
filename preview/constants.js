@@ -10,6 +10,8 @@ const PREVIEW_VIEWPORT = Object.freeze({
   height: 720,
 });
 
+const WEBCLIP_MAX_HEIGHT = 8000;
+
 const PREVIEW_STATUS = Object.freeze({
   READY: "ready",
   FALLBACK: "fallback",
@@ -155,4 +157,5 @@ module.exports = {
   PREVIEW_VIEWPORT,
   REMOTE_IMAGE_MAX_BYTES,
   REMOTE_IMAGE_TIMEOUT_MS,
+  WEBCLIP_MAX_HEIGHT,
 };

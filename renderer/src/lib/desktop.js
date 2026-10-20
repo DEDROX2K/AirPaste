@@ -82,6 +82,8 @@ export const desktop = {
       airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
     captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
       airpasteBridge.captureCanvasThumbnail?.(folderPath, canvasFilePath, rect, devicePixelRatio) ?? Promise.resolve({ thumbnailPath: "" }),
+    captureWebclip: (folderPath, url) =>
+      airpasteBridge.captureWebclip?.(folderPath, url) ?? Promise.resolve({ webclipPath: "" }),
     getPreviewCapabilities: (...args) =>
       airpasteBridge.getPreviewCapabilities?.(...args) ?? Promise.resolve({ enabled: true }),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),

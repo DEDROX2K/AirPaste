@@ -920,6 +920,17 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? card.status
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
+    previewMode: isLinkLikeCard && card?.previewMode === "webclip" ? "webclip" : "standard",
+    webclipImagePath: isLinkLikeCard ? String(card?.webclipImagePath ?? "") : "",
+    webclipAspectRatio: isLinkLikeCard && Number.isFinite(card?.webclipAspectRatio) && card.webclipAspectRatio > 0
+      ? Number(card.webclipAspectRatio)
+      : null,
+    webclipPreviousHeight: isLinkLikeCard && Number.isFinite(card?.webclipPreviousHeight)
+      ? Number(card.webclipPreviousHeight)
+      : null,
+    webclipStatus: isLinkLikeCard && ["idle", "capturing", "ready", "error"].includes(card?.webclipStatus)
+      ? card.webclipStatus
+      : "idle",
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
     file: type === CANVAS_TEXT_CARD_TYPE ? canvasText.file : file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",

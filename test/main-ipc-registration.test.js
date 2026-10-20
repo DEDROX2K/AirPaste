@@ -57,7 +57,7 @@ const EXPECTED_HANDLE_CHANNELS = [
   "airpaste:loadCanvas", "airpaste:saveCanvas",
   // main/ipc/assets.js
   "airpaste:importImageAsset", "airpaste:resolveAssetUrl", "airpaste:captureCanvasThumbnail",
-  "airpaste:importFiles",
+  "airpaste:importFiles", "airpaste:captureWebclip",
   // main/ipc/files.js
   "airpaste:watchMarkdownFile", "airpaste:unwatchMarkdownFile", "airpaste:openExternal", "airpaste:openFile",
   // main/ipc/linkPreview.js

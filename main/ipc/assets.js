@@ -7,9 +7,11 @@ const workspaceService = require("../../workspace-service");
 const context = require("../context");
 const { pathExists } = require("../fsUtils");
 const { withWorkspaceQueue } = require("../workspaceQueue");
+const { captureFullPageScreenshot } = require("../../preview/resolvers/generic");
 
 const ASSET_PREVIEW_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "asset-lod"]);
 const CANVAS_THUMB_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "canvas-thumbs"]);
+const WEBCLIP_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "webclip"]);
 const ASSET_PREVIEW_TIER_WIDTHS = Object.freeze({
   thumbnail: 256,
   medium: 768,
@@ -37,6 +39,10 @@ function normalizeRel(value, fallback = "") {
 function canvasThumbIdFromRelativePath(relativePath) {
   const normalized = normalizeRel(relativePath, "");
   return createHash("sha1").update(normalized).digest("hex").slice(0, 20);
+}
+
+function webclipIdFromUrl(url) {
+  return createHash("sha1").update(String(url ?? "")).digest("hex").slice(0, 20);
 }
 
 function isLikelyImageAsset(assetPath) {
@@ -235,6 +241,35 @@ function registerIpc() {
   ipcMain.handle("airpaste:importFiles", async (_event, folderPath, sourcePaths, targetFolderPath = "") => (
     withWorkspaceQueue(folderPath, () => workspaceService.importFiles(folderPath, sourcePaths, targetFolderPath))
   ));
+
+  ipcMain.handle("airpaste:captureWebclip", async (_event, folderPath, url) => {
+    try {
+      const trimmedUrl = typeof url === "string" ? url.trim() : "";
+      if (!folderPath || !trimmedUrl) {
+        return { webclipPath: "" };
+      }
+
+      const captured = await captureFullPageScreenshot(trimmedUrl);
+      if (!captured?.buffer) {
+        return { webclipPath: "" };
+      }
+
+      const webclipDir = path.join(folderPath, ...WEBCLIP_DIR_SEGMENTS);
+      await fs.mkdir(webclipDir, { recursive: true });
+
+      const outPath = path.join(webclipDir, `${webclipIdFromUrl(trimmedUrl)}.jpg`);
+      await fs.writeFile(outPath, captured.buffer);
+
+      const relativeWebclipPath = normalizeRel(path.relative(folderPath, outPath), "");
+      return {
+        webclipPath: relativeWebclipPath,
+        width: captured.width,
+        height: captured.height,
+      };
+    } catch {
+      return { webclipPath: "" };
+    }
+  });
 }
 
 module.exports = {

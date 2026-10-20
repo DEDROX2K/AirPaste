@@ -8,6 +8,7 @@ import {
   FILE_CARD_TYPE,
   getWorkspaceActivePage,
   getRackByTileId,
+  isBookmarkLinkCard,
   isUrl,
   LINK_CONTENT_KIND_BOOKMARK,
   LINK_CONTENT_KIND_IMAGE,
@@ -300,6 +301,73 @@ export function useCanvasCommands({
     await queueLinkPreview(nextTile);
     return true;
   }, [log, queueLinkPreview, toast, updateExistingCard]);
+
+  const setLinkPreviewMode = useCallback((tile, mode) => {
+    if (!isBookmarkLinkCard(tile)) {
+      return false;
+    }
+
+    if (mode === "webclip") {
+      if (!tile.webclipImagePath) {
+        return false;
+      }
+
+      const aspect = tile.webclipAspectRatio;
+      const nextHeight = aspect > 0 ? Math.round(tile.width / aspect) : tile.height;
+      updateExistingCard(tile.id, {
+        previewMode: "webclip",
+        height: nextHeight,
+        webclipPreviousHeight: Number.isFinite(tile.webclipPreviousHeight) ? tile.webclipPreviousHeight : tile.height,
+      });
+      return true;
+    }
+
+    updateExistingCard(tile.id, {
+      previewMode: "standard",
+      height: Number.isFinite(tile.webclipPreviousHeight) ? tile.webclipPreviousHeight : tile.height,
+    });
+    return true;
+  }, [updateExistingCard]);
+
+  // One-off, user-triggered capture (right-click → Webclip), distinct from the
+  // automatic, queued og-image fetch above: a single on-demand screenshot, not
+  // something that needs the preview job queue's concurrency/cancellation.
+  const captureTileWebclip = useCallback(async (tile) => {
+    if (!isBookmarkLinkCard(tile) || !tile.url?.trim()) {
+      return false;
+    }
+
+    updateExistingCard(tile.id, { webclipStatus: "capturing" });
+    toast("info", "Capturing webclip...");
+
+    try {
+      const result = await desktop.workspace.captureWebclip(folderPath, tile.url);
+
+      if (!result?.webclipPath) {
+        updateExistingCard(tile.id, { webclipStatus: "error" });
+        toast("error", "Could not capture this site as a webclip.");
+        return false;
+      }
+
+      const aspect = result.width > 0 && result.height > 0 ? result.width / result.height : null;
+      const nextHeight = aspect > 0 ? Math.round(tile.width / aspect) : tile.height;
+
+      updateExistingCard(tile.id, {
+        webclipImagePath: result.webclipPath,
+        webclipAspectRatio: aspect,
+        webclipPreviousHeight: tile.height,
+        webclipStatus: "ready",
+        previewMode: "webclip",
+        height: nextHeight,
+      });
+      return true;
+    } catch (error) {
+      updateExistingCard(tile.id, { webclipStatus: "error" });
+      log("error", "Webclip capture failed", error?.message || "Unable to capture this site.");
+      toast("error", "Could not capture this site as a webclip.");
+      return false;
+    }
+  }, [folderPath, log, toast, updateExistingCard]);
 
   const refreshRecoverableTilePreviews = useCallback(async (tiles) => {
     const recoverableTiles = (Array.isArray(tiles) ? tiles : [])
@@ -1446,6 +1514,8 @@ export function useCanvasCommands({
     refreshTilePreview,
     retryTilePreview,
     updateTileFromMediaLoad,
+    captureTileWebclip,
+    setLinkPreviewMode,
   }), [
     addTileToRackCommand,
     addTilesToRackCommand,
@@ -1487,5 +1557,7 @@ export function useCanvasCommands({
     refreshTilePreview,
     retryTilePreview,
     updateTileFromMediaLoad,
+    captureTileWebclip,
+    setLinkPreviewMode,
   ]);
 }

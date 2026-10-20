@@ -11,6 +11,7 @@ const {
   PREVIEW_VIEWPORT,
   REMOTE_IMAGE_MAX_BYTES,
   REMOTE_IMAGE_TIMEOUT_MS,
+  WEBCLIP_MAX_HEIGHT,
 } = require("../constants");
 const { createResolvedPreviewResult } = require("../result");
 const {
@@ -487,6 +488,71 @@ async function capturePreviewScreenshot(url) {
   }
 }
 
+// Unlike capturePreviewScreenshot (fixed PREVIEW_VIEWPORT, used as a last-resort
+// preview-image fallback), this resizes the offscreen window to the page's own
+// scroll height before capturing, so the result is the whole page rather than
+// just the first screenful -- that's the point of a "webclip".
+async function captureFullPageScreenshot(url) {
+  let previewWindow = null;
+
+  try {
+    previewWindow = await getPreviewBrowser();
+
+    if (!previewWindow || previewWindow.isDestroyed()) {
+      return null;
+    }
+
+    const { webContents } = previewWindow;
+
+    await webContents.loadURL(url, {
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    });
+
+    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    await webContents.executeJavaScript(
+      [
+        "(() => {",
+        "  const style = document.createElement('style');",
+        "  style.textContent = `",
+        "    *, *::before, *::after {",
+        "      animation-duration: 0s !important;",
+        "      animation-delay: 0s !important;",
+        "      transition-duration: 0s !important;",
+        "      caret-color: transparent !important;",
+        "    }",
+        "  `;",
+        "  document.head.appendChild(style);",
+        "})();",
+      ].join("\n"),
+      true,
+    ).catch(() => { });
+
+    const measuredHeight = await webContents.executeJavaScript(
+      "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)",
+      true,
+    ).catch(() => PREVIEW_VIEWPORT.height);
+
+    const targetHeight = Math.max(
+      PREVIEW_VIEWPORT.height,
+      Math.min(WEBCLIP_MAX_HEIGHT, Math.ceil(Number(measuredHeight) || PREVIEW_VIEWPORT.height)),
+    );
+
+    previewWindow.setContentSize(PREVIEW_VIEWPORT.width, targetHeight);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const image = await webContents.capturePage();
+    const { width, height } = image.getSize();
+
+    return { buffer: image.toJPEG(PREVIEW_JPEG_QUALITY), width, height };
+  } catch {
+    return null;
+  } finally {
+    await closePreviewBrowser();
+  }
+}
+
 async function fetchOpenGraphMetadata(url) {
   try {
     const { error, result } = await openGraphScraper({
@@ -601,6 +667,7 @@ async function resolveGenericLinkPreview(url) {
 module.exports = {
   acquirePreviewImage,
   capturePreviewScreenshot,
+  captureFullPageScreenshot,
   closePreviewBrowser,
   fetchJson,
   isLikelyPreviewImageUrl,

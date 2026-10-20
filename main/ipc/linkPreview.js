@@ -408,6 +408,17 @@ function normalizeCard(card, index = 0) {
       ? card.status
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
+    previewMode: isLinkLikeCard && card?.previewMode === "webclip" ? "webclip" : "standard",
+    webclipImagePath: isLinkLikeCard ? String(card?.webclipImagePath ?? "") : "",
+    webclipAspectRatio: isLinkLikeCard && Number.isFinite(card?.webclipAspectRatio) && card.webclipAspectRatio > 0
+      ? Number(card.webclipAspectRatio)
+      : null,
+    webclipPreviousHeight: isLinkLikeCard && Number.isFinite(card?.webclipPreviousHeight)
+      ? Number(card.webclipPreviousHeight)
+      : null,
+    webclipStatus: isLinkLikeCard && ["idle", "capturing", "ready", "error"].includes(card?.webclipStatus)
+      ? card.webclipStatus
+      : "idle",
     asset: type === "link" ? linkAsset : null,
     file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
