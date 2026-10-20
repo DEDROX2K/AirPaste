@@ -1,6 +1,14 @@
 import { useCallback, useRef } from "react";
 
-const DRAG_START_THRESHOLD = 8;
+// Distance the pointer must travel from the press point before a press
+// turns into a drag -- exists purely to disambiguate "clicked" from
+// "dragged" (a perfectly still click still has a pixel or two of jitter).
+// Until this is crossed, onDragStart never fires, so the tile shows
+// literally zero visual response to pointer movement; the previous value
+// of 8px made that dead zone big enough to read as "the tile doesn't
+// move for a moment, then snaps to the cursor" -- Figma/Obsidian-style
+// canvases use something closer to this.
+const DRAG_START_THRESHOLD = 3;
 
 export function useTileGesture({
   card,
