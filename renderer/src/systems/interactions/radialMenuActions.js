@@ -2,6 +2,8 @@ const CANVAS_ACTION_ORDER = [
   "refresh-failed-previews",
   "snapping",
   "text",
+  "sticky-note",
+  "markdown-note",
   "rack",
   "link",
 ];
@@ -150,6 +152,26 @@ export function buildRadialMenuActions({
         kind: "action",
         activeLabel: "Enter",
         onTrigger: handlers.onEditText,
+      };
+    }
+
+    if (id === "sticky-note") {
+      return {
+        id,
+        label: "Add sticky note",
+        kind: "action",
+        activeLabel: "Note",
+        onTrigger: handlers.onCreateStickyNote,
+      };
+    }
+
+    if (id === "markdown-note") {
+      return {
+        id,
+        label: "Add markdown note",
+        kind: "action",
+        activeLabel: "Note",
+        onTrigger: handlers.onCreateMarkdownNote,
       };
     }
 

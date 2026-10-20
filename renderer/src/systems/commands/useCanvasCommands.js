@@ -240,6 +240,7 @@ export function useCanvasCommands({
   createNewDeadlineCard,
   createNewLinkCard,
   createNewCanvasTextCard,
+  createNewNoteCard,
   createNewTextBoxCard,
   createNewProgressCard,
   createNewRackCard,
@@ -624,6 +625,21 @@ export function useCanvasCommands({
     toast("success", "Sticky note dropped into place.");
     return sticky;
   }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
+
+  const createMarkdownNote = useCallback((preferredCenter = null, options = {}) => {
+    if (!folderPath) {
+      log("warn", "New markdown note blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const note = createNewNoteCard(centerPoint, options);
+
+    log("success", "New markdown note created on the canvas", centerPoint);
+    toast("success", "Markdown note dropped into place.");
+    return note;
+  }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
 
   const resolveMarkdownSelection = useCallback(async (selectedPath) => {
     const existingItem = await desktop.workspace.getItemForFilePath(folderPath, selectedPath).catch(() => null);
@@ -1486,6 +1502,7 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
+    createMarkdownNote,
     addNoteFromVault,
     convertTextCardToFile,
     openTextCardSource,
@@ -1531,6 +1548,7 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
+    createMarkdownNote,
     addNoteFromVault,
     convertTextCardToFile,
     openTextCardSource,

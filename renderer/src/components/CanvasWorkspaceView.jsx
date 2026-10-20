@@ -976,6 +976,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
+    createNewNoteCard,
     createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
@@ -984,6 +985,7 @@ export default function CanvasWorkspaceView() {
     replaceWorkspaceCards,
     reorderExistingCards,
     setCanvasClipboard,
+    updateExistingCard,
     updateExistingCards,
   } = useAppContext();
   const { log } = useLog();
@@ -1067,6 +1069,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
+    createNewNoteCard,
     createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
@@ -1074,6 +1077,7 @@ export default function CanvasWorkspaceView() {
     deleteExistingCard,
     replaceWorkspaceCards,
     reorderExistingCards,
+    updateExistingCard,
     updateExistingCards,
     log,
     toast,
@@ -1633,6 +1637,28 @@ export default function CanvasWorkspaceView() {
 
     interactions.selectTile(textBox.id, { forceSingle: true });
     requestTextBoxEdit(textBox.id, { selectAll: true });
+    return true;
+  }, [commands, interactions, requestTextBoxEdit]);
+  const beginStickyNoteCreation = useCallback((worldPoint) => {
+    const sticky = commands.createSticky(worldPoint);
+
+    if (!sticky) {
+      return false;
+    }
+
+    interactions.selectTile(sticky.id, { forceSingle: true });
+    requestTextBoxEdit(sticky.id, { selectAll: true });
+    return true;
+  }, [commands, interactions, requestTextBoxEdit]);
+  const beginMarkdownNoteCreation = useCallback((worldPoint) => {
+    const note = commands.createMarkdownNote(worldPoint);
+
+    if (!note) {
+      return false;
+    }
+
+    interactions.selectTile(note.id, { forceSingle: true });
+    requestTextBoxEdit(note.id, { selectAll: true });
     return true;
   }, [commands, interactions, requestTextBoxEdit]);
   useEffect(() => {
@@ -2509,6 +2535,22 @@ export default function CanvasWorkspaceView() {
     return beginTextBoxCreation(radialMenu.worldPoint);
   }, [beginTextBoxCreation, radialMenu]);
 
+  const handleRadialCreateStickyNote = useCallback(() => {
+    if (!radialMenu?.worldPoint) {
+      return false;
+    }
+
+    return beginStickyNoteCreation(radialMenu.worldPoint);
+  }, [beginStickyNoteCreation, radialMenu]);
+
+  const handleRadialCreateMarkdownNote = useCallback(() => {
+    if (!radialMenu?.worldPoint) {
+      return false;
+    }
+
+    return beginMarkdownNoteCreation(radialMenu.worldPoint);
+  }, [beginMarkdownNoteCreation, radialMenu]);
+
   const handleRadialEditText = useCallback(() => {
     if (!isPlainTextBoxContextTile || !activeContextTile) {
       return false;
@@ -2655,6 +2697,8 @@ export default function CanvasWorkspaceView() {
       onCreateRack: handleRadialRack,
       onCreateLink: handleRadialLink,
       onCreateText: handleRadialText,
+      onCreateStickyNote: handleRadialCreateStickyNote,
+      onCreateMarkdownNote: handleRadialCreateMarkdownNote,
       onEditText: handleRadialEditText,
     },
   }), [
@@ -2663,6 +2707,8 @@ export default function CanvasWorkspaceView() {
     handleRadialLink,
     handleRadialRack,
     handleRadialText,
+    handleRadialCreateStickyNote,
+    handleRadialCreateMarkdownNote,
     handleRadialEditText,
     handleCopyPreviewCodexReport,
     handleCopyPreviewDiagnostics,
