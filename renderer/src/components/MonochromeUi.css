@@ -68,14 +68,6 @@
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
 }
 
-:is(.canvas__content, .grid-workspace) .card__surface-frame--selected {
-  outline-color: #3a3a3c !important;
-}
-
-:is(.canvas__content, .grid-workspace) :is(.card--selected .card__surface, .card__surface-frame--selected .card__surface) {
-  border-color: rgba(0, 0, 0, 0.34) !important;
-}
-
 :is(.canvas__content, .grid-workspace) .card[data-tile-state="editing"] .card__surface {
   border-color: rgba(0, 0, 0, 0.34) !important;
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.09), var(--ap-tile-shadow) !important;

@@ -203,6 +203,35 @@
   box-shadow: none !important;
 }
 
+/* Rack and sticker have their own bespoke, non-rectangular visual identity
+   (a metal shelf, a pasted-on image) -- each already set background:
+   transparent/border: none for itself in styles.css, but without
+   !important that lost to the generic rule above, so every rack and
+   sticker was rendering inside a plain white card, like a photo stuck in
+   a frame rather than a physical object in its own right. */
+.canvas__content .card__surface--rack,
+.grid-workspace .card__surface--rack,
+.card__surface--rack,
+.canvas__content .card__surface--sticker,
+.grid-workspace .card__surface--sticker,
+.card__surface--sticker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--rack,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--rack,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--rack,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--rack,
+.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticker,
+.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--sticker,
+.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticker,
+.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--sticker {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .canvas__content .card__record-shell,
 .grid-workspace .card__record-shell,
 .card__record-shell {
