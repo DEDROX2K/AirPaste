@@ -37,7 +37,7 @@ A tile feature is not complete until:
 | Implemented | Commerce | Amazon Product Tile | `amazon-product` | Specialized product preview tile for Amazon items. | `renderer/src/components/tiles/AmazonProductTile.jsx` | `renderer/src/lib/workspace.js` | No | No seeded examples yet | No dedicated copy report documented. | Specialized link-like tile. |
 | Implemented | Planning | Calendar Tile | `calendar` | Canvas calendar for planning dates and events. | `renderer/src/components/tiles/CalendarTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics. | Stable manual tile. |
 | Implemented | Structure & Planning | Checklist Tile | `checklist` | Simple checklist with editable items and completion state. | `renderer/src/components/tiles/ChecklistTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable manual tile. |
-| Implemented | Notes & Writing | Note / Markdown Tile | `note` | Scratchpad tile for Markdown notes, explanations, and snippets. | `renderer/src/components/tiles/NoteTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Supports edit/preview. |
+| Deprecated | Notes & Writing | Note / Markdown Tile | `note` | Legacy alias kept so previously saved Markdown notes still render; no longer creatable. | `renderer/src/components/tiles/CanvasTextTile.jsx` | `renderer/src/lib/workspace.js` | No (removed) | None | No dedicated diagnostics/copy report. State is serializable. | Replaced by the Paper Note tile; file-backed vault notes are unaffected. |
 | Implemented | Notes & Writing | Canvas Text | `canvas-text` | Lightweight visible canvas label for headings, callouts, and annotations. | `renderer/src/components/tiles/TextBoxTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated DEV/testing diagnostics and Codex copy report. | Plain-text annotations use one fixed visual style; legacy `text-box` data is migrated here. |
 | Implemented | Structured Data | Database / Table Tile | `table` | Lightweight grid tile for small structured datasets. | `renderer/src/components/tiles/TableTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Tracker-style table, not a spreadsheet. |
 | Implemented | Development | Code Snippet Tile | `code` | Syntax-highlighted storage tile for commands, config, SQL, regex, and snippets. | `renderer/src/components/tiles/CodeSnippetTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
@@ -45,6 +45,7 @@ A tile feature is not complete until:
 | Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Rewritten with a cleaner dashboard-style layout. |
 | Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
 | Implemented | Layout & Containment | Rack Tile | `rack` | Container tile for mounted/slotted child tiles. | `renderer/src/components/tiles/RackTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable container tile. |
+| Implemented | Notes & Writing | Paper Note Tile | `paper-note` | Vertical notebook-paper note with an immersive fullscreen write mode and Obsidian-style markdown live preview. | `renderer/src/components/tiles/PaperNoteTile.jsx` | `renderer/src/lib/workspace.js`, `renderer/src/tiles/paperNote/model.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Canvas preview is read-only; all editing happens in the fullscreen overlay. Extra stacked pages are a decorative pagination cue, not separate tiles. |
 | Planned | Structure & Systems | Node Group Tile | `node-group` | Future grouping/system wrapper for related tiles. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | Interactive | Game Tile | `game` | Future embedded interactive/game surface. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | 3D & Media | 3D Model Tile | `3d-model` | Future 3D viewport/content tile. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
@@ -235,48 +236,17 @@ A tile feature is not complete until:
 
 - Type ID: `note`
 - Category: Notes & Writing
-- Status: Implemented
-- Purpose: Scratchpad tile for Markdown notes, documentation, and future-me instructions.
-- User-facing UX:
-  - Editable title
-  - Multiline Markdown body
-  - Edit/preview toggle
-  - Click preview to edit
-  - `Cmd/Ctrl+Enter` toggles mode
-  - `Escape` exits editing into preview
-- Data model:
-```js
-{
-  type: "note",
-  title: "Untitled note",
-  body: "",
-  mode: "edit",
-  languageHints: []
-}
-```
-- Main files:
-  - `renderer/src/components/tiles/NoteTile.jsx`
-  - `renderer/src/lib/renderSimpleMarkdown.jsx`
+- Status: Deprecated -- creation removed, replaced by the Paper Note tile
+- Purpose (historical): Scratchpad tile for Markdown notes, documentation, and future-me instructions.
+- Current behavior: `note` is kept only as a legacy type-id alias in `getCardType()` (`renderer/src/lib/workspace.js`) so canvases saved before this change still load and render correctly, rendered through `CanvasTextTile`. There is no longer any UI path (Add menu, dock, or right-click canvas menu) that creates a new blank local Markdown note -- use the Paper Note tile instead.
+- Not removed: file-backed "vault notes" (`Add note from vault`, `addNoteFromVault`) are a separate feature built on the same `canvas-text`/markdown rendering and remain fully supported; only the blank/local creation flow was removed.
+- Main files (legacy load-bearing only):
+  - `renderer/src/components/tiles/CanvasTextTile.jsx`
   - `renderer/src/lib/workspace.js`
-  - `renderer/src/components/CanvasAddMenu.jsx`
-  - `renderer/src/systems/commands/useCanvasCommands.js`
-- Add menu behavior:
-  - Yes
-  - Label: `Note`
 - Testing Tiles examples:
-  - `Future-me instructions`
-  - `Technical documentation`
-  - `Code snippet`
-  - `Long note scroll test`
-- Diagnostics / copy report behavior:
-  - No dedicated diagnostics/report flow yet.
-  - State is normalized and serializable.
+  - None -- QA seeds for this flow were removed along with the creation command.
 - Known limitations:
-  - No dedicated copy-report tooling yet.
-  - Safe internal Markdown renderer supports a limited V1 feature set.
-- Future improvements:
-  - Add note-specific diagnostics if needed.
-  - Expand rich content support carefully.
+  - None of this tile's own; see Paper Note Tile for the actively developed replacement.
 
 ## Canvas Text
 
@@ -284,8 +254,8 @@ A tile feature is not complete until:
 - Category: Notes & Writing
 - Status: Implemented
 - Purpose: Lightweight Figma-like text object for headings, labels, captions, callouts, annotations, and diagram text directly on the canvas.
-- Important distinction: this is not the same as the Note / Markdown Tile.
-- `note` is for scratchpad documentation and Markdown editing.
+- Important distinction: this is not the same as the Paper Note Tile.
+- `canvas-text` with `format: "markdown"` also still backs file-synced "vault notes" (`addNoteFromVault`); blank/local Markdown note creation itself was removed in favor of Paper Note.
 - `canvas-text` with `format: "plain"` is for visible canvas typography.
 - Legacy `text-box` cards are normalized into this format for compatibility.
 - `placeholder` is optional and reserved for lightweight seeded/demo flows when a box should render starter copy before editing.
@@ -628,6 +598,56 @@ A tile feature is not complete until:
 - Future improvements:
   - Add QA seeds for empty, partially filled, and full rack states.
   - Add rack-specific diagnostics if slot bugs become common.
+
+## Paper Note Tile
+
+- Type ID: `paper-note`
+- Category: Notes & Writing
+- Status: Implemented
+- Purpose: A note that looks and behaves like a sheet of notebook paper, with a dedicated immersive write mode for longer-form notes.
+- User-facing UX:
+  - Canvas state shows a single read-only paper page with the note's actual title, subtitle, and body text (no placeholder chrome)
+  - As the body grows past roughly one page's worth of text, one or two more pages visually peek out, stacked imperfectly behind the front page
+  - Dragging the note drags the whole stack together; the back pages lag slightly behind the front page while moving, then settle, like a loose stack of paper being dragged
+  - Double-click expands the note into an exclusive fullscreen write mode: the page itself grows from its on-canvas position/size up to fill the screen (not a fade/cross-dissolve to a new screen)
+  - Fullscreen write mode has a minimal close button (top-left), an editable title and subtitle, and an infinitely scrollable body editor
+  - The body editor is a markdown live preview (Obsidian-style): `**bold**`, `*italic*`, `` `code` ``, `#` headings, `>` quotes, and `[text](url)` links render styled with their markup hidden, except on the line the cursor is currently on, where the raw markdown is revealed for editing
+  - Escape or the close button collapses the sheet back down to its place on the canvas
+- Data model:
+```js
+{
+  type: "paper-note",
+  title: "",
+  subtitle: "",
+  text: ""
+}
+```
+- Main files:
+  - `renderer/src/components/tiles/PaperNoteTile.jsx` (canvas preview + page-stack visuals)
+  - `renderer/src/components/PaperNoteFullscreenEditor.jsx` (fullscreen FLIP expand/collapse + title/subtitle/body editing)
+  - `renderer/src/lib/paperNoteLivePreview.js` (CodeMirror 6 live-preview decorations)
+  - `renderer/src/tiles/paperNote/model.js`
+  - `renderer/src/lib/workspace.js`
+  - `renderer/src/components/CanvasAddMenu.jsx`
+  - `renderer/src/components/CanvasDock.jsx`
+  - `renderer/src/systems/commands/useCanvasCommands.js`
+  - `renderer/src/context/AppProvider.jsx`
+  - `renderer/src/lib/testingTiles.js`
+- Add menu behavior:
+  - Yes
+  - Label: `Paper note`
+- Testing Tiles examples:
+  - `Reading List`
+  - `Meeting Notes`
+- Diagnostics / copy report behavior:
+  - No dedicated diagnostics/report flow yet. State is normalized and serializable.
+- Known limitations:
+  - Page count is a decorative measurement of the rendered preview, not a real paginated document -- the fullscreen editor is always one continuous scrollable document.
+  - Live preview covers the common inline markdown forms (bold, italic, code, links) plus headings and blockquotes; it does not yet cover lists, tables, or nested emphasis edge cases.
+  - Canvas-state preview is read-only; all edits happen in the fullscreen overlay.
+- Future improvements:
+  - Extend live-preview decorations to list markers and task checkboxes.
+  - Consider letting the stacked pages be scrubbed through directly from the canvas.
 
 ## Planned Tiles
 

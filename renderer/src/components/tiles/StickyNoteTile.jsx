@@ -74,8 +74,11 @@ function StickyNoteTile({
   const source = card.source === CANVAS_TEXT_SOURCE_FILE ? CANVAS_TEXT_SOURCE_FILE : CANVAS_TEXT_SOURCE_LOCAL;
   const isEditing = textBoxEditorState?.tileId === card.id;
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
-  const renderState = isEditing ? "detail" : (renderHint?.renderState ?? "detail");
-  const isCompact = renderState === "compact";
+  // Compact (zoomed-out-too-far) rendering is disabled for now -- the
+  // sticky note always shows its normal "detail" look regardless of zoom,
+  // per explicit request, rather than collapsing into skeleton bars.
+  const renderState = "detail";
+  const isCompact = false;
   const normalizedStickyDocument = useMemo(() => deriveStickyNoteDocument(card), [card]);
   const [draftTitle, setDraftTitle] = useState(() => normalizedStickyDocument.title);
   const [draftBody, setDraftBody] = useState(() => normalizedStickyDocument.bodyText);
@@ -108,7 +111,7 @@ function StickyNoteTile({
   const surfaceStyle = useMemo(() => buildStickySurfaceStyle(surfaceLayout), [surfaceLayout]);
   const hasTitle = viewModel.title.trim().length > 0;
   const hasFooterCopy = viewModel.detailFooterLines.length > 0;
-  const footerText = hasFooterCopy ? viewModel.detailFooterLines.join(" ") : STICKY_NOTE_BODY_PLACEHOLDER;
+  const footerText = viewModel.detailFooterLines.join(" ");
   const surfaceGesture = useTileGesture({
     card,
     canDrag: !isEditing && isSelectToolActive,
@@ -460,6 +463,7 @@ function StickyNoteTile({
                   spellCheck={false}
                   onPointerDown={stopInteractivePointer}
                   onClick={stopInteractivePointer}
+                  onDoubleClick={stopInteractivePointer}
                   onBlur={handleEditorBlur}
                   onKeyDown={handleEditorKeyDown}
                   onChange={(event) => setDraftTitle(event.target.value)}
@@ -482,6 +486,7 @@ function StickyNoteTile({
                   spellCheck={false}
                   onPointerDown={stopInteractivePointer}
                   onClick={stopInteractivePointer}
+                  onDoubleClick={stopInteractivePointer}
                   onBlur={handleEditorBlur}
                   onKeyDown={handleEditorKeyDown}
                   onChange={(event) => setDraftBody(event.target.value)}
@@ -526,11 +531,14 @@ function StickyNoteTile({
             </div>
 
             <footer className="card__sticky-note-footer">
-              {isCompact ? null : (
-                <div className={`card__sticky-note-footer-copy${hasFooterCopy ? "" : " card__sticky-note-footer-copy--placeholder"}`}>
+              {/* Only a real preview of text cut off below earns its place
+                  here -- showing the same placeholder a second time, under
+                  an already-empty body, just reads as a rendering glitch. */}
+              {!isCompact && hasFooterCopy ? (
+                <div className="card__sticky-note-footer-copy">
                   {footerText}
                 </div>
-              )}
+              ) : null}
             </footer>
           </section>
         </div>

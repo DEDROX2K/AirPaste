@@ -99,7 +99,7 @@ describe("normalizeCard", () => {
       type: "checklist",
       items: [{ id: "a", text: "Buy milk", checked: true }],
     });
-    expect(withItems.items).toEqual([{ id: "a", text: "Buy milk", checked: true }]);
+    expect(withItems.items).toEqual([{ id: "a", text: "Buy milk", checked: true, indent: 0, highlighted: false }]);
 
     const withoutItems = normalizeCard({ type: "checklist" });
     expect(withoutItems.items).toHaveLength(1);

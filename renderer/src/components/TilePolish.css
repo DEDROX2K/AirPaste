@@ -20,8 +20,10 @@
   --ap-tile-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055);
   /* Selected reads as "picked up off the table", so it carries a softer,
      thicker shadow than hover rather than a ring/outline -- a held piece of
-     paper doesn't grow a box around it, it casts a bigger shadow. */
-  --ap-tile-shadow-selected: 0 28px 56px rgba(0, 0, 0, 0.16), 0 10px 24px rgba(0, 0, 0, 0.09), 0 2px 7px rgba(0, 0, 0, 0.06);
+     paper doesn't grow a box around it, it casts a bigger shadow. Kept
+     deliberately light: the previous version's wide, dark blur read as a
+     solid gray box sitting behind the tile rather than a shadow. */
+  --ap-tile-shadow-selected: 0 10px 24px rgba(0, 0, 0, 0.08), 0 3px 8px rgba(0, 0, 0, 0.05);
   --ap-tile-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -301,6 +303,37 @@
 .grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--canvas-text {
   border-color: transparent !important;
   box-shadow: none !important;
+}
+
+/* Two canvas-text sub-variants are NOT flush/chromeless like the plain one
+   above -- the sticky note wants a real flat-color card, and the markdown
+   note wants a real surface card. Same missing-!important bug, same fix:
+   carve each out of the generic chromeless exception just above. */
+.canvas__content .card__surface--canvas-text-sticky,
+.grid-workspace .card__surface--canvas-text-sticky,
+.card__surface--canvas-text-sticky {
+  background: #ffe07a !important;
+  border-radius: var(--ap-radius-lg, 16px) !important;
+  box-shadow: var(--ap-shadow-card) !important;
+}
+
+.canvas__content .card__surface--canvas-text-markdown,
+.grid-workspace .card__surface--canvas-text-markdown,
+.card__surface--canvas-text-markdown {
+  background: var(--ap-surface-inset) !important;
+  border: 1px solid var(--ap-border-subtle) !important;
+  border-radius: var(--ap-radius-lg, 16px) !important;
+  box-shadow: var(--ap-shadow-card) !important;
+}
+
+/* The real sticky note tile (StickyNoteTile.jsx, variant === "sticky") is
+   also swept up in the generic chromeless exception above -- same fix. */
+.canvas__content .card__surface--sticky-note,
+.grid-workspace .card__surface--sticky-note,
+.card__surface--sticky-note {
+  background: #ffe07a !important;
+  border-radius: var(--ap-radius-lg, 16px) !important;
+  box-shadow: var(--ap-shadow-card) !important;
 }
 
 /* Calendar keeps its own distinct, more-rounded identity (32px radius,
@@ -776,6 +809,25 @@
 .grid-workspace .card__surface :is(button, input[type="checkbox"]):focus-visible {
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14), 0 0 0 1px rgba(0, 113, 227, 0.42) !important;
+}
+
+/* The sticky note's own title input and body textarea sit on a flat color
+   card with no field chrome at all -- the generic "every input/textarea
+   inside a tile gets a white pill + border + blue focus ring" polish above
+   was swallowing its deliberately plain styling the same way it would for
+   any other tile that doesn't want that treatment. */
+.canvas__content .card__surface--sticky-note :is(input, textarea),
+.grid-workspace .card__surface--sticky-note :is(input, textarea) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.canvas__content .card__surface--sticky-note :is(input, textarea):focus-visible,
+.grid-workspace .card__surface--sticky-note :is(input, textarea):focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .grid-workspace {

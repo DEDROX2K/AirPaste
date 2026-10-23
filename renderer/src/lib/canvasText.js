@@ -23,8 +23,8 @@ export const STICKY_NOTE_DETAIL_BODY_LINE_LIMIT = 4;
 export const STICKY_NOTE_DETAIL_FOOTER_LINE_LIMIT = 2;
 export const STICKY_NOTE_COMPACT_LINE_LIMIT = 3;
 export const STICKY_NOTE_COMPACT_BAR_WIDTHS = Object.freeze([0.82, 0.82, 0.42]);
-export const STICKY_NOTE_TITLE_PLACEHOLDER = "ENTER TITLE HERE";
-export const STICKY_NOTE_BODY_PLACEHOLDER = "TYPE HERE...";
+export const STICKY_NOTE_TITLE_PLACEHOLDER = "Untitled";
+export const STICKY_NOTE_BODY_PLACEHOLDER = "Type something";
 
 function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";

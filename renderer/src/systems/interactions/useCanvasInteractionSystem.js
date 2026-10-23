@@ -55,6 +55,13 @@ export function useCanvasInteractionSystem({
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
+  // Set when a plain (no-modifier) press lands on a tile that's already
+  // part of a multi-selection: the full selection stays intact at
+  // pointerdown (so a drag, if one follows, moves the whole group), but if
+  // the pointer goes back up without ever starting a drag -- a plain click
+  // -- this is what the click collapses the selection down to, matching
+  // Figma. Cleared the moment any real drag begins.
+  const pendingSingleSelectRef = useRef(null);
   const cardsRef = useRef(cards);
   const tileByIdRef = useRef(getTileByIdMap(cards));
   const rackDropPreviewRef = useRef(rackDropPreview);
@@ -268,13 +275,17 @@ export function useCanvasInteractionSystem({
     }
 
     if (isSelectionModifierPressed(event)) {
+      pendingSingleSelectRef.current = null;
       selectTile(tile.id, { toggle: true });
       return true;
     }
 
+    pendingSingleSelectRef.current = (selectedTileIds.length > 1 && selectedTileIdSet.has(tile.id))
+      ? tile.id
+      : null;
     selectTile(tile.id, { forceSingle: !selectedTileIdSet.has(tile.id) });
     return false;
-  }, [canvas, closeContextMenu, isHandMode, selectTile, selectedTileIdSet]);
+  }, [canvas, closeContextMenu, isHandMode, selectTile, selectedTileIdSet, selectedTileIds]);
 
   const handleGroupPressStart = useCallback((group, event) => {
     closeContextMenu();
@@ -383,8 +394,9 @@ export function useCanvasInteractionSystem({
     setFocusedTileId((currentId) => (currentId === tileId ? null : currentId));
   }, [suppressHoverUpdates]);
 
-  const beginCanvasMarqueeSelection = useCallback((event) => {
+  const beginCanvasMarqueeSelection = useCallback((event, options = {}) => {
     const startCanvasPoint = canvas.clientToCanvasPoint(event.clientX, event.clientY);
+    const additive = Boolean(options.additive);
 
     marqueeStateRef.current = {
       pointerId: event.pointerId,
@@ -393,6 +405,8 @@ export function useCanvasInteractionSystem({
       currentClientX: event.clientX,
       currentClientY: event.clientY,
       startedWithSecondaryButton: event.button === 2,
+      additive,
+      baseSelectedTileIds: additive ? [...selectedTileIds] : [],
     };
 
     setMarqueeBox({
@@ -403,7 +417,7 @@ export function useCanvasInteractionSystem({
     });
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, [canvas]);
+  }, [canvas, selectedTileIds]);
 
   const beginTileDrag = useCallback((tile, event) => {
     if (!isSelectMode) {
@@ -421,6 +435,7 @@ export function useCanvasInteractionSystem({
 
     event.preventDefault();
     event.stopPropagation();
+    pendingSingleSelectRef.current = null;
 
     const anchorEntry = getRenderableTileEntryById(
       cardsRef.current,
@@ -548,6 +563,7 @@ export function useCanvasInteractionSystem({
 
     event.preventDefault();
     event.stopPropagation();
+    pendingSingleSelectRef.current = null;
 
     const selectedIds = selectedGroupIds.includes(group.id) ? selectedGroupIds : [group.id];
     const activeGroups = selectedIds
@@ -569,7 +585,40 @@ export function useCanvasInteractionSystem({
   }, [canvas, clearRackDropPreview, closeContextMenu, groups, isSelectMode, selectedGroupIds]);
 
   useEffect(() => {
-    function updateMarquee(event) {
+    // Same coalescing technique as the tile-drag pointermove handler above:
+    // at most one flush per animation frame, so live marquee preview (see
+    // applyMarqueeSelection below) never does more work than the display
+    // can paint, however fast the pointer reports moves.
+    let pendingMoveEvent = null;
+    let moveRafId = 0;
+
+    function applyMarqueeSelection(marqueeState) {
+      const startWorldPoint = canvas.clientToWorldPoint(
+        marqueeState.startClientX,
+        marqueeState.startClientY,
+      );
+      const endWorldPoint = canvas.clientToWorldPoint(
+        marqueeState.currentClientX,
+        marqueeState.currentClientY,
+      );
+      const selectionWorldRect = normalizeRect(
+        startWorldPoint.x,
+        startWorldPoint.y,
+        endWorldPoint.x,
+        endWorldPoint.y,
+      );
+      const rectTileIds = getSelectedTileIdsInRect(
+        cardsRef.current,
+        selectionWorldRect,
+        tileByIdRef.current,
+      );
+
+      setSelectedTileIds(marqueeState.additive
+        ? [...new Set([...marqueeState.baseSelectedTileIds, ...rectTileIds])]
+        : rectTileIds);
+    }
+
+    function processMarqueeMove(event) {
       const marqueeState = marqueeStateRef.current;
 
       if (!marqueeState || marqueeState.pointerId !== event.pointerId) {
@@ -597,6 +646,34 @@ export function useCanvasInteractionSystem({
         width: canvasRect.width,
         height: canvasRect.height,
       });
+
+      const dragDistanceX = Math.abs(marqueeState.currentClientX - marqueeState.startClientX);
+      const dragDistanceY = Math.abs(marqueeState.currentClientY - marqueeState.startClientY);
+
+      // Live preview: highlight what would be selected as the box is
+      // dragged, same as Figma/Obsidian, not just after releasing.
+      if (dragDistanceX >= MARQUEE_DRAG_THRESHOLD || dragDistanceY >= MARQUEE_DRAG_THRESHOLD) {
+        applyMarqueeSelection(marqueeState);
+      }
+    }
+
+    function updateMarquee(event) {
+      if (!marqueeStateRef.current || marqueeStateRef.current.pointerId !== event.pointerId) {
+        return;
+      }
+
+      pendingMoveEvent = event;
+
+      if (!moveRafId) {
+        moveRafId = requestAnimationFrame(() => {
+          moveRafId = 0;
+          const flushEvent = pendingMoveEvent;
+          pendingMoveEvent = null;
+          if (flushEvent) {
+            processMarqueeMove(flushEvent);
+          }
+        });
+      }
     }
 
     function finishMarquee(event) {
@@ -604,6 +681,23 @@ export function useCanvasInteractionSystem({
 
       if (!marqueeState || (event && marqueeState.pointerId !== event.pointerId)) {
         return;
+      }
+
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+        moveRafId = 0;
+      }
+      pendingMoveEvent = null;
+
+      // Use the release event's own coordinates rather than whatever the
+      // last rAF-flushed frame happened to leave in marqueeState -- that
+      // value is only ever updated inside the coalesced move handler, so a
+      // release that lands before the next animation frame (a very fast
+      // flick, or a frame skipped under load) would otherwise still read the
+      // pointerdown position and compute a zero-distance drag.
+      if (event) {
+        marqueeState.currentClientX = event.clientX;
+        marqueeState.currentClientY = event.clientY;
       }
 
       const dragDistanceX = Math.abs(marqueeState.currentClientX - marqueeState.startClientX);
@@ -620,29 +714,15 @@ export function useCanvasInteractionSystem({
       setMarqueeBox(null);
 
       if (dragDistanceX < MARQUEE_DRAG_THRESHOLD && dragDistanceY < MARQUEE_DRAG_THRESHOLD) {
+        // Never actually dragged -- a plain (or shift-) click on empty
+        // canvas. Selection was already settled in handleCanvasPointerDown;
+        // leave it as-is rather than re-deriving from a near-zero rect.
         return;
       }
 
-      const startWorldPoint = canvas.clientToWorldPoint(
-        marqueeState.startClientX,
-        marqueeState.startClientY,
-      );
-      const endWorldPoint = canvas.clientToWorldPoint(
-        marqueeState.currentClientX,
-        marqueeState.currentClientY,
-      );
-      const selectionWorldRect = normalizeRect(
-        startWorldPoint.x,
-        startWorldPoint.y,
-        endWorldPoint.x,
-        endWorldPoint.y,
-      );
-
-      setSelectedTileIds(getSelectedTileIdsInRect(
-        cardsRef.current,
-        selectionWorldRect,
-        tileByIdRef.current,
-      ));
+      // Recompute once more against the exact release position: the last
+      // rAF-flushed frame above can be up to ~16ms stale.
+      applyMarqueeSelection(marqueeState);
     }
 
     function cancelMarquee() {
@@ -650,6 +730,11 @@ export function useCanvasInteractionSystem({
         return;
       }
 
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+        moveRafId = 0;
+      }
+      pendingMoveEvent = null;
       marqueeStateRef.current = null;
       setMarqueeBox(null);
     }
@@ -660,6 +745,9 @@ export function useCanvasInteractionSystem({
     window.addEventListener("blur", cancelMarquee);
 
     return () => {
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+      }
       window.removeEventListener("pointermove", updateMarquee, true);
       window.removeEventListener("pointerup", finishMarquee, true);
       window.removeEventListener("pointercancel", finishMarquee, true);
@@ -700,6 +788,12 @@ export function useCanvasInteractionSystem({
 
       if (!dragState) {
         clearRackDropPreview();
+
+        if (pendingSingleSelectRef.current) {
+          setSelectedTileIds([pendingSingleSelectRef.current]);
+          pendingSingleSelectRef.current = null;
+        }
+
         return;
       }
 
@@ -965,13 +1059,17 @@ export function useCanvasInteractionSystem({
       return;
     }
 
-    setSelectedTileIds([]);
-    setSelectedGroupIds([]);
+    const isAdditiveSelection = isSelectMode && event.button === 0 && isSelectionModifierPressed(event);
+
+    if (!isAdditiveSelection) {
+      setSelectedTileIds([]);
+      setSelectedGroupIds([]);
+    }
 
     if (isSelectMode && event.button === 0) {
       event.preventDefault();
       event.stopPropagation();
-      beginCanvasMarqueeSelection(event);
+      beginCanvasMarqueeSelection(event, { additive: isAdditiveSelection });
     }
   }, [beginCanvasMarqueeSelection, canvas, closeContextMenu, isHandMode, isSelectMode]);
 

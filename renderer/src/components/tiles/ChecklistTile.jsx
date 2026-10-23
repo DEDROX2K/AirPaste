@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useAppContext } from "../../context/useAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
@@ -7,6 +7,10 @@ function stopInteractivePointer(event) {
   event.stopPropagation();
 }
 
+const MAX_INDENT = 1;
+const CHECKLIST_MIN_HEIGHT = 140;
+const CHECKLIST_HEIGHT_EPSILON = 1;
+
 function makeChecklistItem(item = {}) {
   return {
     id: typeof item.id === "string" && item.id.trim().length > 0
@@ -14,6 +18,8 @@ function makeChecklistItem(item = {}) {
       : crypto.randomUUID(),
     text: typeof item.text === "string" ? item.text : "",
     checked: item.checked === true,
+    indent: Number.isInteger(item.indent) ? Math.max(0, Math.min(MAX_INDENT, item.indent)) : 0,
+    highlighted: item.highlighted === true,
   };
 }
 
@@ -43,6 +49,7 @@ function ChecklistTile({
   const itemRefs = useRef(new Map());
   const pendingFocusItemIdRef = useRef(null);
   const titleInputRef = useRef(null);
+  const surfaceRef = useRef(null);
   const surfaceGesture = useTileGesture({
     card,
     onDoubleActivate: () => {
@@ -57,7 +64,6 @@ function ChecklistTile({
       ? card.items
       : [makeChecklistItem()]
   ), [card.items]);
-  const completedCount = items.filter((item) => item.checked).length;
 
   useEffect(() => {
     itemRefs.current.forEach((textarea) => {
@@ -74,6 +80,28 @@ function ChecklistTile({
       }
     }
   }, [items]);
+
+  // The surface only ever carries min-height, so it already visually grows
+  // to fit its content -- but card.height (the data the rest of the canvas,
+  // hit-testing, and layout use) never followed along, so the tile's actual
+  // selection/overlap bounds stayed stuck at creation size while the content
+  // kept adding items. Same measure-and-write-back pattern TextBoxTile and
+  // CanvasTextTile already use for exactly this reason.
+  useLayoutEffect(() => {
+    if (!surfaceRef.current) {
+      return;
+    }
+
+    const measuredHeight = Math.max(
+      CHECKLIST_MIN_HEIGHT,
+      Math.ceil(surfaceRef.current.getBoundingClientRect().height),
+    );
+    const currentHeight = Number.isFinite(card.height) ? card.height : CHECKLIST_MIN_HEIGHT;
+
+    if (Math.abs(measuredHeight - currentHeight) > CHECKLIST_HEIGHT_EPSILON) {
+      updateExistingCard(card.id, { height: measuredHeight });
+    }
+  }, [card.height, card.id, card.title, card.width, items, updateExistingCard]);
 
   const updateItems = (nextItems) => {
     updateExistingCard(card.id, {
@@ -103,8 +131,51 @@ function ChecklistTile({
     )));
   };
 
+  const handleToggleHighlight = (itemId) => {
+    updateItems(items.map((item) => (
+      item.id === itemId
+        ? { ...item, highlighted: !item.highlighted }
+        : item
+    )));
+  };
+
+  const handleIndentItem = (itemId, delta) => {
+    const index = items.findIndex((item) => item.id === itemId);
+
+    if (index < 0) {
+      return;
+    }
+
+    const current = items[index];
+    const nextIndent = Math.max(0, Math.min(MAX_INDENT, current.indent + delta));
+
+    if (nextIndent === current.indent || (nextIndent > 0 && index === 0)) {
+      return;
+    }
+
+    updateItems(items.map((item) => (
+      item.id === itemId
+        ? { ...item, indent: nextIndent }
+        : item
+    )));
+  };
+
+  const handleMoveItem = (itemId, direction) => {
+    const index = items.findIndex((item) => item.id === itemId);
+    const targetIndex = index + direction;
+
+    if (index < 0 || targetIndex < 0 || targetIndex >= items.length) {
+      return;
+    }
+
+    const nextItems = [...items];
+    [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
+    updateItems(nextItems);
+  };
+
   const handleAddItem = (afterItemId = null) => {
-    const nextItem = makeChecklistItem();
+    const afterItem = afterItemId ? items.find((item) => item.id === afterItemId) : null;
+    const nextItem = makeChecklistItem({ indent: afterItem?.indent ?? 0 });
     pendingFocusItemIdRef.current = nextItem.id;
 
     if (!afterItemId) {
@@ -129,6 +200,18 @@ function ChecklistTile({
   };
 
   const handleItemKeyDown = (event, itemId, itemText) => {
+    if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault();
+      handleMoveItem(itemId, event.key === "ArrowUp" ? -1 : 1);
+      return;
+    }
+
+    if (event.key === "Tab") {
+      event.preventDefault();
+      handleIndentItem(itemId, event.shiftKey ? -1 : 1);
+      return;
+    }
+
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleAddItem(itemId);
@@ -164,7 +247,7 @@ function ChecklistTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className="card__surface card__surface--checklist" aria-label={card.title || "Checklist"}>
+          <section ref={surfaceRef} className="card__surface card__surface--checklist" aria-label={card.title || "Checklist"}>
             <header className="card__checklist-header">
               <input
                 ref={titleInputRef}
@@ -176,31 +259,27 @@ function ChecklistTile({
                 onPointerDown={stopInteractivePointer}
                 onChange={handleTitleChange}
               />
-              <div className="card__checklist-progress" aria-label={`${completedCount} of ${items.length} items complete`}>
-                <span>{completedCount}/{items.length}</span>
-              </div>
             </header>
 
             <div className="card__checklist-items">
               {items.map((item, index) => (
                 <div
                   key={item.id}
-                  className={`card__checklist-item${item.checked ? " card__checklist-item--checked" : ""}`}
+                  className={[
+                    "card__checklist-item",
+                    item.checked ? "card__checklist-item--checked" : "",
+                    item.indent > 0 ? "card__checklist-item--indented" : "",
+                    item.highlighted ? "card__checklist-item--highlighted" : "",
+                  ].filter(Boolean).join(" ")}
                 >
                   <button
-                    className={`card__checklist-toggle${item.checked ? " card__checklist-toggle--checked" : ""}`}
+                    className={`card__checklist-bullet${item.checked ? " card__checklist-bullet--checked" : ""}`}
                     type="button"
-                    aria-label={item.checked ? "Mark item incomplete" : "Mark item complete"}
+                    aria-label={item.checked ? "Mark item not done" : "Mark item done"}
                     aria-pressed={item.checked}
                     onPointerDown={stopInteractivePointer}
                     onClick={() => handleToggleItem(item.id)}
-                  >
-                    {item.checked ? (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3 8.4 6.3 11.4 13 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    ) : null}
-                  </button>
+                  />
                   <textarea
                     ref={(node) => {
                       if (node) {
@@ -222,6 +301,18 @@ function ChecklistTile({
                     }}
                     onKeyDown={(event) => handleItemKeyDown(event, item.id, item.text)}
                   />
+                  <button
+                    className={`card__checklist-highlight${item.highlighted ? " card__checklist-highlight--active" : ""}`}
+                    type="button"
+                    aria-label={item.highlighted ? "Remove emphasis" : "Emphasize item"}
+                    aria-pressed={item.highlighted}
+                    onPointerDown={stopInteractivePointer}
+                    onClick={() => handleToggleHighlight(item.id)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M10.5 2.5 13.5 5.5 6 13l-4 1 1-4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>

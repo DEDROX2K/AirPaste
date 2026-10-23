@@ -1,0 +1,189 @@
+/* !important throughout: AppDialogContent's base classes are Tailwind
+   utilities (p-6, max-w-lg, gap-4, ...) merged in via cn(), which only
+   dedupes conflicts between Tailwind utilities -- a plain CSS class like
+   this one doesn't register as "the same kind of thing" to tailwind-merge,
+   so without !important these would silently lose to whichever happened to
+   load later. */
+.app-launch-splash__dialog {
+  max-width: 900px !important;
+  width: calc(100vw - 48px) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border: none !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+}
+
+/* The dialog primitive's own default close "X" button (rendered as a
+   sibling of our content, inside the same dialog-content element) isn't
+   part of this design -- dismissal already works via outside click,
+   Escape, or any of the actions inside. */
+.app-launch-splash__dialog > button.absolute {
+  display: none !important;
+}
+
+.app-launch-splash {
+  display: flex;
+  align-items: stretch;
+  min-height: 480px;
+}
+
+.app-launch-splash__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  flex: 0 0 340px;
+  padding: 16px;
+  background: var(--ap-bg-page);
+}
+
+.app-launch-splash__card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.app-launch-splash__card--recent {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--ap-bg-page);
+  overflow-y: auto;
+}
+
+.app-launch-splash__card--utility {
+  background: var(--ap-bg-base);
+}
+
+.app-launch-splash__label {
+  margin: 2px 0 4px 8px;
+  color: var(--ap-text-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.app-launch-splash__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ap-text-primary);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: var(--cursor-pointer);
+}
+
+.app-launch-splash__item:hover:not(:disabled) {
+  background: var(--ap-interactive-bg-hover);
+}
+
+.app-launch-splash__item:disabled {
+  color: var(--ap-text-disabled);
+  cursor: default;
+}
+
+.app-launch-splash__item svg {
+  flex: 0 0 auto;
+  color: var(--ap-icon-muted);
+}
+
+.app-launch-splash__item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-launch-splash__empty {
+  margin: 4px 8px;
+  color: var(--ap-text-placeholder);
+  font-size: 13px;
+}
+
+.app-launch-splash__tagline {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--ap-text-secondary);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-style: italic;
+  text-align: center;
+}
+
+.app-launch-splash__hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  background: linear-gradient(165deg, #ff4335 0%, #e21f10 100%);
+  overflow: hidden;
+}
+
+.app-launch-splash__keycap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 18%;
+  background: linear-gradient(145deg, #3d3d3d 0%, #141414 62%, #050505 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 -22px 30px rgba(0, 0, 0, 0.5) inset,
+    0 18px 0 rgba(0, 0, 0, 0.55),
+    0 34px 54px rgba(0, 0, 0, 0.45);
+}
+
+/* The soft, slightly off-center highlight that reads as "light catching a
+   molded plastic key" rather than a flat rounded square. */
+.app-launch-splash__keycap::before {
+  content: "";
+  position: absolute;
+  inset: 6% 6% 42% 6%;
+  border-radius: 40% 40% 60% 60% / 60% 60% 100% 100%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.app-launch-splash__keycap-label {
+  position: relative;
+  z-index: 1;
+  color: #ffffff;
+  font-family: var(--ap-font-body);
+  font-size: clamp(22px, 4.2vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.app-launch-splash__version {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 680px) {
+  .app-launch-splash {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .app-launch-splash__panel {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .app-launch-splash__hero {
+    min-height: 220px;
+  }
+}

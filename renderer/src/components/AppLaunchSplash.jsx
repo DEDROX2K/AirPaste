@@ -1,97 +1,137 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
-import {
-  AppButton,
-  AppDialog,
-  AppDialogContent,
-  AppDialogDescription,
-  AppDialogTitle,
-} from "./ui/app";
-import { FolderOpen, FolderPlus, Sparkles } from "lucide-react";
+import { useToast } from "../hooks/useToast";
+import { desktop } from "../lib/desktop";
+import { AppDialog, AppDialogContent, AppDialogTitle } from "./ui/app";
+import { Eye, FileText, Folder, Frame, Globe, HeartHandshake, List } from "lucide-react";
+import "./AppLaunchSplash.css";
 
-// A standard placeholder for the Blender-style "pick up where you left off"
-// launch splash -- a small centered panel over a blurred backdrop, shown
-// once per app session right after boot. The final visual design (per the
-// user) will replace this; this establishes the pattern (AppDialog +
-// recent-workspace list, reusing the same data as the Home launch screen)
-// so swapping in the real UI later is a content-only change.
+// The project's own declared bug tracker (package.json "bugs.url") -- a
+// real, project-provided link, not a guessed one. "What's cooking?" and
+// "Donate" have no equivalent source yet, so they're presentational only
+// until the user gives us real destinations for them.
+const REPORT_BUGS_URL = "https://github.com/DEDROX2K/AirPaste/issues";
+
+function RecentFileIcon({ type }) {
+  if (type === "folder") {
+    return <Folder size={16} aria-hidden="true" />;
+  }
+
+  return <FileText size={16} aria-hidden="true" />;
+}
+
+// The real launch splash design (replacing the earlier placeholder dialog):
+// a two-column panel -- file actions / recent files / utility links on the
+// left, a full-bleed brand hero on the right -- shown once per app session
+// right after boot, dismissed by any action, outside click, or Escape.
 export default function AppLaunchSplash() {
   const [dismissed, setDismissed] = useState(false);
   const {
-    activeDome,
-    domes,
+    homeData,
     folderLoading,
     createNewDome,
-    openExistingWorkspace,
-    switchDome,
+    openHomeItem,
   } = useAppContext();
+  const { toast } = useToast();
 
-  const recentDomes = Array.isArray(domes) ? domes.slice(0, 4) : [];
+  const recentFiles = useMemo(() => (
+    Array.isArray(homeData?.recentItems) ? homeData.recentItems.slice(0, 5) : []
+  ), [homeData?.recentItems]);
+
+  function dismiss() {
+    setDismissed(true);
+  }
 
   return (
     <AppDialog open={!dismissed} onOpenChange={(next) => setDismissed(!next)}>
-      <AppDialogContent className="max-w-sm gap-5 p-7 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <img src="/logo.png" alt="" aria-hidden="true" className="h-14 w-14 object-contain" />
-          <div>
-            <AppDialogTitle className="text-xl">AirPaste</AppDialogTitle>
-            <AppDialogDescription className="mt-1">
-              Save everything. Arrange it beautifully.
-            </AppDialogDescription>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <AppButton
-            type="button"
-            tone="accent"
-            block
-            disabled={folderLoading}
-            onClick={() => {
-              setDismissed(true);
-              void openExistingWorkspace();
-            }}
-          >
-            <FolderOpen size={16} aria-hidden="true" />
-            Open Workspace
-          </AppButton>
-          <AppButton
-            type="button"
-            tone="surface"
-            block
-            disabled={folderLoading}
-            onClick={() => {
-              setDismissed(true);
-              void createNewDome("New Workspace");
-            }}
-          >
-            <FolderPlus size={16} aria-hidden="true" />
-            Create Workspace
-          </AppButton>
-        </div>
-
-        {recentDomes.length > 0 ? (
-          <div className="flex flex-col gap-1 border-t border-ap-border-subtle pt-4 text-left">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ap-text-tertiary">
-              <Sparkles size={12} aria-hidden="true" />
-              Recent
-            </span>
-            {recentDomes.map((dome) => (
+      <AppDialogContent className="app-launch-splash__dialog">
+        <AppDialogTitle className="sr-only">AirPaste</AppDialogTitle>
+        <div className="app-launch-splash">
+          <div className="app-launch-splash__panel">
+            <section className="app-launch-splash__card app-launch-splash__card--new">
+              <h2 className="app-launch-splash__label">New file</h2>
               <button
-                key={dome.id}
                 type="button"
+                className="app-launch-splash__item"
                 disabled={folderLoading}
-                className={`truncate rounded-ap-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-black/5 ${dome.id === activeDome?.id ? "font-semibold text-ap-text-primary" : "text-ap-text-secondary"}`}
                 onClick={() => {
-                  setDismissed(true);
-                  void switchDome(dome.id);
+                  dismiss();
+                  void createNewDome("New Workspace");
                 }}
               >
-                {dome.name}
+                <Frame size={16} aria-hidden="true" />
+                Canvas
               </button>
-            ))}
+              <button
+                type="button"
+                className="app-launch-splash__item"
+                onClick={() => toast("info", "List files are coming soon.")}
+              >
+                <List size={16} aria-hidden="true" />
+                List
+              </button>
+            </section>
+
+            <section className="app-launch-splash__card app-launch-splash__card--recent">
+              <h2 className="app-launch-splash__label">Recent Files</h2>
+              {recentFiles.length > 0 ? (
+                recentFiles.map((item) => (
+                  <button
+                    key={item.filePath || item.id || item.name}
+                    type="button"
+                    className="app-launch-splash__item"
+                    disabled={folderLoading}
+                    onClick={() => {
+                      dismiss();
+                      void openHomeItem(item);
+                    }}
+                  >
+                    <RecentFileIcon type={item.type} />
+                    <span className="app-launch-splash__item-name">{item.name}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="app-launch-splash__empty">No recent files yet.</p>
+              )}
+            </section>
+
+            <section className="app-launch-splash__card app-launch-splash__card--utility">
+              <button
+                type="button"
+                className="app-launch-splash__item"
+                onClick={() => void desktop.shell.openExternal(REPORT_BUGS_URL)}
+              >
+                <Eye size={16} aria-hidden="true" />
+                Report Bugs
+              </button>
+              <button
+                type="button"
+                className="app-launch-splash__item"
+                onClick={() => toast("info", "Coming soon.")}
+              >
+                <Globe size={16} aria-hidden="true" />
+                What&rsquo;s cooking?
+              </button>
+              <button
+                type="button"
+                className="app-launch-splash__item"
+                onClick={() => toast("info", "Coming soon.")}
+              >
+                <HeartHandshake size={16} aria-hidden="true" />
+                Donate to Airpaste
+              </button>
+            </section>
+
+            <div className="app-launch-splash__tagline">Ideas meant to be played with</div>
           </div>
-        ) : null}
+
+          <div className="app-launch-splash__hero">
+            <div className="app-launch-splash__keycap" aria-hidden="true">
+              <span className="app-launch-splash__keycap-label">airpaste</span>
+            </div>
+            <div className="app-launch-splash__version">V 1.08</div>
+          </div>
+        </div>
       </AppDialogContent>
     </AppDialog>
   );

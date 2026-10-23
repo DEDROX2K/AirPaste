@@ -7,8 +7,8 @@ import {
   Hash,
   Link2,
   ListChecks,
+  NotebookText,
   PenLine,
-  StickyNote,
   Table2,
   Target,
   Timer,
@@ -162,7 +162,7 @@ export default function CanvasDock({
         { key: "text-card", label: "Text", icon: Type, onSelect: () => commands?.createTextCard?.() },
         { key: "vault-note", label: "Vault note", icon: BookOpenText, onSelect: () => commands?.addNoteFromVault?.() },
         { key: "checklist", label: "Checklist", icon: ListChecks, onSelect: () => commands?.createChecklist?.() },
-        { key: "sticky", label: "Sticky note", icon: StickyNote, onSelect: () => commands?.createSticky?.() },
+        { key: "paper-note", label: "Paper note", icon: NotebookText, onSelect: () => commands?.createPaperNote?.() },
       ],
     },
     {

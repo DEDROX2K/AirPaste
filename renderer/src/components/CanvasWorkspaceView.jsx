@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
+import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
+import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasTetherLines from "./canvas/CanvasTetherLines";
@@ -34,8 +36,10 @@ import {
   TETHER_MAX_TILES,
   TETHER_MIN_TILES,
 } from "../lib/workspace";
+import { normalizeTextBoxStyle } from "../lib/textBoxStyle";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
+  CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
   getCanvasTextLineCount,
 } from "../lib/canvasText";
@@ -981,7 +985,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
-    createNewNoteCard,
+    createNewPaperNoteCard,
     createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
@@ -1074,7 +1078,7 @@ export default function CanvasWorkspaceView() {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
-    createNewNoteCard,
+    createNewPaperNoteCard,
     createNewTextBoxCard,
     createNewProgressCard,
     createNewRackCard,
@@ -1604,6 +1608,50 @@ export default function CanvasWorkspaceView() {
     const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
     return selectedTile?.type === CANVAS_TEXT_CARD_TYPE ? selectedTile : null;
   }, [interactions.selectedTileIds, tileById]);
+  // The formatting toolbar only appears when the WHOLE selection is plain
+  // "Add text" tiles (canvas-text cards, default variant, plain format --
+  // see CanvasTextTile.jsx) -- mixing it into a selection of other tile
+  // types wouldn't mean anything (there's no shared "style" to show as
+  // current), and sticky notes / markdown notes have their own look.
+  const selectedPlainTextTiles = useMemo(() => {
+    if (interactions.selectedTileIds.length === 0) {
+      return [];
+    }
+
+    const selectedTiles = interactions.selectedTileIds.map((tileId) => tileById[tileId]).filter(Boolean);
+    const allPlainText = selectedTiles.length > 0
+      && selectedTiles.every((tile) => (
+        tile.type === CANVAS_TEXT_CARD_TYPE
+        && (tile.variant ?? CANVAS_TEXT_VARIANT_DEFAULT) === CANVAS_TEXT_VARIANT_DEFAULT
+        && (tile.format ?? CANVAS_TEXT_FORMAT_PLAIN) === CANVAS_TEXT_FORMAT_PLAIN
+      ));
+
+    return allPlainText ? selectedTiles : [];
+  }, [interactions.selectedTileIds, tileById]);
+  const plainTextToolbarStyle = useMemo(() => (
+    selectedPlainTextTiles.length > 0 ? normalizeTextBoxStyle(selectedPlainTextTiles[0].style) : null
+  ), [selectedPlainTextTiles]);
+  // World-space anchor (top-center of the selection's bounding box) so the
+  // toolbar stays glued to the text as the canvas pans/zooms, instead of
+  // sitting at a fixed screen position disconnected from what it edits.
+  const plainTextToolbarAnchor = useMemo(() => {
+    if (selectedPlainTextTiles.length === 0) {
+      return null;
+    }
+
+    const minX = Math.min(...selectedPlainTextTiles.map((tile) => tile.x));
+    const maxX = Math.max(...selectedPlainTextTiles.map((tile) => tile.x + tile.width));
+    const minY = Math.min(...selectedPlainTextTiles.map((tile) => tile.y));
+
+    return { x: (minX + maxX) / 2, y: minY };
+  }, [selectedPlainTextTiles]);
+  const handlePatchTextBoxStyle = useCallback((patch) => {
+    const updatesById = Object.fromEntries(selectedPlainTextTiles.map((tile) => [
+      tile.id,
+      { style: normalizeTextBoxStyle({ ...normalizeTextBoxStyle(tile.style), ...patch }) },
+    ]));
+    updateExistingCards(updatesById);
+  }, [selectedPlainTextTiles, updateExistingCards]);
   const requestTextBoxEdit = useCallback((tileId, options = {}) => {
     textBoxEditRequestIdRef.current += 1;
     setTextBoxEditorState({
@@ -1644,28 +1692,26 @@ export default function CanvasWorkspaceView() {
     requestTextBoxEdit(textBox.id, { selectAll: true });
     return true;
   }, [commands, interactions, requestTextBoxEdit]);
-  const beginStickyNoteCreation = useCallback((worldPoint) => {
-    const sticky = commands.createSticky(worldPoint);
+  const beginChecklistCreation = useCallback((worldPoint) => {
+    const checklist = commands.createChecklist(worldPoint);
 
-    if (!sticky) {
+    if (!checklist) {
       return false;
     }
 
-    interactions.selectTile(sticky.id, { forceSingle: true });
-    requestTextBoxEdit(sticky.id, { selectAll: true });
+    interactions.selectTile(checklist.id, { forceSingle: true });
     return true;
-  }, [commands, interactions, requestTextBoxEdit]);
-  const beginMarkdownNoteCreation = useCallback((worldPoint) => {
-    const note = commands.createMarkdownNote(worldPoint);
+  }, [commands, interactions]);
+  const beginPaperNoteCreation = useCallback((worldPoint) => {
+    const paperNote = commands.createPaperNote(worldPoint);
 
-    if (!note) {
+    if (!paperNote) {
       return false;
     }
 
-    interactions.selectTile(note.id, { forceSingle: true });
-    requestTextBoxEdit(note.id, { selectAll: true });
+    interactions.selectTile(paperNote.id, { forceSingle: true });
     return true;
-  }, [commands, interactions, requestTextBoxEdit]);
+  }, [commands, interactions]);
   useEffect(() => {
     if (textBoxEditorState?.tileId && !tileById[textBoxEditorState.tileId]) {
       setTextBoxEditorState(null);
@@ -2183,13 +2229,12 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
-        if (activeKey === "s") {
+        if (activeKey === "c") {
           event.preventDefault();
-          const sticky = commands.createSticky();
+          const checklist = commands.createChecklist();
 
-          if (sticky) {
-            interactions.selectTile(sticky.id, { forceSingle: true });
-            requestTextBoxEdit(sticky.id, { selectAll: false });
+          if (checklist) {
+            interactions.selectTile(checklist.id, { forceSingle: true });
           }
           return;
         }
@@ -2214,7 +2259,7 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
-        if (isPrintableTextKey(event) && !["v", "h", "t", "s"].includes(activeKey)) {
+        if (isPrintableTextKey(event) && !["v", "h", "t", "c"].includes(activeKey)) {
           event.preventDefault();
           requestTextBoxEdit(selectedTextBoxTile.id, {
             replacementText: event.key,
@@ -2554,21 +2599,21 @@ export default function CanvasWorkspaceView() {
     return beginTextBoxCreation(radialMenu.worldPoint);
   }, [beginTextBoxCreation, radialMenu]);
 
-  const handleRadialCreateStickyNote = useCallback(() => {
+  const handleRadialCreateChecklist = useCallback(() => {
     if (!radialMenu?.worldPoint) {
       return false;
     }
 
-    return beginStickyNoteCreation(radialMenu.worldPoint);
-  }, [beginStickyNoteCreation, radialMenu]);
+    return beginChecklistCreation(radialMenu.worldPoint);
+  }, [beginChecklistCreation, radialMenu]);
 
-  const handleRadialCreateMarkdownNote = useCallback(() => {
+  const handleRadialCreatePaperNote = useCallback(() => {
     if (!radialMenu?.worldPoint) {
       return false;
     }
 
-    return beginMarkdownNoteCreation(radialMenu.worldPoint);
-  }, [beginMarkdownNoteCreation, radialMenu]);
+    return beginPaperNoteCreation(radialMenu.worldPoint);
+  }, [beginPaperNoteCreation, radialMenu]);
 
   const handleRadialEditText = useCallback(() => {
     if (!isPlainTextBoxContextTile || !activeContextTile) {
@@ -2738,8 +2783,8 @@ export default function CanvasWorkspaceView() {
       onCreateRack: handleRadialRack,
       onCreateLink: handleRadialLink,
       onCreateText: handleRadialText,
-      onCreateStickyNote: handleRadialCreateStickyNote,
-      onCreateMarkdownNote: handleRadialCreateMarkdownNote,
+      onCreateChecklist: handleRadialCreateChecklist,
+      onCreatePaperNote: handleRadialCreatePaperNote,
       onEditText: handleRadialEditText,
       onTether: handleRadialTether,
       onUntether: handleRadialUntether,
@@ -2750,8 +2795,8 @@ export default function CanvasWorkspaceView() {
     handleRadialLink,
     handleRadialRack,
     handleRadialText,
-    handleRadialCreateStickyNote,
-    handleRadialCreateMarkdownNote,
+    handleRadialCreateChecklist,
+    handleRadialCreatePaperNote,
     handleRadialEditText,
     handleRadialTether,
     handleRadialUntether,
@@ -2782,6 +2827,7 @@ export default function CanvasWorkspaceView() {
 
         <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
+            <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           </div>
         </div>
@@ -2822,6 +2868,7 @@ export default function CanvasWorkspaceView() {
       {createPortal(
         <div className="canvas-stage__fab">
           <div className="canvas-win-strip">
+            <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
             <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
             <DrawingToolControls
               activeTool={selectedCanvasToolMode}
@@ -2951,7 +2998,12 @@ export default function CanvasWorkspaceView() {
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
               <CanvasDensityZones tiles={filteredTiles} />
-              <CanvasTetherLines tethers={workspace.tethers} tiles={filteredTiles} />
+              <CanvasTetherLines
+                tethers={workspace.tethers}
+                tiles={filteredTiles}
+                dragVisualDelta={interactions.dragVisualDelta}
+                draggingTileIdSet={dragVisualTileIdSet}
+              />
               {activeRenderTiles.map((card, index) => {
                 const isTethered = tetheredTileIdSet.has(card.id);
                 const tetherPhase = isTethered ? hashStringToUnitInterval(card.id) : 0;
@@ -2995,6 +3047,22 @@ export default function CanvasWorkspaceView() {
                 </div>
                 );
               })}
+              {plainTextToolbarStyle && plainTextToolbarAnchor ? (
+                <div
+                  className="canvas__text-toolbar-anchor"
+                  style={{ left: `${plainTextToolbarAnchor.x}px`, top: `${plainTextToolbarAnchor.y}px` }}
+                >
+                  <div
+                    className="canvas__text-toolbar-scaler"
+                    style={{
+                      bottom: `${14 / viewportZoomForRender}px`,
+                      transform: `scale(${1 / viewportZoomForRender}) translateX(-50%)`,
+                    }}
+                  >
+                    <TextFormattingToolbar style={plainTextToolbarStyle} onPatchStyle={handlePatchTextBoxStyle} />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </>
 

@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useAppContext } from "../../context/useAppContext";
 import {
   getTextBoxFontFamily,
-  TEXT_BOX_DEFAULT_STYLE,
+  normalizeTextBoxStyle,
   TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
@@ -22,11 +22,13 @@ const TEXT_BOX_VERTICAL_PADDING = 8;
 const TEXT_BOX_HORIZONTAL_PADDING = 2;
 const TEXT_BOX_HEIGHT_EPSILON = 1;
 const TEXT_BOX_WIDTH_EPSILON = 0.5;
+// Width-only resize, Figma-style: one handle per side, not four per
+// corner -- a text box's height is derived from its content, never
+// user-set, so corner handles implying a free height drag were never
+// honest about what dragging them actually does.
 const TEXT_BOX_RESIZE_HANDLES = [
-  { key: "top-left", side: "left" },
-  { key: "bottom-left", side: "left" },
-  { key: "top-right", side: "right" },
-  { key: "bottom-right", side: "right" },
+  { key: "left", side: "left" },
+  { key: "right", side: "right" },
 ];
 
 function clamp(value, minValue, maxValue) {
@@ -110,7 +112,13 @@ function TextBoxTile({
   const lastEditorSelectionRef = useRef({ start: null, end: null, scrollTop: 0 });
   const isMoving = performanceMode?.simplifyDuringMotion === true;
   const isPassiveTextDisplay = !isEditing;
-  const normalizedStyle = TEXT_BOX_DEFAULT_STYLE;
+  // Keyed off a stable string, not the card.style object reference -- that
+  // reference gets rebuilt by workspace normalization on every unrelated
+  // card update (e.g. a drag-drop committing a new x/y), which would
+  // otherwise make this recompute, and the effects below that depend on it,
+  // far more often than the style actually changes.
+  const styleKey = JSON.stringify(card.style ?? null);
+  const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [styleKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const isPlainTextLayer = appearance !== "sticky";
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const isAutoWidth = isPlainTextLayer && card.autoWidth !== false;
@@ -472,18 +480,19 @@ function TextBoxTile({
     >
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className={`card__text-box-surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Canvas text box"}>
+          <section className={`card__text-box-surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Quick text"}>
             {isEditing ? (
               <textarea
                 ref={textareaRef}
                 className={`card__text-box-editor${appearance === "sticky" ? " card__text-box-editor--sticky" : ""}${isAutoWidth ? " card__text-box-editor--auto-width" : ""}`}
                 value={draftText}
-                aria-label="Canvas text box editor"
+                aria-label="Quick text editor"
                 spellCheck={false}
                 rows={1}
                 style={textStyle}
                 onPointerDown={stopInteractivePointer}
                 onClick={stopInteractivePointer}
+                onDoubleClick={stopInteractivePointer}
                 onKeyDown={handleEditorKeyDown}
                 onBlur={handleEditorBlur}
                 onChange={(event) => {
@@ -519,7 +528,7 @@ function TextBoxTile({
                 key={handle.key}
                 type="button"
                 className={`card__text-box-resize-handle card__text-box-resize-handle--${handle.key}`}
-                aria-label={`Resize text box from ${handle.key}`}
+                aria-label={`Resize quick text width from the ${handle.key}`}
                 onPointerDown={(event) => handleResizePointerDown(handle.side, event)}
               />
             ))

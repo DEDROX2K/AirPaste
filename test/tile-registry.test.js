@@ -18,6 +18,7 @@ import CanvasTextTile from "@/components/tiles/CanvasTextTile";
 import ProgressTile from "@/components/tiles/ProgressTile";
 import TableTile from "@/components/tiles/TableTile";
 import RackTile from "@/components/tiles/RackTile";
+import PaperNoteTile from "@/components/tiles/PaperNoteTile";
 import StickyNoteTile from "@/components/tiles/StickyNoteTile";
 import TextBoxTile from "@/components/tiles/TextBoxTile";
 
@@ -34,6 +35,7 @@ describe("getTileRegistration (the dispatch Card.jsx uses for every rendered til
     ["progress", ProgressTile],
     ["table", TableTile],
     ["rack", RackTile],
+    ["paper-note", PaperNoteTile],
   ])("resolves plain type \"%s\" to its component", (type, ExpectedComponent) => {
     expect(getTileRegistration({ type }).Component).toBe(ExpectedComponent);
     expect(getTileRegistration(type).Component).toBe(ExpectedComponent);

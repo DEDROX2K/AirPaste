@@ -1,0 +1,343 @@
+/* Paper Note tile: a vertical notebook-paper page on the canvas, plus its
+   immersive fullscreen write mode. Deliberately does not reuse
+   .card__surface-frame/.card__surface -- TilePolish.css forces those to a
+   flat white tile background with !important, which would fight the paper
+   look here. */
+
+.paper-note {
+  position: relative;
+  width: 100%;
+  height: var(--tile-height);
+}
+
+.paper-note__page {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px 10px 10px 3px;
+  box-sizing: border-box;
+}
+
+.paper-note__page--ghost {
+  background:
+    linear-gradient(165deg, #f4f0e2, #e8e1cd);
+  border: 1px solid rgba(60, 48, 18, 0.16);
+  box-shadow: 0 10px 20px rgba(28, 22, 6, 0.14);
+  pointer-events: none;
+  z-index: 0;
+  transform:
+    translate(
+      calc(var(--pn-ox, 0px) + var(--pn-trail-x, 0px)),
+      calc(var(--pn-oy, 0px) + var(--pn-trail-y, 0px))
+    )
+    rotate(var(--pn-rot, 0deg));
+}
+
+.paper-note__page--ghost-1 {
+  z-index: 1;
+}
+
+.paper-note__page--front {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 26px,
+      rgba(88, 118, 168, 0.13) 27px
+    ),
+    linear-gradient(165deg, #fdfbf3, #f8f3e6);
+  border: 1px solid rgba(60, 48, 18, 0.18);
+  border-left: 3px solid rgba(188, 62, 58, 0.3);
+  box-shadow: 0 16px 28px rgba(28, 22, 6, 0.16), 0 3px 8px rgba(28, 22, 6, 0.08);
+  padding: 20px 18px 14px 24px;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  transition: box-shadow 220ms ease, transform 220ms ease;
+}
+
+.card--hovered .paper-note__page--front {
+  box-shadow: 0 20px 34px rgba(28, 22, 6, 0.19), 0 4px 10px rgba(28, 22, 6, 0.09);
+}
+
+.card--selected .paper-note__page--front {
+  box-shadow: 0 24px 42px rgba(28, 22, 6, 0.24), 0 6px 14px rgba(28, 22, 6, 0.11);
+}
+
+.paper-note__head {
+  flex: none;
+  margin-bottom: 8px;
+}
+
+.paper-note__title {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #2a2318;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.paper-note__title--placeholder {
+  color: rgba(42, 35, 24, 0.36);
+  font-weight: 600;
+}
+
+.paper-note__subtitle {
+  margin-top: 2px;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 12.5px;
+  font-style: italic;
+  color: rgba(42, 35, 24, 0.56);
+}
+
+.paper-note__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #332c1f;
+  overflow: hidden;
+}
+
+.paper-note__body p,
+.paper-note__body ul,
+.paper-note__body ol,
+.paper-note__body blockquote,
+.paper-note__body pre {
+  margin: 0 0 6px;
+}
+
+.paper-note__empty {
+  color: rgba(42, 35, 24, 0.4);
+  font-style: italic;
+}
+
+.paper-note__fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, rgba(253, 251, 243, 0), rgba(253, 251, 243, 0.94));
+  pointer-events: none;
+}
+
+.paper-note__measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  left: -9999px;
+  top: 0;
+  width: calc(100% - 42px);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---------- Fullscreen immersive write mode ---------- */
+
+.paper-note-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+}
+
+.paper-note-fullscreen__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 16, 8, 0.4);
+  opacity: 0;
+  transition: opacity 420ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.paper-note-fullscreen--expanded .paper-note-fullscreen__backdrop {
+  opacity: 1;
+}
+
+.paper-note-fullscreen__sheet {
+  position: fixed;
+  inset: 0;
+  transform-origin: 0 0;
+  transform: translate(var(--pn-x), var(--pn-y)) scale(var(--pn-sx), var(--pn-sy));
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 30px,
+      rgba(88, 118, 168, 0.11) 31px
+    ),
+    linear-gradient(165deg, #fdfbf3, #f8f3e6);
+  box-shadow: 0 50px 110px rgba(10, 8, 3, 0.42);
+  overflow: hidden;
+  transition:
+    transform 420ms cubic-bezier(0.25, 1, 0.5, 1),
+    border-radius 420ms cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
+}
+
+.paper-note-fullscreen__sheet--expanded {
+  transform: translate(0px, 0px) scale(1, 1);
+  border-radius: 0px;
+}
+
+.paper-note-fullscreen__close {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 24, 8, 0.07);
+  color: #332c1f;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.paper-note-fullscreen__close:hover {
+  background: rgba(30, 24, 8, 0.13);
+  transform: scale(1.06);
+}
+
+.paper-note-fullscreen__content {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.paper-note-fullscreen--expanded .paper-note-fullscreen__content {
+  opacity: 1;
+  transition: opacity 220ms ease 230ms;
+}
+
+.paper-note-fullscreen__scroll {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 92px 48px 140px;
+}
+
+.paper-note-fullscreen__title-input,
+.paper-note-fullscreen__subtitle-input {
+  display: block;
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  color: #241f15;
+}
+
+.paper-note-fullscreen__title-input {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.paper-note-fullscreen__title-input::placeholder {
+  color: rgba(36, 31, 21, 0.32);
+}
+
+.paper-note-fullscreen__subtitle-input {
+  font-size: 16px;
+  font-style: italic;
+  color: rgba(36, 31, 21, 0.58);
+  margin-bottom: 26px;
+}
+
+.paper-note-fullscreen__subtitle-input::placeholder {
+  color: rgba(36, 31, 21, 0.28);
+  font-style: italic;
+}
+
+.paper-note-fullscreen__editor {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 17px;
+  line-height: 1.75;
+  color: #2a2318;
+  padding-bottom: 40vh;
+}
+
+.paper-note-editor.cm-editor {
+  outline: none;
+  background: transparent;
+}
+
+.paper-note-editor .cm-content {
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  caret-color: #241f15;
+}
+
+.paper-note-editor .cm-line {
+  padding: 0;
+}
+
+.paper-note-editor .cm-scroller {
+  font-family: inherit;
+  overflow: visible;
+}
+
+.cm-live-heading {
+  font-weight: 700;
+  color: #1d1810;
+}
+
+.cm-live-heading-1 {
+  font-size: 1.55em;
+}
+
+.cm-live-heading-2 {
+  font-size: 1.35em;
+}
+
+.cm-live-heading-3 {
+  font-size: 1.2em;
+}
+
+.cm-live-heading-4,
+.cm-live-heading-5,
+.cm-live-heading-6 {
+  font-size: 1.08em;
+}
+
+.cm-live-quote {
+  border-left: 3px solid rgba(88, 118, 168, 0.45);
+  padding-left: 12px;
+  color: rgba(42, 35, 24, 0.72);
+  font-style: italic;
+}
+
+.cm-live-bold {
+  font-weight: 700;
+}
+
+.cm-live-italic {
+  font-style: italic;
+}
+
+.cm-live-code {
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.86em;
+  background: rgba(60, 48, 18, 0.09);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.cm-live-link {
+  color: #0071e3;
+  text-decoration: underline;
+}

@@ -1,169 +1,175 @@
+import { useState } from "react";
+import { AtSign, Bold, ChevronDown, Link as LinkIcon, List, Strikethrough } from "lucide-react";
 import { TEXT_BOX_PRESET_OPTIONS } from "../lib/textBoxStyle";
 
-const FONT_SIZE_OPTIONS = [16, 24, 32, 48, 64, 96];
+// Nine quick swatches, not a full color picker -- matches the reference the
+// user designed (a basic first pass; a richer picker can replace this row
+// later without touching anything else here).
+const COLOR_SWATCHES = [
+  "#ffffff", "#c7c7cc", "#ff8a7a", "#ffab5e", "#ffd54f",
+  "#8bd17c", "#5ad1c0", "#6bb6ff", "#b18af0", "#ff9fd1",
+];
 
-function formatHexColor(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value : "#1f1f1f";
+const SIZE_PRESETS = [
+  { id: "small", label: "Small", fontSize: 24 },
+  { id: "medium", label: "Medium", fontSize: 48 },
+  { id: "large", label: "Large", fontSize: 72 },
+];
+
+function closestSizePreset(fontSize) {
+  const numericSize = Number(fontSize) || SIZE_PRESETS[1].fontSize;
+  return SIZE_PRESETS.reduce((closest, preset) => (
+    Math.abs(preset.fontSize - numericSize) < Math.abs(closest.fontSize - numericSize) ? preset : closest
+  ), SIZE_PRESETS[1]);
 }
 
-function AlignmentButton({
-  label,
-  isActive,
-  onClick,
-}) {
-  return (
-    <button
-      type="button"
-      className={`text-formatting-toolbar__toggle${isActive ? " text-formatting-toolbar__toggle--active" : ""}`}
-      aria-pressed={isActive}
-      aria-label={`Align ${label}`}
-      onClick={onClick}
-    >
-      {label[0].toUpperCase()}
-    </button>
-  );
+function stopPointer(event) {
+  event.stopPropagation();
 }
 
-export default function TextFormattingToolbar({
-  card,
-  onPatchStyle,
-}) {
-  const style = card?.style ?? {};
+// The floating pill that appears above the selection when one or more plain
+// text tiles are selected -- a basic first pass matching the design the user
+// sent (color swatches, font preset, size, bold/strike; link/list/mention
+// are present for the look but not wired up yet, by design: "customize
+// later").
+export default function TextFormattingToolbar({ style, onPatchStyle }) {
+  const [openPanel, setOpenPanel] = useState(null);
   const currentFontWeight = Number(style.fontWeight) || 500;
-  const lineHeight = Number(style.lineHeight) || 1.15;
-  const letterSpacing = Number(style.letterSpacing) || 0;
+  const isBold = currentFontWeight >= 600;
+  const isStrike = style.strike === true;
+  const activePreset = TEXT_BOX_PRESET_OPTIONS.find((preset) => preset.id === style.preset) ?? TEXT_BOX_PRESET_OPTIONS[0];
+  const activeSize = closestSizePreset(style.fontSize);
+
+  function togglePanel(panelName) {
+    setOpenPanel((current) => (current === panelName ? null : panelName));
+  }
+
+  function choose(patch) {
+    onPatchStyle(patch);
+    setOpenPanel(null);
+  }
 
   return (
-    <div className="canvas-text-toolbar-shell" role="presentation" data-text-toolbar-root="true">
-      <div className="text-formatting-toolbar" role="toolbar" aria-label="Text formatting toolbar">
-        <label className="text-formatting-toolbar__field">
-          <span className="text-formatting-toolbar__label">Preset</span>
-          <select
-            className="text-formatting-toolbar__select"
-            value={style.preset ?? "simple"}
-            aria-label="Font preset"
-            onChange={(event) => onPatchStyle({ preset: event.target.value })}
-          >
-            {TEXT_BOX_PRESET_OPTIONS.map((preset) => (
-              <option key={preset.id} value={preset.id}>{preset.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--size">
-          <span className="text-formatting-toolbar__label">Size</span>
-          <select
-            className="text-formatting-toolbar__select"
-            value={FONT_SIZE_OPTIONS.includes(style.fontSize) ? style.fontSize : "custom"}
-            aria-label="Font size presets"
-            onChange={(event) => {
-              if (event.target.value === "custom") {
-                return;
-              }
-
-              onPatchStyle({ fontSize: Number(event.target.value) });
-            }}
-          >
-            {FONT_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>{size}px</option>
-            ))}
-            <option value="custom">Custom</option>
-          </select>
-          <input
-            className="text-formatting-toolbar__number"
-            type="number"
-            min="8"
-            max="240"
-            step="1"
-            value={style.fontSize ?? 48}
-            aria-label="Font size"
-            onChange={(event) => onPatchStyle({ fontSize: Number(event.target.value) || 48 })}
-          />
-        </label>
-
-        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--metric">
-          <span className="text-formatting-toolbar__label">Line</span>
-          <input
-            className="text-formatting-toolbar__number text-formatting-toolbar__number--metric"
-            type="number"
-            min="0.9"
-            max="2.4"
-            step="0.05"
-            value={lineHeight}
-            aria-label="Line height"
-            onChange={(event) => onPatchStyle({ lineHeight: Number(event.target.value) || 1.15 })}
-          />
-        </label>
-
-        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--metric">
-          <span className="text-formatting-toolbar__label">Track</span>
-          <input
-            className="text-formatting-toolbar__number text-formatting-toolbar__number--metric"
-            type="number"
-            min="-4"
-            max="24"
-            step="0.25"
-            value={letterSpacing}
-            aria-label="Letter spacing"
-            onChange={(event) => onPatchStyle({ letterSpacing: Number(event.target.value) || 0 })}
-          />
-        </label>
-
-        <div className="text-formatting-toolbar__group" role="group" aria-label="Style toggles">
-          <button
-            type="button"
-            className={`text-formatting-toolbar__toggle${currentFontWeight >= 600 ? " text-formatting-toolbar__toggle--active" : ""}`}
-            aria-pressed={currentFontWeight >= 600}
-            aria-label="Bold"
-            onClick={() => onPatchStyle({ fontWeight: currentFontWeight >= 600 ? 500 : 700 })}
-          >
-            B
-          </button>
-          <button
-            type="button"
-            className={`text-formatting-toolbar__toggle text-formatting-toolbar__toggle--italic${style.italic ? " text-formatting-toolbar__toggle--active" : ""}`}
-            aria-pressed={style.italic === true}
-            aria-label="Italic"
-            onClick={() => onPatchStyle({ italic: style.italic !== true })}
-          >
-            I
-          </button>
-          <button
-            type="button"
-            className={`text-formatting-toolbar__toggle${style.underline ? " text-formatting-toolbar__toggle--active" : ""}`}
-            aria-pressed={style.underline === true}
-            aria-label="Underline"
-            onClick={() => onPatchStyle({ underline: style.underline !== true })}
-          >
-            U
-          </button>
-          <button
-            type="button"
-            className={`text-formatting-toolbar__toggle${style.strike ? " text-formatting-toolbar__toggle--active" : ""}`}
-            aria-pressed={style.strike === true}
-            aria-label="Strikethrough"
-            onClick={() => onPatchStyle({ strike: style.strike !== true })}
-          >
-            S
-          </button>
+    <div
+      className="text-toolbar"
+      data-text-toolbar-root="true"
+      onPointerDown={stopPointer}
+      onClick={stopPointer}
+    >
+      {openPanel === "color" ? (
+        <div className="text-toolbar__panel text-toolbar__panel--swatches" role="group" aria-label="Text color">
+          {COLOR_SWATCHES.map((swatch) => (
+            <button
+              key={swatch}
+              type="button"
+              className={`text-toolbar__swatch${style.color === swatch ? " text-toolbar__swatch--active" : ""}`}
+              style={{ background: swatch }}
+              aria-label={`Set text color ${swatch}`}
+              onClick={() => choose({ color: swatch })}
+            />
+          ))}
         </div>
+      ) : null}
 
-        <div className="text-formatting-toolbar__group" role="group" aria-label="Alignment">
-          <AlignmentButton label="left" isActive={style.align === "left"} onClick={() => onPatchStyle({ align: "left" })} />
-          <AlignmentButton label="center" isActive={style.align === "center"} onClick={() => onPatchStyle({ align: "center" })} />
-          <AlignmentButton label="right" isActive={style.align === "right"} onClick={() => onPatchStyle({ align: "right" })} />
+      {openPanel === "preset" ? (
+        <div className="text-toolbar__panel text-toolbar__panel--list" role="menu" aria-label="Font">
+          {TEXT_BOX_PRESET_OPTIONS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={preset.id === activePreset.id}
+              className={`text-toolbar__list-item${preset.id === activePreset.id ? " text-toolbar__list-item--active" : ""}`}
+              onClick={() => choose({ preset: preset.id })}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
+      ) : null}
 
-        <label className="text-formatting-toolbar__field text-formatting-toolbar__field--color">
-          <span className="text-formatting-toolbar__label">Color</span>
-          <input
-            className="text-formatting-toolbar__color"
-            type="color"
-            value={formatHexColor(style.color)}
-            aria-label="Text color"
-            onChange={(event) => onPatchStyle({ color: event.target.value })}
-          />
-        </label>
+      {openPanel === "size" ? (
+        <div className="text-toolbar__panel text-toolbar__panel--list" role="menu" aria-label="Size">
+          {SIZE_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={preset.id === activeSize.id}
+              className={`text-toolbar__list-item${preset.id === activeSize.id ? " text-toolbar__list-item--active" : ""}`}
+              onClick={() => choose({ fontSize: preset.fontSize })}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="text-toolbar__bar" role="toolbar" aria-label="Text formatting">
+        <button
+          type="button"
+          className="text-toolbar__color-trigger"
+          aria-label="Text color"
+          aria-expanded={openPanel === "color"}
+          onClick={() => togglePanel("color")}
+        >
+          <span className="text-toolbar__color-swatch" style={{ background: style.color }} />
+          <ChevronDown size={12} strokeWidth={2.25} />
+        </button>
+
+        <button
+          type="button"
+          className="text-toolbar__dropdown"
+          aria-expanded={openPanel === "preset"}
+          onClick={() => togglePanel("preset")}
+        >
+          <span className="text-toolbar__dropdown-label">Aa</span>
+          <ChevronDown size={12} strokeWidth={2.25} />
+        </button>
+
+        <button
+          type="button"
+          className="text-toolbar__dropdown text-toolbar__dropdown--size"
+          aria-expanded={openPanel === "size"}
+          onClick={() => togglePanel("size")}
+        >
+          <span className="text-toolbar__dropdown-label">{activeSize.label}</span>
+          <ChevronDown size={12} strokeWidth={2.25} />
+        </button>
+
+        <span className="text-toolbar__divider" aria-hidden="true" />
+
+        <button
+          type="button"
+          className={`text-toolbar__icon-button${isBold ? " text-toolbar__icon-button--active" : ""}`}
+          aria-pressed={isBold}
+          aria-label="Bold"
+          onClick={() => onPatchStyle({ fontWeight: isBold ? 500 : 700 })}
+        >
+          <Bold size={15} strokeWidth={2.25} />
+        </button>
+
+        <button
+          type="button"
+          className={`text-toolbar__icon-button${isStrike ? " text-toolbar__icon-button--active" : ""}`}
+          aria-pressed={isStrike}
+          aria-label="Strikethrough"
+          onClick={() => onPatchStyle({ strike: !isStrike })}
+        >
+          <Strikethrough size={15} strokeWidth={2.25} />
+        </button>
+
+        <button type="button" className="text-toolbar__icon-button" aria-label="Link" disabled>
+          <LinkIcon size={15} strokeWidth={2.25} />
+        </button>
+
+        <button type="button" className="text-toolbar__icon-button" aria-label="Bulleted list" disabled>
+          <List size={15} strokeWidth={2.25} />
+        </button>
+
+        <button type="button" className="text-toolbar__icon-button" aria-label="Mention" disabled>
+          <AtSign size={15} strokeWidth={2.25} />
+        </button>
       </div>
     </div>
   );

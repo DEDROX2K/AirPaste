@@ -2,8 +2,8 @@ const CANVAS_ACTION_ORDER = [
   "refresh-failed-previews",
   "snapping",
   "text",
-  "sticky-note",
-  "markdown-note",
+  "checklist",
+  "paper-note",
   "rack",
   "link",
 ];
@@ -139,7 +139,7 @@ export function buildRadialMenuActions({
     if (id === "text") {
       return {
         id,
-        label: "Add text",
+        label: "Add quick text",
         kind: "action",
         activeLabel: "Label",
         onTrigger: handlers.onCreateText,
@@ -160,23 +160,23 @@ export function buildRadialMenuActions({
       };
     }
 
-    if (id === "sticky-note") {
+    if (id === "checklist") {
       return {
         id,
-        label: "Add sticky note",
+        label: "Add checklist",
         kind: "action",
         activeLabel: "Note",
-        onTrigger: handlers.onCreateStickyNote,
+        onTrigger: handlers.onCreateChecklist,
       };
     }
 
-    if (id === "markdown-note") {
+    if (id === "paper-note") {
       return {
         id,
-        label: "Add markdown note",
+        label: "Add paper note",
         kind: "action",
         activeLabel: "Note",
-        onTrigger: handlers.onCreateMarkdownNote,
+        onTrigger: handlers.onCreatePaperNote,
       };
     }
 

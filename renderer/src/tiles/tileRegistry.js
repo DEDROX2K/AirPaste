@@ -7,6 +7,7 @@ import CounterTile from "../components/tiles/CounterTile";
 import DeadlineTile from "../components/tiles/DeadlineTile";
 import FileTile from "../components/tiles/FileTile";
 import LinkTile from "../components/tiles/LinkTile";
+import PaperNoteTile from "../components/tiles/PaperNoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import StickyNoteTile from "../components/tiles/StickyNoteTile";
@@ -128,6 +129,12 @@ const tileRegistry = {
     displayName: "Rack Tile",
     status: "stable",
     Component: RackTile,
+  },
+  [TILE_TYPES.PAPER_NOTE]: {
+    type: TILE_TYPES.PAPER_NOTE,
+    displayName: "Paper Note Tile",
+    status: "stable",
+    Component: PaperNoteTile,
   },
   [TILE_TYPES.NODE_GROUP]: {
     type: TILE_TYPES.NODE_GROUP,

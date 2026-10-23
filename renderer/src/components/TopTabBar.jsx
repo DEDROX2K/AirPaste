@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
 import { useAppContext } from "../context/useAppContext";
 import { useToast } from "../hooks/useToast";
@@ -10,6 +10,8 @@ import "./TopTabBar.css";
 
 const HOME_COOLDOWN_MS = 90000;
 const WORD_TYPING_INTERVAL_MS = 140;
+const TOAST_EXIT_MS = 160;
+const EYE_CLOSE_MS = 1000;
 
 function IconClose() {
   return (
@@ -144,19 +146,55 @@ const TOAST_ICONS = {
   ),
 };
 
-function EyeNotificationBubble() {
+function EyeNotificationBubble({ onRequestClose }) {
   const { toasts, dismiss } = useToast();
   const activeToast = toasts.length > 0 ? toasts[toasts.length - 1] : null;
+  const [renderedToast, setRenderedToast] = useState(null);
+  const [isExiting, setIsExiting] = useState(false);
+  const exitTimerRef = useRef(null);
   const [visibleWordCount, setVisibleWordCount] = useState(0);
 
+  // The toast is dismissed by removing it from the toasts array -- but a
+  // fade-out needs the bubble to stay mounted a little longer than that, so
+  // we keep showing the last toast we rendered until the exit fade finishes.
   useEffect(() => {
-    if (!activeToast?.message) {
+    if (activeToast) {
+      if (exitTimerRef.current) {
+        window.clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
+      }
+      setIsExiting(false);
+      setRenderedToast(activeToast);
+      return undefined;
+    }
+
+    if (!renderedToast) {
+      return undefined;
+    }
+
+    setIsExiting(true);
+    exitTimerRef.current = window.setTimeout(() => {
+      setRenderedToast(null);
+      setIsExiting(false);
+      exitTimerRef.current = null;
+    }, TOAST_EXIT_MS);
+
+    return () => {
+      if (exitTimerRef.current) {
+        window.clearTimeout(exitTimerRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeToast]);
+
+  useEffect(() => {
+    if (!renderedToast?.message) {
       setVisibleWordCount(0);
       return undefined;
     }
 
-    const words = String(activeToast.message).trim().split(/\s+/).filter(Boolean);
-    if (!activeToast.wordByWord || words.length <= 1) {
+    const words = String(renderedToast.message).trim().split(/\s+/).filter(Boolean);
+    if (!renderedToast.wordByWord || words.length <= 1) {
       setVisibleWordCount(words.length);
       return undefined;
     }
@@ -173,41 +211,41 @@ function EyeNotificationBubble() {
     }, WORD_TYPING_INTERVAL_MS);
 
     return () => window.clearInterval(timerId);
-  }, [activeToast?.id, activeToast?.message, activeToast?.wordByWord]);
+  }, [renderedToast?.id, renderedToast?.message, renderedToast?.wordByWord]);
 
-  if (!activeToast) {
+  if (!renderedToast) {
     return null;
   }
 
-  const words = String(activeToast.message).trim().split(/\s+/).filter(Boolean);
-  const resolvedWordCount = activeToast.wordByWord ? Math.min(visibleWordCount, words.length) : words.length;
+  const words = String(renderedToast.message).trim().split(/\s+/).filter(Boolean);
+  const resolvedWordCount = renderedToast.wordByWord ? Math.min(visibleWordCount, words.length) : words.length;
   const displayMessage = words.slice(0, resolvedWordCount).join(" ");
-  const isSpeaking = activeToast.wordByWord && resolvedWordCount < words.length;
-  const showRays = activeToast.rays && isSpeaking;
+  const isSpeaking = renderedToast.wordByWord && resolvedWordCount < words.length;
+  const showRays = renderedToast.rays && isSpeaking;
+
+  function handleActivate() {
+    onRequestClose?.();
+    if (activeToast) {
+      dismiss(activeToast.id);
+    }
+  }
 
   return (
     <div
-      className={`titlebar-eye-toast-shell${showRays ? " is-speaking" : ""}`}
+      className={`titlebar-eye-toast-shell${showRays ? " is-speaking" : ""}${isExiting ? " is-exiting" : ""}`}
       aria-live="polite"
     >
       {showRays ? <div className="titlebar-eye-rays" aria-hidden="true" /> : null}
       <div
-        className={`titlebar-eye-toast titlebar-eye-toast--${activeToast.level}${activeToast.presentation === "oracle" ? " titlebar-eye-toast--oracle" : ""}`}
+        className={`titlebar-eye-toast titlebar-eye-toast--${renderedToast.level}${renderedToast.presentation === "oracle" ? " titlebar-eye-toast--oracle" : ""}`}
         role="status"
         data-speaking={showRays ? "true" : "false"}
+        onClick={handleActivate}
       >
         <span className="titlebar-eye-toast__icon" aria-hidden="true">
-          {TOAST_ICONS[activeToast.level] ?? TOAST_ICONS.info}
+          {TOAST_ICONS[renderedToast.level] ?? TOAST_ICONS.info}
         </span>
         <span className="titlebar-eye-toast__message">{displayMessage}</span>
-        <button
-          type="button"
-          className="titlebar-eye-toast__close"
-          onClick={() => dismiss(activeToast.id)}
-          aria-label="Dismiss notification"
-        >
-          ×
-        </button>
       </div>
     </div>
   );
@@ -216,11 +254,13 @@ function EyeNotificationBubble() {
 function TitlebarEye({ currentEditorKind }) {
   const eyeRef = useRef(null);
   const pupilRef = useRef(null);
-  const { toast, toasts } = useToast();
+  const { toast, toasts, dismiss } = useToast();
   const previousEditorKindRef = useRef(currentEditorKind);
   const lastHomeRemarkAtRef = useRef(0);
   const lastHomeRemarkRef = useRef("");
   const lastCursorRemarkRef = useRef("");
+  const [isEyeClosed, setIsEyeClosed] = useState(false);
+  const eyeCloseTimerRef = useRef(null);
   const previousMoveRef = useRef({
     x: 0,
     y: 0,
@@ -228,6 +268,27 @@ function TitlebarEye({ currentEditorKind }) {
     angle: 0,
     directionSwitches: 0,
   });
+
+  const handleEyeActivate = useCallback(() => {
+    if (toasts.length > 0) {
+      dismiss(toasts[toasts.length - 1].id);
+    }
+
+    setIsEyeClosed(true);
+    if (eyeCloseTimerRef.current) {
+      window.clearTimeout(eyeCloseTimerRef.current);
+    }
+    eyeCloseTimerRef.current = window.setTimeout(() => {
+      setIsEyeClosed(false);
+      eyeCloseTimerRef.current = null;
+    }, EYE_CLOSE_MS);
+  }, [dismiss, toasts]);
+
+  useEffect(() => () => {
+    if (eyeCloseTimerRef.current) {
+      window.clearTimeout(eyeCloseTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const eyeNode = eyeRef.current;
@@ -321,9 +382,9 @@ function TitlebarEye({ currentEditorKind }) {
 
   return (
     <div className="titlebar-eye-anchor">
-      <EyeNotificationBubble />
-      <div className="titlebar-eye" aria-hidden="true">
-        <div className="titlebar-eye__eye" ref={eyeRef}>
+      <EyeNotificationBubble onRequestClose={handleEyeActivate} />
+      <div className="titlebar-eye" aria-hidden="true" onClick={handleEyeActivate}>
+        <div className={`titlebar-eye__eye${isEyeClosed ? " titlebar-eye__eye--closed" : ""}`} ref={eyeRef}>
           <div className="titlebar-eye__content">
             <div className="titlebar-eye__pupil" ref={pupilRef} />
           </div>

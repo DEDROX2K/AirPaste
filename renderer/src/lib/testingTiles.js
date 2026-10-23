@@ -2,7 +2,7 @@ import {
   createEmptyWorkspace,
   createCounterCard,
   createDeadlineCard,
-  createNoteCard,
+  createPaperNoteCard,
   createLinkCard,
   createTableCard,
   createTextBoxCard,
@@ -143,40 +143,31 @@ const TESTING_TILE_ROWS = Object.freeze([
     ],
   },
   {
-    key: "notes-markdown",
-    label: "Notes / Markdown",
+    key: "paper-notes",
+    label: "Paper Notes",
     items: [
       {
-        kind: "note",
+        kind: "paper-note",
         options: {
-          title: "Future-me instructions",
-          body: "## Before you ship\n\n- Re-run lint\n- Check edge cases\n- Leave a short migration note\n\n> If this breaks previews, revert the experiment first.",
-          mode: "preview",
+          title: "Reading List",
+          subtitle: "Books to get to eventually",
+          text: "# Up next\n\n- *Project Hail Mary* -- Andy Weir\n- **The Pragmatic Programmer**\n- `Designing Data-Intensive Applications`\n\n> Borrowed from the library, due back soon.",
         },
       },
       {
-        kind: "note",
+        kind: "paper-note",
         options: {
-          title: "Technical documentation",
-          body: "# Tile QA\n\n1. Open Testing Tiles\n2. Verify note rendering\n3. Verify table editing\n\n- Headings\n- Bullets\n- Links like [OpenAI](https://openai.com/)",
-          mode: "preview",
+          title: "Meeting Notes",
+          subtitle: "2026-04-18 -- Weekly sync",
+          text: "## Attendees\n\nRaghav, Priya, Dev\n\n## Decisions\n\n1. Ship the tile redesign by Friday\n2. Hold off on the 3D model tile for now\n\n## Follow-ups\n\n- [ ] Circulate notes\n- [ ] Schedule design review",
         },
       },
       {
-        kind: "note",
+        kind: "paper-note",
         options: {
-          title: "Code snippet",
-          body: "### Quick patch\n\n```js\nexport function clamp(value, min, max) {\n  return Math.min(max, Math.max(min, value));\n}\n```",
-          mode: "preview",
-          languageHints: ["js"],
-        },
-      },
-      {
-        kind: "note",
-        options: {
-          title: "Long note scroll test",
-          body: "## Scroll test\n\nThis note exists to confirm long content wraps and scrolls cleanly.\n\n- Paragraph one with extra detail.\n- Paragraph two with extra detail.\n- Paragraph three with extra detail.\n\n> Keep typing inside the tile without triggering canvas shortcuts.\n\n### Reminder\n\nUse this space for larger technical scratchpads and postmortems.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-          mode: "edit",
+          title: "Long note (page-stack test)",
+          subtitle: "Confirms 2-3 pages stack as content grows",
+          text: "This note exists to confirm long content stacks into extra pages on the canvas and still scrolls cleanly in fullscreen.\n\nParagraph one with extra detail about the pagination behavior and how it should look once it crosses a page's worth of text.\n\nParagraph two with extra detail, continuing to pad this note out so it clearly overflows a single page.\n\nParagraph three with extra detail -- by now this should be showing at least a second page peeking out from behind the front page.\n\n> Keep typing inside the fullscreen editor without triggering canvas shortcuts.\n\nParagraph four, more padding, more padding, more padding, more padding, more padding, more padding.\n\nParagraph five, more padding, more padding, more padding, more padding, more padding, more padding.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
         },
       },
     ],
@@ -476,18 +467,6 @@ function positionSeedCard(card, rowIndex, columnIndex) {
 }
 
 function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
-  if (item.kind === "note") {
-    return positionSeedCard(
-      createNoteCard(cards, viewport, null, {
-        width: CARD_WIDTH + 40,
-        height: CARD_HEIGHT + 52,
-        ...(item.options ?? {}),
-      }),
-      rowIndex,
-      columnIndex,
-    );
-  }
-
   if (item.kind === "table") {
     return positionSeedCard(
       createTableCard(cards, viewport, null, {
@@ -505,6 +484,18 @@ function createSeedTileCard(cards, viewport, item, rowIndex, columnIndex) {
       createTextBoxCard(cards, viewport, null, {
         width: CARD_WIDTH + 100,
         height: 160,
+        ...(item.options ?? {}),
+      }),
+      rowIndex,
+      columnIndex,
+    );
+  }
+
+  if (item.kind === "paper-note") {
+    return positionSeedCard(
+      createPaperNoteCard(cards, viewport, null, {
+        width: CARD_WIDTH - 40,
+        height: CARD_HEIGHT + 120,
         ...(item.options ?? {}),
       }),
       rowIndex,

@@ -13,7 +13,7 @@ import {
   createCounterCard,
   createDeadlineCard,
   createLinkCard,
-  createNoteCard,
+  createPaperNoteCard,
   createProgressCard,
   createRackCard,
   createStickerCard,
@@ -1469,8 +1469,8 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
-  const createNewNoteCard = useCallback((center = null, options = {}) => {
-    const card = createNoteCard(workspace.cards, workspace.viewport, center, options);
+  const createNewPaperNoteCard = useCallback((center = null, options = {}) => {
+    const card = createPaperNoteCard(workspace.cards, workspace.viewport, center, options);
     commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
       ...page,
       cards: [...page.cards, card],
@@ -1721,7 +1721,7 @@ export function AppProvider({ children }) {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
-    createNewNoteCard,
+    createNewPaperNoteCard,
     createNewProgressCard,
     createNewRackCard,
     createNewStickerCard,
@@ -1790,7 +1790,7 @@ export function AppProvider({ children }) {
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
-    createNewNoteCard,
+    createNewPaperNoteCard,
     createNewProgressCard,
     createNewRackCard,
     createNewStickerCard,

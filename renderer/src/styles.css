@@ -150,7 +150,6 @@ body,
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  cursor: var(--cursor-default);
 }
 
 body {
@@ -1493,7 +1492,6 @@ option {
   inset: 0;
   overflow: hidden;
   outline: none;
-  cursor: var(--cursor-default);
 }
 
 .canvas--tool-hand {
@@ -1657,14 +1655,84 @@ option {
   overflow: visible;
 }
 
+.canvas__tether-spoke {
+  animation: canvas-tether-spoke-breathe 4400ms ease-in-out infinite;
+}
+
+/* Three stacked copies of the same path: a soft wide blur underneath for
+   depth, the real stroke, and a thin bright "sheen" offset along the same
+   curve so it reads as a lit piece of string/thread rather than a flat
+   line -- the look the plain single gray stroke this replaced was missing. */
 .canvas__tether-string {
-  stroke: rgba(29, 29, 31, 0.28);
-  stroke-width: 1.4px;
+  stroke: rgba(32, 32, 36, 0.5);
+  stroke-width: 1.6px;
   stroke-linecap: round;
+  fill: none;
+}
+
+.canvas__tether-string--shadow {
+  stroke: rgba(10, 10, 14, 0.22);
+  stroke-width: 4.5px;
+  filter: blur(2.5px);
+}
+
+.canvas__tether-string--sheen {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.7px;
+  stroke-dasharray: 3 7;
+  opacity: 0.6;
+}
+
+.canvas__tether-anchor {
+  fill: rgba(30, 30, 34, 0.55);
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 0.75px;
+}
+
+.canvas__tether-knot-halo {
+  fill: none;
+  stroke: rgba(40, 40, 46, 0.18);
+  stroke-width: 6px;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: canvas-tether-knot-pulse 2600ms ease-in-out infinite;
 }
 
 .canvas__tether-knot {
-  fill: rgba(29, 29, 31, 0.36);
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 0.75px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+}
+
+@keyframes canvas-tether-spoke-breathe {
+  0%,
+  100% {
+    opacity: 0.88;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes canvas-tether-knot-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__tether-spoke,
+  .canvas__tether-knot-halo {
+    animation: none;
+  }
 }
 
 .canvas__entry-item--tethered {
@@ -2299,127 +2367,195 @@ option {
     0 1px 2px rgba(25, 19, 12, 0.05);
 }
 
-.canvas-text-toolbar-shell {
-  position: fixed;
-  top: 78px;
-  left: 50%;
-  z-index: 34;
-  width: min(760px, calc(100vw - 32px));
-  transform: translateX(-50%);
-  pointer-events: none;
-  overflow: visible;
+/* Anchored to the selected text's own world position (top-center of its
+   bounding box) instead of a fixed screen offset, so it stays glued to the
+   text as the canvas pans and zooms rather than floating at some unrelated
+   spot on screen. The anchor itself is a zero-size point in world space
+   (scaled/panned for free as a child of .canvas__content); the scaler
+   inside it counter-scales by 1/zoom so the toolbar reads at a constant
+   screen size regardless of canvas zoom, pinned at its own bottom-left
+   corner (transform-origin) which sits exactly on the anchor point --
+   see CanvasWorkspaceView.jsx for why translateX(-50%) has to come AFTER
+   scale() in the transform list for the centering to track the toolbar's
+   true on-screen width rather than its unscaled one. */
+.canvas__text-toolbar-anchor {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 5;
 }
 
-.text-formatting-toolbar {
+.canvas__text-toolbar-scaler {
+  position: absolute;
+  left: 0;
+  transform-origin: 0% 100%;
+}
+
+/* The floating text-formatting pill: a basic first pass matching the
+   design the user sent -- dark, compact, icon-driven, a swatch row and two
+   dropdowns above a row of toggles. Link/list/mention are visual only for
+   now (see TextFormattingToolbar.jsx). */
+.text-toolbar {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border: 1px solid rgba(113, 107, 98, 0.22);
-  border-radius: 18px;
-  background: rgba(250, 248, 244, 0.98);
-  box-shadow: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   pointer-events: auto;
 }
 
-.text-formatting-toolbar__field {
+/* Light, frosted-glass chrome -- matching the rest of the app's own
+   surfaces (context menus, the eye's toast) instead of standing out as a
+   separate dark-UI island. */
+.text-toolbar__bar {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--ap-surface-overlay);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--ap-shadow-panel);
 }
 
-.text-formatting-toolbar__field--color {
-  margin-left: auto;
+.text-toolbar__panel {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--ap-surface-overlay);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--ap-shadow-panel);
 }
 
-.text-formatting-toolbar__field--metric {
-  gap: 6px;
+.text-toolbar__panel--swatches {
+  gap: 7px;
 }
 
-.text-formatting-toolbar__label {
-  color: rgba(88, 81, 73, 0.82);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.text-toolbar__panel--list {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 128px;
 }
 
-.text-formatting-toolbar__select,
-.text-formatting-toolbar__number,
-.text-formatting-toolbar__toggle,
-.text-formatting-toolbar__color {
-  min-height: 34px;
-  border: 1px solid rgba(113, 107, 98, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
-  color: rgba(32, 29, 24, 0.94);
+.text-toolbar__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ap-border-default);
+  cursor: var(--cursor-pointer);
+  transition: transform var(--ap-transition-fast, 120ms ease);
+}
+
+.text-toolbar__swatch:hover {
+  transform: scale(1.12);
+}
+
+.text-toolbar__swatch--active {
+  box-shadow: 0 0 0 2px var(--ap-surface-overlay), 0 0 0 3.5px var(--ap-text-primary);
+}
+
+.text-toolbar__list-item {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ap-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: var(--cursor-pointer);
+}
+
+.text-toolbar__list-item:hover {
+  background: var(--ap-interactive-bg-hover);
+  color: var(--ap-text-primary);
+}
+
+.text-toolbar__list-item--active {
+  background: var(--ap-interactive-bg-active);
+  color: var(--ap-text-primary);
+}
+
+.text-toolbar__color-trigger,
+.text-toolbar__dropdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ap-text-secondary);
+  cursor: var(--cursor-pointer);
+}
+
+.text-toolbar__color-trigger:hover,
+.text-toolbar__dropdown:hover {
+  background: var(--ap-interactive-bg-hover);
+  color: var(--ap-text-primary);
+}
+
+.text-toolbar__color-trigger[aria-expanded="true"],
+.text-toolbar__dropdown[aria-expanded="true"] {
+  background: var(--ap-interactive-bg-active);
+  color: var(--ap-text-primary);
+}
+
+.text-toolbar__color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ap-border-strong);
+}
+
+.text-toolbar__dropdown-label {
   font-size: 13px;
+  font-weight: 600;
 }
 
-.text-formatting-toolbar__select,
-.text-formatting-toolbar__number {
-  padding: 0 10px;
-  outline: none;
+.text-toolbar__dropdown--size .text-toolbar__dropdown-label {
+  font-size: 12px;
 }
 
-.text-formatting-toolbar__select {
-  min-width: 112px;
+.text-toolbar__divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--ap-border-default);
 }
 
-.text-formatting-toolbar__number {
-  width: 72px;
-}
-
-.text-formatting-toolbar__number--metric {
-  width: 64px;
-}
-
-.text-formatting-toolbar__group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.text-formatting-toolbar__toggle {
+.text-toolbar__icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
-  padding: 0 10px;
-  font-weight: 700;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ap-icon-default);
   cursor: var(--cursor-pointer);
 }
 
-.text-formatting-toolbar__toggle--italic {
-  font-style: italic;
+.text-toolbar__icon-button:hover:not(:disabled) {
+  background: var(--ap-interactive-bg-hover);
+  color: var(--ap-text-primary);
 }
 
-.text-formatting-toolbar__toggle--active {
-  border-color: rgba(77, 72, 65, 0.4);
-  background: rgba(232, 227, 219, 0.98);
+.text-toolbar__icon-button--active {
+  background: var(--ap-interactive-bg-selected);
+  color: var(--ap-interactive-text-selected);
 }
 
-.text-formatting-toolbar__select:hover,
-.text-formatting-toolbar__number:hover,
-.text-formatting-toolbar__toggle:hover,
-.text-formatting-toolbar__color:hover {
-  border-color: rgba(77, 72, 65, 0.34);
+.text-toolbar__icon-button--active:hover {
+  background: var(--ap-accent-bg-hover);
 }
 
-.text-formatting-toolbar__select:focus-visible,
-.text-formatting-toolbar__number:focus-visible,
-.text-formatting-toolbar__toggle:focus-visible,
-.text-formatting-toolbar__color:focus-visible {
-  outline: 2px solid rgba(124, 116, 105, 0.3);
-  outline-offset: 1px;
-}
-
-.text-formatting-toolbar__color {
-  width: 42px;
-  padding: 4px;
-  cursor: var(--cursor-pointer);
+.text-toolbar__icon-button:disabled {
+  color: var(--ap-text-disabled);
+  cursor: default;
 }
 
 .workspace-view-toggle {
@@ -8974,17 +9110,15 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   min-height: var(--tile-height);
   flex-direction: column;
   padding: 20px 18px 18px;
-  border-radius: 26px;
-  border: 1px solid rgba(137, 120, 85, 0.18);
-  background:
-    linear-gradient(180deg, rgba(252, 247, 229, 0.98), rgba(246, 237, 207, 0.98));
-  box-shadow:
-    0 18px 36px rgba(87, 69, 32, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  border-radius: var(--ap-radius-xl, 18px);
+  border: 1px solid var(--ap-border-subtle, rgba(0, 0, 0, 0.05));
+  background: var(--ap-surface-inset, #ffffff);
+  box-shadow: var(--ap-shadow-card);
 }
 
 .card__surface-frame--selected .card__surface--checklist {
-  outline: 2px solid rgba(172, 149, 88, 0.44);
+  outline: none;
+  box-shadow: var(--ap-tile-shadow-selected, var(--ap-shadow-card-hover));
 }
 
 .card__checklist-header {
@@ -8992,7 +9126,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .card__checklist-title {
@@ -9001,96 +9135,86 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   padding: 0;
   border: 0;
   background: transparent;
-  color: rgba(79, 65, 38, 0.96);
-  font-size: 24px;
+  color: var(--ap-text-primary, #1c1c1e);
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   outline: none;
 }
 
 .card__checklist-title::placeholder {
-  color: rgba(125, 112, 88, 0.68);
-}
-
-.card__checklist-progress {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: rgba(164, 145, 97, 0.12);
-  color: rgba(104, 88, 52, 0.9);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  color: var(--ap-text-placeholder, #a1a1a6);
 }
 
 .card__checklist-items {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
 .card__checklist-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 8px 6px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--ap-radius-sm, 8px);
   transition: background 140ms ease;
 }
 
 .card__checklist-item:hover {
-  background: rgba(255, 252, 241, 0.6);
+  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.card__checklist-item--indented {
+  margin-left: 24px;
+}
+
+.card__checklist-item--highlighted {
+  background: #f7f6f2;
+}
+
+.card__checklist-item--highlighted .card__checklist-input {
+  font-weight: 600;
+}
+
+.card__checklist-item--highlighted:hover {
+  background: #f1efe8;
 }
 
 .card__checklist-item--checked .card__checklist-input {
-  color: rgba(126, 115, 88, 0.78);
-  text-decoration: line-through;
+  color: var(--ap-text-tertiary, #8e8e93);
 }
 
-.card__checklist-toggle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 50px;
-  min-width: 50px;
-  height: 30px;
-  margin-top: 2px;
-  padding: 3px;
-  border: 1px solid rgba(154, 160, 190, 0.7);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(227, 230, 241, 0.96), rgba(214, 218, 231, 0.96));
-  color: #ffffff;
+.card__checklist-item--checked.card__checklist-item--highlighted {
+  background: transparent;
+}
+
+.card__checklist-bullet {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 2.5px;
+  background: var(--ap-text-primary, #1c1c1e);
   cursor: var(--cursor-pointer);
-  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  outline: none;
+  transition: background 150ms ease, transform 150ms ease;
 }
 
-.card__checklist-toggle::before {
-  content: "";
-  display: block;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 2px 7px rgba(67, 59, 46, 0.18);
+.card__checklist-bullet:focus-visible {
+  box-shadow: 0 0 0 3px var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.12));
 }
 
-.card__checklist-toggle--checked {
-  justify-content: flex-end;
-  border-color: rgba(33, 131, 53, 0.78);
-  background: linear-gradient(180deg, rgba(45, 166, 68, 0.98), rgba(33, 131, 53, 0.98));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+.card__checklist-bullet:hover {
+  transform: scale(1.15);
 }
 
-.card__checklist-toggle svg {
-  position: absolute;
-  left: 8px;
+.card__checklist-bullet--checked {
+  background: var(--ap-text-disabled, #c7c7cc);
 }
 
 .card__checklist-input {
@@ -9098,55 +9222,93 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   min-width: 0;
   resize: none;
   overflow: hidden;
-  padding: 2px 0;
+  padding: 1px 0;
   border: 0;
   background: transparent;
-  color: rgba(66, 54, 31, 0.96);
-  font-size: 15px;
+  color: var(--ap-text-primary, #1c1c1e);
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   outline: none;
 }
 
 .card__checklist-input::placeholder {
-  color: rgba(126, 115, 88, 0.7);
+  color: var(--ap-text-placeholder, #a1a1a6);
+}
+
+.card__checklist-highlight {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--ap-radius-sm, 8px);
+  background: transparent;
+  color: var(--ap-text-placeholder, #a1a1a6);
+  opacity: 0;
+  cursor: var(--cursor-pointer);
+  outline: none;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.card__checklist-highlight:focus-visible {
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.12));
+}
+
+.card__checklist-item:hover .card__checklist-highlight,
+.card__checklist-highlight--active {
+  opacity: 1;
+}
+
+.card__checklist-highlight:hover {
+  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--ap-text-secondary, #636366);
+}
+
+.card__checklist-highlight--active {
+  color: var(--ap-text-primary, #1c1c1e);
 }
 
 .card__checklist-add {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   align-self: flex-start;
-  margin-top: 10px;
+  margin-top: 8px;
   padding: 4px 0;
   border: 0;
   background: transparent;
-  color: rgba(116, 99, 63, 0.94);
-  font-size: 15px;
+  color: var(--ap-text-secondary, #636366);
+  font-size: 14px;
   font-weight: 600;
   cursor: var(--cursor-pointer);
 }
 
 .card__checklist-add:hover {
-  color: rgba(82, 69, 40, 0.98);
+  color: var(--ap-text-primary, #1c1c1e);
 }
 
 .card__checklist-add-plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
-  background: rgba(164, 145, 97, 0.12);
-  font-size: 22px;
+  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+  font-size: 18px;
   font-weight: 400;
   line-height: 1;
 }
 
 .card[data-render-state="compact"] .card__surface--checklist {
   padding: 14px;
-  border-radius: 20px;
+  border-radius: var(--ap-radius-lg, 14px);
 }
 
 .card[data-render-state="compact"] .card__checklist-header {
@@ -9157,12 +9319,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   font-size: 17px;
 }
 
-.card[data-render-state="compact"] .card__checklist-progress {
-  min-width: 44px;
-  min-height: 24px;
-  font-size: 10px;
-}
-
 .card[data-render-state="compact"] .card__checklist-item:nth-child(n + 3),
 .card[data-render-state="compact"] .card__checklist-add {
   display: none;
@@ -9170,12 +9326,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card[data-render-state="compact"] .card__checklist-item {
   padding: 4px 2px;
-}
-
-.card[data-render-state="compact"] .card__checklist-toggle {
-  width: 34px;
-  min-width: 34px;
-  height: 22px;
 }
 
 .card[data-render-state="compact"] .card__checklist-input {
@@ -9215,8 +9365,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__surface-frame--editing .card__surface--text-box {
   border-color: transparent;
   background: transparent;
-  outline: 1px solid rgba(118, 111, 101, 0.18);
-  outline-offset: 4px;
 }
 
 .card__surface-frame--selected .card__surface--text-box-sticky,
@@ -9268,52 +9416,51 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   padding: 10px 10px 12px;
 }
 
+/* A plain sticky note: flat pastel color, rounded corners, a bold title
+   line and plain body text -- the old design here (black header, dark gray
+   body, neon footer, chamfered "ticket stub" corners on all three) has been
+   removed completely, per the user's request. */
 .card__surface.card__surface--sticky-note {
-  display: grid;
-  grid-template-rows: var(--sticky-header-height) minmax(0, 1fr) var(--sticky-footer-height);
-  gap: var(--sticky-gap);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   height: var(--tile-height);
   min-height: var(--tile-height);
-  padding: 0;
+  padding: 16px;
   border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
+  border-radius: var(--ap-radius-lg, 16px);
+  background: #ffe07a;
+  box-shadow: var(--ap-shadow-card);
+  overflow: hidden;
 }
 
 .card__sticky-note-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: var(--sticky-header-height);
-  padding:
-    var(--sticky-header-padding-top)
-    var(--sticky-header-padding-x)
-    var(--sticky-header-padding-bottom);
-  background: #111111;
-  color: #ffffff;
-  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 var(--sticky-chamfer));
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(28, 22, 6, 0.9);
 }
 
 .card__sticky-note-title {
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  color: #ffffff;
-  font-family: var(--ap-font-display);
-  font-size: var(--sticky-title-font-size);
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0.024em;
-  text-align: center;
+  color: rgba(28, 22, 6, 0.9);
+  font-family: var(--ap-font-body);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: normal;
+  text-align: left;
   text-overflow: ellipsis;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 
 .card__sticky-note-title--placeholder {
-  opacity: 0.72;
+  opacity: 0.55;
 }
 
 .card__sticky-note-title-input {
@@ -9329,7 +9476,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .card__sticky-note-title-input::placeholder {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(28, 22, 6, 0.45);
 }
 
 .card__sticky-note-title-spacer {
@@ -9340,35 +9487,33 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__sticky-note-body {
   position: relative;
   min-height: 0;
-  padding:
-    var(--sticky-body-padding-top)
-    var(--sticky-body-padding-x)
-    var(--sticky-body-padding-bottom);
-  background: #5a5a5a;
-  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), 100% calc(100% - var(--sticky-chamfer)), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 calc(100% - var(--sticky-chamfer)), 0 var(--sticky-chamfer));
+  flex: 1 1 auto;
+  padding: 0;
+  background: transparent;
+  clip-path: none;
   overflow: hidden;
 }
 
 .card__sticky-note-detail-lines {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   min-height: 100%;
 }
 
 .card__sticky-note-line {
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.94);
+  color: rgba(28, 22, 6, 0.85);
   font-family: var(--ap-font-body);
-  font-size: var(--sticky-body-font-size);
-  line-height: var(--sticky-body-line-height);
-  letter-spacing: 0.012em;
+  font-size: 13.5px;
+  line-height: 1.4;
+  letter-spacing: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .card__sticky-note-line--placeholder {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(28, 22, 6, 0.5);
 }
 
 .card__sticky-note-editor {
@@ -9379,47 +9524,44 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   outline: none;
   resize: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.96);
+  color: rgba(28, 22, 6, 0.9);
   font-family: var(--ap-font-body);
-  font-size: var(--sticky-body-font-size);
-  line-height: var(--sticky-body-line-height);
+  font-size: 13.5px;
+  line-height: 1.4;
   padding: 0;
 }
 
 .card__sticky-note-editor::placeholder {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(28, 22, 6, 0.5);
 }
 
 .card__sticky-note-footer {
   display: flex;
   align-items: flex-start;
-  min-height: var(--sticky-footer-height);
-  padding:
-    var(--sticky-footer-padding-top)
-    var(--sticky-footer-padding-x)
-    var(--sticky-footer-padding-bottom);
-  background: #d5ff00;
-  color: #111111;
-  clip-path: polygon(var(--sticky-chamfer) 0, calc(100% - var(--sticky-chamfer)) 0, 100% var(--sticky-chamfer), 100% calc(100% - var(--sticky-chamfer)), calc(100% - var(--sticky-chamfer)) 100%, var(--sticky-chamfer) 100%, 0 calc(100% - var(--sticky-chamfer)), 0 var(--sticky-chamfer));
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(28, 22, 6, 0.55);
+  clip-path: none;
 }
 
 .card__sticky-note-footer-copy {
   width: 100%;
   overflow: hidden;
-  color: #111111;
-  font-family: var(--ap-font-display);
-  font-size: var(--sticky-footer-font-size);
-  font-weight: 500;
-  line-height: var(--sticky-footer-line-height);
-  letter-spacing: 0.015em;
-  text-transform: uppercase;
+  color: rgba(28, 22, 6, 0.55);
+  font-family: var(--ap-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-transform: none;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 .card__sticky-note-footer-copy--placeholder {
-  color: rgba(17, 17, 17, 0.86);
+  color: rgba(28, 22, 6, 0.4);
 }
 
 .card__sticky-note-compact-lines {
@@ -9432,7 +9574,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__sticky-note-compact-line {
   min-height: var(--sticky-compact-bar-height);
   border-radius: 999px;
-  background: #111111;
+  background: rgba(28, 22, 6, 0.3);
 }
 
 .card__sticky-note-compact-line--placeholder {
@@ -9442,7 +9584,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card__sticky-note-error {
   display: grid;
   gap: 10px;
-  color: rgba(255, 231, 231, 0.95);
+  color: var(--ap-status-danger-text);
   font-size: 13px;
   line-height: 1.35;
 }
@@ -9457,8 +9599,8 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   padding: 6px 10px;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #111111;
+  background: rgba(28, 22, 6, 0.1);
+  color: rgba(28, 22, 6, 0.9);
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -9516,8 +9658,42 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   overflow: visible;
 }
 
+/* Sticky note -- a basic, honest sticky note: flat color, rounded corners,
+   no header or footer chrome (see the hidden header/footer rules below).
+   Replaces the old dark-ticket-stub look entirely, per the user's request
+   to remove that custom design completely. */
 .card__surface--canvas-text-sticky {
+  display: flex;
+  padding: 18px;
+  border-radius: var(--ap-radius-lg, 16px);
+  background: #ffe07a;
+  box-shadow: var(--ap-shadow-card);
+}
+
+/* Plain text ("Add text") -- no card at all, just the text itself, like
+   Figma's text tool. All styling comes from the per-tile style the
+   formatting toolbar edits (see plainTextCssVars in CanvasTextTile.jsx). */
+.card__surface--canvas-text-plain {
+  display: block;
   background: transparent;
+  box-shadow: none;
+}
+
+/* Markdown note -- a plain document card using the app's own surface/text
+   tokens instead of the black/neon ticket-stub treatment every variant
+   used to share. */
+.card__surface--canvas-text-markdown {
+  border-radius: var(--ap-radius-lg, 16px);
+  background: var(--ap-surface-inset);
+  border: 1px solid var(--ap-border-subtle);
+  box-shadow: var(--ap-shadow-card);
+}
+
+.card__surface--canvas-text-plain .card__canvas-text-header,
+.card__surface--canvas-text-plain .card__canvas-text-footer,
+.card__surface--canvas-text-sticky .card__canvas-text-header,
+.card__surface--canvas-text-sticky .card__canvas-text-footer {
+  display: none;
 }
 
 .card__canvas-text-header {
@@ -9530,6 +9706,14 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   background: #111111;
   color: #ffffff;
   clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, calc(100% - 20px) 100%, 20px 100%, 0 22px);
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-header {
+  justify-content: flex-start;
+  padding: 14px 18px 0;
+  background: transparent;
+  color: var(--ap-text-primary);
+  clip-path: none;
 }
 
 .card__canvas-text-heading {
@@ -9550,6 +9734,20 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-title {
+  font-family: var(--ap-font-body);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-align: left;
+  color: var(--ap-text-primary);
+  text-transform: none;
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-title--placeholder {
+  color: var(--ap-text-placeholder);
 }
 
 .card__canvas-text-title--placeholder {
@@ -9594,12 +9792,46 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, 100% calc(100% - 22px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 22px), 0 22px);
 }
 
+.card__surface--canvas-text-sticky .card__canvas-text-body-shell {
+  padding: 0;
+  background: transparent;
+  clip-path: none;
+}
+
+.card__surface--canvas-text-plain .card__canvas-text-body-shell {
+  padding: 0;
+  background: transparent;
+  clip-path: none;
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-body-shell {
+  padding: 10px 18px 14px;
+  background: transparent;
+  clip-path: none;
+}
+
 .card__canvas-text-preview,
 .card__canvas-text-editor,
 .card__canvas-text-measure {
   color: rgba(255, 255, 255, 0.94);
   font-size: 15px;
   line-height: 1.5;
+}
+
+.card__surface--canvas-text-sticky .card__canvas-text-preview,
+.card__surface--canvas-text-sticky .card__canvas-text-editor,
+.card__surface--canvas-text-sticky .card__canvas-text-measure,
+.card__surface--canvas-text-plain .card__canvas-text-preview,
+.card__surface--canvas-text-plain .card__canvas-text-editor,
+.card__surface--canvas-text-plain .card__canvas-text-measure {
+  color: rgba(28, 22, 6, 0.88);
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-preview,
+.card__surface--canvas-text-markdown .card__canvas-text-editor,
+.card__surface--canvas-text-markdown .card__canvas-text-measure {
+  color: var(--ap-text-primary);
+  font-size: 14px;
 }
 
 .card__canvas-text-preview {
@@ -9617,7 +9849,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card__canvas-text-sticky-line {
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.94);
+  color: rgba(28, 22, 6, 0.88);
   font-family: var(--ap-font-body);
   font-size: 15px;
   line-height: 1.25;
@@ -9639,7 +9871,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   min-height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #111111;
+  background: rgba(28, 22, 6, 0.3);
   color: transparent;
   font-family: var(--ap-font-display);
   font-size: 11px;
@@ -9667,16 +9899,9 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   align-self: start;
 }
 
-.card__canvas-text-preview--sticky,
-.card__surface--canvas-text-sticky .card__canvas-text-preview,
-.card__surface--canvas-text-sticky .card__canvas-text-editor,
-.card__surface--canvas-text-sticky .card__canvas-text-measure {
-  color: rgba(255, 255, 255, 0.94);
-}
-
 .card__canvas-text-preview :is(h1, h2, h3, h4, h5, h6) {
   margin: 0 0 8px;
-  color: #ffffff;
+  color: inherit;
 }
 
 .card__canvas-text-preview :is(p, ul, ol, blockquote, pre) {
@@ -9695,10 +9920,25 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   color: rgba(255, 255, 255, 0.78);
 }
 
+.card__surface--canvas-text-sticky .card__canvas-text-empty,
+.card__surface--canvas-text-plain .card__canvas-text-empty {
+  color: rgba(28, 22, 6, 0.55);
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-empty {
+  color: var(--ap-text-placeholder);
+}
+
 .card__canvas-text-error {
   display: grid;
   gap: 10px;
   color: rgba(255, 224, 224, 0.95);
+}
+
+.card__surface--canvas-text-sticky .card__canvas-text-error,
+.card__surface--canvas-text-plain .card__canvas-text-error,
+.card__surface--canvas-text-markdown .card__canvas-text-error {
+  color: var(--ap-status-danger-text);
 }
 
 .card__canvas-text-editor {
@@ -9730,7 +9970,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .card__canvas-text-editor .cm-selectionBackground {
-  background: rgba(205, 255, 0, 0.28) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
 }
 
 .card__canvas-text-measure {
@@ -9755,8 +9995,20 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 22px, 100% calc(100% - 22px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 22px), 0 22px);
 }
 
+.card__surface--canvas-text-markdown .card__canvas-text-footer {
+  min-height: 0;
+  padding: 0 18px 12px;
+  background: transparent;
+  color: var(--ap-text-tertiary);
+  clip-path: none;
+}
+
 .card__canvas-text-footer--placeholder {
   color: rgba(17, 17, 17, 0.86);
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-footer--placeholder {
+  color: var(--ap-text-placeholder);
 }
 
 .card__canvas-text-footer-label {
@@ -9773,6 +10025,14 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   -webkit-box-orient: vertical;
   word-break: break-word;
   text-transform: uppercase;
+}
+
+.card__surface--canvas-text-markdown .card__canvas-text-footer-label {
+  font-family: var(--ap-font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .card__canvas-text-footer-label--compact {
@@ -9818,119 +10078,55 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   display: none;
 }
 
-.card__sticky-note-display,
-.card__sticky-note-editor {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  min-height: 100%;
-}
-
-.card__sticky-note-measure {
-  position: absolute;
-  inset: 16px 14px auto 14px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  min-height: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.card__sticky-note-title,
-.card__sticky-note-title-input {
-  font-family: var(--ap-font-display) !important;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 0.94;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #050505;
-}
-
-.card__sticky-note-body,
-.card__sticky-note-body-input {
-  font-family: var(--ap-font-body) !important;
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1.15;
-  letter-spacing: 0;
-  color: var(--sticky-note-body-color, #8d7331);
-  text-align: var(--sticky-note-text-align, left);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.card__sticky-note-display--placeholder .card__sticky-note-title,
-.card__sticky-note-display--placeholder .card__sticky-note-body {
-  opacity: 0.82;
-}
-
-.card__sticky-note-title-input,
-.card__sticky-note-body-input {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  outline: none;
-  padding: 0;
-  resize: none;
-  box-shadow: none;
-}
-
-.card__sticky-note-title-input::placeholder,
-.card__sticky-note-body-input::placeholder {
-  color: rgba(48, 39, 8, 0.58);
-}
-
-.card__sticky-note-title-input {
-  text-align: left;
-}
-
-.card__sticky-note-body-input {
-  flex: 1 1 auto;
-  min-height: 1.2em;
-  overflow: hidden;
-}
-
+/* One minimal handle per side (not four per corner -- see the comment by
+   TEXT_BOX_RESIZE_HANDLES). A plain, quiet bar instead of the bright-blue
+   squares every other design tool defaults to: it's barely there until you
+   reach for it, matching the rest of this tile's "no chrome at all" look.
+   !important beats cursors.css's `button:not(:disabled) { cursor: ... }`,
+   which otherwise wins on specificity and silently replaces this with the
+   default pointer cursor. */
 .card__text-box-resize-handle {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  top: 50%;
+  width: 20px;
+  height: 44px;
   z-index: 2;
-  border: 2px solid #2f9bff;
-  border-radius: 4px;
-  background: #ffffff;
-  cursor: ew-resize;
+  border: none;
+  outline: none;
+  background: transparent;
+  cursor: ew-resize !important;
   box-shadow: none;
   touch-action: none;
   transform: translate(-50%, -50%);
 }
 
-.card__text-box-resize-handle--top-left {
-  top: 0;
+/* The clickable button is a generous 20x44px hit area; the visible bar
+   drawn inside it is the thin, quiet 6px pill -- separating the two means
+   the hit area can be forgiving without the tile looking like it has a fat
+   gray handle sitting on it. */
+.card__text-box-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+  transform: translate(-50%, -50%);
+  transition: background-color var(--ap-transition-fast, 120ms ease);
+}
+
+.card__text-box-resize-handle:hover::after {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.card__text-box-resize-handle--left {
   left: 0;
-  cursor: ew-resize;
 }
 
-.card__text-box-resize-handle--bottom-left {
-  top: 100%;
-  left: 0;
-  cursor: ew-resize;
-}
-
-.card__text-box-resize-handle--top-right {
-  top: 0;
+.card__text-box-resize-handle--right {
   left: 100%;
-  cursor: ew-resize;
-}
-
-.card__text-box-resize-handle--bottom-right {
-  top: 100%;
-  left: 100%;
-  cursor: ew-resize;
 }
 
 .card__surface--note {
@@ -12224,7 +12420,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-color: rgba(69, 65, 60, 0.64);
 }
 
-.card__surface-frame--selected .card__surface--checklist,
 .card__surface-frame--selected .card__surface--note,
 .card__surface-frame--selected .card__surface--table,
 .card__surface-frame--selected .card__surface--counter,
@@ -12367,19 +12562,8 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     right: 12px;
   }
 
-  .canvas-text-toolbar-shell {
-    top: 72px;
-    width: calc(100vw - 20px);
-  }
-
-  .text-formatting-toolbar {
-    gap: 8px;
-    padding: 10px;
-    border-radius: 16px;
-  }
-
-  .text-formatting-toolbar__field--color {
-    margin-left: 0;
+  .text-toolbar__bar {
+    gap: 0;
   }
 
   .canvas-stage__fab {
@@ -12607,7 +12791,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 #titlebar-right-slot button,
 #titlebar-right-slot .zoom-menu__trigger,
 #titlebar-center-slot button,
-.canvas-start-menu__trigger,
 .zoom-menu__trigger,
 .canvas-minimap__toggle {
   position: relative;
@@ -12628,7 +12811,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 #titlebar-right-slot button:hover,
 #titlebar-right-slot .zoom-menu__trigger:hover,
-.canvas-start-menu__trigger:hover:not(:disabled),
 .zoom-menu__trigger:hover,
 .canvas-minimap__toggle:hover {
   transform: translateY(-1px);
@@ -12641,7 +12823,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 #titlebar-right-slot button:active,
 #titlebar-right-slot .zoom-menu__trigger:active,
-.canvas-start-menu__trigger:active:not(:disabled),
 .zoom-menu__trigger:active,
 .canvas-minimap__toggle:active {
   transform: translate(0, 0);
@@ -12652,7 +12833,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .left-pages-panel__item--active,
 .canvas-minimap__toggle.is-active,
-.canvas-start-menu__trigger--open,
 .home-sidebar-section--active,
 .home-folder-tree__row--active .home-folder-tree__button,
 .home-folder-tree__root--active {
@@ -12669,8 +12849,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   color: var(--bg-white) !important;
 }
 
-.workspace-view-toggle,
-.drawing-tool-controls,
 .grid-view-filter-toggle,
 .home-view-toggle {
   display: inline-flex;
@@ -12684,8 +12862,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   box-shadow: var(--ap-shadow-md);
 }
 
-.workspace-view-toggle__button,
-.drawing-tool-controls__button,
 .grid-view-filter-toggle__button,
 .home-view-toggle__button {
   min-height: 28px;
@@ -12698,16 +12874,12 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   text-transform: uppercase;
 }
 
-.workspace-view-toggle__button:hover,
-.drawing-tool-controls__button:hover,
 .grid-view-filter-toggle__button:hover,
 .home-view-toggle__button:hover {
   transform: none;
   filter: none;
 }
 
-.workspace-view-toggle__button--active,
-.drawing-tool-controls__button--active,
 .grid-view-filter-toggle__button--active,
 .home-view-toggle__button--active {
   background: var(--bg-white) !important;
@@ -12723,12 +12895,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   opacity: 0.5;
 }
 
-.canvas-start-menu__trigger,
 .zoom-menu__trigger,
-.workspace-view-toggle,
-.workspace-view-toggle__button,
-.drawing-tool-controls,
-.drawing-tool-controls__button,
 .grid-view-filter-toggle,
 .grid-view-filter-toggle__button {
   background: var(--ap-retro-silver) !important;
@@ -12739,8 +12906,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     inset -1px -1px 0 #808080 !important;
 }
 
-.workspace-view-toggle,
-.drawing-tool-controls,
 .grid-view-filter-toggle {
   padding: 2px;
 }

@@ -10,11 +10,15 @@ export const CHECKLIST_CARD_SIZE = Object.freeze({
 
 export const CHECKLIST_DEFAULT_TITLE = "Checklist";
 
+export const CHECKLIST_MAX_INDENT = 1;
+
 export const CHECKLIST_DEFAULT_ITEMS = Object.freeze([
   Object.freeze({
     id: "item-1",
     text: "",
     checked: false,
+    indent: 0,
+    highlighted: false,
   }),
 ]);
 
@@ -24,6 +28,10 @@ export function normalizeChecklistItems(items) {
       .map((item, index) => {
         const text = typeof item?.text === "string" ? item.text : "";
         const checked = item?.checked === true;
+        const indent = Number.isInteger(item?.indent)
+          ? Math.max(0, Math.min(CHECKLIST_MAX_INDENT, item.indent))
+          : 0;
+        const highlighted = item?.highlighted === true;
         const itemId = typeof item?.id === "string" && item.id.trim().length > 0
           ? item.id.trim()
           : `item-${index + 1}`;
@@ -32,6 +40,8 @@ export function normalizeChecklistItems(items) {
           id: itemId,
           text,
           checked,
+          indent,
+          highlighted,
         };
       })
       .filter((item) => item.id.length > 0)

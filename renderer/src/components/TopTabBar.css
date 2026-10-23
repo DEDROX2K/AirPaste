@@ -85,6 +85,7 @@
   display: grid;
   place-items: center;
   -webkit-app-region: no-drag;
+  cursor: pointer;
 }
 
 .titlebar-eye-toast-shell {
@@ -97,6 +98,12 @@
   display: flex;
   justify-content: center;
   z-index: 5;
+  -webkit-app-region: no-drag;
+  transition: opacity 160ms ease;
+}
+
+.titlebar-eye-toast-shell.is-exiting {
+  opacity: 0;
 }
 
 .titlebar-eye-rays {
@@ -158,7 +165,9 @@
   color: #0f1726;
   backdrop-filter: blur(18px) saturate(1.2);
   pointer-events: auto;
-  animation: titlebar-eye-toast-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  animation: titlebar-eye-toast-enter 140ms ease-out;
   z-index: 1;
 }
 
@@ -249,7 +258,7 @@
   position: relative;
   z-index: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -257,41 +266,11 @@
 
 .titlebar-eye-toast--oracle .titlebar-eye-toast__message {
   font-family: var(--ap-font-display);
-  font-weight: 650;
-  font-size: 12.5px;
-  letter-spacing: 0.015em;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.01em;
   color: #6b4a10;
-  text-shadow: 0 0 14px rgba(255, 210, 110, 0.85), 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.titlebar-eye-toast--oracle .titlebar-eye-toast__close {
-  background: rgba(107, 74, 16, 0.12);
-}
-
-.titlebar-eye-toast--oracle .titlebar-eye-toast__close:hover {
-  background: rgba(107, 74, 16, 0.2);
-}
-
-.titlebar-eye-toast__close {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: rgba(15, 23, 38, 0.08);
-  color: currentColor;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.titlebar-eye-toast__close:hover {
-  background: rgba(15, 23, 38, 0.14);
+  text-shadow: 0 0 8px rgba(255, 210, 110, 0.55), 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .titlebar-eye__eye {
@@ -304,8 +283,19 @@
   transform: rotate(45deg);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset, 0 10px 20px rgba(0, 0, 0, 0.06);
   animation: titlebar-eye-blink infinite 17s ease-in-out 1s;
+  transition: border-radius 160ms ease;
   position: relative;
   z-index: 2;
+}
+
+/* Forced shut for a beat right after the eye is clicked -- a deliberate
+   reaction to being poked, not wherever the ambient idle blink happens to be
+   mid-cycle, so the keyframe animation is fully disabled (a paused animation
+   would still own border-radius at its current frame) and the transition
+   above eases into and out of the shut shape instead. */
+.titlebar-eye__eye--closed {
+  animation: none !important;
+  border-radius: 180% 2% !important;
 }
 
 .titlebar-eye-toast-shell.is-speaking ~ .titlebar-eye .titlebar-eye__eye,
@@ -379,12 +369,10 @@
 @keyframes titlebar-eye-toast-enter {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 

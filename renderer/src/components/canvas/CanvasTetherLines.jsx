@@ -13,7 +13,13 @@ function getTileCenter(tile) {
 // world-space coordinates and pan/zoom transform as the tiles), one small
 // SVG per group sized to its own bounding box rather than one giant SVG
 // covering the whole canvas.
-export default function CanvasTetherLines({ tethers, tiles }) {
+//
+// dragVisualDelta/draggingTileIdSet are the same live-drag offset the tiles
+// themselves render with (see TileShell's --tile-drag-x/y) -- without
+// folding that into each member's center here too, the string stays pinned
+// to the tile's pre-drag position and only catches up once the drag
+// commits, which reads as "not really tethered" while dragging.
+export default function CanvasTetherLines({ tethers, tiles, dragVisualDelta, draggingTileIdSet }) {
   const groups = useMemo(() => {
     if (!Array.isArray(tethers) || tethers.length === 0) {
       return [];
@@ -26,7 +32,16 @@ export default function CanvasTetherLines({ tethers, tiles }) {
         const members = tether.tileIds
           .map((tileId) => tileById[tileId])
           .filter(Boolean)
-          .map((tile) => ({ tile, center: getTileCenter(tile) }));
+          .map((tile) => {
+            const center = getTileCenter(tile);
+            const isDragging = dragVisualDelta && draggingTileIdSet?.has?.(tile.id);
+            return {
+              tile,
+              center: isDragging
+                ? { x: center.x + dragVisualDelta.x, y: center.y + dragVisualDelta.y }
+                : center,
+            };
+          });
 
         if (members.length < 2) {
           return null;
@@ -40,7 +55,7 @@ export default function CanvasTetherLines({ tethers, tiles }) {
           { x: 0, y: 0 },
         );
 
-        const PADDING = 24;
+        const PADDING = 32;
         const minX = Math.min(hub.x, ...members.map((member) => member.center.x)) - PADDING;
         const minY = Math.min(hub.y, ...members.map((member) => member.center.y)) - PADDING;
         const maxX = Math.max(hub.x, ...members.map((member) => member.center.x)) + PADDING;
@@ -61,7 +76,7 @@ export default function CanvasTetherLines({ tethers, tiles }) {
         };
       })
       .filter(Boolean);
-  }, [tethers, tiles]);
+  }, [tethers, tiles, dragVisualDelta, draggingTileIdSet]);
 
   if (groups.length === 0) {
     return null;
@@ -78,19 +93,34 @@ export default function CanvasTetherLines({ tethers, tiles }) {
           height={group.height}
           viewBox={`0 0 ${group.width} ${group.height}`}
         >
+          <defs>
+            <radialGradient id={`tether-knot-${group.id}`} cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="rgba(80, 80, 86, 0.95)" />
+              <stop offset="55%" stopColor="rgba(40, 40, 44, 0.9)" />
+              <stop offset="100%" stopColor="rgba(20, 20, 22, 0.85)" />
+            </radialGradient>
+          </defs>
           {group.spokes.map((spoke) => {
             const midX = (spoke.x + group.hub.x) / 2;
             const midY = (spoke.y + group.hub.y) / 2 - 10;
+            const path = `M ${spoke.x} ${spoke.y} Q ${midX} ${midY} ${group.hub.x} ${group.hub.y}`;
             return (
-              <path
-                key={spoke.tileId}
-                className="canvas__tether-string"
-                d={`M ${spoke.x} ${spoke.y} Q ${midX} ${midY} ${group.hub.x} ${group.hub.y}`}
-                fill="none"
-              />
+              <g key={spoke.tileId} className="canvas__tether-spoke">
+                <path className="canvas__tether-string canvas__tether-string--shadow" d={path} fill="none" />
+                <path className="canvas__tether-string" d={path} fill="none" />
+                <path className="canvas__tether-string canvas__tether-string--sheen" d={path} fill="none" />
+                <circle className="canvas__tether-anchor" cx={spoke.x} cy={spoke.y} r="3.2" />
+              </g>
             );
           })}
-          <circle className="canvas__tether-knot" cx={group.hub.x} cy={group.hub.y} r="4" />
+          <circle className="canvas__tether-knot-halo" cx={group.hub.x} cy={group.hub.y} r="10" />
+          <circle
+            className="canvas__tether-knot"
+            cx={group.hub.x}
+            cy={group.hub.y}
+            r="5.5"
+            fill={`url(#tether-knot-${group.id})`}
+          />
         </svg>
       ))}
     </div>

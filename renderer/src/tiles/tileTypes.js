@@ -9,6 +9,7 @@ export const TILE_TYPES = Object.freeze({
   DEADLINE: "deadline",
   CANVAS_TEXT: "canvas-text",
   NOTE: "note",
+  PAPER_NOTE: "paper-note",
   PROGRESS: "progress",
   TABLE: "table",
   TEXT_BOX: "text-box",

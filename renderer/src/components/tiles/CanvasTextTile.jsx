@@ -7,6 +7,7 @@ import { searchKeymap } from "@codemirror/search";
 import { drawSelection, EditorView, keymap } from "@codemirror/view";
 import { useAppContext } from "../../context/useAppContext";
 import {
+  CANVAS_TEXT_FORMAT_MARKDOWN,
   CANVAS_TEXT_MIN_HEIGHT,
   CANVAS_TEXT_MIN_WIDTH,
   CANVAS_TEXT_SOURCE_FILE,
@@ -16,6 +17,7 @@ import {
 } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
+import { getTextBoxFontFamily, normalizeTextBoxStyle } from "../../lib/textBoxStyle";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import TileShell from "./TileShell";
@@ -24,11 +26,11 @@ function clamp(value, minValue, maxValue) {
   return Math.max(minValue, Math.min(maxValue, value));
 }
 
+// Width-only resize -- one handle per side, not four per corner; see the
+// identical note by TEXT_BOX_RESIZE_HANDLES in TextBoxTile.jsx.
 const RESIZE_HANDLE_KEYS = [
-  { key: "top-left", side: "left" },
-  { key: "bottom-left", side: "left" },
-  { key: "top-right", side: "right" },
-  { key: "bottom-right", side: "right" },
+  { key: "left", side: "left" },
+  { key: "right", side: "right" },
 ];
 
 function stopInteractivePointer(event) {
@@ -73,6 +75,15 @@ function buildEditorExtensions({ onDocChange, onExit }) {
         return false;
       },
       pointerdown: (event) => {
+        event.stopPropagation();
+        return false;
+      },
+      // Without this, double-clicking inside the editor to select a word
+      // bubbles up to the tile's own onDoubleClick (wired to "enter edit
+      // mode") and re-fires it mid-edit, which resets the draft back to
+      // whatever was last saved -- silently discarding anything typed but
+      // not yet committed.
+      dblclick: (event) => {
         event.stopPropagation();
         return false;
       },
@@ -121,6 +132,37 @@ function CanvasTextTile({
   const source = card.source === CANVAS_TEXT_SOURCE_FILE ? CANVAS_TEXT_SOURCE_FILE : CANVAS_TEXT_SOURCE_LOCAL;
   const variant = card.variant === CANVAS_TEXT_VARIANT_STICKY ? CANVAS_TEXT_VARIANT_STICKY : "default";
   const isSticky = variant === CANVAS_TEXT_VARIANT_STICKY;
+  const isMarkdown = !isSticky && card.format === CANVAS_TEXT_FORMAT_MARKDOWN;
+  const isPlainText = !isSticky && !isMarkdown;
+  // Keyed off a stable string, not the card.style object reference -- see
+  // the identical note in TextBoxTile.jsx.
+  const styleKey = JSON.stringify(card.style ?? null);
+  const plainTextStyle = useMemo(
+    () => (isPlainText ? normalizeTextBoxStyle(card.style) : null),
+    [isPlainText, styleKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const plainTextCssVars = useMemo(() => {
+    if (!plainTextStyle) {
+      return undefined;
+    }
+
+    const decorations = [
+      plainTextStyle.underline ? "underline" : "",
+      plainTextStyle.strike ? "line-through" : "",
+    ].filter(Boolean).join(" ");
+
+    return {
+      fontFamily: getTextBoxFontFamily(plainTextStyle.preset),
+      fontSize: `${plainTextStyle.fontSize}px`,
+      fontWeight: plainTextStyle.fontWeight,
+      fontStyle: plainTextStyle.italic ? "italic" : "normal",
+      textDecoration: decorations.length > 0 ? decorations : "none",
+      textAlign: plainTextStyle.align,
+      color: plainTextStyle.color,
+      lineHeight: plainTextStyle.lineHeight,
+      letterSpacing: `${plainTextStyle.letterSpacing}px`,
+    };
+  }, [plainTextStyle]);
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const isEditing = textBoxEditorState?.tileId === card.id;
   const [draftText, setDraftText] = useState(card.text ?? "");
@@ -275,7 +317,7 @@ function CanvasTextTile({
     }
 
     refreshCardHeight();
-  }, [card.text, card.width, isEditing, markdownPreview, refreshCardHeight, title]);
+  }, [card.text, card.width, isEditing, markdownPreview, plainTextCssVars, refreshCardHeight, title]);
 
   const exitEditMode = useCallback(async ({ restoreCanvasFocus = false } = {}) => {
     if (actionInFlightRef.current) {
@@ -459,6 +501,8 @@ function CanvasTextTile({
     "card__surface-frame",
     "card__surface-frame--interactive",
     "card__surface-frame--canvas-text",
+    isPlainText ? "card__surface-frame--canvas-text-plain" : "",
+    isMarkdown ? "card__surface-frame--canvas-text-markdown" : "",
     tileMeta?.isSelected ? "card__surface-frame--selected" : "",
     tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
     isEditing ? "card__surface-frame--editing" : "",
@@ -480,8 +524,8 @@ function CanvasTextTile({
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
           <section
-            className={`card__surface card__surface--canvas-text${isSticky ? " card__surface--canvas-text-sticky" : ""}`}
-            aria-label={isSticky ? "Sticky note" : "Canvas text card"}
+            className={`card__surface card__surface--canvas-text${isSticky ? " card__surface--canvas-text-sticky" : ""}${isPlainText ? " card__surface--canvas-text-plain" : ""}${isMarkdown ? " card__surface--canvas-text-markdown" : ""}`}
+            aria-label={isSticky ? "Sticky note" : isMarkdown ? "Markdown note" : "Text"}
           >
             <header className="card__canvas-text-header" data-canvas-text-action-root="true">
               {isCompactSticky ? (
@@ -495,7 +539,7 @@ function CanvasTextTile({
 
             <div className="card__canvas-text-body-shell" onPointerDown={stopInteractivePointer}>
               {isEditing ? (
-                <div ref={editorHostRef} className="card__canvas-text-editor" />
+                <div ref={editorHostRef} className="card__canvas-text-editor" style={plainTextCssVars} />
               ) : sourceStatus.status === "error" ? (
                 <div className="card__canvas-text-error">
                   <p>{sourceStatus.error}</p>
@@ -534,11 +578,14 @@ function CanvasTextTile({
                   )}
                 </div>
               ) : (
-                <div className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}>
+                <div
+                  className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}
+                  style={plainTextCssVars}
+                >
                   {hasBodyContent ? (
                     markdownPreview
                   ) : (
-                    <p className="card__canvas-text-empty">TYPE HERE...</p>
+                    <p className="card__canvas-text-empty">{isPlainText ? "Type something" : "TYPE HERE..."}</p>
                   )}
                 </div>
               )}
@@ -570,8 +617,11 @@ function CanvasTextTile({
                     )}
                   </div>
                 ) : (
-                  <div className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}>
-                    {hasBodyContent ? markdownPreview : <p>TYPE HERE...</p>}
+                  <div
+                    className={`card__canvas-text-preview${isSticky ? " card__canvas-text-preview--sticky" : ""}`}
+                    style={plainTextCssVars}
+                  >
+                    {hasBodyContent ? markdownPreview : <p>{isPlainText ? "Type something" : "TYPE HERE..."}</p>}
                   </div>
                 )}
               </div>

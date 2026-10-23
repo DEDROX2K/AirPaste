@@ -111,10 +111,17 @@ import {
   normalizeCanvasTextPayload,
   normalizeLanguageHints,
 } from "../tiles/canvasText/model";
+import {
+  PAPER_NOTE_CARD_SIZE,
+  normalizePaperNoteSubtitle,
+  normalizePaperNoteText,
+  normalizePaperNoteTitle,
+} from "../tiles/paperNote/model";
 // Re-exported so existing `import { createXCard } from "../lib/workspace"`
 // call sites (AppProvider.jsx, useCanvasCommands.js, testingTiles.js) don't
 // need to change -- the implementations live in tiles/<type>/model.js now.
 export { createCounterCard } from "../tiles/counter/model";
+export { createPaperNoteCard } from "../tiles/paperNote/model";
 export { createProgressCard } from "../tiles/progress/model";
 export { createDeadlineCard } from "../tiles/deadline/model";
 export { createChecklistCard } from "../tiles/checklist/model";
@@ -139,6 +146,7 @@ export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
 export const PROGRESS_CARD_TYPE = TILE_TYPES.PROGRESS;
 export const TABLE_CARD_TYPE = TILE_TYPES.TABLE;
 export const TEXT_BOX_CARD_TYPE = TILE_TYPES.TEXT_BOX;
+export const PAPER_NOTE_CARD_TYPE = TILE_TYPES.PAPER_NOTE;
 export const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 export const LINK_CONTENT_KIND_IMAGE = "image";
 // Single source of truth shared with the main process (workspace-service.js)
@@ -250,6 +258,10 @@ function getCardType(card) {
     return RACK_CARD_TYPE;
   }
 
+  if (card?.type === PAPER_NOTE_CARD_TYPE) {
+    return PAPER_NOTE_CARD_TYPE;
+  }
+
   return null;
 }
 
@@ -330,6 +342,10 @@ function getCardSize(type) {
 
   if (type === RACK_CARD_TYPE) {
     return RACK_CARD_SIZE;
+  }
+
+  if (type === PAPER_NOTE_CARD_TYPE) {
+    return PAPER_NOTE_CARD_SIZE;
   }
 
   return RACK_CARD_SIZE;
@@ -912,6 +928,9 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
   const canvasText = type === CANVAS_TEXT_CARD_TYPE ? normalizeCanvasTextPayload(card) : null;
+  const paperNoteTitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteTitle(card?.title) : "";
+  const paperNoteSubtitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteSubtitle(card?.subtitle) : "";
+  const paperNoteText = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteText(card?.text) : "";
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
@@ -944,7 +963,11 @@ export function normalizeCard(card, fallbackIndex = 0) {
       : type === CALENDAR_CARD_TYPE
         ? firstString(card?.title, CALENDAR_DEFAULT_TITLE)
       : type === CHECKLIST_CARD_TYPE
-        ? firstString(card?.title, CHECKLIST_DEFAULT_TITLE)
+        // Not firstString(): that trims on every keystroke, which clobbers
+        // a trailing space the instant you type it (the very next render
+        // feeds the trimmed value back into the controlled input), making
+        // it look like the title field can't contain spaces at all.
+        ? (typeof card?.title === "string" ? card.title : CHECKLIST_DEFAULT_TITLE)
         : type === CODE_CARD_TYPE
           ? firstString(card?.title, CODE_DEFAULT_TITLE)
         : type === COUNTER_CARD_TYPE
@@ -959,6 +982,8 @@ export function normalizeCard(card, fallbackIndex = 0) {
             ? firstString(card?.title, TABLE_DEFAULT_TITLE)
             : type === RACK_CARD_TYPE
               ? firstString(card?.title, RACK_DEFAULT_TITLE)
+            : type === PAPER_NOTE_CARD_TYPE
+              ? paperNoteTitle
         : "",
     description: isLinkLikeCard
       ? String(card?.description ?? "")
@@ -966,7 +991,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
         ? firstString(card?.description, RACK_DEFAULT_DESCRIPTION)
         : "",
     body: "",
-    text: type === CANVAS_TEXT_CARD_TYPE ? canvasText.text : "",
+    subtitle: type === PAPER_NOTE_CARD_TYPE ? paperNoteSubtitle : "",
+    text: type === CANVAS_TEXT_CARD_TYPE
+      ? canvasText.text
+      : type === PAPER_NOTE_CARD_TYPE
+        ? paperNoteText
+        : "",
     style: type === CANVAS_TEXT_CARD_TYPE ? canvasText.style : null,
     placeholder: type === CANVAS_TEXT_CARD_TYPE ? canvasText.placeholder : false,
     appearance: type === CANVAS_TEXT_CARD_TYPE && canvasText.variant === CANVAS_TEXT_VARIANT_STICKY ? "sticky" : "plain",

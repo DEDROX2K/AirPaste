@@ -245,7 +245,7 @@ export function useCanvasCommands({
   createNewDeadlineCard,
   createNewLinkCard,
   createNewCanvasTextCard,
-  createNewNoteCard,
+  createNewPaperNoteCard,
   createNewTextBoxCard,
   createNewProgressCard,
   createNewRackCard,
@@ -554,7 +554,7 @@ export function useCanvasCommands({
 
   const createTextCard = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
-      log("warn", "New text card blocked because no folder is open");
+      log("warn", "New quick text blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
@@ -566,8 +566,8 @@ export function useCanvasCommands({
       height: options?.height,
     });
 
-    log("success", "New plain text object created on the canvas", centerPoint);
-    toast("success", "Text dropped into place.");
+    log("success", "New quick text created on the canvas", centerPoint);
+    toast("success", "Quick text dropped into place.");
     maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
     return note;
   }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
@@ -641,21 +641,21 @@ export function useCanvasCommands({
     return sticky;
   }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
 
-  const createMarkdownNote = useCallback((preferredCenter = null, options = {}) => {
+  const createPaperNote = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
-      log("warn", "New markdown note blocked because no folder is open");
+      log("warn", "New paper note blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const note = createNewNoteCard(centerPoint, options);
+    const note = createNewPaperNoteCard(centerPoint, options);
 
-    log("success", "New markdown note created on the canvas", centerPoint);
-    toast("success", "Markdown note dropped into place.");
+    log("success", "New paper note created on the canvas", centerPoint);
+    toast("success", "Paper note dropped into place.");
     maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
     return note;
-  }, [createNewNoteCard, folderPath, getViewportCenter, log, toast]);
+  }, [createNewPaperNoteCard, folderPath, getViewportCenter, log, toast]);
 
   const resolveMarkdownSelection = useCallback(async (selectedPath) => {
     const existingItem = await desktop.workspace.getItemForFilePath(folderPath, selectedPath).catch(() => null);
@@ -1565,7 +1565,7 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
-    createMarkdownNote,
+    createPaperNote,
     addNoteFromVault,
     convertTextCardToFile,
     openTextCardSource,
@@ -1613,7 +1613,7 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
-    createMarkdownNote,
+    createPaperNote,
     addNoteFromVault,
     convertTextCardToFile,
     openTextCardSource,
