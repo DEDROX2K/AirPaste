@@ -266,6 +266,44 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(normalizedTileIds.length === 1 ? normalizedTileIds[0] : null);
   }, []);
 
+  const nudgeSelection = useCallback((delta) => {
+    if (!delta || (delta.x === 0 && delta.y === 0)) {
+      return false;
+    }
+
+    if (selectedGroupIds.length > 0) {
+      commands.moveGroups(selectedGroupIds, delta);
+      return true;
+    }
+
+    if (selectedTileIds.length === 0) {
+      return false;
+    }
+
+    const origins = {};
+
+    selectedTileIds.forEach((tileId) => {
+      const entry = getRenderableTileEntryById(cardsRef.current, tileId, tileByIdRef.current);
+
+      if (entry && entry.containerType === "canvas") {
+        origins[tileId] = {
+          containerType: entry.containerType,
+          x: entry.x,
+          y: entry.y,
+        };
+      }
+    });
+
+    const movableTileIds = Object.keys(origins);
+
+    if (movableTileIds.length === 0) {
+      return false;
+    }
+
+    commands.moveTiles(movableTileIds, origins, delta);
+    return true;
+  }, [commands, selectedGroupIds, selectedTileIds]);
+
   const handleTilePressStart = useCallback((tile, event) => {
     closeContextMenu();
 
@@ -1125,6 +1163,7 @@ export function useCanvasInteractionSystem({
     handleTileFocusOut,
     handleTileHoverChange,
     handleTilePressStart,
+    nudgeSelection,
     replaceSelection,
     resetTransientState,
     selectGroup,
@@ -1152,6 +1191,7 @@ export function useCanvasInteractionSystem({
     hoveredTileId,
     marqueeBox,
     marqueeStyleVars,
+    nudgeSelection,
     replaceSelection,
     resetTransientState,
     selectGroup,

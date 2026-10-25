@@ -84,6 +84,15 @@ const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   || (typeof window !== "undefined" && window.__AIRPASTE_PREVIEW_DEBUG === true)
 );
 
+const ARROW_NUDGE_STEP_SMALL = 1;
+const ARROW_NUDGE_STEP_LARGE = 10;
+const ARROW_NUDGE_DIRECTIONS = {
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+};
+
 function assetUrl(relativePath) {
   return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
 }
@@ -2171,6 +2180,33 @@ export default function CanvasWorkspaceView() {
     canvas.zoomToBounds(layout.selectedTilesBounds);
   }, [canvas, layout.selectedTilesBounds]);
 
+  // Keyboard nudging needs the same "no eased transform transition"
+  // treatment pointer-dragging gets (via .card--dragging) -- otherwise the
+  // card's normal 260ms settle animation eases a 1px/10px nudge into an
+  // imperceptible crawl. Held for a beat after the last nudge so holding an
+  // arrow key down (which repeats every nudge) doesn't flicker the class.
+  const [isNudging, setIsNudging] = useState(false);
+  const nudgeSettleTimeoutRef = useRef(0);
+
+  const markNudgeActive = useCallback(() => {
+    setIsNudging(true);
+
+    if (nudgeSettleTimeoutRef.current) {
+      window.clearTimeout(nudgeSettleTimeoutRef.current);
+    }
+
+    nudgeSettleTimeoutRef.current = window.setTimeout(() => {
+      nudgeSettleTimeoutRef.current = 0;
+      setIsNudging(false);
+    }, 400);
+  }, []);
+
+  useEffect(() => () => {
+    if (nudgeSettleTimeoutRef.current) {
+      window.clearTimeout(nudgeSettleTimeoutRef.current);
+    }
+  }, []);
+
   const updateWorkspaceMode = useCallback((mode) => {
     if (mode !== "grid" && workspaceView.mode === "grid") {
       setCanvasEntrySequence((sequence) => sequence + 1);
@@ -2350,6 +2386,29 @@ export default function CanvasWorkspaceView() {
         }
       }
 
+      const arrowNudgeDirection = ARROW_NUDGE_DIRECTIONS[event.key];
+
+      if (
+        arrowNudgeDirection
+        && !event.ctrlKey
+        && !event.metaKey
+        && !event.altKey
+        && !isCanvasMoving
+        && !interactions.contextMenu
+      ) {
+        const nudgeStep = event.shiftKey ? ARROW_NUDGE_STEP_LARGE : ARROW_NUDGE_STEP_SMALL;
+        const nudged = interactions.nudgeSelection({
+          x: arrowNudgeDirection.x * nudgeStep,
+          y: arrowNudgeDirection.y * nudgeStep,
+        });
+
+        if (nudged) {
+          markNudgeActive();
+          event.preventDefault();
+          return;
+        }
+      }
+
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
         canvas.zoomIn();
@@ -2403,6 +2462,7 @@ export default function CanvasWorkspaceView() {
     isLineToolActive,
     isTextToolActive,
     layout,
+    markNudgeActive,
     setCanvasToolMode,
     isCanvasMoving,
     pasteCanvasSelection,
@@ -2916,7 +2976,7 @@ export default function CanvasWorkspaceView() {
         ref={canvas.containerRef}
         id="canvas-board"
         data-airpaste-canvas-capture-root
-        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}`}
+        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isNudging ? " canvas--instant-move" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}

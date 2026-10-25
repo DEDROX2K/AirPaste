@@ -18,6 +18,16 @@ import {
 
 const ZOOM_INTERPOLATION_RATE = 28;
 const ZOOM_SETTLE_DELAY_MS = 70;
+// A real trackpad pinch (or Ctrl+trackpad-scroll, the common substitute on
+// laptops without pinch support) reports much smaller per-event deltas than
+// a two-finger pan does, so the previous sensitivity -- tuned for pan-sized
+// deltas -- made pinch-zoom barely perceptible. Boosting it alone would
+// overshoot on a physical mouse wheel's much larger per-notch delta, so the
+// delta is also capped before being applied: small (pinch) deltas now land
+// a clearly visible zoom step, while a single big notch is bounded to one
+// reasonable step instead of jumping wildly.
+const ZOOM_WHEEL_SENSITIVITY = 0.012;
+const ZOOM_WHEEL_MAX_DELTA = 40;
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const [containerElement, setContainerElement] = useState(null);
@@ -426,7 +436,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
           event.deltaMode,
           rect?.height ?? 800,
         );
-        const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-normalizedDelta * 0.0015));
+        const cappedDelta = Math.max(-ZOOM_WHEEL_MAX_DELTA, Math.min(ZOOM_WHEEL_MAX_DELTA, normalizedDelta));
+        const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-cappedDelta * ZOOM_WHEEL_SENSITIVITY));
         const nextViewport = getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom);
 
         targetViewportRef.current = nextViewport;
