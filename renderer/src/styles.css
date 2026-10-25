@@ -3601,6 +3601,15 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   transition: filter 180ms ease;
 }
 
+/* A keyboard nudge is an instant, exact position change (1px / 10px) --
+   without this, the card's normal 260ms eased transform transition
+   animates that tiny move over a quarter second, which looks like the
+   tile is barely creeping instead of snapping, same as suppressing the
+   transition while pointer-dragging above. */
+.canvas--instant-move .card {
+  transition: filter 180ms ease;
+}
+
 .card--simplified {
   filter: none !important;
 }

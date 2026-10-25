@@ -3,6 +3,7 @@ import { useTabs } from "../context/useTabs";
 import { useAppContext } from "../context/useAppContext";
 import { useToast } from "../hooks/useToast";
 import { desktop } from "../lib/desktop";
+import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
 import { Home } from "lucide-react";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
@@ -403,6 +404,7 @@ function TabItem({
   onCloseOtherTabs,
   onCloseTabsToRight,
   onReopenClosedTab,
+  onShowHistory,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -468,6 +470,11 @@ function TabItem({
       </AppContextMenuTrigger>
 
       <AppContextMenuContent className="titlebar-tab-menu">
+        {tab.type === "canvas" ? (
+          <AppContextMenuItem onSelect={onShowHistory}>
+            Version History
+          </AppContextMenuItem>
+        ) : null}
         <AppContextMenuItem disabled={!tab.closable} onSelect={onClose}>
           Close Tab
         </AppContextMenuItem>
@@ -501,6 +508,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const tabRefs = useRef(new Map());
   const previousRectsRef = useRef(new Map());
   const [draggedTabId, setDraggedTabId] = useState(null);
+  const [historyDialogTab, setHistoryDialogTab] = useState(null);
 
   const orderedTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
 
@@ -615,6 +623,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
                 onCloseOtherTabs={() => closeOtherTabs(tab.id)}
                 onCloseTabsToRight={() => closeTabsToRight(tab.id)}
                 onReopenClosedTab={reopenClosedTab}
+                onShowHistory={() => setHistoryDialogTab(tab)}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
@@ -632,6 +641,13 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         <div id="titlebar-right-slot" />
         {!isMac && <div style={{ width: 138, flexShrink: 0 }} />}
       </div>
+
+      <CanvasHistoryDialog
+        open={Boolean(historyDialogTab)}
+        canvasPath={historyDialogTab?.entityId ?? null}
+        canvasTitle={historyDialogTab?.title ?? ""}
+        onClose={() => setHistoryDialogTab(null)}
+      />
     </div>
   );
 }

@@ -1,26 +1,39 @@
 const airpasteBridge = window.airpaste ?? {};
 const electronBridge = window.electronAPI ?? {};
 
-// Mirrors main/ipc/workspace.js's SYNC_PENDING_MESSAGE_PREFIX -- a
-// DOME_SYNC_PENDING error's extra fields don't survive the IPC boundary, so
-// the main process folds them into the error message behind this prefix.
+// Mirrors main/ipc/workspace.js's *_MESSAGE_PREFIX constants -- a structured
+// error's extra fields don't survive the IPC boundary, so the main process
+// folds them into the error message behind one of these prefixes.
 const SYNC_PENDING_MESSAGE_PREFIX = "DOME_SYNC_PENDING:";
+const CANVAS_CONFLICT_MESSAGE_PREFIX = "CANVAS_CONFLICT:";
+
+function parsePrefixedErrorPayload(error, prefix) {
+  const message = String(error?.message ?? "");
+  const markerIndex = message.indexOf(prefix);
+  if (markerIndex === -1) {
+    return null;
+  }
+  const jsonText = message.slice(markerIndex + prefix.length).split("\n")[0];
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    return {};
+  }
+}
 
 // Returns { pending: string[] } if `error` came from a loadWorkspace call
 // that found the Dome's files still mid-sync, or null for any other error.
 export function parseDomeSyncPendingError(error) {
-  const message = String(error?.message ?? "");
-  const markerIndex = message.indexOf(SYNC_PENDING_MESSAGE_PREFIX);
-  if (markerIndex === -1) {
-    return null;
-  }
-  const jsonText = message.slice(markerIndex + SYNC_PENDING_MESSAGE_PREFIX.length).split("\n")[0];
-  try {
-    const parsed = JSON.parse(jsonText);
-    return { pending: Array.isArray(parsed?.pending) ? parsed.pending : [] };
-  } catch {
-    return { pending: [] };
-  }
+  const parsed = parsePrefixedErrorPayload(error, SYNC_PENDING_MESSAGE_PREFIX);
+  return parsed ? { pending: Array.isArray(parsed.pending) ? parsed.pending : [] } : null;
+}
+
+// Returns { updatedAt } if `error` came from a saveCanvas call that found the
+// file changed on disk since the caller last synced with it, or null
+// otherwise.
+export function parseCanvasConflictError(error) {
+  const parsed = parsePrefixedErrorPayload(error, CANVAS_CONFLICT_MESSAGE_PREFIX);
+  return parsed ? { updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null } : null;
 }
 
 async function invokeWithFallback(invoke, fallbackValue) {
@@ -81,6 +94,9 @@ export const desktop = {
     loadCanvas: (...args) => airpasteBridge.loadCanvas?.(...args) ?? Promise.resolve(null),
     saveCanvas: (filePath, data, options = null) =>
       airpasteBridge.saveCanvas?.(filePath, data, options) ?? Promise.resolve(null),
+    listCanvasHistory: (...args) => airpasteBridge.listCanvasHistory?.(...args) ?? Promise.resolve([]),
+    restoreCanvasHistoryEntry: (...args) =>
+      airpasteBridge.restoreCanvasHistoryEntry?.(...args) ?? Promise.resolve(null),
     renameFile: (...args) => airpasteBridge.renameFile?.(...args) ?? Promise.resolve(null),
     renameEntry: (...args) => airpasteBridge.renameEntry?.(...args) ?? Promise.resolve(null),
     deleteFile: (...args) => airpasteBridge.deleteFile?.(...args) ?? Promise.resolve({ deleted: false }),

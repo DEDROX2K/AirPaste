@@ -1,10 +1,4 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { EditorState } from "@codemirror/state";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
-import { searchKeymap } from "@codemirror/search";
-import { drawSelection, EditorView, keymap } from "@codemirror/view";
 import { useAppContext } from "../../context/useAppContext";
 import {
   CANVAS_TEXT_FORMAT_MARKDOWN,
@@ -15,6 +9,7 @@ import {
   CANVAS_TEXT_VARIANT_STICKY,
   deriveCanvasTextDisplayModel,
 } from "../../lib/canvasText";
+import { buildCanvasTextEditorExtensions, loadCanvasTextEditorModules } from "../../lib/canvasTextEditor";
 import { desktop } from "../../lib/desktop";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
 import { getTextBoxFontFamily, normalizeTextBoxStyle } from "../../lib/textBoxStyle";
@@ -53,61 +48,6 @@ function buildStickyPreviewSections(lines) {
     detailFooterLines: normalizedLines.slice(4, 6),
     compactLines: normalizedLines.slice(0, 3),
   };
-}
-
-function buildEditorExtensions({ onDocChange, onExit }) {
-  return [
-    history(),
-    drawSelection(),
-    closeBrackets(),
-    markdown(),
-    EditorView.lineWrapping,
-    EditorView.contentAttributes.of({
-      spellcheck: "true",
-      autocapitalize: "off",
-      autocomplete: "off",
-      autocorrect: "off",
-      "data-canvas-text-editor": "true",
-    }),
-    EditorView.domEventHandlers({
-      keydown: (event) => {
-        event.stopPropagation();
-        return false;
-      },
-      pointerdown: (event) => {
-        event.stopPropagation();
-        return false;
-      },
-      // Without this, double-clicking inside the editor to select a word
-      // bubbles up to the tile's own onDoubleClick (wired to "enter edit
-      // mode") and re-fires it mid-edit, which resets the draft back to
-      // whatever was last saved -- silently discarding anything typed but
-      // not yet committed.
-      dblclick: (event) => {
-        event.stopPropagation();
-        return false;
-      },
-    }),
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        onDocChange(update.state.doc.toString(), update.view.contentHeight);
-      }
-    }),
-    keymap.of([
-      {
-        key: "Escape",
-        run: () => {
-          onExit();
-          return true;
-        },
-      },
-      indentWithTab,
-      ...closeBracketsKeymap,
-      ...defaultKeymap,
-      ...historyKeymap,
-      ...searchKeymap,
-    ]),
-  ];
 }
 
 function CanvasTextTile({
@@ -362,66 +302,87 @@ function CanvasTextTile({
       : (card.text ?? "");
     setDraftText(initialText);
 
-    const view = new EditorView({
-      state: EditorState.create({
-        doc: initialText,
-        extensions: buildEditorExtensions({
-          onDocChange: (nextText, contentHeight) => {
-            setDraftText(nextText);
-            window.requestAnimationFrame(() => {
-              refreshCardHeight(contentHeight);
-            });
-          },
-          onExit: () => {
-            void exitEditMode({ restoreCanvasFocus: true });
-          },
-        }),
-      }),
-      parent: editorHostRef.current,
-    });
+    // CodeMirror is loaded on demand here (see canvasTextEditor.js) rather
+    // than imported statically, so a canvas with no text tile being edited
+    // never pays to parse it. `cancelled` guards against the host unmounting
+    // or edit mode ending before the (normally near-instant, since it's a
+    // local file in Electron) load resolves.
+    let cancelled = false;
+    let view = null;
+    let focusTimer = 0;
+    let handleFocusOut = null;
 
-    const focusTimer = window.requestAnimationFrame(() => {
-      view.focus();
-      const selectionRange = textBoxEditorState?.selectAll === true
-        ? { anchor: 0, head: view.state.doc.length }
-        : typeof textBoxEditorState?.replacementText === "string"
-          ? { anchor: view.state.doc.length, head: view.state.doc.length }
-          : Number.isInteger(lastEditorSelectionRef.current.anchor) && Number.isInteger(lastEditorSelectionRef.current.head)
-            ? {
-              anchor: clamp(lastEditorSelectionRef.current.anchor, 0, view.state.doc.length),
-              head: clamp(lastEditorSelectionRef.current.head, 0, view.state.doc.length),
-            }
-            : { anchor: 0, head: 0 };
-      view.dispatch({ selection: selectionRange });
-      view.scrollDOM.scrollTop = Number.isFinite(lastEditorSelectionRef.current.scrollTop)
-        ? lastEditorSelectionRef.current.scrollTop
-        : 0;
-      refreshCardHeight(view.contentHeight);
-    });
-
-    const handleFocusOut = (event) => {
-      const selection = view.state.selection.main;
-      lastEditorSelectionRef.current = {
-        anchor: selection.anchor,
-        head: selection.head,
-        scrollTop: view.scrollDOM.scrollTop,
-      };
-
-      const nextFocusTarget = event.relatedTarget;
-      if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-canvas-text-action-root='true']")) {
+    loadCanvasTextEditorModules().then((cm) => {
+      if (cancelled || !editorHostRef.current) {
         return;
       }
 
-      void exitEditMode();
-    };
+      view = new cm.EditorView({
+        state: cm.EditorState.create({
+          doc: initialText,
+          extensions: buildCanvasTextEditorExtensions(cm, {
+            onDocChange: (nextText, contentHeight) => {
+              setDraftText(nextText);
+              window.requestAnimationFrame(() => {
+                refreshCardHeight(contentHeight);
+              });
+            },
+            onExit: () => {
+              void exitEditMode({ restoreCanvasFocus: true });
+            },
+          }),
+        }),
+        parent: editorHostRef.current,
+      });
 
-    view.dom.addEventListener("focusout", handleFocusOut);
-    editorViewRef.current = view;
+      focusTimer = window.requestAnimationFrame(() => {
+        view.focus();
+        const selectionRange = textBoxEditorState?.selectAll === true
+          ? { anchor: 0, head: view.state.doc.length }
+          : typeof textBoxEditorState?.replacementText === "string"
+            ? { anchor: view.state.doc.length, head: view.state.doc.length }
+            : Number.isInteger(lastEditorSelectionRef.current.anchor) && Number.isInteger(lastEditorSelectionRef.current.head)
+              ? {
+                anchor: clamp(lastEditorSelectionRef.current.anchor, 0, view.state.doc.length),
+                head: clamp(lastEditorSelectionRef.current.head, 0, view.state.doc.length),
+              }
+              : { anchor: 0, head: 0 };
+        view.dispatch({ selection: selectionRange });
+        view.scrollDOM.scrollTop = Number.isFinite(lastEditorSelectionRef.current.scrollTop)
+          ? lastEditorSelectionRef.current.scrollTop
+          : 0;
+        refreshCardHeight(view.contentHeight);
+      });
+
+      handleFocusOut = (event) => {
+        const selection = view.state.selection.main;
+        lastEditorSelectionRef.current = {
+          anchor: selection.anchor,
+          head: selection.head,
+          scrollTop: view.scrollDOM.scrollTop,
+        };
+
+        const nextFocusTarget = event.relatedTarget;
+        if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-canvas-text-action-root='true']")) {
+          return;
+        }
+
+        void exitEditMode();
+      };
+
+      view.dom.addEventListener("focusout", handleFocusOut);
+      editorViewRef.current = view;
+    });
 
     return () => {
+      cancelled = true;
       window.cancelAnimationFrame(focusTimer);
-      view.dom.removeEventListener("focusout", handleFocusOut);
-      view.destroy();
+      if (view) {
+        if (handleFocusOut) {
+          view.dom.removeEventListener("focusout", handleFocusOut);
+        }
+        view.destroy();
+      }
       editorViewRef.current = null;
     };
   }, [card.text, exitEditMode, isEditing, refreshCardHeight, textBoxEditorState?.replacementText, textBoxEditorState?.selectAll]);

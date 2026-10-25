@@ -29,7 +29,7 @@ import {
   updateCards,
 } from "../lib/workspace";
 import { clearCanvasPathKeyedRefs, migrateCanvasPathKeyedRefs } from "../lib/canvasPathKeyedRefs";
-import { desktop, parseDomeSyncPendingError } from "../lib/desktop";
+import { desktop, parseCanvasConflictError, parseDomeSyncPendingError } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
 import {
   createTestingTilesWorkspace,
@@ -412,6 +412,11 @@ export function AppProvider({ children }) {
   const [workspacesByPath, setWorkspacesByPath] = useState({});
   const [canvasClipboard, setCanvasClipboardState] = useState(null);
   const [canvasInteractionVersion, setCanvasInteractionVersion] = useState(0);
+  // Canvases saveCanvas refused to overwrite because the file changed on
+  // disk since this session last synced with it (another PC's edit arriving
+  // via cloud sync, most often). Keyed by canvas path -> { theirUpdatedAt,
+  // detectedAt }; see flushCanvasSave and resolveCanvasConflict*.
+  const [canvasConflicts, setCanvasConflicts] = useState({});
 
   const saveTimeoutRef = useRef(null);
   const skipCanvasSaveRef = useRef({});
@@ -424,6 +429,17 @@ export function AppProvider({ children }) {
   const workspacesRef = useRef(workspacesByPath);
   const activeCanvasPathRef = useRef(null);
   const canvasClipboardRef = useRef(null);
+  // The on-disk updatedAt this session last synced its in-memory copy of a
+  // canvas with -- from loadCanvas, or from that canvas's own previous
+  // successful save. Compared against the real file on every save to detect
+  // a conflict; see flushCanvasSave.
+  const canvasDiskUpdatedAtRef = useRef({});
+  // One-shot per-path flag: the next save for this path should snapshot
+  // whatever's currently on disk into history even if the normal throttle
+  // would otherwise skip it. Set by resolveCanvasConflictKeepMine, since an
+  // explicit conflict override is the highest-risk overwrite there is.
+  const forceHistorySnapshotRef = useRef({});
+  const canvasConflictsRef = useRef(canvasConflicts);
 
   // Stable handle on every canvas-path-keyed save-tracking ref, for
   // migrateCanvasPathKeyedRefs/clearCanvasPathKeyedRefs to walk when a path
@@ -437,12 +453,27 @@ export function AppProvider({ children }) {
     lastObservedCanvasWorkspaceRef,
     skipCanvasSaveRef,
     canvasInteractionStateRef,
+    canvasDiskUpdatedAtRef,
+    forceHistorySnapshotRef,
   ], []);
 
   useEffect(() => {
     workspacesRef.current = workspacesByPath;
     activeCanvasPathRef.current = activeTab?.type === "canvas" ? activeTab.entityId : null;
   }, [activeTab, workspacesByPath]);
+
+  useEffect(() => {
+    canvasConflictsRef.current = canvasConflicts;
+  }, [canvasConflicts]);
+
+  const clearCanvasConflict = useCallback((canvasPath) => {
+    setCanvasConflicts((prev) => {
+      if (!(canvasPath in prev)) return prev;
+      const next = { ...prev };
+      delete next[canvasPath];
+      return next;
+    });
+  }, []);
 
   // Performs an immediate (non-debounced) save for one canvas if it has a
   // pending dirty save, regardless of whether it's the currently active tab.
@@ -454,6 +485,14 @@ export function AppProvider({ children }) {
   // path and runnable on demand instead of waiting for CANVAS_SAVE_DELAY_MS.
   const flushCanvasSave = useCallback(async (canvasPath) => {
     if (!canvasPath || !pendingCanvasSaveRef.current[canvasPath]) {
+      return;
+    }
+
+    // Already known to conflict with a newer on-disk version -- don't retry
+    // the same save again (it would just fail the same way every autosave
+    // tick) until the user resolves it via the conflict dialog. The edits
+    // stay marked pending/dirty in memory, never discarded.
+    if (canvasConflictsRef.current[canvasPath]) {
       return;
     }
 
@@ -489,12 +528,23 @@ export function AppProvider({ children }) {
     const serializeMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - serializeStart;
     const saveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
 
+    const expectedUpdatedAt = canvasDiskUpdatedAtRef.current[canvasPath];
+    const forceHistorySnapshot = Boolean(forceHistorySnapshotRef.current[canvasPath]);
+    delete forceHistorySnapshotRef.current[canvasPath];
+
     try {
-      await desktop.workspace.saveCanvas(canvasPath, savePayload, {
+      const saveResult = await desktop.workspace.saveCanvas(canvasPath, savePayload, {
         partial: true,
         returnWorkspace: false,
         changedKeys,
+        expectedUpdatedAt,
+        forceHistorySnapshot,
       });
+
+      if (saveResult?.updatedAt) {
+        canvasDiskUpdatedAtRef.current[canvasPath] = saveResult.updatedAt;
+      }
+      clearCanvasConflict(canvasPath);
 
       const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
       const latestCanvas = workspacesRef.current[canvasPath];
@@ -525,18 +575,36 @@ export function AppProvider({ children }) {
       });
     } catch (saveError) {
       const saveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
+      // Never discard the local edit on a failed save, conflict or
+      // otherwise -- it stays marked dirty/pending so nothing is lost; the
+      // conflict dialog (or the next autosave retry, for a transient error)
+      // is what moves it forward from here.
       pendingCanvasSaveRef.current[canvasPath] = true;
+      const conflict = parseCanvasConflictError(saveError);
+
       recordSaveSample({
         path: canvasPath,
         serializeMs,
         saveMs: saveEnd - saveStart,
         totalMs: saveEnd - totalStart,
         payloadBytes: serializedPayload.length,
-        status: "error",
+        status: conflict ? "conflict" : "error",
       });
-      setError(saveError.message || "Unable to save the current canvas.");
+
+      if (conflict) {
+        setCanvasConflicts((prev) => ({
+          ...prev,
+          [canvasPath]: { theirUpdatedAt: conflict.updatedAt, detectedAt: Date.now() },
+        }));
+        if (canvasPath !== activeCanvasPathRef.current) {
+          const title = workspacesRef.current[canvasPath]?.present?.name || "A canvas";
+          toast("warning", `"${title}" changed elsewhere and needs your attention before it can save.`);
+        }
+      } else {
+        setError(saveError.message || "Unable to save the current canvas.");
+      }
     }
-  }, [setError]);
+  }, [clearCanvasConflict, setError, toast]);
 
   // Flushes every canvas with an unsaved pending change, not just the active
   // one -- used right before anything abandons in-memory workspace state
@@ -553,6 +621,43 @@ export function AppProvider({ children }) {
     clearTimeout(saveTimeoutRef.current);
     await Promise.all(pendingPaths.map((path) => flushCanvasSave(path)));
   }, [flushCanvasSave]);
+
+  // Resolves a recorded conflict by overwriting the on-disk version with
+  // this session's in-memory edits. Snapshots whatever is currently on disk
+  // into history first (forced, bypassing the normal throttle) so the other
+  // side of the conflict is never just gone -- it can always be recovered
+  // from Version History afterward.
+  const resolveCanvasConflictKeepMine = useCallback(async (canvasPath) => {
+    const conflict = canvasConflictsRef.current[canvasPath];
+    if (!conflict) return;
+    canvasDiskUpdatedAtRef.current[canvasPath] = conflict.theirUpdatedAt;
+    forceHistorySnapshotRef.current[canvasPath] = true;
+    pendingCanvasSaveRef.current[canvasPath] = true;
+    // Mutate the ref directly (not just via setCanvasConflicts, which is
+    // async) so flushCanvasSave's own "already conflicted, don't retry"
+    // guard doesn't block the very retry this function exists to perform.
+    delete canvasConflictsRef.current[canvasPath];
+    clearCanvasConflict(canvasPath);
+    await flushCanvasSave(canvasPath);
+  }, [clearCanvasConflict, flushCanvasSave]);
+
+  // Resolves a recorded conflict by discarding this session's in-memory
+  // edits and reloading the canvas fresh from disk.
+  const resolveCanvasConflictUseTheirs = useCallback(async (canvasPath) => {
+    try {
+      const doc = await desktop.workspace.loadCanvas(canvasPath);
+      const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+      setWorkspacesByPath((prev) => ({ ...prev, [canvasPath]: createWorkspaceHistory(sanitizedWorkspace) }));
+      canvasDiskUpdatedAtRef.current[canvasPath] = doc.updatedAt;
+      pendingCanvasSaveRef.current[canvasPath] = false;
+      pendingCanvasDirtyFieldsRef.current[canvasPath] = {
+        pages: false, activePageId: false, name: false, airpaste: false,
+      };
+      lastSavedCanvasWorkspaceRef.current[canvasPath] = sanitizedWorkspace;
+    } finally {
+      clearCanvasConflict(canvasPath);
+    }
+  }, [clearCanvasConflict, previewEnabled]);
 
   const currentEditor = useMemo(() => {
     if (!activeTab || activeTab.type !== "canvas") return { kind: "home" };
@@ -639,6 +744,25 @@ export function AppProvider({ children }) {
       return payload;
     }, "Loading workspace");
   }, [applyHomeData, folderPath, trackLoading]);
+
+  // Restores a canvas to a prior point in its version history, then reloads
+  // it into any open tab. The content currently on disk is itself
+  // snapshotted first (see restoreCanvasHistoryEntry), so this is never a
+  // one-way door either.
+  const restoreCanvasVersion = useCallback(async (canvasPath, entryId) => {
+    return trackLoading(async () => {
+      const doc = await desktop.workspace.restoreCanvasHistoryEntry(canvasPath, entryId);
+      const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+      setWorkspacesByPath((prev) => (
+        canvasPath in prev ? { ...prev, [canvasPath]: createWorkspaceHistory(sanitizedWorkspace) } : prev
+      ));
+      canvasDiskUpdatedAtRef.current[canvasPath] = doc.updatedAt;
+      pendingCanvasSaveRef.current[canvasPath] = false;
+      clearCanvasConflict(canvasPath);
+      await refreshHomeData(folderPath);
+      return doc;
+    }, "Restoring version");
+  }, [clearCanvasConflict, folderPath, previewEnabled, refreshHomeData, trackLoading]);
 
   const loadFolder = useCallback(async (nextFolderPath, options = {}) => {
     if (!nextFolderPath) return null;
@@ -855,11 +979,16 @@ export function AppProvider({ children }) {
       setWorkspacesByPath((prev) => ({ ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) }));
       delete workspaceDraftBaseRef.current[doc.filePath];
       skipCanvasSaveRef.current[doc.filePath] = true;
+      // This is a fresh read of what's on disk right now, so it's also a
+      // fresh baseline for conflict detection -- any conflict recorded
+      // against a previous session with this canvas no longer applies.
+      canvasDiskUpdatedAtRef.current[doc.filePath] = doc.updatedAt;
+      clearCanvasConflict(doc.filePath);
       openTab({ type: "canvas", entityId: doc.filePath, title: doc.name, filePath: doc.path });
       await refreshHomeData(folderPath);
       return doc;
     }, "Opening canvas");
-  }, [folderPath, openTab, previewEnabled, refreshHomeData, trackLoading]);
+  }, [clearCanvasConflict, folderPath, openTab, previewEnabled, refreshHomeData, trackLoading]);
 
   const queueTestingTilesPreviewJobs = useCallback(async (cards, canvasFilePath) => {
     if (!folderPath || !Array.isArray(cards) || cards.length === 0) {
@@ -1183,6 +1312,18 @@ export function AppProvider({ children }) {
           }
           return next;
         });
+        setCanvasConflicts((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const key of Object.keys(prev)) {
+            if (!isSameOrDescendantPath(key, item.filePath)) continue;
+            const replacementKey = `${renamed.filePath}${normalizeFsPath(key).slice(normalizeFsPath(item.filePath).length)}`;
+            next[replacementKey] = next[key];
+            delete next[key];
+            changed = true;
+          }
+          return changed ? next : prev;
+        });
         await refreshHomeData(folderPath, renamed.path);
         return renamed;
       }
@@ -1198,6 +1339,13 @@ export function AppProvider({ children }) {
           workspaceDraftBaseRef.current[renamed.filePath] = workspaceDraftBaseRef.current[item.filePath];
           delete workspaceDraftBaseRef.current[item.filePath];
         }
+        return next;
+      });
+      setCanvasConflicts((prev) => {
+        if (!(item.filePath in prev)) return prev;
+        const next = { ...prev };
+        next[renamed.filePath] = next[item.filePath];
+        delete next[item.filePath];
         return next;
       });
       await refreshHomeData(folderPath);
@@ -1219,6 +1367,17 @@ export function AppProvider({ children }) {
           workspaceKeys.forEach((key) => { delete next[key]; });
           return next;
         });
+        setCanvasConflicts((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          workspaceKeys.forEach((key) => {
+            if (key in next) {
+              delete next[key];
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
         await refreshHomeData(folderPath);
         return true;
       }
@@ -1236,10 +1395,11 @@ export function AppProvider({ children }) {
         delete next[item.filePath];
         return next;
       });
+      clearCanvasConflict(item.filePath);
       await refreshHomeData(folderPath);
       return true;
     }, "Deleting item");
-  }, [canvasSaveTrackingRefs, closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
+  }, [canvasSaveTrackingRefs, clearCanvasConflict, closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
 
   const toggleItemStarred = useCallback(async (filePath, starred) => {
     if (!folderPath || !filePath) return null;
@@ -1766,6 +1926,10 @@ export function AppProvider({ children }) {
     bootSyncPending,
     overrideSyncWait,
     canvasClipboard,
+    canvasConflicts,
+    resolveCanvasConflictKeepMine,
+    resolveCanvasConflictUseTheirs,
+    restoreCanvasVersion,
     createNewDome,
     createCanvasEntry,
     createFolderEntry,
@@ -1837,6 +2001,10 @@ export function AppProvider({ children }) {
     bootSyncPending,
     overrideSyncWait,
     canvasClipboard,
+    canvasConflicts,
+    resolveCanvasConflictKeepMine,
+    resolveCanvasConflictUseTheirs,
+    restoreCanvasVersion,
     createNewDome,
     createCanvasEntry,
     createFolderEntry,

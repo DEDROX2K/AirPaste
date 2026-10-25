@@ -43,15 +43,20 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.writeMarkdownFile(folderPath, filePath, content),
 });
 
-// A DOME_SYNC_PENDING error's informative fields (code, pending) don't
+// A structured error's informative fields (code, pending/updatedAt) don't
 // survive the IPC boundary -- ipcRenderer.invoke only reliably carries the
 // message back to the renderer -- so they're folded into the message here,
-// behind a prefix the renderer can detect and parse.
+// behind a prefix the renderer can detect and parse. Mirrored in
+// renderer/src/lib/desktop.js's parseDomeSyncPendingError/parseCanvasConflictError.
 const SYNC_PENDING_MESSAGE_PREFIX = "DOME_SYNC_PENDING:";
+const CANVAS_CONFLICT_MESSAGE_PREFIX = "CANVAS_CONFLICT:";
 
 function rethrowForRenderer(error) {
   if (error?.code === "DOME_SYNC_PENDING") {
     throw new Error(`${SYNC_PENDING_MESSAGE_PREFIX}${JSON.stringify({ pending: error.pending ?? [] })}`);
+  }
+  if (error?.code === "CANVAS_CONFLICT") {
+    throw new Error(`${CANVAS_CONFLICT_MESSAGE_PREFIX}${JSON.stringify({ updatedAt: error.updatedAt ?? null })}`);
   }
   throw error;
 }
@@ -96,7 +101,21 @@ function registerIpc() {
 
   ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data, options = null) => {
     const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-    return withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data, options));
+    try {
+      return await withWorkspaceQueue(queueKey, () => workspaceService.saveCanvas(filePath, data, options));
+    } catch (error) {
+      return rethrowForRenderer(error);
+    }
+  });
+
+  ipcMain.handle("airpaste:listCanvasHistory", async (_event, filePath) => {
+    const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+    return withWorkspaceQueue(queueKey, () => workspaceService.listCanvasHistory(filePath));
+  });
+
+  ipcMain.handle("airpaste:restoreCanvasHistoryEntry", async (_event, filePath, entryId) => {
+    const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
+    return withWorkspaceQueue(queueKey, () => workspaceService.restoreCanvasHistoryEntry(filePath, entryId));
   });
 }
 

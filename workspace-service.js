@@ -23,13 +23,22 @@ const UNVERSIONED_WORKSPACE_FALLBACK_VERSION = 1;
 
 const INTERNAL_DIR = ".airpaste";
 const TMP_DIR = "tmp";
-const INDEX_FILE = "index.json";
 const DOME_FILE = "dome.json";
 const UI_STATE_FILE = "ui-state.json";
 const STATE_FILE = "state.json";
 const MAX_RECENTS = 25;
 const DEFAULT_WORKSPACE_NAME = "Main Canvas";
 const CANVAS_THUMB_DIR_SEGMENTS = Object.freeze([INTERNAL_DIR, "previews", "canvas-thumbs"]);
+const HISTORY_DIR_SEGMENTS = Object.freeze([INTERNAL_DIR, "history"]);
+const MAX_HISTORY_ENTRIES_PER_CANVAS = 20;
+// Throttles how often a save creates a history snapshot: a 420ms autosave
+// loop firing on every keystroke would otherwise produce a near-useless
+// snapshot per edit. forceHistorySnapshot (used when a conflict is
+// explicitly overwritten, and when restoring an older version) bypasses this.
+const MIN_HISTORY_SNAPSHOT_INTERVAL_MS = 3 * 60 * 1000;
+// Process-lifetime only (resets on app restart) -- a missed snapshot after a
+// restart just means one fewer checkpoint, never incorrect data.
+const lastHistorySnapshotAtByPath = new Map();
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"]);
 const VIDEO_EXTS = new Set(["mp4", "mov", "m4v", "webm", "avi", "mkv"]);
@@ -250,10 +259,6 @@ function uiStatePath(root) {
 
 function statePath(root) {
   return path.join(internalPath(root), STATE_FILE);
-}
-
-function indexPath(root) {
-  return path.join(internalPath(root), INDEX_FILE);
 }
 
 function ensureInside(root, target) {
@@ -678,8 +683,22 @@ function compareUpdatedDesc(a, b) {
   return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
 }
 
+// scanWorkspace() runs on nearly every home navigation and canvas open, and
+// used to re-parse every canvas file's full JSON on every single call just
+// to report its name/page/tile counts -- for a Dome with many canvases,
+// that's an O(n) full-file-read-and-parse on every listing, every time. This
+// cache lets a scan reuse the last parse for any canvas whose size and mtime
+// haven't changed since then, so only files that actually changed (or are
+// new) get re-read. Rebuilt fresh each scan (old entries simply aren't
+// copied forward) rather than mutated in place, so a removed/renamed file's
+// entry is naturally dropped instead of growing unbounded over a long
+// session. Process-lifetime only, like the history-snapshot throttle.
+const canvasScanCacheByRoot = new Map();
+
 async function scanWorkspace(folderPath) {
   const root = await ensureWorkspaceScaffold(folderPath);
+  const previousCanvasCache = canvasScanCacheByRoot.get(root) ?? new Map();
+  const nextCanvasCache = new Map();
   const items = [];
   const stack = [root];
 
@@ -719,43 +738,53 @@ async function scanWorkspace(folderPath) {
       const stat = await fs.stat(absPath);
 
       if (type === "canvas") {
-        let raw = {};
-        try {
-          raw = await readJson(absPath, entry.name);
-        } catch {
-          raw = {};
+        const cached = previousCanvasCache.get(relPath);
+        let item;
+
+        if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+          item = cached.item;
+        } else {
+          let raw = {};
+          try {
+            raw = await readJson(absPath, entry.name);
+          } catch {
+            raw = {};
+          }
+
+          const workspaceDocument = isJsonCanvasDocument(raw) || isJsonCanvasPath(absPath)
+            ? parseJsonCanvasDocument(raw, stripCanvasSuffix(entry.name))
+            : {
+              pages: normalizeCanvasPages(raw),
+            };
+          const pages = Array.isArray(workspaceDocument.pages) ? workspaceDocument.pages : [];
+          const tileCount = pages.reduce((total, page) => {
+            if (Array.isArray(page?.tiles)) {
+              return total + page.tiles.length;
+            }
+            if (Array.isArray(page?.cards)) {
+              return total + page.cards.length;
+            }
+            return total;
+          }, 0);
+
+          item = {
+            id: firstString(raw.id, legacyDocumentId(relPath)),
+            path: relPath,
+            type,
+            name: firstString(workspaceDocument.name, raw.name, stripCanvasSuffix(entry.name), "Canvas"),
+            updatedAt: stat.mtime.toISOString(),
+            excerpt: "",
+            pageCount: pages.length,
+            tileCount,
+            pages: pages.map((page, index) => ({
+              id: firstString(page?.id, `page-${index + 1}`),
+              name: firstString(page?.name, `Page ${index + 1}`),
+            })),
+          };
         }
 
-        const workspaceDocument = isJsonCanvasDocument(raw) || isJsonCanvasPath(absPath)
-          ? parseJsonCanvasDocument(raw, stripCanvasSuffix(entry.name))
-          : {
-            pages: normalizeCanvasPages(raw),
-          };
-        const pages = Array.isArray(workspaceDocument.pages) ? workspaceDocument.pages : [];
-        const tileCount = pages.reduce((total, page) => {
-          if (Array.isArray(page?.tiles)) {
-            return total + page.tiles.length;
-          }
-          if (Array.isArray(page?.cards)) {
-            return total + page.cards.length;
-          }
-          return total;
-        }, 0);
-
-        items.push({
-          id: firstString(raw.id, legacyDocumentId(relPath)),
-          path: relPath,
-          type,
-          name: firstString(workspaceDocument.name, raw.name, stripCanvasSuffix(entry.name), "Canvas"),
-          updatedAt: stat.mtime.toISOString(),
-          excerpt: "",
-          pageCount: pages.length,
-          tileCount,
-          pages: pages.map((page, index) => ({
-            id: firstString(page?.id, `page-${index + 1}`),
-            name: firstString(page?.name, `Page ${index + 1}`),
-          })),
-        });
+        nextCanvasCache.set(relPath, { mtimeMs: stat.mtimeMs, size: stat.size, item });
+        items.push(item);
         continue;
       }
 
@@ -769,6 +798,8 @@ async function scanWorkspace(folderPath) {
       });
     }
   }
+
+  canvasScanCacheByRoot.set(root, nextCanvasCache);
 
   return {
     folderPath: root,
@@ -792,6 +823,86 @@ async function openWorkspace(folderPath, options = {}) {
     folderPath: root,
     workspace: await readWorkspaceMeta(root),
   };
+}
+
+// Where this canvas's history snapshots live: one subfolder per canvas (by
+// hash of its workspace-relative path, same scheme as the thumbnail cache),
+// so renaming/moving the canvas doesn't silently orphan its history as long
+// as the path stays stable; a renamed canvas starting fresh history is an
+// acceptable tradeoff for not having to migrate a whole directory on rename.
+function historyDirFor(root, abs) {
+  const rel = normalizeRel(path.relative(root, abs), "");
+  const id = createHash("sha1").update(rel).digest("hex").slice(0, 20);
+  return path.join(root, ...HISTORY_DIR_SEGMENTS, id);
+}
+
+async function snapshotCanvasHistory(root, abs, content, { force = false } = {}) {
+  try {
+    const now = Date.now();
+    const last = lastHistorySnapshotAtByPath.get(abs) ?? 0;
+    if (!force && now - last < MIN_HISTORY_SNAPSHOT_INTERVAL_MS) {
+      return;
+    }
+    lastHistorySnapshotAtByPath.set(abs, now);
+
+    const dir = historyDirFor(root, abs);
+    await fs.mkdir(dir, { recursive: true });
+    const stamp = new Date(now).toISOString().replace(/[:.]/g, "-");
+    await fs.writeFile(path.join(dir, `${stamp}.json`), `${JSON.stringify(content, null, 2)}\n`, "utf8");
+
+    const entries = (await fs.readdir(dir).catch(() => [])).filter((name) => name.endsWith(".json")).sort();
+    const excess = entries.length - MAX_HISTORY_ENTRIES_PER_CANVAS;
+    if (excess > 0) {
+      await Promise.all(entries.slice(0, excess).map((name) => fs.rm(path.join(dir, name), { force: true }).catch(() => {})));
+    }
+  } catch {
+    // History is a convenience, never a requirement for the save itself to
+    // succeed -- a snapshot that fails to write (disk full, permissions)
+    // should not block or fail the actual save.
+  }
+}
+
+async function listCanvasHistory(filePath) {
+  const abs = path.resolve(filePath);
+  const root = await workspaceRootFromFile(abs);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this canvas.");
+  }
+
+  const dir = historyDirFor(root, abs);
+  const entries = await fs.readdir(dir).catch(() => []);
+  const items = await Promise.all(
+    entries.filter((name) => name.endsWith(".json")).map(async (name) => {
+      const stat = await fs.stat(path.join(dir, name)).catch(() => null);
+      return stat ? { id: name, createdAt: stat.mtime.toISOString(), sizeBytes: stat.size } : null;
+    }),
+  );
+  return items.filter(Boolean).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function restoreCanvasHistoryEntry(filePath, entryId) {
+  const abs = path.resolve(filePath);
+  const root = await workspaceRootFromFile(abs);
+  if (!root) {
+    throw new Error("Could not resolve the workspace for this canvas.");
+  }
+
+  const dir = historyDirFor(root, abs);
+  // entryId always comes from a prior listCanvasHistory() result, but
+  // basename it anyway so nothing it contains (eg "../../x") can escape dir.
+  const snapshotPath = path.join(dir, path.basename(String(entryId ?? "")));
+  ensureInside(dir, snapshotPath);
+  const snapshotRaw = await fs.readFile(snapshotPath, "utf8");
+  const snapshotData = JSON.parse(snapshotRaw);
+
+  // The content being replaced is itself snapshotted first (forced, bypassing
+  // the throttle) so restoring an older version is always itself undoable --
+  // never a one-way door.
+  const current = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
+  await snapshotCanvasHistory(root, abs, current, { force: true });
+
+  await atomicWriteJson(root, abs, snapshotData);
+  return loadCanvas(abs);
 }
 
 async function loadCanvas(filePath) {
@@ -861,6 +972,28 @@ async function saveCanvas(filePath, data, options = null) {
       );
     }
   }
+
+  const saveOptions = isObject(options) ? options : {};
+
+  // Conflict detection: the caller (the renderer) remembers the updatedAt it
+  // last synced its in-memory copy with -- from loadCanvas, or from this
+  // canvas's own previous save -- and sends it back as expectedUpdatedAt. If
+  // the file's actual on-disk timestamp has moved since then, something else
+  // wrote to it in the meantime (another PC's edit arriving via cloud sync,
+  // another process, a manual edit) and this save would silently clobber it.
+  // Refuse instead and let the caller decide (keep mine / use the other
+  // version) rather than merging blind.
+  if (typeof saveOptions.expectedUpdatedAt === "string" && saveOptions.expectedUpdatedAt) {
+    const diskStat = await fs.stat(abs).catch(() => null);
+    const actualUpdatedAt = diskStat ? diskStat.mtime.toISOString() : null;
+    if (actualUpdatedAt && actualUpdatedAt !== saveOptions.expectedUpdatedAt) {
+      const error = new Error(`"${path.basename(abs)}" was changed elsewhere since you opened it.`);
+      error.code = "CANVAS_CONFLICT";
+      error.updatedAt = actualUpdatedAt;
+      throw error;
+    }
+  }
+
   const current = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
   const currentWorkspace = isJsonCanvasDocument(current) || isJsonCanvasPath(abs)
     ? parseJsonCanvasDocument(current, stripCanvasSuffix(path.basename(abs)))
@@ -872,7 +1005,6 @@ async function saveCanvas(filePath, data, options = null) {
       airpaste: isObject(current.airpaste) ? cloneStructuredValue(current.airpaste) : null,
     };
   const input = isObject(data) ? data : {};
-  const saveOptions = isObject(options) ? options : {};
   const nextName = firstString(input.name, currentWorkspace.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
   const nextPages = normalizeCanvasPages({
     pages: Array.isArray(input.pages) ? input.pages : Array.isArray(currentWorkspace.pages) ? currentWorkspace.pages : null,
@@ -927,7 +1059,16 @@ async function saveCanvas(filePath, data, options = null) {
       airpaste: nextWorkspace.airpaste,
     };
 
+  // Snapshot what's about to be overwritten into history before writing the
+  // new content, so a bad save (or an explicit conflict override -- see
+  // forceHistorySnapshot) is never a one-way door. Throttled under normal
+  // editing (see snapshotCanvasHistory) so a 420ms autosave loop doesn't
+  // produce a snapshot per keystroke.
+  await snapshotCanvasHistory(root, abs, current, { force: saveOptions.forceHistorySnapshot === true });
+
   await atomicWriteJson(root, abs, payload);
+  const finalStat = await fs.stat(abs);
+  const finalUpdatedAt = finalStat.mtime.toISOString();
   const rel = toWorkspaceRel(root, abs);
 
   if (saveOptions.returnWorkspace !== false) {
@@ -939,7 +1080,7 @@ async function saveCanvas(filePath, data, options = null) {
     type: "canvas",
     path: rel,
     filePath: abs,
-    updatedAt: payload.updatedAt,
+    updatedAt: finalUpdatedAt,
     changedKeys: Array.isArray(saveOptions.changedKeys) ? saveOptions.changedKeys : [],
   };
 }
@@ -1238,33 +1379,6 @@ async function loadUiState(root) {
 
 async function saveUiState(root, partialState) {
   return writeUiState(root, partialState);
-}
-
-async function loadIndex(root) {
-  await ensureWorkspaceScaffold(root);
-  return readJsonIfExists(indexPath(root), null);
-}
-
-async function saveIndex(root, index) {
-  await ensureWorkspaceScaffold(root);
-  const next = isObject(index) ? index : {};
-  await atomicWriteJson(root, indexPath(root), next);
-  return next;
-}
-
-async function rebuildIndex(root) {
-  const scan = await scanWorkspace(root);
-  const state = await readWorkspaceState(root);
-  const items = scan.items.map((item) => mapScannedItemForResponse(root, item, state));
-  const payload = {
-    version: 1,
-    workspace: scan.workspace,
-    items,
-    recentDocumentIds: state.recentDocumentIds,
-    starredDocumentIds: state.starredDocumentIds,
-  };
-  await atomicWriteJson(root, indexPath(root), payload);
-  return payload;
 }
 
 async function pickPrimaryCanvas(root) {
@@ -1703,22 +1817,21 @@ module.exports = {
   importImageAsset,
   inspectDome,
   isValidWorkspace,
+  listCanvasHistory,
   listFiles,
   loadCanvas,
-  loadIndex,
   loadUiState,
   loadWorkspace,
   markItemStarred,
   openWorkspace,
   readMarkdownFile,
   readWorkspaceDocument,
-  rebuildIndex,
   recordRecentItem,
   renameEntry,
   renameFile,
   resolveWorkspaceAssetPath,
+  restoreCanvasHistoryEntry,
   saveCanvas,
-  saveIndex,
   saveUiState,
   saveWorkspace,
   scanWorkspace,

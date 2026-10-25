@@ -55,6 +55,7 @@ const EXPECTED_HANDLE_CHANNELS = [
   "airpaste:markItemStarred", "airpaste:recordRecentItem", "airpaste:getItemForFilePath",
   "airpaste:loadUiState", "airpaste:readMarkdownFile", "airpaste:saveUiState", "airpaste:writeMarkdownFile",
   "airpaste:loadCanvas", "airpaste:saveCanvas",
+  "airpaste:listCanvasHistory", "airpaste:restoreCanvasHistoryEntry",
   // main/ipc/assets.js
   "airpaste:importImageAsset", "airpaste:resolveAssetUrl", "airpaste:captureCanvasThumbnail",
   "airpaste:importFiles", "airpaste:captureWebclip",

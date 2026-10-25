@@ -1,11 +1,17 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../../context/useAppContext";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
-import PaperNoteFullscreenEditor from "../PaperNoteFullscreenEditor";
 import TileShell from "./TileShell";
 import "./PaperNoteTile.css";
+
+// Pulls in a CodeMirror-based live-markdown editor (one of the single
+// heaviest dependencies in the whole canvas bundle) that's only ever needed
+// once a paper note is actually expanded to fullscreen -- loading it lazily
+// keeps that weight out of every canvas open for everyone who never opens a
+// paper note's fullscreen view this session.
+const PaperNoteFullscreenEditor = lazy(() => import("../PaperNoteFullscreenEditor"));
 
 // How tall a page's body area can look before another sheet visually peeks
 // out from underneath -- purely decorative pagination, not a real page
@@ -225,12 +231,14 @@ function PaperNoteTile({
       </div>
 
       {fullscreen ? (
-        <PaperNoteFullscreenEditor
-          card={card}
-          startRect={fullscreen.startRect}
-          onSave={handleSave}
-          onClosed={handleClosed}
-        />
+        <Suspense fallback={null}>
+          <PaperNoteFullscreenEditor
+            card={card}
+            startRect={fullscreen.startRect}
+            onSave={handleSave}
+            onClosed={handleClosed}
+          />
+        </Suspense>
       ) : null}
     </TileShell>
   );
