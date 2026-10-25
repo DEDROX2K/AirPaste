@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("airpaste", {
   removeDome: (domeId) => ipcRenderer.invoke("airpaste:removeDome", domeId),
   revealDome: (domePath) => ipcRenderer.invoke("airpaste:revealDome", domePath),
   createWorkspace: (folderPath) => ipcRenderer.invoke("airpaste:createWorkspace", folderPath),
-  loadWorkspace: (folderPath) => ipcRenderer.invoke("airpaste:loadWorkspace", folderPath),
+  loadWorkspace: (folderPath, options = null) => ipcRenderer.invoke("airpaste:loadWorkspace", folderPath, options),
   saveWorkspace: (folderPath, data) => ipcRenderer.invoke("airpaste:saveWorkspace", folderPath, data),
   listFiles: (folderPath) => ipcRenderer.invoke("airpaste:listFiles", folderPath),
   getHomeData: (folderPath, currentFolderPath) =>

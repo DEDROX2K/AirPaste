@@ -288,6 +288,72 @@ async function exists(target) {
   }
 }
 
+// How long ensureWorkspaceScaffold() waits, per attempt, for a
+// missing-but-expected Dome file to appear before giving up and reporting it
+// as pending sync, rather than immediately fabricating a fresh default in
+// its place. A cloud sync client (Google Drive, Dropbox, OneDrive...)
+// commonly materializes a folder before the files inside it finish
+// downloading, so "not on disk right now" is not the same thing as "never
+// existed". Kept short (rather than one long wait) because the renderer's
+// boot flow calls this repeatedly in a loop to keep waiting indefinitely --
+// short attempts keep that loop responsive to a user-initiated "open anyway"
+// override instead of it having to sit through one long wait first.
+const DOME_SYNC_WAIT_TIMEOUT_MS = 4000;
+const DOME_SYNC_POLL_INTERVAL_MS = 500;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function statOrNull(target) {
+  try {
+    return await fs.stat(target);
+  } catch {
+    return null;
+  }
+}
+
+function sameStat(a, b) {
+  if (!a || !b) {
+    return a === b;
+  }
+  return a.size === b.size && a.mtimeMs === b.mtimeMs;
+}
+
+// Polls each of `paths` until every one of them has looked identical
+// (missing on both samples, or same size+mtime) across two consecutive
+// polls, or until timeoutMs elapses -- whichever comes first. A path that
+// flips from missing to present, or whose size/mtime is still changing, is
+// actively being written (e.g. still downloading), so it never reports
+// "settled" while that's happening.
+async function waitForPathsToSettle(paths, {
+  timeoutMs = DOME_SYNC_WAIT_TIMEOUT_MS,
+  pollIntervalMs = DOME_SYNC_POLL_INTERVAL_MS,
+} = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let previous = await Promise.all(paths.map((target) => statOrNull(target)));
+
+  while (Date.now() < deadline) {
+    await sleep(pollIntervalMs);
+    const current = await Promise.all(paths.map((target) => statOrNull(target)));
+    if (current.every((stat, index) => sameStat(stat, previous[index]))) {
+      return { settled: true, missing: paths.filter((_, index) => !current[index]) };
+    }
+    previous = current;
+  }
+
+  return { settled: false, missing: paths.filter((_, index) => !previous[index]) };
+}
+
+function domeSyncPendingError(missingPaths) {
+  const error = new Error(
+    "This Dome's files don't look fully synced to this computer yet. Waiting instead of creating new ones, to avoid overwriting your data.",
+  );
+  error.code = "DOME_SYNC_PENDING";
+  error.pending = missingPaths.map((target) => path.basename(target));
+  return error;
+}
+
 async function isDirectory(target) {
   try {
     return (await fs.stat(target)).isDirectory();
@@ -399,13 +465,40 @@ function normalizeWorkspaceState(data) {
   };
 }
 
-async function ensureWorkspaceScaffold(root) {
+// A Dome whose root folder exists but is missing one of its .airpaste/*.json
+// files is ambiguous: it might genuinely be brand new, or it might be an
+// existing Dome that a cloud sync client hasn't finished downloading onto
+// this machine yet. Defaults to allowScaffold: true (scaffold whatever's
+// missing immediately) because almost every caller here runs against a
+// workspace that was already opened earlier in the session -- by that point
+// any genuine sync race was already resolved at the one place that matters,
+// openWorkspace(), which is the only caller that passes allowScaffold:
+// false (waiting for the missing files to settle, and throwing a
+// DOME_SYNC_PENDING error instead of fabricating defaults if they're still
+// missing afterward) unless the renderer's "open anyway" override opts in.
+async function ensureWorkspaceScaffold(root, options = {}) {
+  const { allowScaffold = true } = options;
   const absRoot = path.resolve(root);
   if (!(await isDirectory(absRoot))) {
     throw new Error("Selected folder is no longer available.");
   }
 
   await ensureInternalDirs(absRoot);
+
+  const scaffoldPaths = [domeMetaPath(absRoot), uiStatePath(absRoot), statePath(absRoot)];
+  const missingPaths = [];
+  for (const target of scaffoldPaths) {
+    if (!(await exists(target))) {
+      missingPaths.push(target);
+    }
+  }
+
+  if (missingPaths.length > 0 && !allowScaffold) {
+    const { missing: stillMissing } = await waitForPathsToSettle(missingPaths);
+    if (stillMissing.length > 0) {
+      throw domeSyncPendingError(stillMissing);
+    }
+  }
 
   if (!(await exists(domeMetaPath(absRoot)))) {
     await atomicWriteJson(absRoot, domeMetaPath(absRoot), {
@@ -425,6 +518,15 @@ async function ensureWorkspaceScaffold(root) {
   }
 
   return absRoot;
+}
+
+// Used by the Dome-open IPC layer to decide, before it ever calls
+// ensureWorkspaceScaffold, whether a Dome whose dome.json is currently
+// missing is worth waiting on (see main/ipc/dome.js's openOrInitializeDome).
+async function waitForDomeFilesToSettle(root, options = {}) {
+  const absRoot = path.resolve(root);
+  const scaffoldPaths = [domeMetaPath(absRoot), uiStatePath(absRoot), statePath(absRoot)];
+  return waitForPathsToSettle(scaffoldPaths, options);
 }
 
 async function readWorkspaceMeta(root) {
@@ -675,9 +777,17 @@ async function scanWorkspace(folderPath) {
   };
 }
 
-async function openWorkspace(folderPath) {
-  const root = await ensureWorkspaceScaffold(folderPath);
-  await writeWorkspaceMeta(root);
+async function openWorkspace(folderPath, options = {}) {
+  // The one call site that defaults to the protective sync-settle wait
+  // (ensureWorkspaceScaffold's own default is allowScaffold: true, since
+  // every other caller runs against an already-opened workspace) -- this is
+  // where a genuinely mid-sync Dome gets caught before anything is
+  // fabricated in its place. Also deliberately does not touch dome.json
+  // just because the Dome was opened -- a plain open should never write
+  // anything, both so a read-only session produces zero disk activity to
+  // race a concurrent cloud sync against, and so "I opened the app" can
+  // never by itself explain a changed file.
+  const root = await ensureWorkspaceScaffold(folderPath, { allowScaffold: options.allowScaffold === true });
   return {
     folderPath: root,
     workspace: await readWorkspaceMeta(root),
@@ -736,6 +846,21 @@ async function saveCanvas(filePath, data, options = null) {
   }
 
   ensureInside(root, abs);
+  // A canvas file is always created up front (createCanvas writes it
+  // directly), so by the time anything calls saveCanvas the file should
+  // already be on disk. If it isn't, that's far more likely to mean a cloud
+  // sync client hasn't finished downloading it onto this machine yet than
+  // that it's genuinely new -- settle-check before deciding, and refuse to
+  // save over it as if it were empty if it's still missing afterward, since
+  // that would overwrite whatever content was about to arrive.
+  if (!(await exists(abs))) {
+    const { missing } = await waitForPathsToSettle([abs]);
+    if (missing.length > 0) {
+      throw new Error(
+        `"${path.basename(abs)}" appears to be missing or still syncing from the cloud. Not saving, to avoid overwriting it -- try again once it has finished syncing.`,
+      );
+    }
+  }
   const current = (await exists(abs)) ? await readJson(abs, path.basename(abs)) : {};
   const currentWorkspace = isJsonCanvasDocument(current) || isJsonCanvasPath(abs)
     ? parseJsonCanvasDocument(current, stripCanvasSuffix(path.basename(abs)))
@@ -1179,13 +1304,13 @@ async function saveWorkspace(root, data) {
   return saved.workspace;
 }
 
-async function loadWorkspace(root) {
-  const opened = await openWorkspace(root);
+async function loadWorkspace(root, options = {}) {
+  const opened = await openWorkspace(root, options);
   return { folderPath: opened.folderPath };
 }
 
-async function createWorkspace(root) {
-  const opened = await openWorkspace(root);
+async function createWorkspace(root, options = {}) {
+  const opened = await openWorkspace(root, options);
   return { folderPath: opened.folderPath };
 }
 
@@ -1232,7 +1357,9 @@ async function inspectDome(root) {
 async function createDome(root, name = "") {
   const absRoot = path.resolve(root);
   await fs.mkdir(absRoot, { recursive: true });
-  await ensureWorkspaceScaffold(absRoot);
+  // This Dome is being created right now by this call, so there is nothing
+  // to wait for -- skip the sync-settle check and scaffold immediately.
+  await ensureWorkspaceScaffold(absRoot, { allowScaffold: true });
   const meta = await writeWorkspaceMeta(absRoot, {
     name: firstString(name, path.basename(absRoot)),
   });
@@ -1595,5 +1722,6 @@ module.exports = {
   saveUiState,
   saveWorkspace,
   scanWorkspace,
+  waitForDomeFilesToSettle,
   writeMarkdownFile,
 };

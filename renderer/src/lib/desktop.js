@@ -1,6 +1,28 @@
 const airpasteBridge = window.airpaste ?? {};
 const electronBridge = window.electronAPI ?? {};
 
+// Mirrors main/ipc/workspace.js's SYNC_PENDING_MESSAGE_PREFIX -- a
+// DOME_SYNC_PENDING error's extra fields don't survive the IPC boundary, so
+// the main process folds them into the error message behind this prefix.
+const SYNC_PENDING_MESSAGE_PREFIX = "DOME_SYNC_PENDING:";
+
+// Returns { pending: string[] } if `error` came from a loadWorkspace call
+// that found the Dome's files still mid-sync, or null for any other error.
+export function parseDomeSyncPendingError(error) {
+  const message = String(error?.message ?? "");
+  const markerIndex = message.indexOf(SYNC_PENDING_MESSAGE_PREFIX);
+  if (markerIndex === -1) {
+    return null;
+  }
+  const jsonText = message.slice(markerIndex + SYNC_PENDING_MESSAGE_PREFIX.length).split("\n")[0];
+  try {
+    const parsed = JSON.parse(jsonText);
+    return { pending: Array.isArray(parsed?.pending) ? parsed.pending : [] };
+  } catch {
+    return { pending: [] };
+  }
+}
+
 async function invokeWithFallback(invoke, fallbackValue) {
   try {
     return await invoke();

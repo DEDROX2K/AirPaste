@@ -228,21 +228,44 @@ async function setActiveDomeById(domeId) {
 
 async function openOrInitializeDome(folderPath, options = {}) {
   const absPath = path.resolve(String(folderPath));
-  const inspected = await workspaceService.inspectDome(absPath);
+  let inspected = await workspaceService.inspectDome(absPath);
   if (!inspected.exists) {
     throw new Error("Selected folder is no longer available.");
   }
+
   if (!inspected.valid) {
     if (options.initialize !== true) {
       throw new Error("Selected folder is not an AirPaste Dome yet.");
     }
-    await workspaceService.createDome(absPath, options.name || inspected.name || path.basename(absPath));
+
+    const config = await readConfig();
+    const isKnownDome = config.recentDomes.some((entry) => entry.id === createDomeId(absPath));
+
+    if (isKnownDome && options.allowScaffold !== true) {
+      // We've opened this Dome from this machine before, so a missing
+      // dome.json right now is far more likely to mean a cloud sync client
+      // (Google Drive, Dropbox, OneDrive...) hasn't finished downloading it
+      // yet than that it's actually gone. Wait for it to settle instead of
+      // immediately fabricating a fresh one, which would otherwise clobber
+      // the real file the moment it finishes syncing.
+      await workspaceService.waitForDomeFilesToSettle(absPath, { timeoutMs: options.readyTimeoutMs });
+      inspected = await workspaceService.inspectDome(absPath);
+      if (!inspected.valid) {
+        const error = new Error("This Dome's files don't look fully synced to this computer yet.");
+        error.code = "DOME_SYNC_PENDING";
+        error.pending = ["dome.json"];
+        throw error;
+      }
+    } else {
+      await workspaceService.createDome(absPath, options.name || inspected.name || path.basename(absPath));
+      inspected = await workspaceService.inspectDome(absPath);
+    }
   }
-  const reopened = await workspaceService.inspectDome(absPath);
-  if (!reopened.valid) throw new Error("Unable to initialize this Dome folder.");
+
+  if (!inspected.valid) throw new Error("Unable to initialize this Dome folder.");
   const result = await upsertRecentDome({
     path: absPath,
-    name: options.name || reopened.name || path.basename(absPath),
+    name: options.name || inspected.name || path.basename(absPath),
   });
   return result.dome;
 }
@@ -354,7 +377,11 @@ function registerIpc() {
     ];
     for (const dome of candidates) {
       const inspected = await workspaceService.inspectDome(dome.path);
-      if (inspected.exists && inspected.valid) {
+      // Not requiring `.valid` here too: a known Dome whose dome.json hasn't
+      // synced down yet should still be attempted (and waited on) via
+      // loadWorkspace/openOrInitializeDome, rather than skipped as if it
+      // didn't exist.
+      if (inspected.exists) {
         return dome.path;
       }
     }

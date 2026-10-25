@@ -43,19 +43,37 @@ const workspaceActionHandlers = Object.freeze({
     workspaceService.writeMarkdownFile(folderPath, filePath, content),
 });
 
+// A DOME_SYNC_PENDING error's informative fields (code, pending) don't
+// survive the IPC boundary -- ipcRenderer.invoke only reliably carries the
+// message back to the renderer -- so they're folded into the message here,
+// behind a prefix the renderer can detect and parse.
+const SYNC_PENDING_MESSAGE_PREFIX = "DOME_SYNC_PENDING:";
+
+function rethrowForRenderer(error) {
+  if (error?.code === "DOME_SYNC_PENDING") {
+    throw new Error(`${SYNC_PENDING_MESSAGE_PREFIX}${JSON.stringify({ pending: error.pending ?? [] })}`);
+  }
+  throw error;
+}
+
 function registerIpc() {
-  ipcMain.handle("airpaste:loadWorkspace", async (_event, folderPath) => {
-    await openOrInitializeDome(folderPath, { initialize: true });
-    return withWorkspaceQueue(folderPath, async () => (
-      workspaceService.loadWorkspace(folderPath)
-    ));
+  ipcMain.handle("airpaste:loadWorkspace", async (_event, folderPath, options = null) => {
+    const allowScaffold = Boolean(options?.allowScaffold);
+    try {
+      await openOrInitializeDome(folderPath, { initialize: true, allowScaffold });
+      return await withWorkspaceQueue(folderPath, async () => (
+        workspaceService.loadWorkspace(folderPath, { allowScaffold })
+      ));
+    } catch (error) {
+      return rethrowForRenderer(error);
+    }
   });
 
   ipcMain.handle("airpaste:createWorkspace", async (_event, folderPath) => {
     await workspaceService.createDome(folderPath, path.basename(folderPath));
     await openOrInitializeDome(folderPath, { initialize: false });
     return withWorkspaceQueue(folderPath, async () => {
-      return workspaceService.createWorkspace(folderPath);
+      return workspaceService.createWorkspace(folderPath, { allowScaffold: true });
     });
   });
 

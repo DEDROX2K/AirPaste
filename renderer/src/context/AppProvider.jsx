@@ -29,7 +29,7 @@ import {
   updateCards,
 } from "../lib/workspace";
 import { clearCanvasPathKeyedRefs, migrateCanvasPathKeyedRefs } from "../lib/canvasPathKeyedRefs";
-import { desktop } from "../lib/desktop";
+import { desktop, parseDomeSyncPendingError } from "../lib/desktop";
 import { recordSaveSample } from "../lib/perf";
 import {
   createTestingTilesWorkspace,
@@ -396,6 +396,11 @@ export function AppProvider({ children }) {
   const { activeTab, openTab, closeTabsForEntity, rebindTabEntity, showHomeTab, registerBeforeCloseTab } = useTabs();
   const { toast } = useToast();
   const [booting, setBooting] = useState(true);
+  // Set while loadFolder is retrying a Dome whose files look mid-sync
+  // (cloud sync client still downloading) instead of either giving up or
+  // fabricating fresh defaults in their place. See loadFolder/overrideSyncWait.
+  const [bootSyncPending, setBootSyncPending] = useState(null);
+  const bootSyncOverrideRef = useRef(false);
   const [folderPath, setFolderPath] = useState(null);
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [homeData, setHomeData] = useState(createHomeState());
@@ -635,13 +640,40 @@ export function AppProvider({ children }) {
     }, "Loading workspace");
   }, [applyHomeData, folderPath, trackLoading]);
 
-  const loadFolder = useCallback(async (nextFolderPath) => {
+  const loadFolder = useCallback(async (nextFolderPath, options = {}) => {
     if (!nextFolderPath) return null;
     setFolderLoading(true);
     setError("");
     try {
       await flushAllPendingCanvasSaves().catch(() => {});
-      await desktop.workspace.loadWorkspace(nextFolderPath);
+
+      let allowScaffold = options.allowScaffold === true;
+      // A Dome whose files are still mid-sync (e.g. Google Drive hasn't
+      // finished downloading them onto this PC yet) keeps failing with a
+      // "sync pending" error -- the main process already waits a few
+      // seconds per attempt before reporting that, rather than overwriting
+      // anything. Keep retrying here instead of giving up or silently
+      // proceeding, surfacing a "still syncing" status in the meantime,
+      // until it resolves on its own or the user chooses to open it as-is
+      // via overrideSyncWait (which flips bootSyncOverrideRef).
+      while (true) {
+        try {
+          await desktop.workspace.loadWorkspace(nextFolderPath, { allowScaffold });
+          break;
+        } catch (loadWorkspaceError) {
+          const pendingInfo = parseDomeSyncPendingError(loadWorkspaceError);
+          if (!pendingInfo) {
+            throw loadWorkspaceError;
+          }
+          setBootSyncPending({ folderPath: nextFolderPath, pending: pendingInfo.pending });
+          if (bootSyncOverrideRef.current) {
+            allowScaffold = true;
+            bootSyncOverrideRef.current = false;
+          }
+        }
+      }
+
+      setBootSyncPending(null);
       const payload = await desktop.workspace.getHomeData(nextFolderPath);
       setFolderPath(nextFolderPath);
       setWorkspacesByPath({});
@@ -658,6 +690,7 @@ export function AppProvider({ children }) {
       maybeRemark(toast, WORKSPACE_OPEN_QUIPS, "workspace-open");
       return nextFolderPath;
     } catch (loadError) {
+      setBootSyncPending(null);
       setError(loadError.message || "Unable to open that folder.");
       await clearWorkspaceState();
       return null;
@@ -665,6 +698,15 @@ export function AppProvider({ children }) {
       setFolderLoading(false);
     }
   }, [applyHomeData, clearWorkspaceState, flushAllPendingCanvasSaves, refreshDomes, showHomeTab, toast]);
+
+  // Lets the user bypass the sync-pending wait and open the Dome as-is on
+  // the next retry attempt inside loadFolder's loop above (this never
+  // overwrites anything itself -- it only permits the next loadWorkspace
+  // call to fall back to its normal "scaffold whatever's still missing"
+  // behavior, same as opening a brand-new folder).
+  const overrideSyncWait = useCallback(() => {
+    bootSyncOverrideRef.current = true;
+  }, []);
 
   const openExistingWorkspace = useCallback(async () => {
     try {
@@ -743,11 +785,19 @@ export function AppProvider({ children }) {
     let cancelled = false;
     const bootStart = typeof performance !== "undefined" ? performance.now() : Date.now();
     let finishBootTimeout = 0;
+    // A pure last-resort safety net against boot() hanging on something
+    // unrelated to Dome sync (a genuine bug, a stuck IPC call) -- NOT the
+    // mechanism for "files aren't synced yet" anymore. That case is instead
+    // handled by loadFolder waiting for real readiness and surfacing
+    // bootSyncPending so BootSplash can show status + an override, for as
+    // long as it actually takes, rather than this timer silently dropping
+    // the splash onto a half-loaded workspace after under two seconds.
+    const BOOT_SAFETY_TIMEOUT_MS = 30000;
     const bootFallbackTimeout = window.setTimeout(() => {
       if (!cancelled) {
         setBooting(false);
       }
-    }, 1800);
+    }, BOOT_SAFETY_TIMEOUT_MS);
 
     function finishBoot() {
       window.clearTimeout(bootFallbackTimeout);
@@ -773,13 +823,16 @@ export function AppProvider({ children }) {
         if (!cancelled) {
           applyDomesState(domes);
         }
-        if (!cancelled && active?.path && active.valid && active.exists) {
-          await loadFolder(active.path);
-        } else if (!cancelled) {
-          const lastFolder = await desktop.workspace.getLastFolder();
-          if (lastFolder) {
-            await loadFolder(lastFolder);
-          }
+        // Deliberately not requiring `.valid` here: a known Dome whose
+        // dome.json/ui-state.json/state.json haven't finished syncing down
+        // yet should still be attempted -- loadFolder will wait on it and
+        // surface status rather than this silently skipping straight past
+        // it to "no Dome open".
+        const candidatePath = active?.path && active.exists
+          ? active.path
+          : await desktop.workspace.getLastFolder();
+        if (!cancelled && candidatePath) {
+          await loadFolder(candidatePath);
         }
       } catch (bootError) {
         if (!cancelled) setError(bootError.message || "Unable to restore previous Dome.");
@@ -1710,6 +1763,8 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     activeDome,
     booting,
+    bootSyncPending,
+    overrideSyncWait,
     canvasClipboard,
     createNewDome,
     createCanvasEntry,
@@ -1779,6 +1834,8 @@ export function AppProvider({ children }) {
   }), [
     activeDome,
     booting,
+    bootSyncPending,
+    overrideSyncWait,
     canvasClipboard,
     createNewDome,
     createCanvasEntry,

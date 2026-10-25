@@ -19,8 +19,10 @@ const CanvasWorkspaceView = lazy(() => import("./components/CanvasWorkspaceView"
 const HomeShell = lazy(() => import("./components/HomeShell"));
 const LeftPagesPanel = lazy(() => import("./components/LeftPagesPanel"));
 
-function BootSplash({ label = "Preparing workspace" }) {
-  const displayLabel = !label || label === "Loading" ? "Preparing workspace" : label;
+function BootSplash({ label = "Preparing workspace", syncPending = null, onOverrideSyncWait }) {
+  const displayLabel = syncPending
+    ? "Waiting for this Dome to finish syncing…"
+    : (!label || label === "Loading" ? "Preparing workspace" : label);
 
   return (
     <main className="boot-splash" aria-label="Starting AirPaste">
@@ -36,6 +38,22 @@ function BootSplash({ label = "Preparing workspace" }) {
       </div>
       <div className="boot-splash__status">
         <span className="boot-splash__message">{displayLabel}</span>
+        {syncPending ? (
+          <>
+            <span className="boot-splash__submessage">
+              {syncPending.pending?.length
+                ? `Still downloading: ${syncPending.pending.join(", ")}. Opening now risks losing data that hasn't finished syncing.`
+                : "Opening now risks losing data that hasn't finished syncing."}
+            </span>
+            <button
+              type="button"
+              className="boot-splash__override"
+              onClick={onOverrideSyncWait}
+            >
+              Open anyway
+            </button>
+          </>
+        ) : null}
       </div>
     </main>
   );
@@ -106,6 +124,8 @@ export default function App() {
   const usesCustomWindowResize = desktop.window.usesCustomWindowResize;
   const {
     booting,
+    bootSyncPending,
+    overrideSyncWait,
     currentEditor,
     error,
     flushAllPendingCanvasSaves,
@@ -223,7 +243,11 @@ export default function App() {
   if (booting) {
     return (
       <div className="app-shell app-shell--booting">
-        <BootSplash label={loadingLabel || "Preparing workspace"} />
+        <BootSplash
+          label={loadingLabel || "Preparing workspace"}
+          syncPending={bootSyncPending}
+          onOverrideSyncWait={overrideSyncWait}
+        />
       </div>
     );
   }
