@@ -2214,6 +2214,12 @@ export default function CanvasWorkspaceView() {
           interactions.closeContextMenu();
           return;
         }
+
+        if (interactions.selectedTileIds.length > 0 || interactions.selectedGroupIds.length > 0) {
+          event.preventDefault();
+          interactions.replaceSelection([]);
+          return;
+        }
       }
 
       if (canvasToolShortcutContext && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
@@ -2283,6 +2289,12 @@ export default function CanvasWorkspaceView() {
           cutSelectedCanvasSelection();
           return;
         }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        interactions.replaceSelection(layout.rootTiles.map((tile) => tile.id));
+        return;
       }
 
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "g") {
@@ -2359,6 +2371,20 @@ export default function CanvasWorkspaceView() {
       if (event.shiftKey && event.key === "1") {
         event.preventDefault();
         zoomToFitAll();
+        return;
+      }
+
+      if (event.shiftKey && event.key === "2") {
+        if (layout.selectedTilesBounds) {
+          event.preventDefault();
+          zoomToFitSelection();
+        }
+        return;
+      }
+
+      if (event.shiftKey && event.key === "0") {
+        event.preventDefault();
+        canvas.setZoom(1);
       }
     }
 
@@ -2376,6 +2402,7 @@ export default function CanvasWorkspaceView() {
     deleteSelectedDrawingObject,
     isLineToolActive,
     isTextToolActive,
+    layout,
     setCanvasToolMode,
     isCanvasMoving,
     pasteCanvasSelection,
@@ -2384,6 +2411,7 @@ export default function CanvasWorkspaceView() {
     selectedTextBoxTile,
     undoWorkspaceChange,
     zoomToFitAll,
+    zoomToFitSelection,
   ]);
 
   const totalTileCount = workspace.cards.length;

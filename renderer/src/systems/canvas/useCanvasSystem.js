@@ -31,6 +31,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const pendingViewportRef = useRef(null);
   const viewportListenerSetRef = useRef(new Set());
   const wheelStopTimeoutRef = useRef(0);
+  const wheelPanSettleTimeoutRef = useRef(0);
   const zoomAnimationFrameRef = useRef(0);
   const zoomLastFrameTimeRef = useRef(0);
   const zoomCommitWhenSettledRef = useRef(false);
@@ -405,30 +406,81 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       event.preventDefault();
 
       const vp = viewportRef.current;
-      const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
-      const worldPoint = {
-        x: (canvasPoint.x - vp.x) / vp.zoom,
-        y: (canvasPoint.y - vp.y) / vp.zoom,
-      };
       const rect = getClientRect(container);
-      const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-      const normalizedDelta = normalizeWheelZoomDelta(
-        dominantDelta,
-        event.deltaMode,
-        rect?.height ?? 800,
-      );
-      const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-normalizedDelta * 0.0015));
-      const nextViewport = getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom);
 
-      targetViewportRef.current = nextViewport;
-      markZoomActive();
-      ensureZoomAnimation();
+      // Figma convention: a pinch gesture on a trackpad (reported by the
+      // browser as a wheel event with ctrlKey set) or an explicit Ctrl/Cmd
+      // + wheel zooms around the pointer. Any other wheel input -- a plain
+      // two-finger trackpad scroll, or a mouse wheel -- pans the canvas
+      // instead, which is what every other wheel tick used to be
+      // misinterpreted as a zoom.
+      if (event.ctrlKey || event.metaKey) {
+        const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
+        const worldPoint = {
+          x: (canvasPoint.x - vp.x) / vp.zoom,
+          y: (canvasPoint.y - vp.y) / vp.zoom,
+        };
+        const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+        const normalizedDelta = normalizeWheelZoomDelta(
+          dominantDelta,
+          event.deltaMode,
+          rect?.height ?? 800,
+        );
+        const nextZoom = clampViewportZoom(vp.zoom * Math.exp(-normalizedDelta * 0.0015));
+        const nextViewport = getViewportForWorldPoint(canvasPoint, worldPoint, nextZoom);
+
+        targetViewportRef.current = nextViewport;
+        markZoomActive();
+        ensureZoomAnimation();
+        scheduleViewportCommit(nextViewport, { immediate: false });
+        return;
+      }
+
+      let panDeltaX = normalizeWheelZoomDelta(event.deltaX, event.deltaMode, rect?.width ?? 800);
+      let panDeltaY = normalizeWheelZoomDelta(event.deltaY, event.deltaMode, rect?.height ?? 800);
+
+      // A plain mouse wheel reports only a vertical delta; Shift+wheel is
+      // the standard way to pan horizontally with one, matching Figma.
+      if (event.shiftKey && panDeltaX === 0 && panDeltaY !== 0) {
+        panDeltaX = panDeltaY;
+        panDeltaY = 0;
+      }
+
+      const nextViewport = {
+        ...vp,
+        x: vp.x - panDeltaX,
+        y: vp.y - panDeltaY,
+      };
+
+      // Pan tracks the trackpad 1:1, same as a pointer-drag pan -- no
+      // eased/animated interpolation, which would feel laggy here. The
+      // viewport is still only committed (persisted) once scrolling settles,
+      // so a fast scroll gesture doesn't flood state updates.
+      stopZoomAnimation();
+      applyRenderedViewport(nextViewport);
       scheduleViewportCommit(nextViewport, { immediate: false });
+
+      if (wheelPanSettleTimeoutRef.current) {
+        window.clearTimeout(wheelPanSettleTimeoutRef.current);
+      }
+      wheelPanSettleTimeoutRef.current = window.setTimeout(() => {
+        wheelPanSettleTimeoutRef.current = 0;
+        commitPendingViewport();
+      }, ZOOM_SETTLE_DELAY_MS);
     }
 
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [containerElement, ensureZoomAnimation, markZoomActive, scheduleViewportCommit, toCanvasPoint]);
+  }, [
+    applyRenderedViewport,
+    commitPendingViewport,
+    containerElement,
+    ensureZoomAnimation,
+    markZoomActive,
+    scheduleViewportCommit,
+    stopZoomAnimation,
+    toCanvasPoint,
+  ]);
 
   useEffect(() => {
     function handlePointerMove(event) {
@@ -491,6 +543,9 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   useEffect(() => () => {
     if (wheelStopTimeoutRef.current) {
       window.clearTimeout(wheelStopTimeoutRef.current);
+    }
+    if (wheelPanSettleTimeoutRef.current) {
+      window.clearTimeout(wheelPanSettleTimeoutRef.current);
     }
     stopZoomAnimation();
   }, [stopZoomAnimation]);
