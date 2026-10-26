@@ -7,7 +7,7 @@ import {
   getPreviousZoomStop,
   interpolateViewport,
   clientToWorldPoint,
-  getCanvasContentStyleVars,
+  getCanvasContentTransform,
   getCanvasGridStyleVars,
   getClientRect,
   getViewportForWorldBounds,
@@ -77,15 +77,14 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
   const applyViewportStyleVars = useCallback((nextViewport) => {
     const gridStyleVars = getCanvasGridStyleVars(nextViewport);
-    const contentStyleVars = getCanvasContentStyleVars(nextViewport);
 
     Object.entries(gridStyleVars).forEach(([name, value]) => {
       gridElement?.style?.setProperty(name, value);
     });
 
-    Object.entries(contentStyleVars).forEach(([name, value]) => {
-      contentElement?.style?.setProperty(name, value);
-    });
+    if (contentElement?.style) {
+      contentElement.style.transform = getCanvasContentTransform(nextViewport);
+    }
     notifyViewportListeners(nextViewport);
   }, [contentElement, gridElement, notifyViewportListeners]);
 

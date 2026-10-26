@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStableCallback } from "../../hooks/useStableCallback";
 import { canAttachTileToRack } from "../../lib/workspace";
 import {
   recordHitTestSample,
@@ -304,7 +305,9 @@ export function useCanvasInteractionSystem({
     return true;
   }, [commands, selectedGroupIds, selectedTileIds]);
 
-  const handleTilePressStart = useCallback((tile, event) => {
+  // Tile handlers below are stable (useStableCallback) because every tile
+  // receives them; a fresh identity per render re-renders the whole board.
+  const handleTilePressStart = useStableCallback((tile, event) => {
     closeContextMenu();
 
     if (isHandMode) {
@@ -323,7 +326,7 @@ export function useCanvasInteractionSystem({
       : null;
     selectTile(tile.id, { forceSingle: !selectedTileIdSet.has(tile.id) });
     return false;
-  }, [canvas, closeContextMenu, isHandMode, selectTile, selectedTileIdSet, selectedTileIds]);
+  });
 
   const handleGroupPressStart = useCallback((group, event) => {
     closeContextMenu();
@@ -342,7 +345,7 @@ export function useCanvasInteractionSystem({
     return false;
   }, [canvas, closeContextMenu, isHandMode, selectGroup]);
 
-  const handleTileContextMenu = useCallback((tile, event) => {
+  const handleTileContextMenu = useStableCallback((tile, event) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -363,7 +366,7 @@ export function useCanvasInteractionSystem({
       y: Math.max(VIEWPORT_PADDING, event.clientY),
       worldPoint,
     });
-  }, [canvas, selectedTileIdSet, selectedTileIds, selectTile]);
+  });
 
   const handleGroupContextMenu = useCallback((group, event) => {
     event.preventDefault();
@@ -457,7 +460,7 @@ export function useCanvasInteractionSystem({
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [canvas, selectedTileIds]);
 
-  const beginTileDrag = useCallback((tile, event) => {
+  const beginTileDrag = useStableCallback((tile, event) => {
     if (!isSelectMode) {
       return;
     }
@@ -576,15 +579,7 @@ export function useCanvasInteractionSystem({
     };
     setDraggingTileIds(dragTileIds);
     setDragVisualDelta({ x: 0, y: 0 });
-  }, [
-    canvas,
-    clearRackDropPreview,
-    closeContextMenu,
-    commands,
-    isSelectMode,
-    selectedTileIdSet,
-    selectedTileIds,
-  ]);
+  });
 
   const beginGroupDrag = useCallback((group, event) => {
     if (!isSelectMode) {

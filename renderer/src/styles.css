@@ -1794,8 +1794,7 @@ option {
 
 .canvas__content {
   transform-origin: 0 0;
-  transform:
-    translate(var(--canvas-viewport-x, 0), var(--canvas-viewport-y, 0)) scale(var(--canvas-viewport-zoom, 1));
+  /* transform is set inline by useCanvasSystem (see getCanvasContentTransform). */
   z-index: 2;
 }
 

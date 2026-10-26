@@ -194,14 +194,13 @@ export function getCanvasGridStyleVars(viewport) {
   };
 }
 
-export function getCanvasContentStyleVars(viewport) {
+// Applied as an inline `transform` rather than inherited custom properties:
+// changing a custom property on the content root invalidates style for every
+// tile underneath it, while a transform change is handled by the compositor.
+export function getCanvasContentTransform(viewport) {
   const transform = getWorldToScreenTransform(viewport);
 
-  return {
-    "--canvas-viewport-x": `${transform.x}px`,
-    "--canvas-viewport-y": `${transform.y}px`,
-    "--canvas-viewport-zoom": String(transform.zoom),
-  };
+  return `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`;
 }
 
 export function getWorldToScreenTransform(viewport) {

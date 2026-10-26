@@ -15,6 +15,7 @@ import DrawingLayer from "./canvas/DrawingLayer";
 import { hashStringToUnitInterval } from "../lib/hashStringToUnitInterval";
 import { useAppContext } from "../context/useAppContext";
 import { useLog } from "../hooks/useLog";
+import { useStableCallback } from "../hooks/useStableCallback";
 import { useToast } from "../hooks/useToast";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
 import {
@@ -192,6 +193,9 @@ function DrawingToolControls({
   );
 }
 
+// Shared fallback so tiles without rack children keep a stable `childTiles`
+// prop (a fresh `[]` per render defeats Card's memo for every tile).
+const EMPTY_CHILD_TILES = [];
 const PERF_HISTORY_LIMIT = 64;
 const PERF_CHART_WIDTH = 176;
 const PERF_CHART_HEIGHT = 56;
@@ -1670,7 +1674,8 @@ export default function CanvasWorkspaceView() {
       selectAll: options.selectAll === true,
     });
   }, []);
-  const clearTextBoxEditState = useCallback((tileId = null, options = {}) => {
+  // Stable: passed to every tile (see useStableCallback).
+  const clearTextBoxEditState = useStableCallback((tileId = null, options = {}) => {
     setTextBoxEditorState((current) => {
       if (!current) {
         return null;
@@ -1687,7 +1692,7 @@ export default function CanvasWorkspaceView() {
         canvas.containerRef.current?.focus?.({ preventScroll: true });
       });
     }
-  }, [canvas]);
+  });
   const beginTextBoxCreation = useCallback((worldPoint) => {
     const textBox = commands.createTextCard(worldPoint, {
       text: "",
@@ -3115,7 +3120,7 @@ export default function CanvasWorkspaceView() {
                     renderHint={tileRenderHintsById[card.id]}
                     dragVisualDelta={interactions.dragVisualDelta}
                     dragVisualTileIdSet={dragVisualTileIdSet}
-                    childTiles={layout.rackTileChildrenByRackId[card.id] ?? []}
+                    childTiles={layout.rackTileChildrenByRackId[card.id] ?? EMPTY_CHILD_TILES}
                     rackState={layout.rackStateById[card.id] ?? null}
                     performanceMode={performanceMode}
                     onBeginDrag={interactions.beginTileDrag}
