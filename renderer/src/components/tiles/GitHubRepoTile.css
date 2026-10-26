@@ -1,0 +1,308 @@
+/* GitHub repo tile: byline, repo name, stats, then the language ribbon --
+   a segmented bar of the repo's real language split, the one memorable
+   element. Height is auto; GitHubRepoTile writes the measured height back
+   to card.height. Like ChecklistTile, this deliberately skips
+   .card__surface-frame/.card__surface, which TilePolish.css flattens with
+   !important. */
+
+.github-tile {
+  --github-card: #ffffff;
+  --github-line: #e2e4e8;
+  --github-ink: #14171a;
+  --github-muted: #667085;
+  --github-star: #f5b800;
+  --github-empty: #e3e5e8;
+  --github-button-hover: #2b3036;
+  --github-shadow: 0 20px 40px -28px rgba(20, 23, 26, 0.35);
+
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 26px;
+  border: 1px solid var(--github-line);
+  border-radius: 22px;
+  background: var(--github-card);
+  color: var(--github-ink);
+  font-family: "Bricolage Grotesque", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-align: left;
+  box-shadow: var(--github-shadow);
+  transition:
+    box-shadow 220ms var(--ap-tile-ease, ease),
+    transform 220ms var(--ap-tile-ease, ease);
+}
+
+.github-tile *,
+.github-tile *::before,
+.github-tile *::after {
+  box-sizing: border-box;
+}
+
+.card--hovered:not(.card--dragging):not(.card--selected) .github-tile,
+.card--focused:not(.card--dragging):not(.card--selected) .github-tile {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 44px -26px rgba(20, 23, 26, 0.42);
+}
+
+/* Selected reads as "picked up": a deeper shadow, no ring, matching the
+   rest of the canvas tiles. */
+.card--selected .github-tile {
+  box-shadow:
+    0 2px 6px rgba(20, 23, 26, 0.06),
+    0 26px 50px -24px rgba(20, 23, 26, 0.45);
+}
+
+.card--dragging .github-tile {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.16), 0 8px 22px rgba(0, 0, 0, 0.1);
+}
+
+:is(.card--merge-target, .card--folder-group-target, .card--folder-group-armed) .github-tile {
+  box-shadow:
+    0 0 0 4px rgba(52, 199, 89, 0.14),
+    0 0 0 1px rgba(52, 199, 89, 0.46),
+    var(--github-shadow);
+}
+
+/* ---------- Byline ---------- */
+
+.github-tile__byline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.github-tile__avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #e8eaed;
+  color: var(--github-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.github-tile__avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.github-tile__avatar img[hidden] {
+  display: none;
+}
+
+.github-tile__owner {
+  overflow: hidden;
+  color: var(--github-muted);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Name + description ---------- */
+
+.github-tile__repo {
+  margin: 14px 0 0;
+  color: var(--github-ink);
+  font-family: inherit;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.github-tile__desc {
+  display: -webkit-box;
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: var(--github-muted);
+  font-size: 15px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* ---------- Stats ---------- */
+
+.github-tile__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 20px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.github-tile__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--github-muted);
+}
+
+.github-tile__stat b {
+  color: var(--github-ink);
+  font-weight: 700;
+  transition: opacity 200ms ease;
+}
+
+.github-tile__stat svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.github-tile__stat .github-tile__star {
+  color: var(--github-star);
+}
+
+.github-tile[data-state="loading"] .github-tile__stat b {
+  opacity: 0.35;
+}
+
+/* ---------- Language ribbon (the signature) ---------- */
+
+.github-tile__ribbon {
+  display: flex;
+  gap: 3px;
+  height: 12px;
+  margin-top: 22px;
+  transition: opacity 200ms ease;
+}
+
+.github-tile[data-state="loading"] .github-tile__ribbon {
+  opacity: 0.4;
+}
+
+.github-tile__segment {
+  flex-basis: 0;
+  flex-shrink: 1;
+  min-width: 8px;
+  border-radius: 6px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.github-tile__segment--empty {
+  background: var(--github-empty);
+}
+
+.github-tile__ribbon[data-in="true"] .github-tile__segment {
+  transform: scaleX(1);
+}
+
+.github-tile__ribbon[data-in="true"] .github-tile__segment:nth-child(2) {
+  transition-delay: 80ms;
+}
+
+.github-tile__ribbon[data-in="true"] .github-tile__segment:nth-child(3) {
+  transition-delay: 160ms;
+}
+
+.github-tile__ribbon[data-in="true"] .github-tile__segment:nth-child(4) {
+  transition-delay: 240ms;
+}
+
+.github-tile__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.github-tile__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.github-tile__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.github-tile__muted {
+  color: var(--github-muted);
+}
+
+/* ---------- Footer ---------- */
+
+.github-tile__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.github-tile__updated {
+  color: var(--github-muted);
+  font-size: 13px;
+}
+
+.github-tile .github-tile__open {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--github-ink);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: var(--cursor-pointer, pointer);
+  transition:
+    background 150ms ease,
+    transform 120ms ease;
+}
+
+.github-tile .github-tile__open:hover {
+  background: var(--github-button-hover);
+}
+
+.github-tile .github-tile__open:active {
+  transform: scale(0.98);
+}
+
+.github-tile .github-tile__open:focus-visible {
+  outline: 2px solid var(--github-ink) !important;
+  outline-offset: 3px;
+}
+
+.github-tile__open svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-tile,
+  .github-tile * {
+    transition: none !important;
+  }
+}

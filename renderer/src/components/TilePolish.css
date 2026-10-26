@@ -148,10 +148,6 @@
   box-shadow: none !important;
 }
 
-.canvas__content .card__surface-frame--selected .card__surface--rack::after,
-.grid-workspace .card__surface-frame--selected .card__surface--rack::after {
-  outline: none !important;
-}
 
 .canvas__content .card[data-tile-state="editing"] .card__surface,
 .grid-workspace .card[data-tile-state="editing"] .card__surface {
@@ -211,9 +207,6 @@
    !important that lost to the generic rule above, so every rack and
    sticker was rendering inside a plain white card, like a photo stuck in
    a frame rather than a physical object in its own right. */
-.canvas__content .card__surface--rack,
-.grid-workspace .card__surface--rack,
-.card__surface--rack,
 .canvas__content .card__surface--sticker,
 .grid-workspace .card__surface--sticker,
 .card__surface--sticker {
@@ -222,10 +215,6 @@
   box-shadow: none !important;
 }
 
-.canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--rack,
-.canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--rack,
-.grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--rack,
-.grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface--rack,
 .canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticker,
 .canvas__content .card--focused:not(.card--dragging):not(.card--selected) .card__surface--sticker,
 .grid-workspace .card--hovered:not(.card--dragging):not(.card--selected) .card__surface--sticker,
@@ -424,25 +413,25 @@
 .grid-workspace .card__surface--link:not(.card__surface--music),
 .canvas__content .card__surface--amazon-product,
 .grid-workspace .card__surface--amazon-product,
-.canvas__content :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
-.grid-workspace :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
   border: none !important;
 }
 
-.canvas__content :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
-.grid-workspace :is(.card__surface--checklist, .card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--deadline, .card__surface--progress) {
   overflow: visible !important;
 }
 
 /* The generic hover rule above (line ~97) forces transform: none !important
    on every tile's frame except music/file/sticker, which each define their
    own lift. These get an actual lift too, on the same model. */
-:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
-:is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
-.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
-.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
-.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
-.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--checklist, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
+:is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+:is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.canvas__content :is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
+.grid-workspace :is(.card--link:not(.card--music), .card--amazon-product, .card--note, .card--table, .card--counter, .card--deadline, .card--progress).card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
   transform: translateY(-3px) !important;
 }
 
@@ -470,8 +459,8 @@
     inset 0 1px 0 rgba(148, 163, 184, 0.16) !important;
 }
 
-.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code),
-.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--checklist, .card__surface--counter, .card__surface--progress, .card__surface--code) {
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress, .card__surface--code),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress, .card__surface--code) {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 250, 252, 0.94)),
     var(--ap-tile-bg-subtle) !important;
@@ -678,8 +667,8 @@
   box-shadow: none !important;
 }
 
-.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action),
-.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action) {
+.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__amazon-product-cta, .card__retry, .card__link-action),
+.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__amazon-product-cta, .card__retry, .card__link-action) {
   border: 1px solid var(--ap-tile-line) !important;
   border-radius: 10px !important;
   background: rgba(255, 255, 255, 0.72) !important;
@@ -697,8 +686,8 @@
     transform var(--ap-transition-spring) !important;
 }
 
-.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled),
-.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__checklist-add, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled) {
+.canvas__content :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled),
+.grid-workspace :is(.card__note-mode-button, .card__progress-mode-button, .card__table-action, .card__table-delete-button, .card__calendar-popup-button, .card__calendar-view-button, .card__calendar-nav-button, .card__counter-button, .card__deadline-seconds-toggle, .card__amazon-product-cta, .card__retry, .card__link-action):hover:not(:disabled) {
   border-color: var(--ap-tile-line-strong) !important;
   background: rgba(29, 29, 31, 0.055) !important;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08) !important;

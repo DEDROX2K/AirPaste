@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld("airpaste", {
   unwatchMarkdownFile: (filePath) =>
     ipcRenderer.invoke("airpaste:unwatchMarkdownFile", filePath),
   openExternal: (url) => ipcRenderer.invoke("airpaste:openExternal", url),
+  getUserName: () => ipcRenderer.invoke("airpaste:getUserName"),
   openFile: (filePath) => ipcRenderer.invoke("airpaste:openFile", filePath),
   fetchLinkPreview: (folderPath, cardId, url, cardSnapshot, canvasFilePath = "") =>
     ipcRenderer.invoke("airpaste:fetchLinkPreview", folderPath, cardId, url, cardSnapshot, canvasFilePath),

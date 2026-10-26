@@ -1,5 +1,6 @@
 const { ipcMain, shell } = require("electron");
 const fsSync = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const context = require("../context");
 const { nowIso } = require("../fsUtils");
@@ -100,6 +101,15 @@ function registerIpc() {
     }
 
     return unwatchMarkdownFilePath(filePath);
+  });
+
+  // The computer's account name, shown as the author on sticky notes.
+  ipcMain.handle("airpaste:getUserName", async () => {
+    try {
+      return os.userInfo().username || "";
+    } catch {
+      return "";
+    }
   });
 
   ipcMain.handle("airpaste:openExternal", async (_event, url) => {

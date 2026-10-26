@@ -84,6 +84,9 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
     if (contentElement?.style) {
       contentElement.style.transform = getCanvasContentTransform(nextViewport);
+      // For screen-constant tile chrome (e.g. a sticky's toolbar), which
+      // divides by it in CSS instead of re-rendering on every zoom step.
+      contentElement.style.setProperty("--canvas-zoom", String(nextViewport.zoom));
     }
     notifyViewportListeners(nextViewport);
   }, [contentElement, gridElement, notifyViewportListeners]);

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 243">
+  <!-- PLACEHOLDER offline image for the weather tile. Replace this file with
+       the real offline SVG (keep the name, or update WEATHER_OFFLINE_IMAGE
+       in WeatherTile.jsx). -->
+  <rect width="520" height="243" fill="#050505"/>
+  <g fill="none" stroke="#6E6E74" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" transform="translate(260 92)">
+    <path d="M-34 -6a48 48 0 0 1 68 0"/>
+    <path d="M-22 8a31 31 0 0 1 44 0"/>
+    <circle cx="0" cy="24" r="2.5" fill="#6E6E74"/>
+    <line x1="-44" y1="-34" x2="44" y2="40"/>
+  </g>
+  <text x="260" y="170" text-anchor="middle" font-family="Instrument Sans, Segoe UI, sans-serif" font-size="20" font-weight="500" fill="#9A9AA0">You're offline</text>
+  <text x="260" y="196" text-anchor="middle" font-family="Instrument Sans, Segoe UI, sans-serif" font-size="12" fill="#5A5A60">Placeholder image. Replace with the offline SVG.</text>
+</svg>

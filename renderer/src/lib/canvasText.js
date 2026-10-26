@@ -12,9 +12,10 @@ export const CANVAS_TEXT_DEFAULT_SIZE = Object.freeze({
   height: 220,
 });
 
+// FigJam-style stickies are square (see tiles/sticky/model.js).
 export const CANVAS_TEXT_STICKY_SIZE = Object.freeze({
   width: 240,
-  height: 180,
+  height: 240,
 });
 
 export const CANVAS_TEXT_MIN_WIDTH = 180;

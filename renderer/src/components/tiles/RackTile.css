@@ -1,0 +1,353 @@
+/* Rack tile: tiles stand side by side in a rack, leaning back, with only
+   their tops showing above a flat, translucent plastic sheet held by two
+   brushed-metal pins. A card under the pointer comes upright, lifts and
+   tips out toward the viewer. Each card shows the real tile, rendered
+   static (see renderStaticTilePreview in Card.jsx). Like ChecklistTile, this skips .card__surface-frame/
+   .card__surface, which TilePolish.css flattens with !important.
+
+   --pl / --pl-deep (set inline from the rack's plasticColor) are RGB
+   triplets: the plastic's flat tint and a deep shade of it. */
+
+.rack-tile {
+  --pl: 252 156 37;
+  --pl-deep: 190 90 0;
+
+  position: relative;
+  width: 100%;
+  /* .card sizes to its content; the layout's height is the stage's. */
+  height: var(--tile-height, 360px);
+  color: #1d1d1f;
+  font-family: "Inter", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  cursor: grab;
+  user-select: none;
+}
+
+.card--dragging .rack-tile {
+  cursor: grabbing;
+}
+
+.rack-tile * {
+  box-sizing: border-box;
+}
+
+/* ---------- Stage: perspective for the leaning cards ---------- */
+
+.rack-tile__stage {
+  position: relative;
+  height: 100%;
+  perspective: 1000px;
+  perspective-origin: 50% 8%;
+}
+
+.rack-tile__cards {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+/* ---------- A card: pose layer ---------- */
+
+.rack-tile__card,
+.rack-tile__ghost {
+  --rack-col: 0;
+  --rack-n: 0;
+  --rack-lean: 42deg;
+  --rack-ry: 0deg;
+  --rack-rz: 0deg;
+  --rack-dx: 0px;
+  --rack-dy: 0px;
+  --rack-dz: 0px;
+
+  position: absolute;
+  left: calc(50% + var(--rack-col) * 206px);
+  bottom: 34px;
+  width: 176px;
+  height: 216px;
+  margin-left: -88px;
+  transform-origin: 50% 100%;
+  transform:
+    translate3d(var(--rack-dx), var(--rack-dy), var(--rack-dz))
+    rotateX(var(--rack-lean))
+    rotateY(var(--rack-ry))
+    rotateZ(var(--rack-rz));
+  /* Overshoots on purpose: pops past the target and springs back, both
+     ways. */
+  transition: transform 0.8s cubic-bezier(0.34, 1.45, 0.5, 1);
+}
+
+.rack-tile__card {
+  outline: none;
+  cursor: var(--cursor-pointer, pointer);
+  pointer-events: auto;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Drop-in intro (app load, freshly racked): left to right. Backwards fill
+   only -- forwards would block the hover transform. */
+.rack-tile__card--intro {
+  animation: rack-card-drop-in 0.95s cubic-bezier(0.22, 1.2, 0.36, 1) backwards;
+  animation-delay: calc(var(--rack-n) * 0.12s + 0.1s);
+}
+
+@keyframes rack-card-drop-in {
+  from {
+    transform: translate3d(var(--rack-dx), -150px, 120px) rotateX(-14deg) rotateY(0deg) rotateZ(var(--rack-rz));
+    opacity: 0;
+  }
+}
+
+/* Hover / focus / press: back to normal, lifted, tipped out of the rack. */
+.rack-tile__card--active,
+.rack-tile__card:focus-visible {
+  transform: translate3d(0, -84px, 90px) rotateX(-8deg) rotateY(0deg) rotateZ(0deg);
+}
+
+/* Neighbours make room (--rack-dx is set per card). */
+.rack-tile__stage[data-active] .rack-tile__card:not(.rack-tile__card--active) {
+  --rack-dy: 10px;
+  --rack-dz: -30px;
+}
+
+/* Where a tile being dragged over the rack will go. */
+.rack-tile__ghost {
+  border: 2px dashed rgb(var(--pl-deep) / 0.55);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.35);
+}
+
+/* ---------- A card: pointer-follow tilt ---------- */
+
+.rack-tile__tilt {
+  width: 100%;
+  height: 100%;
+  transform: perspective(800px) rotateY(var(--rack-tilt-y, 0deg)) rotateX(var(--rack-tilt-x, 0deg));
+  transition: transform 0.18s ease-out;
+}
+
+/* ---------- A card: the face ---------- */
+
+/* Radius close to a tile's own corners once scaled down. */
+.rack-tile__face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 18px 28px -16px rgba(0, 0, 0, 0.45);
+}
+
+.rack-tile__card--active .rack-tile__face {
+  animation: rack-card-wobble 0.95s cubic-bezier(0.3, 1, 0.4, 1);
+}
+
+@keyframes rack-card-wobble {
+  0% { transform: perspective(700px) rotateY(0deg) rotateZ(0deg); }
+  25% { transform: perspective(700px) rotateY(9deg) rotateZ(-2deg); }
+  55% { transform: perspective(700px) rotateY(-5deg) rotateZ(1.2deg); }
+  80% { transform: perspective(700px) rotateY(2deg) rotateZ(-0.4deg); }
+  100% { transform: perspective(700px) rotateY(0deg) rotateZ(0deg); }
+}
+
+/* The real tile, rendered static and scaled to the card's width (the card
+   takes its height from the tile; see RackCard). z-index 0 keeps the
+   tile's own .card stacking (its --tile-z) inside this box, so the
+   dim/sheen/glare overlays still paint on top. */
+.rack-tile__tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.rack-tile__dim,
+.rack-tile__sheen,
+.rack-tile__glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rack-tile__dim {
+  background: #000000;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.rack-tile__stage[data-active] .rack-tile__card:not(.rack-tile__card--active) .rack-tile__dim {
+  opacity: 0.3;
+}
+
+.rack-tile__sheen {
+  opacity: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+}
+
+.rack-tile__card--active .rack-tile__sheen {
+  animation: rack-card-sweep 0.9s 0.12s ease-out;
+}
+
+@keyframes rack-card-sweep {
+  0% { opacity: 0; transform: translateX(-120%); }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(120%); }
+}
+
+.rack-tile__glare {
+  opacity: 0;
+  background: radial-gradient(circle at var(--rack-glare-x, 50%) var(--rack-glare-y, 30%), rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 55%);
+  transition: opacity 0.3s ease;
+}
+
+.rack-tile__card--active .rack-tile__glare {
+  opacity: 1;
+}
+
+/* ---------- The plastic sheet: flat, translucent, one colour ---------- */
+
+.rack-tile__sheet {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 105px;
+  border: 1px solid rgb(var(--pl-deep) / 0.22);
+  border-radius: 12px;
+  background: rgb(var(--pl) / 0.7);
+  /* The one costly property: keep the blur small, never animate the sheet. */
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.25);
+  backdrop-filter: blur(1.5px) saturate(1.25);
+  box-shadow: 0 10px 18px -10px rgb(var(--pl-deep) / 0.4);
+  isolation: isolate;
+  pointer-events: none;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .rack-tile__sheet {
+    background: rgb(var(--pl) / 0.86);
+  }
+}
+
+/* Mid-pan the canvas moves under the sheet every frame; skip re-blurring. */
+.card--simplified .rack-tile__sheet {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgb(var(--pl) / 0.86);
+}
+
+/* Selected: a ring in the plastic's own deep colour, no animation. */
+.card--selected .rack-tile__sheet {
+  box-shadow:
+    0 0 0 2px rgb(var(--pl-deep) / 0.45),
+    0 10px 18px -10px rgb(var(--pl-deep) / 0.4);
+}
+
+/* ---------- The name label ---------- */
+
+.rack-tile__label {
+  position: absolute;
+  left: 62px;
+  top: 50%;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: #2a2a2d;
+  box-shadow: 0 1px 2px rgb(var(--pl-deep) / 0.35);
+  transform: translateY(-50%);
+  cursor: text;
+  pointer-events: auto;
+}
+
+.rack-tile__label:focus-within {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgb(var(--pl-deep) / 0.45);
+}
+
+.rack-tile__label h2 {
+  margin: 0;
+  font-size: inherit;
+  line-height: 1;
+}
+
+.rack-tile .rack-tile__name {
+  display: block;
+  min-width: 36px;
+  max-width: 280px;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  caret-color: #ffffff;
+  outline: none !important;
+  user-select: text;
+}
+
+.rack-tile__name:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.rack-tile__name::selection {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- The brushed-metal pins ---------- */
+
+.rack-tile__pin {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22) 0 0.6px, rgba(0, 0, 0, 0.06) 0.6px 1.2px),
+    conic-gradient(from 35deg, #d7dadd, #9aa0a6 18%, #eef0f2 32%, #868c93 50%, #dcdfe2 66%, #a3a9af 82%, #d7dadd);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    0 0 0 3px rgb(var(--pl-deep) / 0.14),
+    0 3px 5px rgb(var(--pl-deep) / 0.35);
+}
+
+.rack-tile__pin::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #b9bec4 60%, #8b9198);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+.rack-tile__pin--left {
+  left: 26px;
+}
+
+.rack-tile__pin--right {
+  right: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rack-tile__card--intro,
+  .rack-tile__card--active .rack-tile__face,
+  .rack-tile__card--active .rack-tile__sheen {
+    animation: none;
+  }
+
+  .rack-tile__card,
+  .rack-tile__ghost,
+  .rack-tile__tilt,
+  .rack-tile__dim,
+  .rack-tile__glare {
+    transition: none;
+  }
+}

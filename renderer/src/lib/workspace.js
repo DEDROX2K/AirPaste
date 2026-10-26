@@ -56,7 +56,9 @@ import {
 import {
   CHECKLIST_CARD_SIZE,
   CHECKLIST_DEFAULT_TITLE,
+  normalizeChecklistDateLabel,
   normalizeChecklistItems,
+  normalizeChecklistTimeLabel,
 } from "../tiles/checklist/model";
 import {
   CODE_CARD_SIZE,
@@ -92,6 +94,7 @@ import {
 import {
   RACK_DEFAULT_DESCRIPTION,
   RACK_DEFAULT_TITLE,
+  normalizeRackPlasticColor,
   normalizeRackTileIds,
 } from "../tiles/rack/model";
 import {
@@ -104,6 +107,17 @@ import {
   normalizeLinkContentKind,
 } from "../tiles/link/model";
 import {
+  GITHUB_REPO_CARD_SIZE,
+  GITHUB_REPO_CARD_TYPE,
+  normalizeGitHubRepoData,
+} from "../tiles/github/model";
+import {
+  WEATHER_CARD_SIZE,
+  WEATHER_CARD_TYPE,
+  normalizeWeatherCity,
+  normalizeWeatherLocation,
+} from "../tiles/weather/model";
+import {
   NOTE_CARD_SIZE,
   NOTE_DEFAULT_TITLE,
   TEXT_BOX_MIN_HEIGHT,
@@ -111,6 +125,7 @@ import {
   normalizeCanvasTextPayload,
   normalizeLanguageHints,
 } from "../tiles/canvasText/model";
+import { clampStickySize } from "../tiles/sticky/model";
 import {
   PAPER_NOTE_CARD_SIZE,
   normalizePaperNoteSubtitle,
@@ -130,6 +145,7 @@ export { createCalendarCard } from "../tiles/calendar/model";
 export { createTableCard } from "../tiles/table/model";
 export { createFileCard } from "../tiles/file/model";
 export { createRackCard } from "../tiles/rack/model";
+export { createWeatherCard } from "../tiles/weather/model";
 export { createLinkCard, createStickerCard } from "../tiles/link/model";
 export { createNoteCard, createTextBoxCard, createCanvasTextCard } from "../tiles/canvasText/model";
 
@@ -153,13 +169,17 @@ export const LINK_CONTENT_KIND_IMAGE = "image";
 // via shared/workspace-schema.json -- do not hardcode this number here.
 export const WORKSPACE_SCHEMA_VERSION = workspaceSchema.WORKSPACE_SCHEMA_VERSION;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
+// Rack geometry (see RackTile.css). Tiles stand in the rack as 176 x 216
+// preview cards, 206px apart, centred as a group; the rack is never
+// narrower than three cards and widens by one pitch per extra tile.
 export const RACK_MIN_SLOTS = 3;
-export const RACK_SLOT_WIDTH = 216;
-export const RACK_LEFT_CAP_WIDTH = 94;
-export const RACK_RIGHT_CAP_WIDTH = 94;
-export const RACK_HEIGHT = 62;
-export const RACK_MOUNTED_TILE_WIDTH = 200;
-export const RACK_TILE_BASELINE = 26;
+export const RACK_CARD_PITCH = 206;
+export const RACK_PREVIEW_WIDTH = 176;
+export const RACK_PREVIEW_HEIGHT = 216;
+export const RACK_SIDE_MARGIN = 26;
+export const RACK_HEIGHT = 360;
+// Top edge of a card in its lifted (hovered) pose, from the rack's top.
+export const RACK_LIFTED_PREVIEW_TOP = 26;
 // Defined here (not in tiles/rack/model.js) because it's computed from the
 // geometry constants directly above at module-evaluation time. Since those
 // constants are themselves imported back into tiles/rack/model.js (which
@@ -170,7 +190,7 @@ export const RACK_TILE_BASELINE = 26;
 // reference would throw "Cannot access ... before initialization" under
 // native ESM (Vite dev), even though a bundler like Rollup can mask it.
 export const RACK_CARD_SIZE = Object.freeze({
-  width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (RACK_SLOT_WIDTH * RACK_MIN_SLOTS),
+  width: ((RACK_MIN_SLOTS - 1) * RACK_CARD_PITCH) + RACK_PREVIEW_WIDTH + (RACK_SIDE_MARGIN * 2),
   height: RACK_HEIGHT,
 });
 const DEFAULT_PAGE_NAME = "Page 1";
@@ -224,6 +244,14 @@ function getCardType(card) {
 
   if (card?.type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_TYPE;
+  }
+
+  if (card?.type === GITHUB_REPO_CARD_TYPE) {
+    return GITHUB_REPO_CARD_TYPE;
+  }
+
+  if (card?.type === WEATHER_CARD_TYPE) {
+    return WEATHER_CARD_TYPE;
   }
 
   if (card?.type === CALENDAR_CARD_TYPE) {
@@ -306,6 +334,14 @@ function getCardSize(type) {
 
   if (type === AMAZON_PRODUCT_CARD_TYPE) {
     return AMAZON_PRODUCT_CARD_SIZE;
+  }
+
+  if (type === GITHUB_REPO_CARD_TYPE) {
+    return GITHUB_REPO_CARD_SIZE;
+  }
+
+  if (type === WEATHER_CARD_TYPE) {
+    return WEATHER_CARD_SIZE;
   }
 
   if (type === CALENDAR_CARD_TYPE) {
@@ -844,34 +880,31 @@ export function createEmptyWorkspace() {
 }
 
 export function getRackSlotCount(rackCard) {
-  return Math.max(
-    Number.isFinite(rackCard?.minSlots) ? rackCard.minSlots : RACK_MIN_SLOTS,
-    Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0,
-  );
+  return Math.max(RACK_MIN_SLOTS, Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0);
 }
 
 export function getRackSize(rackCard) {
   return {
-    width: RACK_LEFT_CAP_WIDTH + RACK_RIGHT_CAP_WIDTH + (getRackSlotCount(rackCard) * RACK_SLOT_WIDTH),
+    width: ((getRackSlotCount(rackCard) - 1) * RACK_CARD_PITCH) + RACK_PREVIEW_WIDTH + (RACK_SIDE_MARGIN * 2),
     height: RACK_HEIGHT,
   };
 }
 
-export function getRackMountedTileScale(tile) {
-  return RACK_MOUNTED_TILE_WIDTH / Math.max(1, tile?.width ?? 1);
+// Horizontal centre of a tile's preview card, from the rack's left edge.
+export function getRackCardCenterX(rackCard, rackIndex) {
+  const tileCount = Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0;
+  const normalizedIndex = Number.isFinite(rackIndex) ? rackIndex : 0;
+
+  return (getRackSize(rackCard).width / 2) + ((normalizedIndex - ((tileCount - 1) / 2)) * RACK_CARD_PITCH);
 }
 
+// Where a tile lands, full size, when it leaves the rack: centred on its
+// card, top edge where the lifted card's top is -- i.e. under the pointer
+// that grabbed it.
 export function getRackTileWorldPosition(rackCard, tile, rackIndex = tile?.rackIndex ?? 0) {
-  const normalizedIndex = Number.isFinite(rackIndex) ? rackIndex : 0;
-  const slotLeft = rackCard.x + RACK_LEFT_CAP_WIDTH + (normalizedIndex * RACK_SLOT_WIDTH);
-  const mountedScale = getRackMountedTileScale(tile);
-  const mountedWidth = tile.width * mountedScale;
-  const mountedHeight = tile.height * mountedScale;
-  const centeredOffset = (RACK_SLOT_WIDTH - mountedWidth) / 2;
-
   return {
-    x: slotLeft + centeredOffset,
-    y: rackCard.y + RACK_TILE_BASELINE - mountedHeight,
+    x: rackCard.x + getRackCardCenterX(rackCard, rackIndex) - ((tile?.width ?? 0) / 2),
+    y: rackCard.y + RACK_LIFTED_PREVIEW_TOP,
   };
 }
 
@@ -928,6 +961,10 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
   const canvasText = type === CANVAS_TEXT_CARD_TYPE ? normalizeCanvasTextPayload(card) : null;
+  // A (local) sticky is always square: its width is its size.
+  const stickySize = canvasText?.variant === CANVAS_TEXT_VARIANT_STICKY && canvasText.source === CANVAS_TEXT_SOURCE_LOCAL
+    ? clampStickySize(Number.isFinite(card?.width) ? card.width : size.width)
+    : null;
   const paperNoteTitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteTitle(card?.title) : "";
   const paperNoteSubtitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteSubtitle(card?.subtitle) : "";
   const paperNoteText = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteText(card?.text) : "";
@@ -946,14 +983,14 @@ export function normalizeCard(card, fallbackIndex = 0) {
     y: Number.isFinite(card?.y) ? card.y : 120,
     width: type === RACK_CARD_TYPE
       ? rackSize.width
-      : type === CANVAS_TEXT_CARD_TYPE
+      : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
-        : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width),
+        : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width)),
     height: type === RACK_CARD_TYPE
       ? rackSize.height
-      : type === CANVAS_TEXT_CARD_TYPE
+      : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
-        : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height),
+        : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height)),
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
     title: isLinkLikeCard
@@ -975,7 +1012,11 @@ export function normalizeCard(card, fallbackIndex = 0) {
         : type === DEADLINE_CARD_TYPE
           ? firstString(card?.title, DEADLINE_DEFAULT_TITLE)
         : type === CANVAS_TEXT_CARD_TYPE
-          ? firstString(canvasText.title, deriveCanvasTextTitle(canvasText), NOTE_DEFAULT_TITLE)
+          // A sticky's title is exactly what it has (usually nothing): a
+          // derived "Untitled note" would show up as a line of its text.
+          ? (canvasText.variant === CANVAS_TEXT_VARIANT_STICKY
+            ? canvasText.title
+            : firstString(canvasText.title, deriveCanvasTextTitle(canvasText), NOTE_DEFAULT_TITLE))
         : type === PROGRESS_CARD_TYPE
           ? firstString(card?.title, PROGRESS_DEFAULT_TITLE)
           : type === TABLE_CARD_TYPE
@@ -1006,6 +1047,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     variant: type === CANVAS_TEXT_CARD_TYPE ? canvasText.variant : CANVAS_TEXT_VARIANT_DEFAULT,
     format: type === CANVAS_TEXT_CARD_TYPE ? canvasText.format : "",
     titleMode: type === CANVAS_TEXT_CARD_TYPE ? canvasText.titleMode : CANVAS_TEXT_TITLE_MODE_DERIVED,
+    sticky: type === CANVAS_TEXT_CARD_TYPE ? canvasText.sticky : null,
     language: type === CODE_CARD_TYPE ? codeLanguage : "",
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
@@ -1069,12 +1111,18 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? Math.max(0, Math.round(card.productReviewCount))
       : null,
     items: checklistItems,
+    repo: type === GITHUB_REPO_CARD_TYPE ? normalizeGitHubRepoData(card?.repo, card?.url) : null,
+    city: type === WEATHER_CARD_TYPE ? normalizeWeatherCity(card?.city) : "",
+    location: type === WEATHER_CARD_TYPE ? normalizeWeatherLocation(card?.location) : null,
+    dateLabel: type === CHECKLIST_CARD_TYPE ? normalizeChecklistDateLabel(card?.dateLabel, createdAt) : "",
+    timeLabel: type === CHECKLIST_CARD_TYPE ? normalizeChecklistTimeLabel(card?.timeLabel, createdAt) : "",
     columns: tableColumns,
     rows: tableRows,
     tileIds: rackTileIds,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
       : null,
+    plasticColor: type === RACK_CARD_TYPE ? normalizeRackPlasticColor(card?.plasticColor) : null,
     layout: normalizeCardLayout(card?.layout),
     airpaste: card?.airpaste && typeof card.airpaste === "object"
       ? deepCloneStructuredValue(card.airpaste)
@@ -1685,6 +1733,12 @@ export function createLinkPreviewRefreshPatch(card) {
     return null;
   }
 
+  // A repo tile keeps its type and last-known numbers while it refreshes,
+  // so it shows its own loading state instead of becoming a link tile.
+  if (card.type === GITHUB_REPO_CARD_TYPE) {
+    return { status: "loading", previewError: "" };
+  }
+
   return {
     type: TILE_TYPES.LINK,
     contentKind: LINK_CONTENT_KIND_BOOKMARK,
@@ -1790,6 +1844,14 @@ export function formatCardSubtitle(card) {
       ? "sticky"
       : (card.format === CANVAS_TEXT_FORMAT_PLAIN ? "plain text" : "markdown");
     return `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${variantLabel} · ${sourceLabel}`;
+  }
+
+  if (card.type === WEATHER_CARD_TYPE) {
+    return `weather · ${card.city || "local"}`;
+  }
+
+  if (card.type === GITHUB_REPO_CARD_TYPE) {
+    return firstString(card.repo?.owner && card.repo?.name ? `${card.repo.owner}/${card.repo.name}` : "", "GitHub repository");
   }
 
   if (card.type === AMAZON_PRODUCT_CARD_TYPE) {

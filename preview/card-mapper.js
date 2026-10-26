@@ -1,4 +1,5 @@
 const AMAZON_PRODUCT_CARD_TYPE = "amazon-product";
+const GITHUB_REPO_CARD_TYPE = "github-repo";
 const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
 const { PREVIEW_KIND, PREVIEW_STATE_VALUES, PREVIEW_STATUS } = require("./constants");
@@ -32,7 +33,20 @@ function defaultCardTypeForResult(result) {
     return AMAZON_PRODUCT_CARD_TYPE;
   }
 
+  if (result.kind === PREVIEW_KIND.GITHUB_REPO && result.metadata?.github) {
+    return GITHUB_REPO_CARD_TYPE;
+  }
+
   return "link";
+}
+
+// A failed refresh (rate limit, offline) keeps the last good numbers
+// rather than blanking a tile that already showed real data.
+function getNextGitHubRepoState(currentRepo, nextRepo) {
+  const hasPreviousData = currentRepo && typeof currentRepo === "object" && !currentRepo.error
+    && Number.isFinite(currentRepo.stars);
+
+  return nextRepo?.error && hasPreviousData ? currentRepo : nextRepo;
 }
 
 function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
@@ -44,6 +58,9 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const keepImage = Boolean(result.image) && safeStatus !== PREVIEW_STATUS.BLOCKED && safeStatus !== PREVIEW_STATUS.ERROR;
   const contentKind = result.kind === PREVIEW_KIND.IMAGE ? LINK_CONTENT_KIND_IMAGE : LINK_CONTENT_KIND_BOOKMARK;
   const isAmazonCard = nextType === AMAZON_PRODUCT_CARD_TYPE;
+  const isGitHubRepoCard = nextType === GITHUB_REPO_CARD_TYPE;
+  const nextGitHubRepo = isGitHubRepoCard ? getNextGitHubRepoState(currentCard.repo, result.metadata.github) : null;
+  const keptPreviousGitHubRepo = isGitHubRepoCard && nextGitHubRepo === currentCard.repo;
   const isXPost = result.kind === PREVIEW_KIND.X_POST;
   const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"
     ? result.diagnostics
@@ -75,7 +92,9 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
         : currentCard.height),
     contentKind,
     title: result.title || result.siteName || domainFallback,
-    description: safeStatus === "blocked" ? "" : (result.description || ""),
+    description: keptPreviousGitHubRepo
+      ? (currentCard.description || "")
+      : (safeStatus === "blocked" ? "" : (result.description || "")),
     image: keepImage ? result.image || "" : "",
     favicon: result.favicon || "",
     siteName: result.siteName || domainFallback,
@@ -99,6 +118,7 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
     productReviewCount: isAmazonCard && Number.isFinite(result.metadata?.productReviewCount)
       ? Math.round(result.metadata.productReviewCount)
       : null,
+    repo: nextGitHubRepo,
   };
 }
 

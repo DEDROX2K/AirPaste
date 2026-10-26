@@ -364,6 +364,7 @@ function mapCardToCanvasNodeType(card) {
       return "file";
     case "link":
     case "amazon-product":
+    case "github-repo":
       return "link";
     default:
       return "text";

@@ -139,6 +139,7 @@ export const desktop = {
   },
   shell: {
     openExternal: (url) => airpasteBridge.openExternal?.(url) ?? Promise.resolve({ opened: false }),
+    getUserName: () => airpasteBridge.getUserName?.() ?? Promise.resolve(""),
   },
   window: {
     minimize: () => electronBridge.minimize?.(),

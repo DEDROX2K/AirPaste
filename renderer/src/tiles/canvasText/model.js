@@ -31,6 +31,7 @@ import {
   TEXT_BOX_DEFAULT_TEXT,
 } from "../../lib/textBoxStyle";
 import TILE_TYPES from "../tileTypes";
+import { normalizeStickyStyle } from "../sticky/model";
 
 export const CANVAS_TEXT_CARD_TYPE = TILE_TYPES.CANVAS_TEXT;
 export const NOTE_CARD_TYPE = TILE_TYPES.NOTE;
@@ -137,6 +138,7 @@ export function normalizeCanvasTextPayload(card) {
       placeholder: false,
       placeholderText: TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
       autoWidth: false,
+      sticky: normalizeStickyStyle(card?.sticky),
     };
   }
 
@@ -152,6 +154,7 @@ export function normalizeCanvasTextPayload(card) {
     placeholder,
     placeholderText,
     autoWidth,
+    sticky: null,
   };
 }
 
@@ -227,6 +230,7 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
       ? options.placeholderText
       : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
     autoWidth: options?.autoWidth !== false,
+    sticky: isStickyVariant ? options?.sticky : null,
     x,
     y,
     width: Math.max(TEXT_BOX_MIN_WIDTH, width),

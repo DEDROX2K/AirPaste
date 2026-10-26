@@ -11,6 +11,7 @@ import {
   createChecklistCard,
   createCodeCard,
   createCounterCard,
+  createWeatherCard,
   createDeadlineCard,
   createLinkCard,
   createPaperNoteCard,
@@ -1674,6 +1675,14 @@ export function AppProvider({ children }) {
     })));
     return card;
   }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
+  const createNewWeatherCard = useCallback((center = null, options = {}) => {
+    const card = createWeatherCard(workspace.cards, workspace.viewport, center, options);
+    commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
+      ...page,
+      cards: [...page.cards, card],
+    })));
+    return card;
+  }, [commitWorkspaceChange, workspace.cards, workspace.viewport]);
   const createNewDeadlineCard = useCallback((center = null, options = {}) => {
     const card = createDeadlineCard(workspace.cards, workspace.viewport, center, options);
     commitWorkspaceChange((current) => updateActivePageDocument(current, (page) => ({
@@ -1937,6 +1946,7 @@ export function AppProvider({ children }) {
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
+    createNewWeatherCard,
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
@@ -2012,6 +2022,7 @@ export function AppProvider({ children }) {
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
+    createNewWeatherCard,
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,

@@ -1,5 +1,4 @@
 import {
-  getRackMountedTileScale,
   getRackSize,
   getRackTileWorldPosition,
   RACK_CARD_TYPE,
@@ -150,11 +149,10 @@ export function getRackDropRect(rackTile) {
   };
 }
 
+// A tile in a rack isn't on the canvas -- the rack draws its snapshot. This
+// entry is where the tile lands, full size, when it's pulled out.
 export function getRackAttachedTileEntry(rackTile, childTile, index) {
   const worldPosition = getRackTileWorldPosition(rackTile, childTile, index);
-  const mountedScale = getRackMountedTileScale(childTile);
-  const mountedWidth = childTile.width * mountedScale;
-  const mountedHeight = childTile.height * mountedScale;
 
   return {
     tile: childTile,
@@ -165,16 +163,16 @@ export function getRackAttachedTileEntry(rackTile, childTile, index) {
     localY: worldPosition.y - rackTile.y,
     x: worldPosition.x,
     y: worldPosition.y,
-    width: mountedWidth,
-    height: mountedHeight,
+    width: childTile.width,
+    height: childTile.height,
     rackSlotIndex: index,
     rect: {
       left: worldPosition.x,
       top: worldPosition.y,
-      right: worldPosition.x + mountedWidth,
-      bottom: worldPosition.y + mountedHeight,
-      width: mountedWidth,
-      height: mountedHeight,
+      right: worldPosition.x + childTile.width,
+      bottom: worldPosition.y + childTile.height,
+      width: childTile.width,
+      height: childTile.height,
     },
   };
 }
@@ -235,7 +233,7 @@ export function getRenderableTileEntryById(tiles, tileId, tileById = getTileById
 
 export function getSelectedTileIdsInRect(tiles, selectionRect, tileById = getTileByIdMap(tiles)) {
   return getRenderableTileEntries(tiles, tileById)
-    .filter((entry) => rectsIntersect(selectionRect, entry.rect))
+    .filter((entry) => entry.containerType === "canvas" && rectsIntersect(selectionRect, entry.rect))
     .map((entry) => entry.tile.id);
 }
 
@@ -269,22 +267,11 @@ export function getTileLayer(orderIndex, {
   isSelected,
   isFocused,
   isNested = false,
-  isRackAttached = false,
-  isParentDragging = false,
-  isParentSelected = false,
 }) {
   let layer = orderIndex + 1;
 
   if (isNested) {
     layer += 1500;
-  }
-
-  if (isRackAttached) {
-    layer += 180;
-  }
-
-  if (isParentSelected) {
-    layer += 220;
   }
 
   if (isSelected) {
@@ -297,10 +284,6 @@ export function getTileLayer(orderIndex, {
 
   if (isDragging) {
     layer += 1200;
-  }
-
-  if (isParentDragging) {
-    layer += 1400;
   }
 
   return layer;

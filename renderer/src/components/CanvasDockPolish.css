@@ -606,7 +606,7 @@
   position: absolute !important;
   left: 0 !important;
   bottom: calc(100% + 10px) !important;
-  width: 230px !important;
+  width: 340px !important;
   padding: 6px !important;
   border: 1px solid var(--ap-dock-line) !important;
   border-radius: 16px !important;
@@ -634,6 +634,27 @@
   display: flex !important;
   flex-direction: column !important;
   gap: 1px !important;
+}
+
+.canvas-start-menu__section + .canvas-start-menu__section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ap-dock-line);
+}
+
+.canvas-start-menu__section-label {
+  padding: 4px 8px 2px;
+  color: var(--ap-dock-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Two items per row keeps every tile on screen at once. */
+.canvas-start-menu__section-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
 }
 
 .canvas-start-menu__item {

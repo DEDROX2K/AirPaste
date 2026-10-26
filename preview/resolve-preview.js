@@ -308,6 +308,19 @@ function buildResolverNativeValidation(result) {
     };
   }
 
+  // Repo data comes straight from GitHub's API, not scraped page text, so
+  // there's nothing to vet and no preview image to require.
+  if (result.kind === PREVIEW_KIND.GITHUB_REPO) {
+    return {
+      decision: "accept",
+      status: PREVIEW_STATUS.READY,
+      confidence: result.confidence || PREVIEW_CONFIDENCE.HIGH,
+      rejectionReason: "",
+      reason: "",
+      acceptImage: false,
+    };
+  }
+
   return validateResolvedPreview(result, {});
 }
 
@@ -721,7 +734,7 @@ async function resolveUrlToPreview(url) {
       contentType: result.contentType || classification.contentType || "link",
       sourceType: result.sourceType || classification.sourceType || "generic-link",
     });
-    const validation = result.kind === PREVIEW_KIND.PINTEREST_PIN
+    const validation = result.kind === PREVIEW_KIND.PINTEREST_PIN || result.kind === PREVIEW_KIND.GITHUB_REPO
       ? buildResolverNativeValidation(result)
       : validateResolvedPreview(result, documentSignals);
     traceStep("validate", "ok", {
@@ -744,7 +757,7 @@ async function resolveUrlToPreview(url) {
     const description = validation.status === PREVIEW_STATUS.BLOCKED
       ? ""
       : firstString(result.description, documentSignals?.ogDescription);
-    const finalStatus = validation.status === PREVIEW_STATUS.READY && !imageAcquisition.image && result.kind !== PREVIEW_KIND.IMAGE
+    const finalStatus = validation.status === PREVIEW_STATUS.READY && !imageAcquisition.image && result.kind !== PREVIEW_KIND.IMAGE && result.kind !== PREVIEW_KIND.GITHUB_REPO
       ? PREVIEW_STATUS.FALLBACK
       : validation.status;
     const metadataFetchStatus = result.metadata?.metadataFetchStatus

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { recordDerivedMetric } from "../../lib/perf";
 import {
-  getRackMountedTileScale,
   getRackSlotCount,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
@@ -15,19 +14,6 @@ import {
   getTileLayer,
   getTileStyleVars,
 } from "./tileLayout";
-
-function getRackAttachedStyleVars(tile, entry, zIndex) {
-  const rackScale = getRackMountedTileScale(tile);
-
-  return getTileStyleVars(tile, zIndex, entry.x, entry.y, tile.width, tile.height, {
-    // The mounted box owns the visible coordinates and hit area. The original
-    // tile dimensions stay available to the inner content before it is scaled.
-    "--tile-layout-width": `${entry.width}px`,
-    "--tile-layout-height": `${entry.height}px`,
-    "--tile-content-scale": String(rackScale),
-    "--rack-slot-index": String(entry.rackSlotIndex ?? 0),
-  });
-}
 
 function getCanvasEntryStyleVars(tile, entry, zIndex) {
   return getTileStyleVars(tile, zIndex, entry.x, entry.y, entry.width, entry.height);
@@ -55,21 +41,19 @@ export function useTileLayoutSystem({
     });
     return nextEntries;
   }, [tileById, tiles]);
-  const canvasEntries = renderableEntries;
+  // Tiles in a rack are shown by the rack itself (as snapshot cards), never
+  // as live tiles on the canvas: they don't render, select or move here.
+  const canvasEntries = useMemo(
+    () => renderableEntries.filter((entry) => entry.containerType === "canvas"),
+    [renderableEntries],
+  );
   const visibleCanvasEntries = useMemo(() => {
     if (!visibleWorldRect) {
       return canvasEntries;
     }
 
     return canvasEntries.filter((entry) => {
-      const isDirectlyDragged = draggingTileIdSet.has(entry.tile.id);
-      const isChildOfDraggedRack = Boolean(entry.rackId && draggingTileIdSet.has(entry.rackId));
-
-      // A rack's persisted coordinates do not update until drop. Keep its
-      // mounted children rendered while it crosses the viewport boundary.
-      return isDirectlyDragged
-        || isChildOfDraggedRack
-        || rectsIntersect(visibleWorldRect, entry.rect);
+      return draggingTileIdSet.has(entry.tile.id) || rectsIntersect(visibleWorldRect, entry.rect);
     });
   }, [canvasEntries, draggingTileIdSet, visibleWorldRect]);
   const rackTileChildrenByRackId = useMemo(() => Object.fromEntries(
@@ -106,28 +90,18 @@ export function useTileLayoutSystem({
     const nextTileMetaById = Object.fromEntries(
       visibleCanvasEntries.map((entry, index) => {
         const tile = entry.tile;
-        const isRackAttached = entry.containerType === "rack";
         const isRackDropTarget = rackDropPreview?.rackId === tile.id;
-        const parentRackId = entry.rackId ?? null;
-        const parentRackDragging = Boolean(parentRackId && draggingTileIdSet.has(parentRackId));
-        const parentRackSelected = Boolean(parentRackId && selectedTileIdSet.has(parentRackId));
-        const parentRackFocused = Boolean(parentRackId && focusedTileId === parentRackId);
         const flags = {
-          // Mounted children move with their rack through dragVisualDelta,
-          // but must not receive the direct-drag visual transforms themselves.
           isDragging: draggingTileIdSet.has(tile.id),
-          isSelected: selectedTileIdSet.has(tile.id) || parentRackSelected,
+          isSelected: selectedTileIdSet.has(tile.id),
           // Tiles use this to suppress description/detail text once more
           // than one tile is selected at once -- rendering every selected
           // tile's full detail text simultaneously is the expensive case,
           // not showing it for exactly one.
           isMultiSelect: selectedTileIds.length > 1,
-          isFocused: focusedTileId === tile.id || parentRackFocused,
+          isFocused: focusedTileId === tile.id,
           isHovered: hoveredTileId === tile.id,
           isMergeTarget: false,
-          isRackAttached,
-          isParentDragging: parentRackDragging,
-          isParentSelected: parentRackSelected,
         };
         const interactionState = getTileInteractionState(flags);
         const zIndex = getTileLayer(index, flags);
@@ -140,17 +114,10 @@ export function useTileLayoutSystem({
             isGroupingArmed: false,
             isFolderZoneTarget: false,
             isRackDropTarget,
-            rackId: entry.rackId ?? null,
-            rackSlotIndex: entry.rackSlotIndex ?? null,
             renderWidth: entry.width,
             renderHeight: entry.height,
             interactionState,
-            styleVars: isRackAttached
-              ? getRackAttachedStyleVars(tile, {
-                ...entry,
-                rackSlotCount: rackTileChildrenByRackId[entry.rackId]?.length ?? 0,
-              }, zIndex)
-              : getCanvasEntryStyleVars(tile, entry, zIndex),
+            styleVars: getCanvasEntryStyleVars(tile, entry, zIndex),
           },
         ];
       }),
@@ -168,7 +135,6 @@ export function useTileLayoutSystem({
     focusedTileId,
     hoveredTileId,
     rackDropPreview,
-    rackTileChildrenByRackId,
     selectedTileIdSet,
     selectedTileIds.length,
   ]);

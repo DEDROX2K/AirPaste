@@ -14,6 +14,14 @@ import {
 import { LINK_CONTENT_KIND_IMAGE } from "../lib/workspace";
 import { PREVIEW_TIER, TILE_RENDER_STATE } from "../systems/canvas/tileLod";
 import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
+import { formatRepoCount, getLanguageSegments, normalizeGitHubRepoData } from "../tiles/github/model";
+import {
+  STICKY_BASE_SIZE,
+  STICKY_FONT_SIZES,
+  getStickyColorHex,
+  getStickyDisplayText,
+  normalizeStickyStyle,
+} from "../tiles/sticky/model";
 import {
   ensureDitheredPreview,
   getCachedDitheredPreview,
@@ -728,7 +736,45 @@ function drawScenePlainCanvasTextLabel(ctx, tile, bounds) {
   ctx.restore();
 }
 
+// Mirrors StickyTile.css: a flat pastel square, text and author scaled
+// with the note (k = size / 240).
+function drawSceneFigJamStickyTile(ctx, tile, bounds) {
+  const style = normalizeStickyStyle(tile?.sticky);
+  const k = bounds.width / STICKY_BASE_SIZE;
+  const fontSize = STICKY_FONT_SIZES[style.fontSize] * k;
+  const lineHeight = fontSize * 1.3;
+  const padding = 18 * k;
+  const fontFamily = "Inter, \"Segoe UI\", sans-serif";
+  const textWidth = Math.max(8, bounds.width - (padding * 2));
+  const maxLines = Math.max(1, Math.floor((bounds.height - padding - (34 * k)) / lineHeight));
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 3 * k, getStickyColorHex(style.color));
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#1e1e1e";
+  ctx.font = `${style.italic ? "italic " : ""}${style.bold ? 700 : 400} ${fontSize}px ${fontFamily}`;
+  const lines = getStickyDisplayText(tile).split("\n");
+  let row = 0;
+  for (const line of lines) {
+    if (row >= maxLines) {
+      break;
+    }
+    row += Math.max(1, drawClampedText(ctx, line, bounds.x + padding, bounds.y + padding + (row * lineHeight), textWidth, lineHeight, maxLines - row));
+  }
+
+  if (style.author) {
+    ctx.fillStyle = "rgba(30, 30, 30, 0.5)";
+    ctx.font = `500 ${11.5 * k}px ${fontFamily}`;
+    drawClampedText(ctx, style.author, bounds.x + padding, bounds.y + bounds.height - (12 * k) - (14 * k), textWidth, 14 * k, 1);
+  }
+}
+
 function drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  if (tile?.variant === CANVAS_TEXT_VARIANT_STICKY && tile?.source !== "file") {
+    drawSceneFigJamStickyTile(ctx, tile, bounds);
+    return;
+  }
+
   if (tile?.format === CANVAS_TEXT_FORMAT_PLAIN) {
     drawScenePlainCanvasTextLabel(ctx, tile, bounds);
     return;
@@ -862,35 +908,108 @@ function drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving)
 }
 
 function drawSceneChecklistTile(ctx, tile, bounds, renderState) {
-  const titleText = typeof tile?.title === "string" && tile.title.trim() ? tile.title.trim() : "Checklist";
+  // Mirrors ChecklistTile.css at a glance: yellow header band, white sheet
+  // tucked over it, title, then 40px task rows with rounded checkboxes.
+  const titleText = typeof tile?.title === "string" && tile.title.trim() ? tile.title.trim() : "Untitled";
+  const dateText = typeof tile?.dateLabel === "string" ? tile.dateLabel : "";
   const items = Array.isArray(tile?.items) ? tile.items : [];
-  const visibleItems = renderState === TILE_RENDER_STATE.DETAIL ? items.slice(0, 4) : items.slice(0, 2);
-  const completedCount = items.filter((item) => item?.checked === true).length;
+  const fontFamily = "Roboto, \"Segoe UI\", sans-serif";
+  const listTop = bounds.y + 116;
+  const footerHeight = 60;
+  const maxRows = Math.max(0, Math.floor((bounds.y + bounds.height - footerHeight - 22 - listTop) / 40));
+  const visibleItems = items.slice(0, renderState === TILE_RENDER_STATE.DETAIL ? maxRows : Math.min(maxRows, 3));
 
-  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 20, "rgba(248, 241, 213, 0.98)");
-  fillRoundedRect(ctx, bounds.x + 12, bounds.y + 12, bounds.width - 24, Math.min(42, bounds.height * 0.2), 14, "rgba(255,255,255,0.42)");
+  const headerGradient = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + 67);
+  headerGradient.addColorStop(0, "#ffd43f");
+  headerGradient.addColorStop(0.68, "#fff0b0");
+  headerGradient.addColorStop(1, "#fff4c8");
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 24, headerGradient);
+  fillRoundedRect(ctx, bounds.x, bounds.y + 45, bounds.width, bounds.height - 45, 22, "#ffffff");
 
-  ctx.fillStyle = "rgba(79, 65, 38, 0.96)";
-  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 15 : 13}px "Segoe UI", sans-serif`;
   ctx.textBaseline = "top";
-  drawClampedText(ctx, titleText, bounds.x + 18, bounds.y + 18, Math.max(24, bounds.width - 92), 18, 1);
+  if (dateText) {
+    ctx.fillStyle = "#6f5410";
+    ctx.font = `700 15px ${fontFamily}`;
+    drawClampedText(ctx, dateText, bounds.x + 26, bounds.y + 16, Math.max(24, bounds.width - 120), 18, 1);
+  }
 
-  ctx.fillStyle = "rgba(104, 88, 52, 0.9)";
-  ctx.font = `700 ${renderState === TILE_RENDER_STATE.DETAIL ? 11 : 10}px "Segoe UI", sans-serif`;
-  drawClampedText(ctx, `${completedCount}/${Math.max(items.length, 1)}`, bounds.x + bounds.width - 54, bounds.y + 20, 36, 12, 1);
+  ctx.fillStyle = "#2b2b2b";
+  ctx.font = `700 30px ${fontFamily}`;
+  drawClampedText(ctx, titleText, bounds.x + 26, bounds.y + 70, Math.max(24, bounds.width - 52), 36, 1);
 
   visibleItems.forEach((item, index) => {
-    const rowY = bounds.y + 64 + (index * (renderState === TILE_RENDER_STATE.DETAIL ? 28 : 24));
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(bounds.x + 26, rowY + 8, 6, 0, Math.PI * 2);
-    ctx.fillStyle = item?.checked ? "#7c9c3f" : "rgba(154, 160, 190, 0.45)";
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = item?.checked ? "rgba(126, 115, 88, 0.82)" : "rgba(79, 65, 38, 0.92)";
-    ctx.font = `${renderState === TILE_RENDER_STATE.DETAIL ? 12 : 11}px "Segoe UI", sans-serif`;
-    drawClampedText(ctx, item?.text || "Checklist item", bounds.x + 40, rowY, Math.max(20, bounds.width - 56), 15, 1);
+    const rowY = listTop + (index * 40) + 7;
+    if (item?.checked) {
+      fillRoundedRect(ctx, bounds.x + 26, rowY, 26, 26, 7, "#2e2e2e");
+    } else {
+      strokeRoundedRect(ctx, bounds.x + 26.5, rowY + 0.5, 25, 25, 7, "#e4e4e4", 1);
+    }
+    ctx.fillStyle = item?.checked ? "#c8c8c8" : "#555555";
+    ctx.font = `500 15.5px ${fontFamily}`;
+    drawClampedText(ctx, item?.text || "", bounds.x + 61, rowY + 3, Math.max(20, bounds.width - 87), 20, 1);
   });
+
+  ctx.fillStyle = "#e8e8e8";
+  ctx.fillRect(bounds.x + 14, bounds.y + bounds.height - footerHeight, bounds.width - 28, 1);
+  ctx.fillStyle = "#c6c6c6";
+  ctx.font = `500 15.5px ${fontFamily}`;
+  drawClampedText(ctx, "Add to checklist…", bounds.x + 26, bounds.y + bounds.height - footerHeight + 16, Math.max(20, bounds.width - 52), 22, 1);
+}
+
+// Mirrors GitHubRepoTile.css at a glance: byline, repo name, stats, and the
+// language ribbon (the tile's signature) above the "Open on GitHub" pill.
+function drawSceneGitHubRepoTile(ctx, tile, bounds) {
+  const repo = normalizeGitHubRepoData(tile?.repo, tile?.url);
+  const segments = repo.error ? null : getLanguageSegments(repo.languages);
+  const fontFamily = "\"Bricolage Grotesque\", \"Segoe UI\", sans-serif";
+  const innerX = bounds.x + 26;
+  const innerWidth = Math.max(24, bounds.width - 52);
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 22, "#ffffff");
+  strokeRoundedRect(ctx, bounds.x + 0.5, bounds.y + 0.5, bounds.width - 1, bounds.height - 1, 22, "#e2e4e8", 1);
+
+  ctx.textBaseline = "top";
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(innerX + 12, bounds.y + 38, 12, 0, Math.PI * 2);
+  ctx.fillStyle = "#e8eaed";
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = "#667085";
+  ctx.font = `500 14px ${fontFamily}`;
+  drawClampedText(ctx, repo.owner, innerX + 33, bounds.y + 30, innerWidth - 33, 18, 1);
+
+  ctx.fillStyle = "#14171a";
+  ctx.font = `800 40px ${fontFamily}`;
+  drawClampedText(ctx, repo.name, innerX, bounds.y + 66, innerWidth, 41, 1);
+
+  ctx.fillStyle = "#667085";
+  ctx.font = `500 14px ${fontFamily}`;
+  drawClampedText(
+    ctx,
+    `★ ${formatRepoCount(repo.stars)}   ⑂ ${formatRepoCount(repo.forks)}   ◎ ${formatRepoCount(repo.issues)}`,
+    innerX,
+    bounds.y + bounds.height - 156,
+    innerWidth,
+    20,
+    1,
+  );
+
+  // Ribbon sits above the legend row (28px) and footer (68px).
+  const ribbonY = bounds.y + bounds.height - 124;
+  if (segments && segments.length > 0) {
+    const gapTotal = (segments.length - 1) * 3;
+    let segmentX = innerX;
+    segments.forEach((segment) => {
+      const segmentWidth = Math.max(8, ((innerWidth - gapTotal) * segment.pct) / 100);
+      fillRoundedRect(ctx, segmentX, ribbonY, segmentWidth, 12, 6, segment.color);
+      segmentX += segmentWidth + 3;
+    });
+  } else {
+    fillRoundedRect(ctx, innerX, ribbonY, innerWidth, 12, 6, "#e3e5e8");
+  }
+
+  fillRoundedRect(ctx, bounds.x + bounds.width - 26 - 168, bounds.y + bounds.height - 70, 168, 44, 22, "#14171a");
 }
 
 function drawSceneTableTile(ctx, tile, bounds, renderState) {
@@ -992,6 +1111,11 @@ function drawSceneTextHeavyTile(ctx, tile, bounds, renderState, isCanvasMoving) 
 
   if (tile?.type === "checklist") {
     drawSceneChecklistTile(ctx, tile, bounds, renderState);
+    return true;
+  }
+
+  if (tile?.type === "github-repo") {
+    drawSceneGitHubRepoTile(ctx, tile, bounds);
     return true;
   }
 

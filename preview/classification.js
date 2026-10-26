@@ -1,5 +1,6 @@
 const { PREVIEW_KIND, PREVIEW_REJECTION_REASON } = require("./constants");
 const { getUrlHostname } = require("./utils");
+const { parseGitHubRepoIdentity } = require("./resolvers/github");
 
 function isDirectImageUrl(url) {
   return /\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(url);
@@ -96,19 +97,7 @@ function extractPinterestPinId(url) {
 }
 
 function classifyGitHubRepo(url) {
-  try {
-    const parsedUrl = new URL(url);
-    const hostname = parsedUrl.hostname.toLowerCase();
-
-    if (hostname !== "github.com" && hostname !== "www.github.com") {
-      return false;
-    }
-
-    const segments = parsedUrl.pathname.split("/").filter(Boolean);
-    return segments.length >= 2 && segments[0] !== "orgs" && segments[0] !== "topics";
-  } catch {
-    return false;
-  }
+  return parseGitHubRepoIdentity(url) !== null;
 }
 
 function classifyPreviewTarget(url) {

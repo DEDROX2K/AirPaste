@@ -38,6 +38,8 @@ import {
   TETHER_MIN_TILES,
 } from "../lib/workspace";
 import { normalizeTextBoxStyle } from "../lib/textBoxStyle";
+import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
+import { getAdjacentStickyPosition, normalizeStickyStyle } from "../tiles/sticky/model";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_VARIANT_DEFAULT,
@@ -548,15 +550,10 @@ function areTileMetaEquivalent(left, right) {
     && left.isFocused === right.isFocused
     && left.isHovered === right.isHovered
     && left.isMergeTarget === right.isMergeTarget
-    && left.isRackAttached === right.isRackAttached
-    && left.isParentDragging === right.isParentDragging
-    && left.isParentSelected === right.isParentSelected
     && left.isGroupingTarget === right.isGroupingTarget
     && left.isGroupingArmed === right.isGroupingArmed
     && left.isFolderZoneTarget === right.isFolderZoneTarget
     && left.isRackDropTarget === right.isRackDropTarget
-    && left.rackId === right.rackId
-    && left.rackSlotIndex === right.rackSlotIndex
     && left.interactionState === right.interactionState
     && left.renderWidth === right.renderWidth
     && left.renderHeight === right.renderHeight
@@ -995,6 +992,7 @@ export default function CanvasWorkspaceView() {
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
+    createNewWeatherCard,
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
@@ -1088,6 +1086,7 @@ export default function CanvasWorkspaceView() {
     createNewChecklistCard,
     createNewCodeCard,
     createNewCounterCard,
+    createNewWeatherCard,
     createNewDeadlineCard,
     createNewLinkCard,
     createNewCanvasTextCard,
@@ -1706,6 +1705,28 @@ export default function CanvasWorkspaceView() {
     requestTextBoxEdit(textBox.id, { selectAll: true });
     return true;
   }, [commands, interactions, requestTextBoxEdit]);
+  // A new sticky starts selected and ready to type into, like FigJam.
+  const beginStickyCreation = useStableCallback((worldPoint, options = {}) => {
+    const sticky = commands.createSticky(worldPoint, options);
+
+    if (!sticky) {
+      return false;
+    }
+
+    interactions.selectTile(sticky.id, { forceSingle: true });
+    requestTextBoxEdit(sticky.id, { selectAll: false });
+    return true;
+  });
+  // A sticky's "+" buttons: the same size and colour, next to it.
+  const createAdjacentSticky = useStableCallback((card, direction) => {
+    const position = getAdjacentStickyPosition(card, direction);
+    const { color, fontSize } = normalizeStickyStyle(card.sticky);
+
+    beginStickyCreation(
+      { x: position.x + (card.width / 2), y: position.y + (card.height / 2) },
+      { width: card.width, height: card.height, sticky: { color, fontSize } },
+    );
+  });
   const beginChecklistCreation = useCallback((worldPoint) => {
     const checklist = commands.createChecklist(worldPoint);
 
@@ -1803,19 +1824,9 @@ export default function CanvasWorkspaceView() {
     draggingTileIds: interactions.draggingTileIds,
     visibleWorldRect,
   });
-  const dragVisualTileIdSet = useMemo(() => {
-    const nextTileIds = new Set(draggingTileIdSet);
-
-    // Rack children are positioned from their parent, so they need the same
-    // live delta while the rack is being dragged.
-    interactions.draggingTileIds.forEach((tileId) => {
-      layout.rackTileChildrenByRackId[tileId]?.forEach((childTile) => {
-        nextTileIds.add(childTile.id);
-      });
-    });
-
-    return nextTileIds;
-  }, [draggingTileIdSet, interactions.draggingTileIds, layout.rackTileChildrenByRackId]);
+  // Only the tiles actually being dragged move: a rack's tiles live inside
+  // the rack, so dragging it never drags (or selects) any other tile.
+  const dragVisualTileIdSet = draggingTileIdSet;
   const viewportZoomForRender = useMemo(() => {
     if (isCanvasMoving) {
       if (!lodFreezeActiveRef.current) {
@@ -1923,11 +1934,6 @@ export default function CanvasWorkspaceView() {
       ? new Set([...interactionOverlayTileIdSet, ...forcedDomFallbackTileIdSet])
       : new Set()
   ), [forcedDomFallbackTileIdSet, interactionOverlayTileIdSet, useSceneSurface]);
-  const rackAttachedTileIdSet = useMemo(() => new Set(
-    Object.entries(layout.tileMetaById)
-      .filter(([, tileMeta]) => tileMeta?.isRackAttached)
-      .map(([tileId]) => tileId),
-  ), [layout.tileMetaById]);
   const tileRenderHintsById = useMemo(() => {
     const previousCache = tileRenderHintCacheRef.current;
     const nextCache = new Map();
@@ -1937,10 +1943,10 @@ export default function CanvasWorkspaceView() {
       const previousHint = previousCache.get(tile.id) ?? null;
       const nextHint = buildTileRenderHint({
         lodLevel: workspaceLodLevel,
-        forceFullFidelity: overlayTileIdSet.has(tile.id) || rackAttachedTileIdSet.has(tile.id),
-        // Keep existing previews mounted while panning or moving a rack.
-        // Swapping render modes mid-drag caused image flicker and full-canvas
-        // repaint glitches on image-heavy workspaces.
+        forceFullFidelity: overlayTileIdSet.has(tile.id),
+        // Keep existing previews mounted while panning. Swapping render
+        // modes mid-drag caused image flicker and full-canvas repaint
+        // glitches on image-heavy workspaces.
         preferSpeed: false,
         viewportZoom: viewportZoomForRender,
       });
@@ -1954,7 +1960,7 @@ export default function CanvasWorkspaceView() {
 
     tileRenderHintCacheRef.current = nextCache;
     return nextHints;
-  }, [layout.rootTiles, overlayTileIdSet, rackAttachedTileIdSet, viewportZoomForRender, workspaceLodLevel]);
+  }, [layout.rootTiles, overlayTileIdSet, viewportZoomForRender, workspaceLodLevel]);
   const previewTierCounts = useMemo(() => {
     return layout.rootTiles.reduce((counts, tile) => {
       const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";
@@ -2634,7 +2640,9 @@ export default function CanvasWorkspaceView() {
     (workspace.tethers ?? []).forEach((tether) => tether.tileIds.forEach((tileId) => ids.add(tileId)));
     return ids;
   }, [workspace.tethers]);
+  // The GitHub repo tile has its own fixed design; it never shows a webclip.
   const canShowWebclipAction = isBookmarkLinkCard(activeContextTile)
+    && activeContextTile?.type !== GITHUB_REPO_CARD_TYPE
     && Boolean(activeContextTile?.url?.trim());
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
     && (
@@ -3022,6 +3030,19 @@ export default function CanvasWorkspaceView() {
 
           interactions.handleCanvasPointerDown(event);
         }}
+        onDoubleClick={(event) => {
+          // Double-click empty canvas: a new sticky under the pointer.
+          const isCanvasBackground = event.target === event.currentTarget
+            || event.target.classList?.contains("canvas__content")
+            || event.target.classList?.contains("canvas__grid");
+
+          if (!isCanvasBackground || canvasToolMode !== DRAWING_TOOL_MODE_SELECT || textBoxEditorState?.tileId) {
+            return;
+          }
+
+          event.preventDefault();
+          beginStickyCreation(canvas.clientToWorldPoint(event.clientX, event.clientY));
+        }}
         onContextMenu={useSceneSurface ? undefined : interactions.handleCanvasContextMenu}
         onClick={(event) => {
           if (!isEditableElement(event.target)) {
@@ -3131,6 +3152,8 @@ export default function CanvasWorkspaceView() {
                     onOpenLink={commands.openTileLink}
                     onMediaLoad={commands.updateTileFromMediaLoad}
                     onPressStart={interactions.handleTilePressStart}
+                    onPullFromRack={interactions.pullTileFromRack}
+                    onCreateAdjacentSticky={createAdjacentSticky}
                     onRetry={commands.retryTilePreview}
                     canvasToolMode={canvasToolMode}
                     textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}

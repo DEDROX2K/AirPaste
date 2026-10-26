@@ -1,0 +1,341 @@
+/* Weather & time tile: a black 520 x 243 slab with two faces that flip over
+   every 10 seconds (pure CSS 3D + WAAPI, driven from WeatherTile.jsx). It's
+   read-only: the whole tile is a drag handle, nothing inside takes the
+   pointer. Like ChecklistTile, it skips .card__surface-frame/.card__surface,
+   which TilePolish.css flattens with !important. */
+
+.weather-tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  font-family: "Instrument Sans", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.card--dragging .weather-tile {
+  cursor: grabbing;
+}
+
+.weather-tile * {
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* Raised above neighbouring tiles while it flips: the lifted slab grows
+   ~12% and its shadow sits below it. */
+.canvas__content .card[data-weather-flipping="true"],
+.card[data-weather-flipping="true"] {
+  z-index: calc(var(--tile-z, 1) + 1000);
+}
+
+/* ---------- Scene: perspective + states ---------- */
+
+.weather-tile__scene {
+  position: relative;
+  width: 520px;
+  height: 243px;
+  perspective: 1100px;
+  perspective-origin: 50% 50%;
+  transform-origin: 0 0;
+}
+
+/* Radial gradient, not a blur filter, so it stays cheap. */
+.weather-tile__ground-shadow {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: -24px;
+  height: 44px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0) 100%);
+  opacity: 0.5;
+}
+
+.weather-tile__scene:not([data-state="live"]) .weather-tile__ground-shadow {
+  opacity: 0.35;
+}
+
+/* ---------- Flipper: a thick slab ---------- */
+
+.weather-tile__flipper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  /* Turns around the slab's middle, so whichever face shows lands at z = 0
+     and its text stays crisp at rest. */
+  transform-origin: 50% 50% -4px;
+}
+
+.weather-tile__scene:not([data-state="live"]) .weather-tile__flipper {
+  visibility: hidden;
+  transition: visibility 0s linear 0.35s;
+}
+
+.weather-tile__slab-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 36px;
+}
+
+.weather-tile__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 14px;
+  overflow: hidden;
+  padding: 14px;
+  border-radius: 36px;
+  background: #050505;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.weather-tile__face--back {
+  transform: translateZ(-8px) rotateX(180deg);
+}
+
+.weather-tile__sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  opacity: 0;
+  background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.24) 48%, rgba(255, 255, 255, 0.06) 56%, transparent 68%);
+}
+
+/* ---------- Offline / loading ---------- */
+
+.weather-tile__offline {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background: #050505;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.35s ease;
+}
+
+.weather-tile__scene[data-state="live"] .weather-tile__offline {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+}
+
+.weather-tile__offline img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  -webkit-user-drag: none;
+}
+
+.weather-tile__scene[data-state="offline"] .weather-tile__offline img {
+  opacity: 1;
+}
+
+/* ---------- Panels ---------- */
+
+.weather-tile__panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  box-shadow: 0 0 0 2px #35353a;
+}
+
+/* Left: current weather. Its colour changes instantly (no transition) so
+   it never shows mid-flip. */
+.weather-tile__panel--main {
+  --knock: var(--weather-panel, #ffd600);
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px 23px 20px;
+  background: var(--weather-panel, #ffd600);
+  color: var(--weather-ink, #111111);
+}
+
+.weather-tile__cond {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+.weather-tile__cond .weather-tile__icon {
+  flex: none;
+  width: 31px;
+  height: 31px;
+}
+
+.weather-tile__temp {
+  margin-left: -3px;
+  font-size: 90px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.weather-tile__city {
+  overflow: hidden;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Right, front face: 5-day forecast */
+.weather-tile__panel--forecast {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 8px 18px 0;
+  background: #000000;
+  color: #dadada;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-tile__forecast-row {
+  display: grid;
+  grid-template-columns: 52px 30px 1fr auto;
+  column-gap: 6px;
+  align-items: center;
+  height: 40px;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.weather-tile__forecast-row .weather-tile__icon {
+  --knock: #000000;
+
+  width: 28px;
+  height: 28px;
+}
+
+.weather-tile__low {
+  color: #5c5c60;
+  text-align: right;
+}
+
+.weather-tile__high {
+  min-width: 34px;
+  color: #f2f2f2;
+  text-align: right;
+}
+
+/* Right, back face: clock / sun / big number */
+.weather-tile__side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+}
+
+.weather-tile__panel--clock {
+  border-radius: 50%;
+  background: #000000;
+}
+
+.weather-tile__panel--clock svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.weather-tile__hands {
+  filter: drop-shadow(0 0 1.6px rgba(52, 229, 111, 0.65));
+}
+
+.weather-tile__panel--sun {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #000000;
+  color: #ededed;
+}
+
+.weather-tile__panel--sun svg {
+  width: 48px;
+  height: 40px;
+}
+
+.weather-tile__sun-time {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-tile__panel--metric {
+  display: grid;
+  grid-column: 1 / 3;
+  place-items: center;
+  background: #000000;
+  color: #e6e6e6;
+}
+
+.weather-tile__metric-number {
+  font-size: 68px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-tile__metric-unit {
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  color: #7c7c82;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ---------- Icons: one set, colour + mono variants ---------- */
+
+.weather-tile__icon {
+  --sun: #ffc400;
+  --moon: #dde3ea;
+  --cloud: #5db4f5;
+  --rain-cloud: #7a8088;
+  --drop: #5db4f5;
+  --snow: #ddeeff;
+  --bolt: #ffc400;
+  --fog: #9aa3ad;
+}
+
+.weather-tile__icon--mono {
+  --sun: currentColor;
+  --moon: currentColor;
+  --cloud: currentColor;
+  --rain-cloud: currentColor;
+  --drop: currentColor;
+  --snow: currentColor;
+  --bolt: currentColor;
+  --fog: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weather-tile__offline,
+  .weather-tile__offline img,
+  .weather-tile__flipper {
+    transition: none !important;
+  }
+}

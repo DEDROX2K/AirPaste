@@ -7,6 +7,7 @@ import {
   normalizeCard,
 } from "../../lib/workspace";
 import TILE_TYPES from "../tileTypes";
+import { GITHUB_REPO_CARD_TYPE, normalizeGitHubRepoData, parseGitHubRepoUrl } from "../github/model";
 
 export const LINK_CARD_TYPE = TILE_TYPES.LINK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
@@ -29,7 +30,7 @@ const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
 const IMAGE_CARD_FIXED_WIDTH = 340;
 
 export function isLinkLikeType(type) {
-  return type === LINK_CARD_TYPE || type === AMAZON_PRODUCT_CARD_TYPE;
+  return type === LINK_CARD_TYPE || type === AMAZON_PRODUCT_CARD_TYPE || type === GITHUB_REPO_CARD_TYPE;
 }
 
 export function normalizeLinkContentKind(contentKind, asset = null) {
@@ -104,10 +105,15 @@ export function getNormalizedImageLinkDimensions(cardWidth, cardHeight, fallback
 }
 
 export function createLinkCard(cards, viewport, url, preferredCenter = null, options = {}) {
-  const type = options?.type === AMAZON_PRODUCT_CARD_TYPE ? AMAZON_PRODUCT_CARD_TYPE : LINK_CARD_TYPE;
+  const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
+  // A repo link becomes the GitHub tile straight away (in its loading state)
+  // rather than flashing the generic link tile until the preview resolves.
+  const isGitHubRepo = contentKind === LINK_CONTENT_KIND_BOOKMARK && parseGitHubRepoUrl(url) !== null;
+  const type = options?.type === AMAZON_PRODUCT_CARD_TYPE
+    ? AMAZON_PRODUCT_CARD_TYPE
+    : isGitHubRepo ? GITHUB_REPO_CARD_TYPE : LINK_CARD_TYPE;
   const position = getNextCardPosition(cards, viewport, type, preferredCenter);
   const timestamp = nowIso();
-  const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
   const domain = getDomainLabel(url);
   const image = typeof options?.image === "string" ? options.image : "";
   const asset = normalizeLinkAsset(options?.asset);
@@ -148,6 +154,7 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     productDomain: typeof options?.productDomain === "string" ? options.productDomain : "",
     productRating: Number.isFinite(options?.productRating) ? Number(options.productRating) : null,
     productReviewCount: Number.isFinite(options?.productReviewCount) ? Math.max(0, Math.round(options.productReviewCount)) : null,
+    repo: type === GITHUB_REPO_CARD_TYPE ? normalizeGitHubRepoData(options?.repo, url) : null,
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,

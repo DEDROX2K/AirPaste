@@ -9,6 +9,7 @@ import { getTileRegistration } from "@/tiles/tileRegistry.js";
 import FileTile from "@/components/tiles/FileTile";
 import LinkTile from "@/components/tiles/LinkTile";
 import AmazonProductTile from "@/components/tiles/AmazonProductTile";
+import GitHubRepoTile from "@/components/tiles/GitHubRepoTile";
 import CalendarTile from "@/components/tiles/CalendarTile";
 import ChecklistTile from "@/components/tiles/ChecklistTile";
 import CodeSnippetTile from "@/components/tiles/CodeSnippetTile";
@@ -21,12 +22,15 @@ import RackTile from "@/components/tiles/RackTile";
 import PaperNoteTile from "@/components/tiles/PaperNoteTile";
 import StickyNoteTile from "@/components/tiles/StickyNoteTile";
 import TextBoxTile from "@/components/tiles/TextBoxTile";
+import WeatherTile from "@/components/tiles/WeatherTile";
 
 describe("getTileRegistration (the dispatch Card.jsx uses for every rendered tile)", () => {
   it.each([
     ["file", FileTile],
     ["link", LinkTile],
     ["amazon-product", AmazonProductTile],
+    ["github-repo", GitHubRepoTile],
+    ["weather", WeatherTile],
     ["calendar", CalendarTile],
     ["checklist", ChecklistTile],
     ["code", CodeSnippetTile],
@@ -46,8 +50,8 @@ describe("getTileRegistration (the dispatch Card.jsx uses for every rendered til
     expect(registration.Component).toBe(CanvasTextTile);
   });
 
-  it("resolves a sticky-variant canvas-text card to StickyNoteTile, not CanvasTextTile", () => {
-    const registration = getTileRegistration({ type: "canvas-text", variant: "sticky" });
+  it("resolves a file-backed sticky-variant canvas-text card to StickyNoteTile, not CanvasTextTile", () => {
+    const registration = getTileRegistration({ type: "canvas-text", variant: "sticky", source: "file" });
     expect(registration.Component).toBe(StickyNoteTile);
   });
 

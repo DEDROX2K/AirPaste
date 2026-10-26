@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo } from "react";
 
 function preventNativeDrag(event) {
   event.preventDefault();
@@ -19,27 +19,6 @@ function TileShell({
   onFocusIn,
   onFocusOut,
 }) {
-  const wasRackAttachedRef = useRef(Boolean(tileMeta?.isRackAttached));
-  const attachmentTimerRef = useRef(0);
-  const [rackTransition, setRackTransition] = useState("");
-
-  useEffect(() => {
-    const isRackAttached = Boolean(tileMeta?.isRackAttached);
-    const wasRackAttached = wasRackAttachedRef.current;
-    wasRackAttachedRef.current = isRackAttached;
-
-    if (isRackAttached === wasRackAttached) {
-      return undefined;
-    }
-
-    setRackTransition(isRackAttached ? "attaching" : "detaching");
-    attachmentTimerRef.current = window.setTimeout(() => setRackTransition(""), 280);
-
-    return () => {
-      window.clearTimeout(attachmentTimerRef.current);
-    };
-  }, [tileMeta?.isRackAttached]);
-
   const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,
@@ -49,9 +28,6 @@ function TileShell({
     tileMeta?.isDragging ? "card--dragging" : "",
     tileMeta?.isClipboardCutSource ? "card--clipboard-cut-source" : "",
     tileMeta?.isMergeTarget ? "card--merge-target" : "",
-    tileMeta?.isRackAttached ? "card--rack-attached" : "",
-    tileMeta?.isParentDragging ? "card--parent-dragging" : "",
-    rackTransition ? `card--rack-${rackTransition}` : "",
     tileMeta?.isRackDropTarget ? "card--rack-drop-target" : "",
     tileMeta?.isStickerPlacementAnimating ? "card--sticker-drop" : "",
     renderHint?.simplify ? "card--simplified" : "",
@@ -59,7 +35,7 @@ function TileShell({
     className,
   ]
     .filter(Boolean)
-    .join(" "), [card.type, className, rackTransition, renderHint?.previewTier, renderHint?.simplify, tileMeta]);
+    .join(" "), [card.type, className, renderHint?.previewTier, renderHint?.simplify, tileMeta]);
 
   const style = useMemo(() => ({
     ...(tileMeta?.styleVars ?? {}),

@@ -2,6 +2,7 @@ const SCENE_SAFE_TEXT_TILE_TYPES = new Set([
   "canvas-text",
   "checklist",
   "code",
+  "github-repo",
   "note",
   "table",
   "text-box",

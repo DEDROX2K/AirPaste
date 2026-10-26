@@ -1,35 +1,58 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 import { useAppContext } from "../../context/useAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { CHECKLIST_CARD_SIZE, makeChecklistItem } from "../../tiles/checklist/model";
 import TileShell from "./TileShell";
+import "./ChecklistTile.css";
+
+const EMPTY_ITEMS = [];
+const ADD_INPUT_FOCUS = "add-input";
 
 function stopInteractivePointer(event) {
   event.stopPropagation();
 }
 
-const MAX_INDENT = 1;
-const CHECKLIST_MIN_HEIGHT = 140;
-const CHECKLIST_HEIGHT_EPSILON = 1;
-
-function makeChecklistItem(item = {}) {
-  return {
-    id: typeof item.id === "string" && item.id.trim().length > 0
-      ? item.id.trim()
-      : crypto.randomUUID(),
-    text: typeof item.text === "string" ? item.text : "",
-    checked: item.checked === true,
-    indent: Number.isInteger(item.indent) ? Math.max(0, Math.min(MAX_INDENT, item.indent)) : 0,
-    highlighted: item.highlighted === true,
-  };
+function splitPastedLines(text) {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
 
-function resizeTextarea(textarea) {
-  if (!(textarea instanceof HTMLTextAreaElement)) {
+function focusAtEnd(field) {
+  if (!field) {
     return;
   }
 
-  textarea.style.height = "0px";
-  textarea.style.height = `${Math.max(28, textarea.scrollHeight)}px`;
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+}
+
+// Date, time and title are single-line: Enter commits instead of breaking.
+function blurOnEnter(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
+}
+
+// Plain-text fields never hold line breaks; a multi-line paste is flattened.
+function pasteAsSingleLine(event) {
+  const pasted = event.clipboardData?.getData("text") ?? "";
+
+  if (!/\r?\n/.test(pasted)) {
+    return;
+  }
+
+  event.preventDefault();
+  document.execCommand("insertText", false, splitPastedLines(pasted).join(" "));
+}
+
+function GripIcon() {
+  return (
+    <svg className="checklist-tile__grip" viewBox="0 0 15 15" fill="currentColor" aria-hidden="true">
+      <circle cx="2" cy="2" r="1.3" /><circle cx="7.5" cy="2" r="1.3" /><circle cx="13" cy="2" r="1.3" />
+      <circle cx="2" cy="7.5" r="1.3" /><circle cx="7.5" cy="7.5" r="1.3" /><circle cx="13" cy="7.5" r="1.3" />
+      <circle cx="2" cy="13" r="1.3" /><circle cx="7.5" cy="13" r="1.3" /><circle cx="13" cy="13" r="1.3" />
+    </svg>
+  );
 }
 
 function ChecklistTile({
@@ -46,192 +69,154 @@ function ChecklistTile({
   renderHint,
 }) {
   const { updateExistingCard } = useAppContext();
-  const itemRefs = useRef(new Map());
-  const pendingFocusItemIdRef = useRef(null);
-  const titleInputRef = useRef(null);
+  const items = Array.isArray(card.items) ? card.items : EMPTY_ITEMS;
   const surfaceRef = useRef(null);
+  const titleInputRef = useRef(null);
+  const addInputRef = useRef(null);
+  const itemRefs = useRef(new Map());
+  const pendingFocusRef = useRef(null);
+  // Only rows added after mount animate in -- not every row each time the
+  // tile mounts (load, page switch, LOD swap).
+  const mountedItemIdsRef = useRef(null);
+  if (mountedItemIdsRef.current === null) {
+    mountedItemIdsRef.current = new Set(items.map((item) => item.id));
+  }
+  // Keyboard and blur handlers can fire back-to-back before the card prop
+  // re-renders, so edits compose on the latest list rather than a stale one.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
   const surfaceGesture = useTileGesture({
     card,
-    onDoubleActivate: () => {
-      titleInputRef.current?.focus?.();
-      titleInputRef.current?.select?.();
-    },
+    onDoubleActivate: () => focusAtEnd(titleInputRef.current),
     onDragStart: onBeginDrag,
     onPressStart,
   });
-  const items = useMemo(() => (
-    Array.isArray(card.items) && card.items.length > 0
-      ? card.items
-      : [makeChecklistItem()]
-  ), [card.items]);
 
-  useEffect(() => {
-    itemRefs.current.forEach((textarea) => {
-      resizeTextarea(textarea);
-    });
+  useLayoutEffect(() => {
+    const pendingFocus = pendingFocusRef.current;
 
-    if (pendingFocusItemIdRef.current) {
-      const textarea = itemRefs.current.get(pendingFocusItemIdRef.current);
-
-      if (textarea) {
-        textarea.focus();
-        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-        pendingFocusItemIdRef.current = null;
-      }
+    if (!pendingFocus) {
+      return;
     }
+
+    pendingFocusRef.current = null;
+    focusAtEnd(pendingFocus === ADD_INPUT_FOCUS ? addInputRef.current : itemRefs.current.get(pendingFocus));
   }, [items]);
 
-  // The surface only ever carries min-height, so it already visually grows
-  // to fit its content -- but card.height (the data the rest of the canvas,
-  // hit-testing, and layout use) never followed along, so the tile's actual
-  // selection/overlap bounds stayed stuck at creation size while the content
-  // kept adding items. Same measure-and-write-back pattern TextBoxTile and
-  // CanvasTextTile already use for exactly this reason.
+  // The tile has no fixed height -- it grows with every task -- but
+  // card.height is what selection, hit-testing and layout use, so write the
+  // rendered height back. offsetHeight is layout size, unaffected by zoom.
   useLayoutEffect(() => {
-    if (!surfaceRef.current) {
+    const surface = surfaceRef.current;
+
+    if (!surface) {
       return;
     }
 
-    const measuredHeight = Math.max(
-      CHECKLIST_MIN_HEIGHT,
-      Math.ceil(surfaceRef.current.getBoundingClientRect().height),
-    );
-    const currentHeight = Number.isFinite(card.height) ? card.height : CHECKLIST_MIN_HEIGHT;
+    const measuredHeight = Math.max(CHECKLIST_CARD_SIZE.height, Math.ceil(surface.offsetHeight));
+    const currentHeight = Number.isFinite(card.height) ? card.height : CHECKLIST_CARD_SIZE.height;
 
-    if (Math.abs(measuredHeight - currentHeight) > CHECKLIST_HEIGHT_EPSILON) {
+    if (Math.abs(measuredHeight - currentHeight) > 1) {
       updateExistingCard(card.id, { height: measuredHeight });
     }
-  }, [card.height, card.id, card.title, card.width, items, updateExistingCard]);
+  });
+
+  const updateCard = (updates) => updateExistingCard(card.id, updates);
 
   const updateItems = (nextItems) => {
-    updateExistingCard(card.id, {
-      items: nextItems.map((item) => makeChecklistItem(item)),
-    });
+    itemsRef.current = nextItems;
+    updateCard({ items: nextItems });
   };
 
-  const handleTitleChange = (event) => {
-    updateExistingCard(card.id, {
-      title: event.target.value,
-    });
+  const updateItem = (itemId, updates) => {
+    updateItems(itemsRef.current.map((item) => (item.id === itemId ? { ...item, ...updates } : item)));
   };
 
-  const handleToggleItem = (itemId) => {
-    updateItems(items.map((item) => (
-      item.id === itemId
-        ? { ...item, checked: !item.checked }
-        : item
-    )));
+  const removeItem = (itemId) => {
+    updateItems(itemsRef.current.filter((item) => item.id !== itemId));
   };
 
-  const handleItemTextChange = (itemId, value) => {
-    updateItems(items.map((item) => (
-      item.id === itemId
-        ? { ...item, text: value }
-        : item
-    )));
+  const appendItems = (texts) => {
+    updateItems([...itemsRef.current, ...texts.map((text) => makeChecklistItem({ text }))]);
   };
 
-  const handleToggleHighlight = (itemId) => {
-    updateItems(items.map((item) => (
-      item.id === itemId
-        ? { ...item, highlighted: !item.highlighted }
-        : item
-    )));
-  };
+  const handleItemKeyDown = (event, item) => {
+    const currentItems = itemsRef.current;
+    const index = currentItems.findIndex((entry) => entry.id === item.id);
 
-  const handleIndentItem = (itemId, delta) => {
-    const index = items.findIndex((item) => item.id === itemId);
-
-    if (index < 0) {
-      return;
-    }
-
-    const current = items[index];
-    const nextIndent = Math.max(0, Math.min(MAX_INDENT, current.indent + delta));
-
-    if (nextIndent === current.indent || (nextIndent > 0 && index === 0)) {
-      return;
-    }
-
-    updateItems(items.map((item) => (
-      item.id === itemId
-        ? { ...item, indent: nextIndent }
-        : item
-    )));
-  };
-
-  const handleMoveItem = (itemId, direction) => {
-    const index = items.findIndex((item) => item.id === itemId);
-    const targetIndex = index + direction;
-
-    if (index < 0 || targetIndex < 0 || targetIndex >= items.length) {
-      return;
-    }
-
-    const nextItems = [...items];
-    [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
-    updateItems(nextItems);
-  };
-
-  const handleAddItem = (afterItemId = null) => {
-    const afterItem = afterItemId ? items.find((item) => item.id === afterItemId) : null;
-    const nextItem = makeChecklistItem({ indent: afterItem?.indent ?? 0 });
-    pendingFocusItemIdRef.current = nextItem.id;
-
-    if (!afterItemId) {
-      updateItems([...items, nextItem]);
-      return;
-    }
-
-    const currentIndex = items.findIndex((item) => item.id === afterItemId);
-    const insertionIndex = currentIndex >= 0 ? currentIndex + 1 : items.length;
-    const nextItems = [...items];
-    nextItems.splice(insertionIndex, 0, nextItem);
-    updateItems(nextItems);
-  };
-
-  const handleRemoveItem = (itemId) => {
-    if (items.length <= 1) {
-      updateItems([{ ...items[0], text: "", checked: false }]);
-      return;
-    }
-
-    updateItems(items.filter((item) => item.id !== itemId));
-  };
-
-  const handleItemKeyDown = (event, itemId, itemText) => {
-    if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    if (event.key === "Enter") {
       event.preventDefault();
-      handleMoveItem(itemId, event.key === "ArrowUp" ? -1 : 1);
+
+      if (!event.currentTarget.value.trim()) {
+        removeItem(item.id);
+        pendingFocusRef.current = ADD_INPUT_FOCUS;
+        return;
+      }
+
+      const nextItem = makeChecklistItem();
+      const nextItems = [...currentItems];
+      nextItems.splice(index + 1, 0, nextItem);
+      pendingFocusRef.current = nextItem.id;
+      updateItems(nextItems);
       return;
     }
 
-    if (event.key === "Tab") {
+    if (event.key === "Backspace" && event.currentTarget.value.length === 0) {
       event.preventDefault();
-      handleIndentItem(itemId, event.shiftKey ? -1 : 1);
-      return;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      handleAddItem(itemId);
-      return;
-    }
-
-    if (event.key === "Backspace" && itemText.length === 0) {
-      event.preventDefault();
-      handleRemoveItem(itemId);
+      pendingFocusRef.current = index > 0 ? currentItems[index - 1].id : ADD_INPUT_FOCUS;
+      removeItem(item.id);
     }
   };
 
-  const surfaceFrameClassName = [
-    "card__surface-frame",
-    "card__surface-frame--interactive",
-    tileMeta?.isSelected ? "card__surface-frame--selected" : "",
-    tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  // Never leave empty tasks behind.
+  const handleItemBlur = (event, itemId) => {
+    if (!itemsRef.current.some((item) => item.id === itemId)) {
+      return;
+    }
+
+    const trimmed = event.currentTarget.value.trim();
+
+    if (!trimmed) {
+      removeItem(itemId);
+    } else if (trimmed !== event.currentTarget.value) {
+      updateItem(itemId, { text: trimmed });
+    }
+  };
+
+  const handleAddKeyDown = (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    const value = event.currentTarget.value.trim();
+
+    if (!value) {
+      return;
+    }
+
+    event.currentTarget.value = "";
+    appendItems([value]);
+  };
+
+  const handleAddPaste = (event) => {
+    const lines = splitPastedLines(event.clipboardData?.getData("text") ?? "");
+
+    if (lines.length < 2) {
+      pasteAsSingleLine(event);
+      return;
+    }
+
+    event.preventDefault();
+    appendItems(lines);
+  };
+
+  const handleFooterClick = (event) => {
+    if (event.target !== addInputRef.current) {
+      focusAtEnd(addInputRef.current);
+    }
+  };
 
   return (
     <TileShell
@@ -245,90 +230,118 @@ function ChecklistTile({
       onFocusIn={onFocusIn}
       onFocusOut={onFocusOut}
     >
-      <div className="card__content">
-        <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section ref={surfaceRef} className="card__surface card__surface--checklist" aria-label={card.title || "Checklist"}>
-            <header className="card__checklist-header">
+      <article
+        ref={surfaceRef}
+        className="checklist-tile"
+        aria-label={card.title || "Checklist"}
+        {...surfaceGesture}
+      >
+        <header className="checklist-tile__header">
+          <div className="checklist-tile__header-row">
+            <div className="checklist-tile__meta">
               <input
-                ref={titleInputRef}
-                className="card__checklist-title"
+                className="checklist-tile__date"
                 type="text"
-                value={card.title ?? ""}
-                placeholder="Title"
-                aria-label="Checklist title"
+                value={card.dateLabel ?? ""}
+                placeholder="Date"
+                aria-label="Date"
+                spellCheck={false}
                 onPointerDown={stopInteractivePointer}
-                onChange={handleTitleChange}
+                onChange={(event) => updateCard({ dateLabel: event.target.value })}
+                onKeyDown={blurOnEnter}
               />
-            </header>
-
-            <div className="card__checklist-items">
-              {items.map((item, index) => (
-                <div
-                  key={item.id}
-                  className={[
-                    "card__checklist-item",
-                    item.checked ? "card__checklist-item--checked" : "",
-                    item.indent > 0 ? "card__checklist-item--indented" : "",
-                    item.highlighted ? "card__checklist-item--highlighted" : "",
-                  ].filter(Boolean).join(" ")}
-                >
-                  <button
-                    className={`card__checklist-bullet${item.checked ? " card__checklist-bullet--checked" : ""}`}
-                    type="button"
-                    aria-label={item.checked ? "Mark item not done" : "Mark item done"}
-                    aria-pressed={item.checked}
-                    onPointerDown={stopInteractivePointer}
-                    onClick={() => handleToggleItem(item.id)}
-                  />
-                  <textarea
-                    ref={(node) => {
-                      if (node) {
-                        itemRefs.current.set(item.id, node);
-                        resizeTextarea(node);
-                      } else {
-                        itemRefs.current.delete(item.id);
-                      }
-                    }}
-                    className="card__checklist-input"
-                    value={item.text}
-                    rows={1}
-                    placeholder={index === items.length - 1 ? "List item" : "Checklist item"}
-                    aria-label={`Checklist item ${index + 1}`}
-                    onPointerDown={stopInteractivePointer}
-                    onChange={(event) => {
-                      handleItemTextChange(item.id, event.target.value);
-                      resizeTextarea(event.target);
-                    }}
-                    onKeyDown={(event) => handleItemKeyDown(event, item.id, item.text)}
-                  />
-                  <button
-                    className={`card__checklist-highlight${item.highlighted ? " card__checklist-highlight--active" : ""}`}
-                    type="button"
-                    aria-label={item.highlighted ? "Remove emphasis" : "Emphasize item"}
-                    aria-pressed={item.highlighted}
-                    onPointerDown={stopInteractivePointer}
-                    onClick={() => handleToggleHighlight(item.id)}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M10.5 2.5 13.5 5.5 6 13l-4 1 1-4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+              <input
+                className="checklist-tile__time"
+                type="text"
+                value={card.timeLabel ?? ""}
+                placeholder="Time"
+                aria-label="Time"
+                spellCheck={false}
+                onPointerDown={stopInteractivePointer}
+                onChange={(event) => updateCard({ timeLabel: event.target.value })}
+                onKeyDown={blurOnEnter}
+              />
             </div>
+            <GripIcon />
+          </div>
+        </header>
 
-            <button
-              className="card__checklist-add"
-              type="button"
-              onPointerDown={stopInteractivePointer}
-              onClick={() => handleAddItem()}
-            >
-              <span className="card__checklist-add-plus" aria-hidden="true">+</span>
-              <span>Add item</span>
-            </button>
-          </section>
-        </div>
-      </div>
+        <section className="checklist-tile__body">
+          <textarea
+            ref={titleInputRef}
+            className="checklist-tile__title"
+            rows={1}
+            value={card.title ?? ""}
+            placeholder="Untitled"
+            aria-label="Checklist title"
+            onPointerDown={stopInteractivePointer}
+            onChange={(event) => updateCard({ title: event.target.value })}
+            onKeyDown={blurOnEnter}
+            onPaste={pasteAsSingleLine}
+          />
+
+          <ul className="checklist-tile__list" aria-label="Tasks">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className={[
+                  "checklist-tile__task",
+                  mountedItemIdsRef.current.has(item.id) ? "" : "checklist-tile__task--entering",
+                ].filter(Boolean).join(" ")}
+                data-done={item.checked ? "true" : "false"}
+              >
+                <button
+                  className="checklist-tile__check"
+                  type="button"
+                  role="checkbox"
+                  aria-checked={item.checked}
+                  aria-label={item.checked ? "Mark as not done" : "Mark as done"}
+                  onPointerDown={stopInteractivePointer}
+                  onClick={() => updateItem(item.id, { checked: !item.checked })}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3.2 8.6l3.2 3.2L12.8 4.6" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <textarea
+                  ref={(node) => {
+                    if (node) {
+                      itemRefs.current.set(item.id, node);
+                    } else {
+                      itemRefs.current.delete(item.id);
+                    }
+                  }}
+                  className="checklist-tile__task-text"
+                  rows={1}
+                  value={item.text}
+                  aria-label="Task"
+                  onPointerDown={stopInteractivePointer}
+                  onChange={(event) => updateItem(item.id, { text: event.target.value })}
+                  onKeyDown={(event) => handleItemKeyDown(event, item)}
+                  onBlur={(event) => handleItemBlur(event, item.id)}
+                  onPaste={pasteAsSingleLine}
+                />
+              </li>
+            ))}
+          </ul>
+
+          <div
+            className="checklist-tile__footer"
+            onPointerDown={stopInteractivePointer}
+            onClick={handleFooterClick}
+          >
+            <textarea
+              ref={addInputRef}
+              className="checklist-tile__add-input"
+              rows={1}
+              placeholder="Add to checklist…"
+              aria-label="Add to checklist"
+              onKeyDown={handleAddKeyDown}
+              onPaste={handleAddPaste}
+            />
+          </div>
+        </section>
+      </article>
     </TileShell>
   );
 }

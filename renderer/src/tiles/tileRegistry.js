@@ -6,13 +6,16 @@ import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
 import CounterTile from "../components/tiles/CounterTile";
 import DeadlineTile from "../components/tiles/DeadlineTile";
 import FileTile from "../components/tiles/FileTile";
+import GitHubRepoTile from "../components/tiles/GitHubRepoTile";
 import LinkTile from "../components/tiles/LinkTile";
 import PaperNoteTile from "../components/tiles/PaperNoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import StickyNoteTile from "../components/tiles/StickyNoteTile";
+import StickyTile from "../components/tiles/StickyTile";
 import TableTile from "../components/tiles/TableTile";
 import TextBoxTile from "../components/tiles/TextBoxTile";
+import WeatherTile from "../components/tiles/WeatherTile";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_SOURCE_FILE,
@@ -63,6 +66,18 @@ const tileRegistry = {
     displayName: "Amazon Product Tile",
     status: "stable",
     Component: AmazonProductTile,
+  },
+  [TILE_TYPES.GITHUB_REPO]: {
+    type: TILE_TYPES.GITHUB_REPO,
+    displayName: "GitHub Repo Tile",
+    status: "stable",
+    Component: GitHubRepoTile,
+  },
+  [TILE_TYPES.WEATHER]: {
+    type: TILE_TYPES.WEATHER,
+    displayName: "Weather Tile",
+    status: "stable",
+    Component: WeatherTile,
   },
   [TILE_TYPES.CALENDAR]: {
     type: TILE_TYPES.CALENDAR,
@@ -176,9 +191,11 @@ export function getTileRegistration(cardOrType) {
     tileType === TILE_TYPES.CANVAS_TEXT
     && cardOrType?.variant === CANVAS_TEXT_VARIANT_STICKY
   ) {
+    // FigJam-style sticky; the older titled design stays for stickies
+    // backed by a Markdown file.
     return {
       ...tileRegistry[tileType],
-      Component: StickyNoteTile,
+      Component: cardOrType?.source === CANVAS_TEXT_SOURCE_FILE ? StickyNoteTile : StickyTile,
     };
   }
 

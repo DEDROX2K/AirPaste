@@ -3595,8 +3595,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   opacity: var(--tile-clipboard-opacity, 1);
 }
 
-.card--dragging,
-.card--parent-dragging {
+.card--dragging {
   transition: filter 180ms ease;
 }
 
@@ -3897,115 +3896,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   outline: 2px solid rgba(66, 186, 255, 0.6);
 }
 
-/* Attached rack tiles stay compact and directly manipulable. */
-.card--rack,
-.card--rack-attached {
-  /* Rack pose controls:
-     --rack-perspective: camera depth for the mounted pose
-     --rack-rest-rotate-x: main backward slant at rest
-     --rack-rest-rotate-y: side yaw at rest, keep 0deg for flat-facing tiles
-     --rack-rest-skew-x: planar skew at rest, keep 0deg for flat-facing tiles
-     --rack-rest-scale-y: vertical compression for perspective exaggeration
-     --rack-hover-rotate-x: slant when hovered
-     --rack-hover-rotate-y: side yaw on hover
-     --rack-hover-skew-x: skew on hover
-     --rack-hover-scale-y: vertical compression on hover
-     --rack-hover-lift: vertical lift on hover
-     --tile-container-scale: mounted tile scale for the fixed rack frame
-     --rack-shadow-rest / --rack-shadow-hover: depth shadow tuning
-     --rack-slot-gap: spacing between the subtle placement guides
-     --rack-body-inset-x: visual horizontal inset for the rack body
-     --rack-body-radius: corner radius of the rack body
-  */
-  --rack-slot-gap: 12px;
-  --rack-body-inset-x: 0px;
-  --rack-body-radius: 8px;
-  --rack-perspective: 1380px;
-  --rack-rest-rotate-x: 3deg;
-  --rack-rest-rotate-y: 0deg;
-  --rack-rest-skew-x: 0deg;
-  --rack-rest-scale-y: 1;
-  --rack-hover-rotate-x: 0deg;
-  --rack-hover-rotate-y: 0deg;
-  --rack-hover-skew-x: 0deg;
-  --rack-hover-scale-y: 1;
-  --rack-hover-lift: -3px;
-  --rack-shadow-rest: 0 12px 18px rgba(30, 33, 38, 0.2);
-  --rack-shadow-hover: 0 18px 26px rgba(30, 33, 38, 0.26);
-  gap: 6px;
-}
-
-.card--rack {
-  transition: filter 180ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1), width 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.card--rack-attaching .card__content {
-  animation: rack-child-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.card--rack-detaching .card__content {
-  animation: rack-child-fade-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes rack-child-fade-in {
-  from {
-    opacity: 0.35;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-
-
-.card--rack-attached .card__toolbar {
-  margin-bottom: -4px;
-  transform: translateY(8px);
-}
-
-.card--rack-attached .card__label {
-  color: color-mix(in srgb, var(--text) 88%, white 12%);
-  text-shadow: none;
-}
-
-.card--rack-attached.card--link .card__toolbar {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.card--rack-attached {
-  height: var(--tile-layout-height);
-}
-
-.card--rack-attached .card__content {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: var(--tile-width);
-  transform: scale(var(--tile-content-scale));
-  transform-origin: bottom left;
-}
-
-.card--rack-attached .card__surface-frame {
-  transform-origin: center bottom;
-  transition:
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  transform: none;
-  filter: none;
-}
-
-.card--rack-attached.card--hovered .card__surface-frame,
-.card--rack-attached.card--focused .card__surface-frame,
-.card--rack-attached.card--selected .card__surface-frame {
-  transform: translateY(var(--rack-hover-lift, -3px));
-  filter: none;
-}
-
-.card--rack-attached.card--dragging .card__surface-frame {
-  transform: none;
-}
 
 @keyframes mergePulse {
 
@@ -4102,139 +3992,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     linear-gradient(180deg, rgba(248, 248, 248, 0.98), rgba(233, 231, 228, 0.98));
 }
 
-.card__surface--rack {
-  position: relative;
-  display: block;
-  height: var(--tile-height);
-  overflow: visible;
-  background: transparent;
-  box-shadow: none;
-  isolation: isolate;
-}
-
-.card__surface--rack::before {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -8px;
-  height: 14px;
-  border-radius: 50%;
-  background: rgba(20, 22, 26, 0.22);
-  filter: blur(7px);
-  opacity: 0.5;
-  transform: scaleX(0.96);
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.card__surface--rack::after {
-  content: "";
-  position: absolute;
-  inset: 17px calc(6px + var(--rack-body-inset-x, 0px)) 4px;
-  border-radius: calc(var(--rack-body-radius, 8px) - 2px);
-  border: 1px solid rgba(72, 78, 90, 0.45);
-  transition: border-color 180ms ease, transform 180ms ease;
-  pointer-events: none;
-}
-
-.card__surface-frame--rack-drop-target .card__surface--rack::after,
-.card--rack-drop-target .card__surface--rack::after {
-  border-color: color-mix(in srgb, var(--accent) 56%, white 16%);
-  outline: 2px solid color-mix(in srgb, var(--accent) 24%, transparent);
-}
-
-.card__surface--rack-target::before {
-  opacity: 0.94;
-  transform: scaleX(1);
-}
-
-.card__rack-rect {
-  position: absolute;
-  inset: 17px var(--rack-body-inset-x, 0px) 4px;
-  z-index: 2;
-  border-radius: var(--rack-body-radius, 8px);
-  /* Layered for a rounded, brushed-steel rail rather than a flat tint:
-     a bright specular band near the top (where an overhead light would
-     catch a convex edge), fine brushed streaks, then a light/dark/light
-     body gradient -- metal reads as metal because of that last bounce of
-     light at the bottom, not just a dark-to-light fade. */
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, transparent 26%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 5px),
-    linear-gradient(180deg, #eef0f2 0%, #c3c8cf 16%, #8e949e 40%, #666c76 64%, #80868f 85%, #70767f 100%);
-  border: 1px solid rgba(50, 54, 61, 0.65);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    inset 0 -3px 0 rgba(20, 22, 26, 0.32),
-    0 1px 0 rgba(255, 255, 255, 0.35),
-    0 4px 8px rgba(20, 22, 26, 0.26);
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* End brackets: the bit of hardware that sells "shelf", not just "bar". */
-.card__rack-rect::before,
-.card__rack-rect::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 13px;
-  height: 24px;
-  margin-top: -12px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #9aa1ab 0%, #6b707a 55%, #565b63 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 1px 2px rgba(20, 22, 26, 0.3);
-}
-
-.card__rack-rect::before {
-  left: 6px;
-}
-
-.card__rack-rect::after {
-  right: 6px;
-}
-
-.card__rack-slot-strip {
-  position: absolute;
-  left: calc(50px + var(--rack-body-inset-x, 0px));
-  right: calc(50px + var(--rack-body-inset-x, 0px));
-  top: 23px;
-  z-index: 3;
-  display: flex;
-  gap: var(--rack-slot-gap, 16px);
-  pointer-events: none;
-}
-
-.card__rack-slot {
-  flex: 1 1 0;
-  height: 8px;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(20, 22, 26, 0.12));
-  opacity: 0.42;
-  transition: opacity 180ms ease, background 180ms ease, transform 180ms ease;
-}
-
-.card__rack-slot--occupied {
-  opacity: 0.18;
-}
-
-.card__rack-slot--preview {
-  opacity: 0.7;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, rgba(255, 255, 255, 0.16)), color-mix(in srgb, var(--accent) 8%, rgba(20, 22, 26, 0.1)));
-  box-shadow:
-    inset 0 2px 4px rgba(20, 22, 26, 0.1),
-    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
-}
-
-.card__surface-frame--rack-drop-target .card__rack-rect,
-.card--rack-drop-target .card__rack-rect,
-.card--hovered.card--rack .card__rack-rect {
-  transform: none;
-  border-color: rgba(255, 255, 255, 0.3);
-}
 
 .card__link-actions {
   position: absolute;
@@ -8115,7 +7872,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 
-
 /* ══════════════════════════════════════════════════════════════════
    Grid / Masonry View
    ══════════════════════════════════════════════════════════════════ */
@@ -8198,7 +7954,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .masonry-grid__item>.card .card__surface--link:not(.card__surface--link-natural),
-.masonry-grid__item>.card .card__surface--rack,
 .masonry-grid__item>.card .card__surface--folder,
 .masonry-grid__item>.card .card__surface--canvas-folder,
 .masonry-grid__item>.card .card__surface--amazon-product {
@@ -9138,232 +8893,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   transform: translateY(-1px);
   background: rgba(18, 14, 10, 0.98);
   border-color: rgba(55, 45, 35, 0.18);
-}
-
-.card__surface--checklist {
-  min-height: var(--tile-height);
-  flex-direction: column;
-  padding: 20px 18px 18px;
-  border-radius: var(--ap-radius-xl, 18px);
-  border: 1px solid var(--ap-border-subtle, rgba(0, 0, 0, 0.05));
-  background: var(--ap-surface-inset, #ffffff);
-  box-shadow: var(--ap-shadow-card);
-}
-
-.card__surface-frame--selected .card__surface--checklist {
-  outline: none;
-  box-shadow: var(--ap-tile-shadow-selected, var(--ap-shadow-card-hover));
-}
-
-.card__checklist-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.card__checklist-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ap-text-primary, #1c1c1e);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  outline: none;
-}
-
-.card__checklist-title::placeholder {
-  color: var(--ap-text-placeholder, #a1a1a6);
-}
-
-.card__checklist-items {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card__checklist-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 5px 6px;
-  border-radius: var(--ap-radius-sm, 8px);
-  transition: background 140ms ease;
-}
-
-.card__checklist-item:hover {
-  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
-}
-
-.card__checklist-item--indented {
-  margin-left: 24px;
-}
-
-.card__checklist-item--highlighted {
-  background: #f7f6f2;
-}
-
-.card__checklist-item--highlighted .card__checklist-input {
-  font-weight: 600;
-}
-
-.card__checklist-item--highlighted:hover {
-  background: #f1efe8;
-}
-
-.card__checklist-item--checked .card__checklist-input {
-  color: var(--ap-text-tertiary, #8e8e93);
-}
-
-.card__checklist-item--checked.card__checklist-item--highlighted {
-  background: transparent;
-}
-
-.card__checklist-bullet {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  margin-top: 7px;
-  padding: 0;
-  border: none;
-  border-radius: 2.5px;
-  background: var(--ap-text-primary, #1c1c1e);
-  cursor: var(--cursor-pointer);
-  outline: none;
-  transition: background 150ms ease, transform 150ms ease;
-}
-
-.card__checklist-bullet:focus-visible {
-  box-shadow: 0 0 0 3px var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.12));
-}
-
-.card__checklist-bullet:hover {
-  transform: scale(1.15);
-}
-
-.card__checklist-bullet--checked {
-  background: var(--ap-text-disabled, #c7c7cc);
-}
-
-.card__checklist-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  resize: none;
-  overflow: hidden;
-  padding: 1px 0;
-  border: 0;
-  background: transparent;
-  color: var(--ap-text-primary, #1c1c1e);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.45;
-  outline: none;
-}
-
-.card__checklist-input::placeholder {
-  color: var(--ap-text-placeholder, #a1a1a6);
-}
-
-.card__checklist-highlight {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-top: 2px;
-  padding: 0;
-  border: none;
-  border-radius: var(--ap-radius-sm, 8px);
-  background: transparent;
-  color: var(--ap-text-placeholder, #a1a1a6);
-  opacity: 0;
-  cursor: var(--cursor-pointer);
-  outline: none;
-  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
-}
-
-.card__checklist-highlight:focus-visible {
-  opacity: 1;
-  box-shadow: 0 0 0 3px var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.12));
-}
-
-.card__checklist-item:hover .card__checklist-highlight,
-.card__checklist-highlight--active {
-  opacity: 1;
-}
-
-.card__checklist-highlight:hover {
-  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--ap-text-secondary, #636366);
-}
-
-.card__checklist-highlight--active {
-  color: var(--ap-text-primary, #1c1c1e);
-}
-
-.card__checklist-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  align-self: flex-start;
-  margin-top: 8px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: var(--ap-text-secondary, #636366);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: var(--cursor-pointer);
-}
-
-.card__checklist-add:hover {
-  color: var(--ap-text-primary, #1c1c1e);
-}
-
-.card__checklist-add-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--ap-interactive-bg-hover, rgba(0, 0, 0, 0.05));
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1;
-}
-
-.card[data-render-state="compact"] .card__surface--checklist {
-  padding: 14px;
-  border-radius: var(--ap-radius-lg, 14px);
-}
-
-.card[data-render-state="compact"] .card__checklist-header {
-  margin-bottom: 10px;
-}
-
-.card[data-render-state="compact"] .card__checklist-title {
-  font-size: 17px;
-}
-
-.card[data-render-state="compact"] .card__checklist-item:nth-child(n + 3),
-.card[data-render-state="compact"] .card__checklist-add {
-  display: none;
-}
-
-.card[data-render-state="compact"] .card__checklist-item {
-  padding: 4px 2px;
-}
-
-.card[data-render-state="compact"] .card__checklist-input {
-  font-size: 12px;
 }
 
 .card__surface--text-box {
@@ -12221,7 +11750,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
    than taking this generic one. */
 .card__surface--link,
 .card__surface--amazon-product,
-.card__surface--checklist,
 .card__surface--note,
 .card__surface--table,
 .card__surface--counter,
@@ -12231,7 +11759,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   box-shadow: var(--ap-shadow-sm);
 }
 
-.card__surface--checklist,
 .card__surface--note,
 .card__surface--table,
 .card__surface--counter,
@@ -12243,7 +11770,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card--hovered:not(.card--dragging):not(.card--selected) .card__surface:is(
     .card__surface--link,
     .card__surface--amazon-product,
-    .card__surface--checklist,
     .card__surface--note,
     .card__surface--table,
     .card__surface--counter,
@@ -12253,7 +11779,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card--focused:not(.card--dragging):not(.card--selected) .card__surface:is(
     .card__surface--link,
     .card__surface--amazon-product,
-    .card__surface--checklist,
     .card__surface--note,
     .card__surface--table,
     .card__surface--counter,
@@ -12266,7 +11791,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .card--dragging .card__surface:is(
     .card__surface--link,
     .card__surface--amazon-product,
-    .card__surface--checklist,
     .card__surface--note,
     .card__surface--table,
     .card__surface--counter,
@@ -12283,7 +11807,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card__surface--note,
 .card__surface--table,
-.card__surface--checklist,
 .card__surface--counter,
 .card__surface--deadline,
 .card__surface--progress {
@@ -12463,7 +11986,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   outline: 2px solid var(--ap-tile-selection);
 }
 
-.card__checklist-title,
 .card__note-title,
 .card__table-title,
 .card__counter-title,
@@ -12553,9 +12075,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .card__deadline-seconds-toggle input,
-.card__table-checkbox input,
-.card__checklist-toggle:focus-visible,
-.card__checklist-add:focus-visible {
+.card__table-checkbox input {
   accent-color: #2f2a25;
 }
 
@@ -12635,7 +12155,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   }
 
   .card__surface--note,
-  .card__surface--checklist,
   .card__surface--table,
   .card__surface--code,
   .card__surface--counter,

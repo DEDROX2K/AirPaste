@@ -1,0 +1,332 @@
+/* Checklist tile: yellow header band with a white sheet tucked over it,
+   then the task list and an add-input. Height is always auto -- the tile
+   grows with its tasks and ChecklistTile writes the measured height back to
+   card.height. Like PaperNoteTile, this deliberately does not use
+   .card__surface-frame/.card__surface: TilePolish.css forces those to a flat
+   white 14px-radius tile with !important, which would flatten the design. */
+
+.checklist-tile {
+  --checklist-yellow-top: #ffd43f;
+  --checklist-yellow-mid: #fff0b0;
+  --checklist-yellow-bottom: #fff4c8;
+  --checklist-header-text: #6f5410;
+  --checklist-pill-bg: #fff0b3;
+  --checklist-pill-border: #f6cf55;
+  --checklist-sheet: #ffffff;
+  --checklist-title: #2b2b2b;
+  --checklist-task: #555555;
+  --checklist-task-done: #c8c8c8;
+  --checklist-placeholder: #c6c6c6;
+  --checklist-box-border: #e4e4e4;
+  --checklist-box-border-hover: #cfcfcf;
+  --checklist-box-checked: #2e2e2e;
+  --checklist-divider: #e8e8e8;
+  --checklist-caret: #e5a800;
+  --checklist-shadow-base: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --checklist-glow: 0 28px 56px -18px rgba(255, 190, 30, 0.5);
+
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 24px;
+  background: var(--checklist-sheet);
+  caret-color: var(--checklist-caret);
+  font-family: "Roboto", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  box-shadow:
+    var(--checklist-shadow-base),
+    0 14px 32px -14px rgba(0, 0, 0, 0.12),
+    var(--checklist-glow);
+  transition:
+    box-shadow 220ms var(--ap-tile-ease, ease),
+    transform 220ms var(--ap-tile-ease, ease);
+}
+
+.checklist-tile *,
+.checklist-tile *::before,
+.checklist-tile *::after {
+  box-sizing: border-box;
+}
+
+.checklist-tile ::selection {
+  background: #ffe27a;
+}
+
+.card--hovered:not(.card--dragging):not(.card--selected) .checklist-tile,
+.card--focused:not(.card--dragging):not(.card--selected) .checklist-tile {
+  transform: translateY(-3px);
+  box-shadow:
+    var(--checklist-shadow-base),
+    0 18px 38px -14px rgba(0, 0, 0, 0.16),
+    var(--checklist-glow);
+}
+
+/* Selected reads as "picked up": a deeper shadow, no ring, matching the
+   rest of the canvas tiles. */
+.card--selected .checklist-tile {
+  box-shadow:
+    var(--checklist-shadow-base),
+    0 20px 44px -14px rgba(0, 0, 0, 0.2),
+    var(--checklist-glow);
+}
+
+.card--dragging .checklist-tile {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.16),
+    0 8px 22px rgba(0, 0, 0, 0.1),
+    var(--checklist-glow);
+}
+
+:is(.card--merge-target, .card--folder-group-target, .card--folder-group-armed) .checklist-tile {
+  box-shadow:
+    0 0 0 4px rgba(52, 199, 89, 0.14),
+    0 0 0 1px rgba(52, 199, 89, 0.46),
+    0 14px 32px -14px rgba(0, 0, 0, 0.12);
+}
+
+/* Shared reset for every editable field (zero-specificity via :where so
+   each field's own class wins): plain text, styled by
+   their own class, with no native chrome. */
+.checklist-tile :where(input, textarea) {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  resize: none;
+  overflow: hidden;
+  caret-color: var(--checklist-caret);
+  cursor: text;
+}
+
+.checklist-tile :where(textarea) {
+  width: 100%;
+  min-height: 0;
+  field-sizing: content;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The caret is the focus cue for text; SimpleUi.css's global
+   :is(input, textarea):focus-visible ring would box every field. */
+.checklist-tile :is(input, textarea):focus-visible {
+  outline: none !important;
+}
+
+.checklist-tile :where(input, textarea)::placeholder {
+  color: var(--checklist-placeholder);
+  opacity: 1;
+}
+
+/* ---------- Header ---------- */
+
+.checklist-tile__header {
+  height: 67px; /* 45px visible + 22px tucked under the body */
+  padding: 0 26px;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(
+    180deg,
+    var(--checklist-yellow-top) 0%,
+    var(--checklist-yellow-mid) 68%,
+    var(--checklist-yellow-bottom) 100%
+  );
+}
+
+.checklist-tile__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  color: var(--checklist-header-text);
+}
+
+.checklist-tile__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.checklist-tile__date,
+.checklist-tile__time {
+  field-sizing: content;
+  min-width: 1ch;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.checklist-tile__date {
+  max-width: 240px;
+  text-overflow: ellipsis;
+}
+
+.checklist-tile__time {
+  min-width: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--checklist-pill-border);
+  border-radius: 6px;
+  background: var(--checklist-pill-bg);
+}
+
+.checklist-tile__date::placeholder,
+.checklist-tile__time::placeholder {
+  color: rgba(111, 84, 16, 0.45);
+}
+
+.checklist-tile__grip {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--checklist-header-text);
+  opacity: 0.85;
+  cursor: grab;
+}
+
+.card--dragging .checklist-tile__grip {
+  cursor: grabbing;
+}
+
+/* ---------- Body ---------- */
+
+.checklist-tile__body {
+  position: relative;
+  margin-top: -22px;
+  padding: 23px 26px 0;
+  border-radius: 22px 22px 24px 24px;
+  background: var(--checklist-sheet);
+}
+
+.checklist-tile__title {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 36px;
+  letter-spacing: -0.01em;
+  color: var(--checklist-title);
+}
+
+/* ---------- Tasks ---------- */
+
+.checklist-tile__list {
+  margin: 12px 0 0;
+  padding: 0 0 22px;
+  list-style: none;
+}
+
+.checklist-tile__task {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 0;
+}
+
+.checklist-tile__task--entering {
+  animation: checklist-task-in 180ms ease-out;
+}
+
+@keyframes checklist-task-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.checklist-tile__check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--checklist-box-border);
+  border-radius: 7px;
+  background: var(--checklist-sheet);
+  color: inherit;
+  cursor: var(--cursor-pointer, pointer);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 120ms ease;
+}
+
+.checklist-tile__check:hover {
+  border-color: var(--checklist-box-border-hover);
+}
+
+.checklist-tile__check:active {
+  transform: scale(0.93);
+}
+
+.checklist-tile .checklist-tile__check:focus-visible {
+  outline: 2px solid var(--checklist-title) !important;
+  outline-offset: 2px;
+}
+
+.checklist-tile__check svg path {
+  stroke: #ffffff;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 180ms ease;
+}
+
+.checklist-tile__task[data-done="true"] .checklist-tile__check {
+  border-color: var(--checklist-box-checked);
+  background: var(--checklist-box-checked);
+}
+
+.checklist-tile__task[data-done="true"] .checklist-tile__check svg path {
+  stroke-dashoffset: 0;
+}
+
+.checklist-tile__task-text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 3px; /* centres line one on the 26px checkbox */
+  font-size: 15.5px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--checklist-task);
+  transition: color 200ms ease;
+}
+
+.checklist-tile__task[data-done="true"] .checklist-tile__task-text {
+  color: var(--checklist-task-done);
+}
+
+/* ---------- Footer / add-input ---------- */
+
+.checklist-tile__footer {
+  margin: 0 -12px; /* divider is inset 14px from the tile edge */
+  padding: 15px 12px 22px;
+  border-top: 1px solid var(--checklist-divider);
+  cursor: text;
+}
+
+.checklist-tile__add-input {
+  min-height: 22px;
+  font-size: 15.5px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--checklist-task);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checklist-tile,
+  .checklist-tile * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

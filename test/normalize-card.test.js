@@ -94,16 +94,22 @@ describe("normalizeCard", () => {
     expect(card.height).toBe(468);
   });
 
-  it("normalizes a checklist card's items, defaulting to a single blank item when empty", () => {
+  it("normalizes a checklist card's items, staying empty when it has none", () => {
     const withItems = normalizeCard({
       type: "checklist",
       items: [{ id: "a", text: "Buy milk", checked: true }],
+      dateLabel: "Thu, 2 May 2024",
+      timeLabel: "15:30",
     });
-    expect(withItems.items).toEqual([{ id: "a", text: "Buy milk", checked: true, indent: 0, highlighted: false }]);
+    expect(withItems.items).toEqual([{ id: "a", text: "Buy milk", checked: true }]);
+    expect(withItems.dateLabel).toBe("Thu, 2 May 2024");
+    expect(withItems.timeLabel).toBe("15:30");
 
-    const withoutItems = normalizeCard({ type: "checklist" });
-    expect(withoutItems.items).toHaveLength(1);
-    expect(withoutItems.title).toBe("Checklist");
+    const withoutItems = normalizeCard({ type: "checklist", createdAt: "2024-05-02T15:30:00" });
+    expect(withoutItems.items).toEqual([]);
+    expect(withoutItems.title).toBe("Things to do today");
+    expect(withoutItems.dateLabel).toBe("Thu, 2 May 2024");
+    expect(withoutItems.timeLabel).toBe("15:30");
   });
 
   it("normalizes a code card, defaulting language to plain and preserving wrap/line-number flags", () => {

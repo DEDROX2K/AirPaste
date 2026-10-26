@@ -4,6 +4,7 @@ import {
   BookOpenText,
   Calculator,
   CalendarDays,
+  CloudSun,
   Hash,
   Link2,
   ListChecks,
@@ -174,6 +175,7 @@ export default function CanvasDock({
       children: [
         { key: "deadline", label: "Deadline", icon: Timer, onSelect: () => commands?.createDeadline?.() },
         { key: "calendar", label: "Calendar", icon: CalendarDays, onSelect: () => commands?.createCalendar?.() },
+        { key: "weather", label: "Weather", icon: CloudSun, onSelect: () => commands?.createWeather?.() },
       ],
     },
     { key: "table", label: "Table", kind: "create", icon: Table2, onSelect: () => commands?.createTable?.(), disabled },

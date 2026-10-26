@@ -22,6 +22,8 @@ import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 
 const VIEWPORT_PADDING = 16;
 const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
+// Gap between a rack's top edge and a tile pulled out of it with a click.
+const RACK_PULL_OUT_GAP = 24;
 
 function isSelectionModifierPressed(event) {
   return event.shiftKey || event.ctrlKey || event.metaKey;
@@ -145,8 +147,11 @@ export function useCanvasInteractionSystem({
   }, [cards, contextMenu, groups]);
 
   useEffect(() => {
+    // Tiles inside a rack aren't on the canvas, so they can't stay selected.
     const renderableTileIds = new Set(
-      getRenderableTileEntries(cards, tileByIdRef.current).map((entry) => entry.tile.id),
+      getRenderableTileEntries(cards, tileByIdRef.current)
+        .filter((entry) => entry.containerType === "canvas")
+        .map((entry) => entry.tile.id),
     );
 
     setSelectedTileIds((currentIds) => currentIds.filter((tileId) => renderableTileIds.has(tileId)));
@@ -581,6 +586,28 @@ export function useCanvasInteractionSystem({
     setDragVisualDelta({ x: 0, y: 0 });
   });
 
+  // Clicking a tile's card in a rack takes it out, full size, just above the
+  // rack (dragging the card pulls it out under the pointer instead).
+  const pullTileFromRack = useStableCallback((tile) => {
+    const entry = getRenderableTileEntryById(cardsRef.current, tile.id, tileByIdRef.current);
+    const rackTile = entry?.rackId ? tileByIdRef.current[entry.rackId] : null;
+
+    if (!isSelectMode || !entry || entry.containerType !== "rack" || !rackTile) {
+      return;
+    }
+
+    closeContextMenu();
+    const detachedTile = commands.removeTileFromRack(tile.id, rackTile.id, {
+      x: entry.x,
+      y: rackTile.y - entry.height - RACK_PULL_OUT_GAP,
+    });
+
+    if (detachedTile) {
+      commands.commitCurrentWorkspace();
+      setSelectedTileIds([tile.id]);
+    }
+  });
+
   const beginGroupDrag = useCallback((group, event) => {
     if (!isSelectMode) {
       return;
@@ -847,7 +874,8 @@ export function useCanvasInteractionSystem({
         const rackTile = commands.addTilesToRack(dragState.tileIds, activeRackPreview.rackId);
 
         if (rackTile) {
-          nextSelectedIds = dragState.tileIds;
+          // The tiles are inside the rack now; the rack is what's selected.
+          nextSelectedIds = [rackTile.id];
           wasHandled = true;
         }
       }
@@ -1159,6 +1187,7 @@ export function useCanvasInteractionSystem({
     handleTileHoverChange,
     handleTilePressStart,
     nudgeSelection,
+    pullTileFromRack,
     replaceSelection,
     resetTransientState,
     selectGroup,
@@ -1187,6 +1216,7 @@ export function useCanvasInteractionSystem({
     marqueeBox,
     marqueeStyleVars,
     nudgeSelection,
+    pullTileFromRack,
     replaceSelection,
     resetTransientState,
     selectGroup,

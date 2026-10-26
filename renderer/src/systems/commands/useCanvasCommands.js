@@ -33,6 +33,8 @@ import {
   deriveCanvasTextTitle,
 } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
+import { getUserName } from "../../lib/userName";
+import { getLastStickyColor } from "../../tiles/sticky/model";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
@@ -242,6 +244,7 @@ export function useCanvasCommands({
   createNewChecklistCard,
   createNewCodeCard,
   createNewCounterCard,
+  createNewWeatherCard,
   createNewDeadlineCard,
   createNewLinkCard,
   createNewCanvasTextCard,
@@ -529,6 +532,22 @@ export function useCanvasCommands({
     return counter;
   }, [createNewCounterCard, folderPath, getViewportCenter, log, toast]);
 
+  const createWeather = useCallback((preferredCenter = null) => {
+    if (!folderPath) {
+      log("warn", "New weather tile blocked because no folder is open");
+      toast("warn", "Open a folder first.");
+      return null;
+    }
+
+    const centerPoint = preferredCenter ?? getViewportCenter();
+    const weather = createNewWeatherCard(centerPoint);
+
+    log("success", "New weather tile created on the canvas", centerPoint);
+    toast("success", "Weather dropped into place.");
+    maybeRemark(toast, TILE_CREATE_QUIPS, "create");
+    return weather;
+  }, [createNewWeatherCard, folderPath, getViewportCenter, log, toast]);
+
   const createDeadline = useCallback((preferredCenter = null) => {
     if (!folderPath) {
       log("warn", "New deadline blocked because no folder is open");
@@ -633,6 +652,9 @@ export function useCanvasCommands({
       title: typeof options?.title === "string" ? options.title : "",
       titleMode: CANVAS_TEXT_TITLE_MODE_CUSTOM,
       text: typeof options?.text === "string" ? options.text : "",
+      // New stickies take the colour picked last and are signed by whoever
+      // made them.
+      sticky: { color: getLastStickyColor(), author: getUserName(), ...options?.sticky },
     });
 
     log("success", "New sticky note created on the canvas", centerPoint);
@@ -1557,6 +1579,7 @@ export function useCanvasCommands({
     createChecklist,
     createCode,
     createCounter,
+    createWeather,
     createDeadline,
     createNote,
     createTextCard,
@@ -1605,6 +1628,7 @@ export function useCanvasCommands({
     createChecklist,
     createCode,
     createCounter,
+    createWeather,
     createDeadline,
     createNote,
     createTextCard,
