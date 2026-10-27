@@ -20,6 +20,10 @@ export const CANVAS_TEXT_STICKY_SIZE = Object.freeze({
 
 export const CANVAS_TEXT_MIN_WIDTH = 180;
 export const CANVAS_TEXT_MIN_HEIGHT = 80;
+// Quick text (plain format) is sized by its own text -- an empty one is
+// just a caret -- so it gets tiny floors instead.
+export const QUICK_TEXT_MIN_WIDTH = 24;
+export const QUICK_TEXT_MIN_HEIGHT = 16;
 export const STICKY_NOTE_DETAIL_BODY_LINE_LIMIT = 4;
 export const STICKY_NOTE_DETAIL_FOOTER_LINE_LIMIT = 2;
 export const STICKY_NOTE_COMPACT_LINE_LIMIT = 3;

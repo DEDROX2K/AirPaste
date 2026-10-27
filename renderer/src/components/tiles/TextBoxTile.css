@@ -1,0 +1,112 @@
+/* Quick text: plain text straight on the canvas, no box or background --
+   Figma's text tool. A blue outline shows on hover, selection and editing
+   and is never part of the text itself. Outline and handles keep their
+   screen size at any zoom (--canvas-zoom is set on the canvas content by
+   useCanvasSystem). */
+
+.quick-text {
+  --quick-text-ui: calc(1 / var(--canvas-zoom, 1));
+  --quick-text-blue: #0d99ff;
+
+  position: relative;
+  width: max-content;
+  cursor: default;
+  touch-action: none;
+}
+
+.quick-text--fixed {
+  /* width comes from the card (inline style) */
+  max-width: none;
+}
+
+.card--dragging .quick-text {
+  cursor: grabbing;
+}
+
+.quick-text--text-tool,
+.quick-text--text-tool .quick-text__text {
+  cursor: text;
+}
+
+.quick-text__text {
+  display: block;
+  box-sizing: border-box;
+  /* 12px of caret room plus the 6px side padding (QUICK_TEXT_MIN_WIDTH). */
+  min-width: 24px;
+  min-height: calc(var(--quick-text-size, 24px) * 1.25 + 8px);
+  padding: 4px 6px;
+  font-size: var(--quick-text-size, 24px);
+  white-space: pre;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.quick-text--fixed .quick-text__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quick-text--editing .quick-text__text {
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.quick-text__text::selection {
+  background: rgba(13, 153, 255, 0.28);
+}
+
+.quick-text__text--placeholder {
+  opacity: 0.5;
+}
+
+/* Hover / selected / editing outline. */
+.quick-text::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: calc(1.5px * var(--quick-text-ui)) solid transparent;
+  border-radius: calc(2px * var(--quick-text-ui));
+  pointer-events: none;
+}
+
+.card--hovered .quick-text::after {
+  border-color: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .quick-text::after,
+.quick-text--editing::after {
+  border-color: var(--quick-text-blue);
+}
+
+/* ---------- Handles: edges set a width, corners scale the text ---------- */
+
+.quick-text__handle {
+  --handle-size: calc(8px * var(--quick-text-ui));
+  --handle-offset: calc(-4px * var(--quick-text-ui));
+
+  position: absolute;
+  z-index: 3;
+  width: var(--handle-size);
+  height: var(--handle-size);
+  border: calc(1px * var(--quick-text-ui)) solid var(--quick-text-blue);
+  border-radius: calc(2px * var(--quick-text-ui));
+  background: #ffffff;
+}
+
+.quick-text__handle--nw { left: var(--handle-offset); top: var(--handle-offset); cursor: nwse-resize; }
+.quick-text__handle--ne { right: var(--handle-offset); top: var(--handle-offset); cursor: nesw-resize; }
+.quick-text__handle--sw { left: var(--handle-offset); bottom: var(--handle-offset); cursor: nesw-resize; }
+.quick-text__handle--se { right: var(--handle-offset); bottom: var(--handle-offset); cursor: nwse-resize; }
+.quick-text__handle--w { left: var(--handle-offset); top: calc(50% + var(--handle-offset)); cursor: ew-resize; }
+.quick-text__handle--e { right: var(--handle-offset); top: calc(50% + var(--handle-offset)); cursor: ew-resize; }
+
+/* The text tool's drag-out box for a fixed-width text (CanvasWorkspaceView). */
+.quick-text-marquee {
+  position: absolute;
+  z-index: 50;
+  border: calc(1px / var(--canvas-zoom, 1)) solid #0d99ff;
+  background: rgba(13, 153, 255, 0.08);
+  pointer-events: none;
+}

@@ -18,6 +18,8 @@ import {
   CANVAS_TEXT_TITLE_MODE_DERIVED,
   CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
+  QUICK_TEXT_MIN_HEIGHT,
+  QUICK_TEXT_MIN_WIDTH,
   deriveStickyNoteDocument,
   normalizeCanvasTextContent,
   normalizeCanvasTextSource,
@@ -198,12 +200,18 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
   const height = Number.isFinite(options?.height)
     ? options.height
     : defaultSize.height;
-  const x = Number.isFinite(preferredCenter?.x)
-    ? Math.round(preferredCenter.x - width / 2)
-    : position.x;
-  const y = Number.isFinite(preferredCenter?.y)
-    ? Math.round(preferredCenter.y - height / 2)
-    : position.y;
+  // options.x / options.y place the top-left corner exactly (quick text
+  // puts its caret on the click point); otherwise centre on preferredCenter.
+  const x = Number.isFinite(options?.x)
+    ? Math.round(options.x)
+    : Number.isFinite(preferredCenter?.x)
+      ? Math.round(preferredCenter.x - width / 2)
+      : position.x;
+  const y = Number.isFinite(options?.y)
+    ? Math.round(options.y)
+    : Number.isFinite(preferredCenter?.y)
+      ? Math.round(preferredCenter.y - height / 2)
+      : position.y;
   const isStickyVariant = variant === CANVAS_TEXT_VARIANT_STICKY;
   const nextTitle = isStickyVariant
     ? (typeof options?.title === "string" ? options.title.trim() : "")
@@ -233,8 +241,8 @@ export function createTextBoxCard(cards, viewport, preferredCenter = null, optio
     sticky: isStickyVariant ? options?.sticky : null,
     x,
     y,
-    width: Math.max(TEXT_BOX_MIN_WIDTH, width),
-    height: Math.max(TEXT_BOX_MIN_HEIGHT, height),
+    width: Math.max(isStickyVariant ? TEXT_BOX_MIN_WIDTH : QUICK_TEXT_MIN_WIDTH, width),
+    height: Math.max(isStickyVariant ? TEXT_BOX_MIN_HEIGHT : QUICK_TEXT_MIN_HEIGHT, height),
     createdAt: timestamp,
     updatedAt: timestamp,
   });

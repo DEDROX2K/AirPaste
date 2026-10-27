@@ -1,80 +1,68 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CanvasMotionContext } from "../../context/CanvasMotionContext";
 import { useAppContext } from "../../context/useAppContext";
+import { QUICK_TEXT_MIN_HEIGHT, QUICK_TEXT_MIN_WIDTH } from "../../lib/canvasText";
 import {
+  TEXT_BOX_COLORS,
+  TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
+  TEXT_BOX_MAX_FONT_SIZE,
+  TEXT_BOX_MIN_FONT_SIZE,
+  TEXT_BOX_SIZE_OPTIONS,
   getTextBoxFontFamily,
   normalizeTextBoxStyle,
-  TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT,
-  TEXT_BOX_DEFAULT_TEXT,
+  rememberTextBoxStyle,
 } from "../../lib/textBoxStyle";
-import {
-  recordTextTileMeasurePass,
-  recordTextTileRenderSample,
-  recordTextTileSizeWrite,
-} from "../../lib/perf";
+import { recordTextTileMeasurePass, recordTextTileSizeWrite } from "../../lib/perf";
+import { DRAWING_TOOL_MODE_TEXT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
-import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
+import FloatingFormatToolbar from "./FloatingFormatToolbar";
 import TileShell from "./TileShell";
+import "./TextBoxTile.css";
 
-const MIN_TEXT_BOX_WIDTH = 140;
-const MAX_TEXT_BOX_WIDTH = 1600;
-const MIN_TEXT_BOX_HEIGHT = 52;
-const TEXT_BOX_VERTICAL_PADDING = 8;
-const TEXT_BOX_HORIZONTAL_PADDING = 2;
-const TEXT_BOX_HEIGHT_EPSILON = 1;
-const TEXT_BOX_WIDTH_EPSILON = 0.5;
-// Width-only resize, Figma-style: one handle per side, not four per
-// corner -- a text box's height is derived from its content, never
-// user-set, so corner handles implying a free height drag were never
-// honest about what dragging them actually does.
-const TEXT_BOX_RESIZE_HANDLES = [
-  { key: "left", side: "left" },
-  { key: "right", side: "right" },
+// Edges set a fixed width; corners scale the text around the opposite corner.
+const RESIZE_HANDLES = [
+  { key: "nw", dirX: -1, dirY: -1 },
+  { key: "ne", dirX: 1, dirY: -1 },
+  { key: "sw", dirX: -1, dirY: 1 },
+  { key: "se", dirX: 1, dirY: 1 },
+  { key: "w", dirX: -1, dirY: 0 },
+  { key: "e", dirX: 1, dirY: 0 },
 ];
+const SIZE_EPSILON = 0.5;
 
 function clamp(value, minValue, maxValue) {
   return Math.max(minValue, Math.min(maxValue, value));
 }
 
-function getMeasuredTextBoxHeight(measureElement) {
-  if (!measureElement) {
-    return MIN_TEXT_BOX_HEIGHT;
+function placeCaret(element, selectAll) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  if (!selectAll) {
+    range.collapse(false);
   }
-
-  return Math.max(
-    MIN_TEXT_BOX_HEIGHT,
-    Math.ceil(measureElement.getBoundingClientRect().height + (TEXT_BOX_VERTICAL_PADDING * 2)),
-  );
-}
-
-function getMeasuredTextBoxWidth(measureElement) {
-  if (!measureElement) {
-    return MIN_TEXT_BOX_WIDTH;
-  }
-
-  return Math.max(
-    MIN_TEXT_BOX_WIDTH,
-    Math.ceil(measureElement.scrollWidth + (TEXT_BOX_HORIZONTAL_PADDING * 2)),
-  );
-}
-
-function stopInteractivePointer(event) {
-  event.stopPropagation();
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function getTextDecoration(style) {
   const decorations = [];
 
-  if (style?.underline) {
+  if (style.underline) {
     decorations.push("underline");
   }
 
-  if (style?.strike) {
+  if (style.strike) {
     decorations.push("line-through");
   }
 
   return decorations.length > 0 ? decorations.join(" ") : "none";
 }
 
+// Quick text: plain text written straight onto the canvas, like Figma's text
+// tool -- no box, a blue outline only on hover, selection and editing.
+// Click selects, clicking again (or double-click / Enter) types, and text
+// that ends up empty deletes itself.
 function TextBoxTile({
   card,
   tileMeta,
@@ -87,383 +75,274 @@ function TextBoxTile({
   onFocusOut,
   onPressStart,
   renderHint,
-  performanceMode,
-  viewportZoom,
   canvasToolMode,
   textBoxEditorState,
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { setCanvasInteractionState, updateExistingCard } = useAppContext();
-  const [isEditing, setIsEditing] = useState(false);
-  const placeholderText = typeof card.placeholderText === "string" && card.placeholderText.length > 0
-    ? card.placeholderText
-    : TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT;
-  const appearance = card.appearance === "sticky" ? "sticky" : "plain";
-  const [draftText, setDraftText] = useState(card.text ?? placeholderText);
-  const textareaRef = useRef(null);
-  const measureRef = useRef(null);
-  const editRequestIdRef = useRef(null);
-  const resizeStateRef = useRef(null);
-  const pendingHeightWriteRef = useRef(null);
-  const pendingHeightRafRef = useRef(0);
-  const latestAppliedSizeRef = useRef({ width: card.width, height: card.height });
-  const deferredMeasurePendingRef = useRef(false);
-  const lastEditorSelectionRef = useRef({ start: null, end: null, scrollTop: 0 });
-  const isMoving = performanceMode?.simplifyDuringMotion === true;
-  const isPassiveTextDisplay = !isEditing;
+  const { deleteExistingCard, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const isMoving = useContext(CanvasMotionContext);
+  const rootRef = useRef(null);
+  const textRef = useRef(null);
+  const wasSelectedAtPressRef = useRef(false);
+  const [resizing, setResizing] = useState(false);
+  const isEditing = textBoxEditorState?.tileId === card.id;
+  const isStaticPreview = renderHint?.isStaticPreview === true;
   // Keyed off a stable string, not the card.style object reference -- that
   // reference gets rebuilt by workspace normalization on every unrelated
-  // card update (e.g. a drag-drop committing a new x/y), which would
-  // otherwise make this recompute, and the effects below that depend on it,
-  // far more often than the style actually changes.
+  // card update (e.g. a drag-drop committing a new x/y).
   const styleKey = JSON.stringify(card.style ?? null);
-  const normalizedStyle = useMemo(() => normalizeTextBoxStyle(card.style), [styleKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const isPlainTextLayer = appearance !== "sticky";
-  const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
-  const isAutoWidth = isPlainTextLayer && card.autoWidth !== false;
-  const isPlaceholderText = card.placeholder === true && !isEditing;
-  const displayText = isPlaceholderText ? placeholderText : (card.text ?? "");
-  const measuredText = isEditing ? draftText : displayText;
+  const style = useMemo(() => normalizeTextBoxStyle(card.style), [styleKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isAutoWidth = card.autoWidth !== false;
+  // Older quick text could be left empty showing a faint "Add text"; it
+  // still shows that until it's edited (and then deleted if left empty).
+  const isLegacyPlaceholder = card.placeholder === true && !isEditing;
+  const displayText = isLegacyPlaceholder
+    ? (card.placeholderText || TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT)
+    : (card.text ?? "");
+  const isBold = style.fontWeight >= 600;
+  const showChrome = tileMeta?.isSelected === true && !tileMeta?.isDragging && !resizing && !isStaticPreview;
+  const showHandles = showChrome && !isEditing;
+  const showToolbar = showChrome && tileMeta?.isMultiSelect !== true;
 
-  function syncEditorHeight(textarea) {
-    if (!textarea) {
-      return;
-    }
+  const startEditing = useCallback(() => {
+    onRequestTextBoxEdit?.(card.id, { selectAll: false });
+  }, [card.id, onRequestTextBoxEdit]);
 
-    textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }
-
-  const growTextBoxHeight = useCallback((nextHeight) => {
-    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
-    if (nextHeight <= currentHeight + TEXT_BOX_HEIGHT_EPSILON) {
-      return;
-    }
-
-    pendingHeightWriteRef.current = nextHeight;
-    if (pendingHeightRafRef.current) {
-      return;
-    }
-
-    pendingHeightRafRef.current = requestAnimationFrame(() => {
-      pendingHeightRafRef.current = 0;
-      const queuedHeight = pendingHeightWriteRef.current;
-      pendingHeightWriteRef.current = null;
-      if (!Number.isFinite(queuedHeight)) {
-        return;
-      }
-      recordTextTileSizeWrite();
-      updateExistingCard(card.id, { height: queuedHeight });
-    });
-  }, [card.height, card.id, updateExistingCard]);
-
-  const surfaceGesture = useTileGesture({
+  const gesture = useTileGesture({
     card,
-    canDrag: !isEditing && isSelectToolActive,
-    onActivate: () => {
-      // The plain text layer behaves like Figma's text tool: a single tap
-      // edits instantly, no double-tap. Sticky notes keep the double-tap
-      // requirement so a single tap can still just select/move them.
-      if (isPlainTextLayer) {
-        onRequestTextBoxEdit(card.id, { selectAll: false });
-      }
-    },
-    onDoubleActivate: () => {
-      onRequestTextBoxEdit(card.id, { selectAll: false });
-    },
+    canDrag: !isEditing && canvasToolMode !== DRAWING_TOOL_MODE_TEXT,
     onDragStart: onBeginDrag,
-    onPressStart,
+    onPressStart: (pressedCard, event) => {
+      // With the text tool armed, clicking existing text edits it.
+      if (canvasToolMode === DRAWING_TOOL_MODE_TEXT) {
+        startEditing();
+        return true;
+      }
+
+      wasSelectedAtPressRef.current = tileMeta?.isSelected === true;
+      return onPressStart?.(pressedCard, event);
+    },
+    // A click on already-selected text types into it; the first only selects.
+    onActivate: () => {
+      if (wasSelectedAtPressRef.current && !isEditing) {
+        startEditing();
+      }
+    },
+    onDoubleActivate: startEditing,
   });
-  const surfaceFrameClassName = [
-    "card__surface-frame",
-    "card__surface-frame--interactive",
-    "card__surface-frame--text-box",
-    appearance === "sticky" ? "card__surface-frame--text-box-sticky" : "",
-    tileMeta?.isSelected ? "card__surface-frame--selected" : "",
-    tileMeta?.isMergeTarget ? "card__surface-frame--merge-target" : "",
-    isEditing ? "card__surface-frame--editing" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const textStyle = useMemo(() => ({
-    fontFamily: getTextBoxFontFamily(normalizedStyle.preset),
-    fontSize: `${normalizedStyle.fontSize}px`,
-    fontWeight: normalizedStyle.fontWeight,
-    fontStyle: normalizedStyle.italic ? "italic" : "normal",
-    textDecoration: getTextDecoration(normalizedStyle),
-    textAlign: normalizedStyle.align,
-    color: normalizedStyle.color,
-    lineHeight: normalizedStyle.lineHeight,
-    letterSpacing: `${normalizedStyle.letterSpacing}px`,
-    opacity: isPlaceholderText ? 0.5 : 1,
-  }), [isPlaceholderText, normalizedStyle]);
 
+  // Uncontrolled text: React never writes it while the user types.
   useLayoutEffect(() => {
-    syncEditorHeight(textareaRef.current);
-  }, [draftText, normalizedStyle, card.width]);
-
-  useLayoutEffect(() => {
-    if (!measureRef.current || isEditing) {
-      return;
+    if (!isEditing && textRef.current && textRef.current.textContent !== displayText) {
+      textRef.current.textContent = displayText;
     }
-    if (isMoving) {
-      deferredMeasurePendingRef.current = true;
+  }, [displayText, isEditing]);
+
+  // The card's width/height follow the rendered text (selection, hit-testing
+  // and layout use them). Written once editing ends rather than on every
+  // keystroke, and deferred while the canvas moves.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+
+    if (!root || isEditing || isMoving || resizing || isStaticPreview) {
       return;
     }
 
     recordTextTileMeasurePass();
-    const nextPatch = {};
-    const nextHeight = getMeasuredTextBoxHeight(measureRef.current);
-    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
-    const lastAppliedSize = latestAppliedSizeRef.current;
+    const patch = {};
+    // Same floors the card model enforces, or the two would fight forever.
+    const measuredHeight = Math.max(QUICK_TEXT_MIN_HEIGHT, Math.ceil(root.offsetHeight));
 
-    if (
-      Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON
-      && Math.abs(nextHeight - (lastAppliedSize.height ?? currentHeight)) > TEXT_BOX_HEIGHT_EPSILON
-    ) {
-      nextPatch.height = nextHeight;
+    if (Math.abs(measuredHeight - card.height) > SIZE_EPSILON) {
+      patch.height = measuredHeight;
     }
 
     if (isAutoWidth) {
-      const nextWidth = clamp(getMeasuredTextBoxWidth(measureRef.current), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
-
-      if (
-        Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON
-        && Math.abs(nextWidth - (lastAppliedSize.width ?? card.width)) > TEXT_BOX_WIDTH_EPSILON
-      ) {
-        nextPatch.width = nextWidth;
+      const measuredWidth = Math.max(QUICK_TEXT_MIN_WIDTH, Math.ceil(root.offsetWidth));
+      if (Math.abs(measuredWidth - card.width) > SIZE_EPSILON) {
+        patch.width = measuredWidth;
       }
     }
 
-    if (Object.keys(nextPatch).length > 0) {
-      latestAppliedSizeRef.current = {
-        width: Number.isFinite(nextPatch.width) ? nextPatch.width : card.width,
-        height: Number.isFinite(nextPatch.height) ? nextPatch.height : currentHeight,
-      };
+    if (Object.keys(patch).length > 0) {
       recordTextTileSizeWrite();
-      updateExistingCard(card.id, nextPatch);
+      updateExistingCard(card.id, patch);
     }
-  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, isMoving, measuredText, normalizedStyle, updateExistingCard]);
+  });
 
+  // Entering edit mode: optionally replace the text with the key that
+  // started it, then put the caret at the end (or select everything).
   useEffect(() => {
-    if (isMoving || isEditing || !deferredMeasurePendingRef.current) {
-      return;
-    }
-    deferredMeasurePendingRef.current = false;
-    if (!measureRef.current || (appearance === "sticky" && isEditing)) {
-      return;
-    }
-    recordTextTileMeasurePass();
-    const nextPatch = {};
-    const nextHeight = getMeasuredTextBoxHeight(measureRef.current);
-    const currentHeight = Number.isFinite(card.height) ? card.height : MIN_TEXT_BOX_HEIGHT;
-    if (Math.abs(nextHeight - currentHeight) > TEXT_BOX_HEIGHT_EPSILON) {
-      nextPatch.height = nextHeight;
-    }
-    if (isAutoWidth) {
-      const nextWidth = clamp(getMeasuredTextBoxWidth(measureRef.current), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
-      if (Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON) {
-        nextPatch.width = nextWidth;
-      }
-    }
-    if (Object.keys(nextPatch).length > 0) {
-      latestAppliedSizeRef.current = {
-        width: Number.isFinite(nextPatch.width) ? nextPatch.width : card.width,
-        height: Number.isFinite(nextPatch.height) ? nextPatch.height : currentHeight,
-      };
-      recordTextTileSizeWrite();
-      updateExistingCard(card.id, nextPatch);
-    }
-  }, [appearance, card.height, card.id, card.width, isAutoWidth, isEditing, isMoving, updateExistingCard]);
+    const element = textRef.current;
 
-  useEffect(() => {
-    recordTextTileRenderSample({ isMoving });
-  }, [card.id, isMoving, measuredText, isEditing, card.width, card.height]);
-
-  useEffect(() => {
-    return () => {
-      if (pendingHeightRafRef.current) {
-        cancelAnimationFrame(pendingHeightRafRef.current);
-        pendingHeightRafRef.current = 0;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setDraftText(card.text ?? placeholderText);
-    }
-  }, [card.text, isEditing, placeholderText]);
-
-  useEffect(() => {
-    if (!textBoxEditorState || textBoxEditorState.requestId === editRequestIdRef.current) {
-      return;
-    }
-
-    editRequestIdRef.current = textBoxEditorState.requestId;
-    setDraftText(
-      typeof textBoxEditorState.replacementText === "string"
-        ? textBoxEditorState.replacementText
-        : (card.placeholder === true ? "" : (card.text ?? placeholderText)),
-    );
-    setIsEditing(true);
-  }, [card.placeholder, card.text, placeholderText, textBoxEditorState]);
-
-  useEffect(() => {
-    if (!isEditing || !textareaRef.current) {
+    if (!isEditing || !element) {
       return undefined;
     }
 
-    const textarea = textareaRef.current;
-    const frame = requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
-      syncEditorHeight(textarea);
+    if (typeof textBoxEditorState?.replacementText === "string") {
+      element.textContent = textBoxEditorState.replacementText;
+    } else if (card.placeholder === true) {
+      element.textContent = "";
+    }
 
-      if (textBoxEditorState?.selectAll) {
-        textarea.setSelectionRange(0, textarea.value.length);
-        return;
-      }
-
-      if (typeof textBoxEditorState?.replacementText === "string") {
-        const nextCaret = textarea.value.length;
-        textarea.setSelectionRange(nextCaret, nextCaret);
-        return;
-      }
-
-      const { start, end, scrollTop } = lastEditorSelectionRef.current;
-      if (Number.isInteger(start) && Number.isInteger(end)) {
-        const nextStart = clamp(start, 0, textarea.value.length);
-        const nextEnd = clamp(end, nextStart, textarea.value.length);
-        textarea.setSelectionRange(nextStart, nextEnd);
-        textarea.scrollTop = Number.isFinite(scrollTop) ? scrollTop : 0;
-        return;
-      }
-
-      textarea.setSelectionRange(0, 0);
+    const frame = window.requestAnimationFrame(() => {
+      element.focus({ preventScroll: true });
+      placeCaret(element, textBoxEditorState?.selectAll === true);
     });
 
-    return () => cancelAnimationFrame(frame);
-  }, [isEditing, textBoxEditorState]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [isEditing, textBoxEditorState?.replacementText, textBoxEditorState?.requestId, textBoxEditorState?.selectAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const commitDraft = () => {
-    const trimmedDraftText = typeof draftText === "string" ? draftText.trim() : "";
-    const nextPlaceholder = trimmedDraftText.length === 0
-      || (card.placeholder === true && draftText === placeholderText);
-    const nextText = nextPlaceholder
-      ? placeholderText
-      : (typeof draftText === "string" && draftText.length > 0 ? draftText : TEXT_BOX_DEFAULT_TEXT);
-
-    if (
-      nextText !== card.text
-      || nextPlaceholder !== (card.placeholder === true)
-      || placeholderText !== card.placeholderText
-    ) {
-      updateExistingCard(card.id, {
-        text: nextText,
-        placeholder: nextPlaceholder,
-        placeholderText,
-      });
-    }
-  };
-
-  const exitEditMode = ({ save = true, restoreCanvasFocus = false } = {}) => {
-    if (save) {
-      commitDraft();
+  useEffect(() => {
+    if (!isEditing) {
+      return undefined;
     }
 
-    setIsEditing(false);
+    setCanvasInteractionState?.(true);
+    return () => setCanvasInteractionState?.(false);
+  }, [isEditing, setCanvasInteractionState]);
+
+  const updateStyle = useCallback((patch) => {
+    const nextStyle = normalizeTextBoxStyle({ ...style, ...patch });
+    rememberTextBoxStyle(nextStyle);
+    updateExistingCard(card.id, { style: nextStyle });
+  }, [card.id, style, updateExistingCard]);
+
+  // Ends editing. Empty (or whitespace-only) text removes the tile: nothing
+  // is ever left behind.
+  const finishEditing = ({ restoreCanvasFocus = false } = {}) => {
+    const nextText = (textRef.current?.innerText ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
+    window.getSelection()?.removeAllRanges();
     onEndTextBoxEdit?.(card.id, { restoreCanvasFocus });
-  };
 
-  const handleEditorBlur = (event) => {
-    const target = event.currentTarget;
-    if (target instanceof HTMLTextAreaElement) {
-      lastEditorSelectionRef.current = {
-        start: target.selectionStart,
-        end: target.selectionEnd,
-        scrollTop: target.scrollTop,
-      };
-    }
-
-    const nextFocusTarget = event.relatedTarget;
-
-    if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-text-toolbar-root='true']")) {
+    if (!nextText.trim()) {
+      deleteExistingCard?.(card.id);
       return;
     }
 
-    exitEditMode({ save: true });
-  };
-
-  const handleEditorKeyDown = (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      exitEditMode({ save: true, restoreCanvasFocus: true });
+    if (nextText !== card.text || card.placeholder === true) {
+      updateExistingCard(card.id, { text: nextText, placeholder: false });
     }
   };
 
-  const handleResizePointerDown = (side, event) => {
-    if (!tileMeta?.isSelected || isEditing) {
+  const handleTextKeyDown = (event) => {
+    const isModifier = event.metaKey || event.ctrlKey;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.blur();
+    } else if (isModifier && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      updateStyle({ fontWeight: isBold ? 400 : 700 });
+    } else if (isModifier && event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      updateStyle({ italic: !style.italic });
+    }
+  };
+
+  // While typing, a press in the text moves the caret instead of dragging.
+  const handlePointerDown = (event) => {
+    if (isEditing && textRef.current?.contains(event.target)) {
+      event.stopPropagation();
+      return;
+    }
+
+    gesture.onPointerDown(event);
+  };
+
+  const handleToolbarChange = ({ color, size, bold, ...patch }) => {
+    updateStyle({
+      ...patch,
+      ...(color ? { color } : null),
+      ...(size ? { fontSize: size } : null),
+      ...(typeof bold === "boolean" ? { fontWeight: bold ? 700 : 400 } : null),
+    });
+  };
+
+  // Edge handles set a fixed width (min 24). Corner handles scale the text
+  // (and a fixed width) around the opposite corner:
+  //   f = 1 + (sx*dx*W + sy*dy*H) / (W*W + H*H)
+  const handleResizePointerDown = (handle, event) => {
+    if (event.button !== 0) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-
-    const zoom = Math.max(0.2, viewportZoom ?? 1);
-    resizeStateRef.current = {
-      side,
+    const root = rootRef.current;
+    const W = Math.max(1, root?.offsetWidth ?? card.width);
+    const H = Math.max(1, root?.offsetHeight ?? card.height);
+    // On-screen width over layout width: the canvas zoom right now.
+    const zoom = Math.max(0.05, (root?.getBoundingClientRect().width ?? W) / W);
+    const start = {
       pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startX: card.x,
-      startWidth: card.width,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      x: card.x,
+      y: card.y,
+      fontSize: style.fontSize,
+      fixedWidth: isAutoWidth ? null : card.width,
     };
     setCanvasInteractionState?.(true);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Handles hide only once the pointer actually moves: a plain press
+    // keeps them, so double-clicking an edge handle can still land.
+    let hasMoved = false;
 
-    const handlePointerMove = (moveEvent) => {
-      const resizeState = resizeStateRef.current;
-
-      if (!resizeState || resizeState.pointerId !== moveEvent.pointerId) {
+    const handleMove = (moveEvent) => {
+      if (moveEvent.pointerId !== start.pointerId) {
         return;
       }
 
-      const deltaX = (moveEvent.clientX - resizeState.startClientX) / zoom;
-      const widthDelta = resizeState.side === "left" ? -deltaX : deltaX;
-      const nextWidth = clamp(Math.round(resizeState.startWidth + widthDelta), MIN_TEXT_BOX_WIDTH, MAX_TEXT_BOX_WIDTH);
-      const nextX = resizeState.side === "left"
-        ? Math.round(resizeState.startX + (resizeState.startWidth - nextWidth))
-        : resizeState.startX;
+      const dx = (moveEvent.clientX - start.clientX) / zoom;
+      const dy = (moveEvent.clientY - start.clientY) / zoom;
 
-      if (
-        Math.abs(nextWidth - card.width) > TEXT_BOX_WIDTH_EPSILON
-        || (resizeState.side === "left" && nextX !== card.x)
-      ) {
-        updateExistingCard(card.id, resizeState.side === "left"
-          ? { x: nextX, width: nextWidth, autoWidth: false }
-          : { width: nextWidth, autoWidth: false });
+      if (!hasMoved) {
+        if (dx === 0 && dy === 0) {
+          return;
+        }
+        hasMoved = true;
+        setResizing(true);
       }
+
+      if (handle.dirY === 0) {
+        const nextWidth = Math.round(Math.max(QUICK_TEXT_MIN_WIDTH, W + (handle.dirX * dx)));
+        updateExistingCard(card.id, {
+          autoWidth: false,
+          width: nextWidth,
+          x: handle.dirX < 0 ? Math.round(start.x + (W - nextWidth)) : start.x,
+        });
+        return;
+      }
+
+      const rawFactor = 1 + (((handle.dirX * dx * W) + (handle.dirY * dy * H)) / ((W * W) + (H * H)));
+      const factor = clamp(rawFactor, TEXT_BOX_MIN_FONT_SIZE / start.fontSize, TEXT_BOX_MAX_FONT_SIZE / start.fontSize);
+      updateExistingCard(card.id, {
+        style: normalizeTextBoxStyle({ ...style, fontSize: start.fontSize * factor }),
+        ...(start.fixedWidth ? { width: Math.round(start.fixedWidth * factor) } : null),
+        x: handle.dirX < 0 ? Math.round(start.x + (W * (1 - factor))) : start.x,
+        y: handle.dirY < 0 ? Math.round(start.y + (H * (1 - factor))) : start.y,
+      });
     };
 
-    const finishResize = (finishEvent) => {
-      const resizeState = resizeStateRef.current;
-
-      if (!resizeState || (finishEvent && resizeState.pointerId !== finishEvent.pointerId)) {
+    const finish = (finishEvent) => {
+      if (finishEvent?.pointerId !== undefined && finishEvent.pointerId !== start.pointerId) {
         return;
       }
 
-      resizeStateRef.current = null;
+      setResizing(false);
       setCanvasInteractionState?.(false);
-      window.removeEventListener("pointermove", handlePointerMove, true);
-      window.removeEventListener("pointerup", finishResize, true);
-      window.removeEventListener("pointercancel", finishResize, true);
-      window.removeEventListener("blur", finishResize);
+      window.removeEventListener("pointermove", handleMove, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", finish, true);
+      window.removeEventListener("blur", finish);
     };
 
-    window.addEventListener("pointermove", handlePointerMove, true);
-    window.addEventListener("pointerup", finishResize, true);
-    window.addEventListener("pointercancel", finishResize, true);
-    window.addEventListener("blur", finishResize);
+    window.addEventListener("pointermove", handleMove, true);
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", finish, true);
+    window.addEventListener("blur", finish);
   };
 
   return (
@@ -473,67 +352,84 @@ function TextBoxTile({
       dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--text-box"
       renderHint={renderHint}
+      tileState={isEditing ? "editing" : ""}
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}
       onFocusIn={onFocusIn}
       onFocusOut={onFocusOut}
     >
-      <div className="card__content">
-        <div className={surfaceFrameClassName} {...surfaceGesture}>
-          <section className={`card__text-box-surface card__surface--text-box${appearance === "sticky" ? " card__surface--text-box-sticky" : ""}${isPassiveTextDisplay ? " card__surface--text-box-passive" : ""}${isMoving && isPassiveTextDisplay ? " card__surface--text-box-passive-moving" : ""}`} aria-label={appearance === "sticky" ? "Sticky note" : "Quick text"}>
-            {isEditing ? (
-              <textarea
-                ref={textareaRef}
-                className={`card__text-box-editor${appearance === "sticky" ? " card__text-box-editor--sticky" : ""}${isAutoWidth ? " card__text-box-editor--auto-width" : ""}`}
-                value={draftText}
-                aria-label="Quick text editor"
-                spellCheck={false}
-                rows={1}
-                style={textStyle}
-                onPointerDown={stopInteractivePointer}
-                onClick={stopInteractivePointer}
-                onDoubleClick={stopInteractivePointer}
-                onKeyDown={handleEditorKeyDown}
-                onBlur={handleEditorBlur}
-                onChange={(event) => {
-                  setDraftText(event.target.value);
-                  syncEditorHeight(event.target);
-                  if (!isPlainTextLayer) {
-                    growTextBoxHeight(Math.max(MIN_TEXT_BOX_HEIGHT, event.target.scrollHeight + TEXT_BOX_VERTICAL_PADDING));
-                  }
-                }}
-              />
-            ) : (
-              <div
-                className={`card__text-box-display${isPlaceholderText ? " card__text-box-display--placeholder" : ""}${appearance === "sticky" ? " card__text-box-display--sticky" : ""}${isAutoWidth ? " card__text-box-display--auto-width" : ""}`}
-                style={textStyle}
-              >
-                {displayText}
-              </div>
-            )}
-            {!isMoving ? (
-              <div
-                ref={measureRef}
-                className={`card__text-box-measure${appearance === "sticky" ? " card__text-box-measure--sticky" : ""}`}
-                aria-hidden="true"
-                style={textStyle}
-              >
-                {measuredText}
-              </div>
-            ) : null}
-          </section>
-          {tileMeta?.isSelected && !isEditing && isPlainTextLayer ? (
-            TEXT_BOX_RESIZE_HANDLES.map((handle) => (
-              <button
-                key={handle.key}
-                type="button"
-                className={`card__text-box-resize-handle card__text-box-resize-handle--${handle.key}`}
-                aria-label={`Resize quick text width from the ${handle.key}`}
-                onPointerDown={(event) => handleResizePointerDown(handle.side, event)}
-              />
-            ))
-          ) : null}
-        </div>
+      <div
+        ref={rootRef}
+        className={[
+          "quick-text",
+          isEditing ? "quick-text--editing" : "",
+          isAutoWidth ? "" : "quick-text--fixed",
+          canvasToolMode === DRAWING_TOOL_MODE_TEXT ? "quick-text--text-tool" : "",
+        ].filter(Boolean).join(" ")}
+        aria-label="Quick text"
+        style={{
+          width: isAutoWidth ? undefined : `${card.width}px`,
+          "--quick-text-size": `${style.fontSize}px`,
+        }}
+        {...gesture}
+        onPointerDown={handlePointerDown}
+      >
+        <div
+          ref={textRef}
+          className={`quick-text__text${isLegacyPlaceholder ? " quick-text__text--placeholder" : ""}`}
+          role="textbox"
+          aria-multiline="true"
+          aria-label="Text"
+          spellCheck={false}
+          // Editable only while editing, so a click never drops a stray
+          // caret and text can't be selected while dragging.
+          contentEditable={isEditing ? "plaintext-only" : "false"}
+          suppressContentEditableWarning
+          style={{
+            fontFamily: style.preset === "simple"
+              ? `"Inter", ${getTextBoxFontFamily(style.preset)}`
+              : getTextBoxFontFamily(style.preset),
+            fontWeight: style.fontWeight,
+            fontStyle: style.italic ? "italic" : "normal",
+            textDecoration: getTextDecoration(style),
+            textAlign: style.align,
+            color: style.color,
+            caretColor: style.color,
+            lineHeight: style.lineHeight,
+            letterSpacing: style.letterSpacing ? `calc(-0.005em + ${style.letterSpacing}px)` : "-0.005em",
+          }}
+          onKeyDown={isEditing ? handleTextKeyDown : undefined}
+          onBlur={isEditing ? () => finishEditing() : undefined}
+        />
+
+        {showHandles ? RESIZE_HANDLES.map((handle) => (
+          <span
+            key={handle.key}
+            className={`quick-text__handle quick-text__handle--${handle.key}`}
+            aria-hidden="true"
+            onPointerDown={(event) => handleResizePointerDown(handle, event)}
+            // Double-clicking an edge handle goes back to auto-width.
+            onDoubleClick={handle.dirY === 0 ? (event) => {
+              event.stopPropagation();
+              updateExistingCard(card.id, { autoWidth: true });
+            } : undefined}
+          />
+        )) : null}
+
+        {showToolbar ? (
+          <FloatingFormatToolbar
+            label="Text options"
+            colors={TEXT_BOX_COLORS}
+            colorColumns={4}
+            color={style.color.toUpperCase()}
+            sizes={TEXT_BOX_SIZE_OPTIONS}
+            size={TEXT_BOX_SIZE_OPTIONS.some((option) => option.id === style.fontSize) ? style.fontSize : null}
+            align={style.align}
+            bold={isBold}
+            italic={style.italic}
+            onChange={handleToolbarChange}
+          />
+        ) : null}
       </div>
     </TileShell>
   );

@@ -2403,185 +2403,12 @@ option {
    see CanvasWorkspaceView.jsx for why translateX(-50%) has to come AFTER
    scale() in the transform list for the centering to track the toolbar's
    true on-screen width rather than its unscaled one. */
-.canvas__text-toolbar-anchor {
-  position: absolute;
-  width: 0;
-  height: 0;
-  z-index: 5;
-}
 
-.canvas__text-toolbar-scaler {
-  position: absolute;
-  left: 0;
-  transform-origin: 0% 100%;
-}
-
-/* The floating text-formatting pill: a basic first pass matching the
-   design the user sent -- dark, compact, icon-driven, a swatch row and two
-   dropdowns above a row of toggles. Link/list/mention are visual only for
-   now (see TextFormattingToolbar.jsx). */
-.text-toolbar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-}
 
 /* Light, frosted-glass chrome -- matching the rest of the app's own
    surfaces (context menus, the eye's toast) instead of standing out as a
    separate dark-UI island. */
-.text-toolbar__bar {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px;
-  border-radius: 14px;
-  background: var(--ap-surface-overlay);
-  backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: var(--ap-shadow-panel);
-}
 
-.text-toolbar__panel {
-  display: flex;
-  align-items: center;
-  padding: 8px;
-  border-radius: 14px;
-  background: var(--ap-surface-overlay);
-  backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: var(--ap-shadow-panel);
-}
-
-.text-toolbar__panel--swatches {
-  gap: 7px;
-}
-
-.text-toolbar__panel--list {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  min-width: 128px;
-}
-
-.text-toolbar__swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ap-border-default);
-  cursor: var(--cursor-pointer);
-  transition: transform var(--ap-transition-fast, 120ms ease);
-}
-
-.text-toolbar__swatch:hover {
-  transform: scale(1.12);
-}
-
-.text-toolbar__swatch--active {
-  box-shadow: 0 0 0 2px var(--ap-surface-overlay), 0 0 0 3.5px var(--ap-text-primary);
-}
-
-.text-toolbar__list-item {
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ap-text-secondary);
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: var(--cursor-pointer);
-}
-
-.text-toolbar__list-item:hover {
-  background: var(--ap-interactive-bg-hover);
-  color: var(--ap-text-primary);
-}
-
-.text-toolbar__list-item--active {
-  background: var(--ap-interactive-bg-active);
-  color: var(--ap-text-primary);
-}
-
-.text-toolbar__color-trigger,
-.text-toolbar__dropdown {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 30px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--ap-text-secondary);
-  cursor: var(--cursor-pointer);
-}
-
-.text-toolbar__color-trigger:hover,
-.text-toolbar__dropdown:hover {
-  background: var(--ap-interactive-bg-hover);
-  color: var(--ap-text-primary);
-}
-
-.text-toolbar__color-trigger[aria-expanded="true"],
-.text-toolbar__dropdown[aria-expanded="true"] {
-  background: var(--ap-interactive-bg-active);
-  color: var(--ap-text-primary);
-}
-
-.text-toolbar__color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ap-border-strong);
-}
-
-.text-toolbar__dropdown-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.text-toolbar__dropdown--size .text-toolbar__dropdown-label {
-  font-size: 12px;
-}
-
-.text-toolbar__divider {
-  width: 1px;
-  height: 20px;
-  margin: 0 4px;
-  background: var(--ap-border-default);
-}
-
-.text-toolbar__icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--ap-icon-default);
-  cursor: var(--cursor-pointer);
-}
-
-.text-toolbar__icon-button:hover:not(:disabled) {
-  background: var(--ap-interactive-bg-hover);
-  color: var(--ap-text-primary);
-}
-
-.text-toolbar__icon-button--active {
-  background: var(--ap-interactive-bg-selected);
-  color: var(--ap-interactive-text-selected);
-}
-
-.text-toolbar__icon-button--active:hover {
-  background: var(--ap-accent-bg-hover);
-}
-
-.text-toolbar__icon-button:disabled {
-  color: var(--ap-text-disabled);
-  cursor: default;
-}
 
 .workspace-view-toggle {
   display: inline-flex;
@@ -12116,9 +11943,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     right: 12px;
   }
 
-  .text-toolbar__bar {
-    gap: 0;
-  }
 
   .canvas-stage__fab {
     left: 50%;

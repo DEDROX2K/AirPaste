@@ -20,6 +20,7 @@ import {
   createStickerCard,
   createTableCard,
   createTextBoxCard,
+  getViewportOnlyPageChanges,
   getWorkspaceActivePage,
   isBookmarkLinkCard,
   normalizeWorkspace,
@@ -28,6 +29,7 @@ import {
   replaceCards,
   updateCard,
   updateCards,
+  withActivePageMirror,
 } from "../lib/workspace";
 import { clearCanvasPathKeyedRefs, migrateCanvasPathKeyedRefs } from "../lib/canvasPathKeyedRefs";
 import { desktop, parseCanvasConflictError, parseDomeSyncPendingError } from "../lib/desktop";
@@ -40,6 +42,11 @@ import {
 } from "../lib/testingTiles";
 
 const CANVAS_SAVE_DELAY_MS = 420;
+// Pan/zoom-only changes wait longer: each save still makes the main process
+// rewrite the whole canvas file, so saving on every brief pause in a pan
+// churns the disk (and cloud sync) for nothing. Closing the tab or window
+// still flushes immediately (flushAllPendingCanvasSaves).
+const CANVAS_VIEWPORT_SAVE_DELAY_MS = 2000;
 const BOOT_MIN_DURATION_MS = 680;
 const DEFAULT_WORKSPACE_HISTORY_LIMIT = 8;
 const PREVIEW_UNAVAILABLE_MESSAGE = "Link previews are temporarily unavailable.";
@@ -271,11 +278,16 @@ function getCanvasDirtyFields(previousWorkspace, nextWorkspace) {
 }
 
 
-function buildCanvasSavePayload(workspace, dirtyFields = null) {
+function buildCanvasSavePayload(workspace, dirtyFields = null, lastSavedWorkspace = null) {
   const payload = {};
 
   if (dirtyFields?.pages) {
-    payload.pages = Array.isArray(workspace?.pages) ? workspace.pages : [];
+    const pageViewports = getViewportOnlyPageChanges(lastSavedWorkspace?.pages, workspace?.pages);
+    if (pageViewports) {
+      payload.pageViewports = pageViewports;
+    } else {
+      payload.pages = Array.isArray(workspace?.pages) ? workspace.pages : [];
+    }
   }
 
   if (dirtyFields?.activePageId) {
@@ -310,11 +322,19 @@ function normalizeWorkspaceHistory(entry) {
     && entry.present
     && Array.isArray(entry.future)
   ) {
+    // Every history is built from already-normalized workspaces
+    // (createWorkspaceHistory, updateWorkspaceState, undo/redo), so return it
+    // as-is. Re-normalizing here rebuilt the present workspace and every undo
+    // snapshot -- whole canvases, embedded images included -- on each call
+    // (every pan, drag and save), and gave every tile a new identity.
     const limit = Number.isFinite(entry.limit) ? Math.max(1, Math.round(entry.limit)) : getWorkspaceHistoryLimit();
+    if (entry.limit === limit && entry.past.length <= limit) {
+      return entry;
+    }
+
     return {
-      past: entry.past.map((workspace) => normalizeWorkspace(workspace)).slice(-limit),
-      present: normalizeWorkspace(entry.present),
-      future: entry.future.map((workspace) => normalizeWorkspace(workspace)),
+      ...entry,
+      past: entry.past.slice(-limit),
       limit,
     };
   }
@@ -504,7 +524,11 @@ export function AppProvider({ children }) {
     }
 
     const dirtyFields = pendingCanvasDirtyFieldsRef.current[canvasPath];
-    const savePayload = buildCanvasSavePayload(workspaceToSave, dirtyFields);
+    const savePayload = buildCanvasSavePayload(
+      workspaceToSave,
+      dirtyFields,
+      lastSavedCanvasWorkspaceRef.current[canvasPath] ?? null,
+    );
     const changedKeys = Object.keys(savePayload);
 
     if (!changedKeys.length) {
@@ -513,34 +537,27 @@ export function AppProvider({ children }) {
     }
 
     const totalStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-    const serializeStart = totalStart;
-    let serializedPayload = "";
-
-    try {
-      serializedPayload = JSON.stringify(savePayload);
-    } catch (serializeError) {
-      recordSaveSample({
-        path: canvasPath, serializeMs: 0, saveMs: 0, totalMs: 0, payloadBytes: 0, status: "error",
-      });
-      setError(serializeError?.message || "Unable to serialize the current canvas.");
-      return;
-    }
-
-    const serializeMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - serializeStart;
-    const saveStart = typeof performance !== "undefined" ? performance.now() : Date.now();
 
     const expectedUpdatedAt = canvasDiskUpdatedAtRef.current[canvasPath];
     const forceHistorySnapshot = Boolean(forceHistorySnapshotRef.current[canvasPath]);
     delete forceHistorySnapshotRef.current[canvasPath];
 
+    // `serializeMs` is the time the UI thread spends handing the payload to
+    // IPC (Electron structured-clones it synchronously inside invoke). The
+    // payload is not JSON.stringify'd here: that was only used to measure its
+    // size and cost a second full pass over every embedded image per save.
+    let serializeMs = 0;
+
     try {
-      const saveResult = await desktop.workspace.saveCanvas(canvasPath, savePayload, {
+      const savePromise = desktop.workspace.saveCanvas(canvasPath, savePayload, {
         partial: true,
         returnWorkspace: false,
         changedKeys,
         expectedUpdatedAt,
         forceHistorySnapshot,
       });
+      serializeMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - totalStart;
+      const saveResult = await savePromise;
 
       if (saveResult?.updatedAt) {
         canvasDiskUpdatedAtRef.current[canvasPath] = saveResult.updatedAt;
@@ -551,6 +568,9 @@ export function AppProvider({ children }) {
       const latestCanvas = workspacesRef.current[canvasPath];
       const latestWorkspace = normalizeWorkspaceHistory(latestCanvas).present;
       const hasNewerChanges = latestWorkspace !== workspaceToSave;
+      // What's on disk now, whether or not newer edits arrived meanwhile:
+      // the next save's viewport-only diff must compare against it.
+      lastSavedCanvasWorkspaceRef.current[canvasPath] = workspaceToSave;
 
       if (hasNewerChanges) {
         pendingCanvasSaveRef.current[canvasPath] = true;
@@ -563,15 +583,13 @@ export function AppProvider({ children }) {
         pendingCanvasDirtyFieldsRef.current[canvasPath] = {
           pages: false, activePageId: false, name: false, airpaste: false,
         };
-        lastSavedCanvasWorkspaceRef.current[canvasPath] = workspaceToSave;
       }
 
       recordSaveSample({
         path: canvasPath,
         serializeMs,
-        saveMs: saveEnd - saveStart,
+        saveMs: saveEnd - totalStart - serializeMs,
         totalMs: saveEnd - totalStart,
-        payloadBytes: serializedPayload.length,
         status: "success",
       });
     } catch (saveError) {
@@ -586,9 +604,8 @@ export function AppProvider({ children }) {
       recordSaveSample({
         path: canvasPath,
         serializeMs,
-        saveMs: saveEnd - saveStart,
+        saveMs: saveEnd - totalStart - serializeMs,
         totalMs: saveEnd - totalStart,
-        payloadBytes: serializedPayload.length,
         status: conflict ? "conflict" : "error",
       });
 
@@ -633,6 +650,9 @@ export function AppProvider({ children }) {
     if (!conflict) return;
     canvasDiskUpdatedAtRef.current[canvasPath] = conflict.theirUpdatedAt;
     forceHistorySnapshotRef.current[canvasPath] = true;
+    // Disk holds their version, not our last save: drop the base so this
+    // save sends full pages rather than a viewport-only patch onto theirs.
+    delete lastSavedCanvasWorkspaceRef.current[canvasPath];
     pendingCanvasSaveRef.current[canvasPath] = true;
     // Mutate the ref directly (not just via setCanvasConflicts, which is
     // async) so flushCanvasSave's own "already conflicted, don't retry"
@@ -671,7 +691,10 @@ export function AppProvider({ children }) {
 
   const workspace = useMemo(() => {
     if (currentEditor.kind !== "canvas") return createEmptyWorkspace();
-    return normalizeWorkspace(workspacesByPath[currentEditor.filePath]?.present ?? createEmptyWorkspace());
+    const present = workspacesByPath[currentEditor.filePath]?.present;
+    // History entries are already normalized; only refresh the active-page
+    // mirror so unchanged cards keep their identity (see withActivePageMirror).
+    return present ? withActivePageMirror(present) : createEmptyWorkspace();
   }, [currentEditor, workspacesByPath]);
 
   const workspaceHistory = useMemo(() => {
@@ -1917,6 +1940,15 @@ export function AppProvider({ children }) {
       return undefined;
     }
 
+    const pendingDirtyFields = pendingCanvasDirtyFieldsRef.current[activeCanvasPath];
+    const isViewportOnlyChange = !pendingDirtyFields?.activePageId
+      && !pendingDirtyFields?.name
+      && !pendingDirtyFields?.airpaste
+      && Boolean(getViewportOnlyPageChanges(
+        lastSavedCanvasWorkspaceRef.current[activeCanvasPath]?.pages,
+        workspaceToEvaluate?.pages,
+      ));
+
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       if (canvasInteractionStateRef.current[activeCanvasPath]) {
@@ -1925,7 +1957,7 @@ export function AppProvider({ children }) {
       }
 
       void flushCanvasSave(activeCanvasPath);
-    }, CANVAS_SAVE_DELAY_MS);
+    }, isViewportOnlyChange ? CANVAS_VIEWPORT_SAVE_DELAY_MS : CANVAS_SAVE_DELAY_MS);
     return () => clearTimeout(saveTimeoutRef.current);
   }, [canvasInteractionVersion, flushCanvasSave, folderPath, workspaceHistory.present]);
 

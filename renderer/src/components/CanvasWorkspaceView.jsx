@@ -6,7 +6,6 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
-import TextFormattingToolbar from "./TextFormattingToolbar";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasTetherLines from "./canvas/CanvasTetherLines";
@@ -14,6 +13,7 @@ import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
 import { hashStringToUnitInterval } from "../lib/hashStringToUnitInterval";
 import { useAppContext } from "../context/useAppContext";
+import { CanvasMotionContext } from "../context/CanvasMotionContext";
 import { useLog } from "../hooks/useLog";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useToast } from "../hooks/useToast";
@@ -37,13 +37,13 @@ import {
   TETHER_MAX_TILES,
   TETHER_MIN_TILES,
 } from "../lib/workspace";
-import { normalizeTextBoxStyle } from "../lib/textBoxStyle";
+import { getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
 import { getAdjacentStickyPosition, normalizeStickyStyle } from "../tiles/sticky/model";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
-  CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
+  QUICK_TEXT_MIN_WIDTH,
   getCanvasTextLineCount,
 } from "../lib/canvasText";
 import { useCanvasSystem } from "../systems/canvas/useCanvasSystem";
@@ -56,6 +56,7 @@ import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
   DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_TEXT,
 } from "../systems/drawing/drawingTypes";
 import {
   buildCanvasSnapUiStatePatch,
@@ -80,6 +81,9 @@ import {
 } from "../systems/canvas/tileLod";
 import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
 
+// Quick text's padding around its text: the caret lands on the click point.
+const QUICK_TEXT_PADDING_X = 6;
+const QUICK_TEXT_PADDING_Y = 4;
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
@@ -1071,6 +1075,8 @@ export default function CanvasWorkspaceView() {
   const isLineToolActive = drawingTool.isLineToolActive;
   const isTextToolActive = drawingTool.isTextToolActive;
   const setCanvasToolMode = drawingTool.handleToolModeChange;
+  const canvasToolModeRef = useRef(canvasToolMode);
+  canvasToolModeRef.current = canvasToolMode;
   const clearDraftLine = drawingTool.clearDraftLine;
   const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
 
@@ -1620,51 +1626,10 @@ export default function CanvasWorkspaceView() {
     const selectedTile = tileById[interactions.selectedTileIds[0]] ?? null;
     return selectedTile?.type === CANVAS_TEXT_CARD_TYPE ? selectedTile : null;
   }, [interactions.selectedTileIds, tileById]);
-  // The formatting toolbar only appears when the WHOLE selection is plain
-  // "Add text" tiles (canvas-text cards, default variant, plain format --
-  // see CanvasTextTile.jsx) -- mixing it into a selection of other tile
-  // types wouldn't mean anything (there's no shared "style" to show as
-  // current), and sticky notes / markdown notes have their own look.
-  const selectedPlainTextTiles = useMemo(() => {
-    if (interactions.selectedTileIds.length === 0) {
-      return [];
-    }
-
-    const selectedTiles = interactions.selectedTileIds.map((tileId) => tileById[tileId]).filter(Boolean);
-    const allPlainText = selectedTiles.length > 0
-      && selectedTiles.every((tile) => (
-        tile.type === CANVAS_TEXT_CARD_TYPE
-        && (tile.variant ?? CANVAS_TEXT_VARIANT_DEFAULT) === CANVAS_TEXT_VARIANT_DEFAULT
-        && (tile.format ?? CANVAS_TEXT_FORMAT_PLAIN) === CANVAS_TEXT_FORMAT_PLAIN
-      ));
-
-    return allPlainText ? selectedTiles : [];
-  }, [interactions.selectedTileIds, tileById]);
-  const plainTextToolbarStyle = useMemo(() => (
-    selectedPlainTextTiles.length > 0 ? normalizeTextBoxStyle(selectedPlainTextTiles[0].style) : null
-  ), [selectedPlainTextTiles]);
-  // World-space anchor (top-center of the selection's bounding box) so the
-  // toolbar stays glued to the text as the canvas pans/zooms, instead of
-  // sitting at a fixed screen position disconnected from what it edits.
-  const plainTextToolbarAnchor = useMemo(() => {
-    if (selectedPlainTextTiles.length === 0) {
-      return null;
-    }
-
-    const minX = Math.min(...selectedPlainTextTiles.map((tile) => tile.x));
-    const maxX = Math.max(...selectedPlainTextTiles.map((tile) => tile.x + tile.width));
-    const minY = Math.min(...selectedPlainTextTiles.map((tile) => tile.y));
-
-    return { x: (minX + maxX) / 2, y: minY };
-  }, [selectedPlainTextTiles]);
-  const handlePatchTextBoxStyle = useCallback((patch) => {
-    const updatesById = Object.fromEntries(selectedPlainTextTiles.map((tile) => [
-      tile.id,
-      { style: normalizeTextBoxStyle({ ...normalizeTextBoxStyle(tile.style), ...patch }) },
-    ]));
-    updateExistingCards(updatesById);
-  }, [selectedPlainTextTiles, updateExistingCards]);
   const requestTextBoxEdit = useCallback((tileId, options = {}) => {
+    if (canvasToolModeRef.current === DRAWING_TOOL_MODE_TEXT) {
+      setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
+    }
     textBoxEditRequestIdRef.current += 1;
     setTextBoxEditorState({
       tileId,
@@ -1672,7 +1637,7 @@ export default function CanvasWorkspaceView() {
       replacementText: typeof options.replacementText === "string" ? options.replacementText : null,
       selectAll: options.selectAll === true,
     });
-  }, []);
+  }, [setCanvasToolMode]);
   // Stable: passed to every tile (see useStableCallback).
   const clearTextBoxEditState = useStableCallback((tileId = null, options = {}) => {
     setTextBoxEditorState((current) => {
@@ -1692,20 +1657,104 @@ export default function CanvasWorkspaceView() {
       });
     }
   });
-  const beginTextBoxCreation = useCallback((worldPoint) => {
-    const textBox = commands.createTextCard(worldPoint, {
+  // Quick text, Figma-style: a click puts an auto-width text with its caret
+  // on the click point; a drag makes a fixed-width text as wide as the drag.
+  // Either way it starts in the last-used style, ready to type, and the
+  // (one-shot) text tool goes back to select.
+  const createQuickText = useStableCallback((placement) => {
+    const style = getLastTextBoxStyle();
+    const lineHeight = style.fontSize * style.lineHeight;
+    const isFixedWidth = Number.isFinite(placement.width);
+    const textBox = commands.createTextCard(placement, {
       text: "",
+      style,
+      quiet: true,
+      height: Math.ceil(lineHeight + (QUICK_TEXT_PADDING_Y * 2)),
+      ...(isFixedWidth
+        ? {
+          x: placement.x - QUICK_TEXT_PADDING_X,
+          y: placement.y - QUICK_TEXT_PADDING_Y,
+          width: placement.width + (QUICK_TEXT_PADDING_X * 2),
+          autoWidth: false,
+        }
+        : {
+          x: placement.x - QUICK_TEXT_PADDING_X,
+          y: placement.y - (lineHeight / 2) - QUICK_TEXT_PADDING_Y,
+          width: QUICK_TEXT_MIN_WIDTH,
+          autoWidth: true,
+        }),
     });
 
     if (!textBox) {
       return false;
     }
 
+    setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
     interactions.selectTile(textBox.id, { forceSingle: true });
-    requestTextBoxEdit(textBox.id, { selectAll: true });
+    requestTextBoxEdit(textBox.id, { selectAll: false });
     return true;
-  }, [commands, interactions, requestTextBoxEdit]);
+  });
+  const beginTextBoxCreation = useCallback((worldPoint) => createQuickText(worldPoint), [createQuickText]);
+  // Text tool armed: press on empty canvas, then click (auto-width) or drag
+  // out a box (fixed width; the marquee shows it). A drag under 4px, or
+  // narrower than 24px, counts as a click.
+  const beginQuickTextGesture = useStableCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const pointerId = event.pointerId;
+    const startClient = { x: event.clientX, y: event.clientY };
+    const start = canvas.clientToWorldPoint(event.clientX, event.clientY);
+    let isDragging = false;
+
+    const handleMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      if (!isDragging && Math.hypot(moveEvent.clientX - startClient.x, moveEvent.clientY - startClient.y) > 4) {
+        isDragging = true;
+      }
+
+      if (isDragging) {
+        setQuickTextDraft({ start, end: canvas.clientToWorldPoint(moveEvent.clientX, moveEvent.clientY) });
+      }
+    };
+    const cleanUp = () => {
+      setQuickTextDraft(null);
+      window.removeEventListener("pointermove", handleMove, true);
+      window.removeEventListener("pointerup", handleUp, true);
+      window.removeEventListener("pointercancel", handleCancel, true);
+    };
+    function handleUp(upEvent) {
+      if (upEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      cleanUp();
+      const end = canvas.clientToWorldPoint(upEvent.clientX, upEvent.clientY);
+
+      if (isDragging && Math.abs(upEvent.clientX - startClient.x) >= QUICK_TEXT_MIN_WIDTH) {
+        createQuickText({
+          x: Math.min(start.x, end.x),
+          y: Math.min(start.y, end.y),
+          width: Math.abs(end.x - start.x),
+        });
+      } else {
+        createQuickText(start);
+      }
+    }
+    function handleCancel(cancelEvent) {
+      if (cancelEvent.pointerId === pointerId) {
+        cleanUp();
+      }
+    }
+
+    window.addEventListener("pointermove", handleMove, true);
+    window.addEventListener("pointerup", handleUp, true);
+    window.addEventListener("pointercancel", handleCancel, true);
+  });
   // A new sticky starts selected and ready to type into, like FigJam.
+  const [quickTextDraft, setQuickTextDraft] = useState(null);
   const beginStickyCreation = useStableCallback((worldPoint, options = {}) => {
     const sticky = commands.createSticky(worldPoint, options);
 
@@ -2139,23 +2188,13 @@ export default function CanvasWorkspaceView() {
       return;
     }
 
-    if (selectedTextBoxTile && isTextToolActive && event.button === 0) {
-      interactions.handleCanvasPointerDown(event);
+    if (isTextToolActive && event.button === 0) {
+      beginQuickTextGesture(event);
       return;
     }
 
-    if (isTextToolActive && event.button === 0) {
-      const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
-
-      if (beginTextBoxCreation(worldPoint)) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-    }
-
     interactions.handleCanvasPointerDown(event);
-  }, [beginTextBoxCreation, canvas, interactions, isTextToolActive, selectedTextBoxTile, textBoxEditorState?.tileId]);
+  }, [beginQuickTextGesture, interactions, isTextToolActive, textBoxEditorState?.tileId]);
 
   useEffect(() => {
     if (
@@ -2250,6 +2289,12 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
+      if (event.key === "Escape" && canvasToolMode === DRAWING_TOOL_MODE_TEXT) {
+        event.preventDefault();
+        setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
+        return;
+      }
+
       if (event.key === "Escape") {
         if (clearDraftLine()) {
           event.preventDefault();
@@ -2282,6 +2327,13 @@ export default function CanvasWorkspaceView() {
           return;
         }
 
+        if (activeKey === "t") {
+          event.preventDefault();
+          interactions.replaceSelection([]);
+          setCanvasToolMode(DRAWING_TOOL_MODE_TEXT);
+          return;
+        }
+
         if (activeKey === "c") {
           event.preventDefault();
           const checklist = commands.createChecklist();
@@ -2291,6 +2343,23 @@ export default function CanvasWorkspaceView() {
           }
           return;
         }
+      }
+
+      if (
+        selectedTextBoxTile?.format === CANVAS_TEXT_FORMAT_PLAIN
+        && selectedTextBoxTile.variant !== CANVAS_TEXT_VARIANT_STICKY
+        && (event.ctrlKey || event.metaKey)
+        && !event.altKey
+        && (activeKey === "b" || activeKey === "i")
+      ) {
+        event.preventDefault();
+        const currentStyle = normalizeTextBoxStyle(selectedTextBoxTile.style);
+        const nextStyle = normalizeTextBoxStyle(activeKey === "b"
+          ? { ...currentStyle, fontWeight: currentStyle.fontWeight >= 600 ? 400 : 700 }
+          : { ...currentStyle, italic: !currentStyle.italic });
+        rememberTextBoxStyle(nextStyle);
+        updateExistingCard(selectedTextBoxTile.id, { style: nextStyle });
+        return;
       }
 
       if (
@@ -2375,7 +2444,7 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
-      if (event.key === "Delete" && !activeElementIsEditable) {
+      if ((event.key === "Delete" || event.key === "Backspace") && !activeElementIsEditable) {
         if (deleteSelectedDrawingObject()) {
           event.preventDefault();
           interactions.closeContextMenu();
@@ -2462,6 +2531,8 @@ export default function CanvasWorkspaceView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     canvas,
+    canvasToolMode,
+    updateExistingCard,
     canRedo,
     canUndo,
     commands,
@@ -2493,6 +2564,12 @@ export default function CanvasWorkspaceView() {
     rendererMode,
     workspaceLodLevel,
   }), [isCanvasMoving, rendererMode, workspaceLodLevel]);
+  // What tiles receive: no motion flag, so starting or stopping a pan or drag
+  // doesn't re-render every tile. Tiles that care read CanvasMotionContext.
+  const tilePerformanceMode = useMemo(() => ({
+    rendererMode,
+    workspaceLodLevel,
+  }), [rendererMode, workspaceLodLevel]);
   const boardSnapshot = useMemo(() => ({
     surfaceRenderer: rendererMode,
     workspaceLodLevel,
@@ -2947,6 +3024,7 @@ export default function CanvasWorkspaceView() {
   }
 
   return (
+    <CanvasMotionContext.Provider value={isCanvasMoving}>
     <main className="canvas-stage">
 
       {/* ── Right Tools Portal ── */}
@@ -3013,19 +3091,9 @@ export default function CanvasWorkspaceView() {
             return;
           }
 
-          if (selectedTextBoxTile && isTextToolActive && isCanvasBackground && event.button === 0) {
-            interactions.handleCanvasPointerDown(event);
-            return;
-          }
-
           if (isTextToolActive && isCanvasBackground && event.button === 0) {
-            const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
-
-            if (beginTextBoxCreation(worldPoint)) {
-              event.preventDefault();
-              event.stopPropagation();
-              return;
-            }
+            beginQuickTextGesture(event);
+            return;
           }
 
           interactions.handleCanvasPointerDown(event);
@@ -3143,7 +3211,7 @@ export default function CanvasWorkspaceView() {
                     dragVisualTileIdSet={dragVisualTileIdSet}
                     childTiles={layout.rackTileChildrenByRackId[card.id] ?? EMPTY_CHILD_TILES}
                     rackState={layout.rackStateById[card.id] ?? null}
-                    performanceMode={performanceMode}
+                    performanceMode={tilePerformanceMode}
                     onBeginDrag={interactions.beginTileDrag}
                     onContextMenu={interactions.handleTileContextMenu}
                     onHoverChange={interactions.handleTileHoverChange}
@@ -3163,21 +3231,16 @@ export default function CanvasWorkspaceView() {
                 </div>
                 );
               })}
-              {plainTextToolbarStyle && plainTextToolbarAnchor ? (
+              {quickTextDraft ? (
                 <div
-                  className="canvas__text-toolbar-anchor"
-                  style={{ left: `${plainTextToolbarAnchor.x}px`, top: `${plainTextToolbarAnchor.y}px` }}
-                >
-                  <div
-                    className="canvas__text-toolbar-scaler"
-                    style={{
-                      bottom: `${14 / viewportZoomForRender}px`,
-                      transform: `scale(${1 / viewportZoomForRender}) translateX(-50%)`,
-                    }}
-                  >
-                    <TextFormattingToolbar style={plainTextToolbarStyle} onPatchStyle={handlePatchTextBoxStyle} />
-                  </div>
-                </div>
+                  className="quick-text-marquee"
+                  style={{
+                    left: `${Math.min(quickTextDraft.start.x, quickTextDraft.end.x)}px`,
+                    top: `${Math.min(quickTextDraft.start.y, quickTextDraft.end.y)}px`,
+                    width: `${Math.abs(quickTextDraft.end.x - quickTextDraft.start.x)}px`,
+                    height: `${Math.abs(quickTextDraft.end.y - quickTextDraft.start.y)}px`,
+                  }}
+                />
               ) : null}
             </div>
           </>
@@ -3257,6 +3320,7 @@ export default function CanvasWorkspaceView() {
         </div>
       ) : null}
     </main>
+    </CanvasMotionContext.Provider>
   );
 }
 

@@ -7,6 +7,8 @@ import {
   CANVAS_TEXT_TITLE_MODE_DERIVED,
   CANVAS_TEXT_VARIANT_DEFAULT,
   CANVAS_TEXT_VARIANT_STICKY,
+  QUICK_TEXT_MIN_HEIGHT,
+  QUICK_TEXT_MIN_WIDTH,
   deriveCanvasTextTitle,
   getCanvasTextLineCount,
 } from "./canvasText";
@@ -984,12 +986,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
     width: type === RACK_CARD_TYPE
       ? rackSize.width
       : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
-        ? Math.max(TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
+        ? Math.max(canvasText.format === CANVAS_TEXT_FORMAT_PLAIN ? QUICK_TEXT_MIN_WIDTH : TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
         : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width)),
     height: type === RACK_CARD_TYPE
       ? rackSize.height
       : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
-        ? Math.max(TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
+        ? Math.max(canvasText.format === CANVAS_TEXT_FORMAT_PLAIN ? QUICK_TEXT_MIN_HEIGHT : TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
         : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height)),
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
     contentKind,
@@ -1910,4 +1912,77 @@ function flattenLegacyFolderCards(cards) {
   });
 
   return nextCards.filter((card) => card?.type !== LEGACY_FOLDER_CARD_TYPE);
+}
+
+// Returns { [pageId]: viewport } when the only differences between two page
+// lists are page viewports (a pan or zoom), otherwise null. Pages carry every
+// tile -- embedded images included -- so autosave uses this to send just the
+// viewports instead of resending every page after each pan.
+export function getViewportOnlyPageChanges(previousPages, nextPages) {
+  if (!Array.isArray(previousPages) || !Array.isArray(nextPages) || previousPages.length !== nextPages.length) {
+    return null;
+  }
+
+  const viewports = {};
+
+  for (let index = 0; index < nextPages.length; index += 1) {
+    const previousPage = previousPages[index];
+    const nextPage = nextPages[index];
+
+    if (previousPage === nextPage) {
+      continue;
+    }
+
+    if (!previousPage || !nextPage || previousPage.id !== nextPage.id) {
+      return null;
+    }
+
+    const keys = new Set([...Object.keys(previousPage), ...Object.keys(nextPage)]);
+    for (const key of keys) {
+      if (key !== "viewport" && previousPage[key] !== nextPage[key]) {
+        return null;
+      }
+    }
+
+    viewports[nextPage.id] = nextPage.viewport;
+  }
+
+  return Object.keys(viewports).length > 0 ? viewports : null;
+}
+
+// For a workspace that is already normalized (everything in AppProvider's
+// history is): refreshes the top-level mirror of the active page (cards,
+// viewport, ...) from `pages` without re-normalizing anything, and returns the
+// same object when the mirror is already current. normalizeWorkspace rebuilds
+// every card -- and deep-clones `airpaste` -- so calling it on each update gave
+// every tile a new identity and re-rendered all of them after every pan.
+export function withActivePageMirror(workspace) {
+  const activePage = getWorkspaceActivePage(workspace);
+
+  if (
+    workspace.activePageId === activePage.id
+    && workspace.activePage === activePage
+    && workspace.viewport === activePage.viewport
+    && workspace.view === activePage.view
+    && workspace.cards === activePage.cards
+    && workspace.drawings === activePage.drawings
+    && workspace.edges === activePage.edges
+    && workspace.groups === activePage.groups
+    && workspace.tethers === activePage.tethers
+  ) {
+    return workspace;
+  }
+
+  return {
+    ...workspace,
+    activePageId: activePage.id,
+    activePage,
+    viewport: activePage.viewport,
+    view: activePage.view,
+    cards: activePage.cards,
+    drawings: activePage.drawings,
+    edges: activePage.edges,
+    groups: activePage.groups,
+    tethers: activePage.tethers,
+  };
 }

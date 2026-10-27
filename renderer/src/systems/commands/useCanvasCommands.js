@@ -583,11 +583,20 @@ export function useCanvasCommands({
       text: typeof options?.text === "string" ? options.text : "",
       width: options?.width,
       height: options?.height,
+      // Quick text from the text tool: exact top-left (caret on the click
+      // point), auto or fixed width, and the last-used style.
+      x: options?.x,
+      y: options?.y,
+      autoWidth: options?.autoWidth,
+      style: options?.style,
     });
 
     log("success", "New quick text created on the canvas", centerPoint);
-    toast("success", "Quick text dropped into place.");
-    maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
+    // The text tool's click-and-type flow is about speed: no toast there.
+    if (!options?.quiet) {
+      toast("success", "Quick text dropped into place.");
+      maybeRemark(toast, NOTE_CREATE_QUIPS, "note");
+    }
     return note;
   }, [createNewTextBoxCard, folderPath, getViewportCenter, log, toast]);
 

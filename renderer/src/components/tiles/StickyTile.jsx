@@ -4,6 +4,8 @@ import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
   STICKY_BASE_SIZE,
+  STICKY_COLORS,
+  STICKY_FONT_SIZE_LABELS,
   STICKY_FONT_SIZES,
   clampStickySize,
   getStickyColorHex,
@@ -11,9 +13,13 @@ import {
   normalizeStickyStyle,
   rememberStickyColor,
 } from "../../tiles/sticky/model";
-import StickyToolbar from "./StickyToolbar";
+import FloatingFormatToolbar from "./FloatingFormatToolbar";
 import TileShell from "./TileShell";
 import "./StickyTile.css";
+
+const STICKY_SIZE_OPTIONS = Object.entries(STICKY_FONT_SIZE_LABELS).map(([id, label]) => ({ id, label }));
+// Screen px between the note and its toolbar (clears the "+" button).
+const STICKY_TOOLBAR_GAP = 44;
 
 const RESIZE_HANDLES = [
   { key: "nw", dirX: -1, dirY: -1 },
@@ -321,7 +327,19 @@ function StickyTile({
         {isResizing ? <div className="sticky__size-label">{resizeLabel}</div> : null}
 
         {showToolbar ? (
-          <StickyToolbar style={style} onChange={updateStyle} />
+          <FloatingFormatToolbar
+            label="Sticky note options"
+            colors={STICKY_COLORS}
+            color={style.color}
+            sizes={STICKY_SIZE_OPTIONS}
+            size={style.fontSize}
+            align={style.align}
+            bold={style.bold}
+            italic={style.italic}
+            strike={style.strike}
+            gap={STICKY_TOOLBAR_GAP}
+            onChange={({ size: fontSize, ...patch }) => updateStyle(fontSize ? { ...patch, fontSize } : patch)}
+          />
         ) : null}
       </article>
     </TileShell>

@@ -1006,8 +1006,14 @@ async function saveCanvas(filePath, data, options = null) {
     };
   const input = isObject(data) ? data : {};
   const nextName = firstString(input.name, currentWorkspace.name, stripCanvasSuffix(path.basename(abs)), "Canvas");
+  const basePages = Array.isArray(input.pages) ? input.pages : Array.isArray(currentWorkspace.pages) ? currentWorkspace.pages : null;
+  // A pan/zoom-only autosave sends just { pageViewports: { [pageId]: viewport } }
+  // instead of every page with all its tiles; patch those onto the pages.
+  const pageViewports = isObject(input.pageViewports) ? input.pageViewports : null;
   const nextPages = normalizeCanvasPages({
-    pages: Array.isArray(input.pages) ? input.pages : Array.isArray(currentWorkspace.pages) ? currentWorkspace.pages : null,
+    pages: pageViewports && basePages
+      ? basePages.map((page) => (isObject(pageViewports[page?.id]) ? { ...page, viewport: pageViewports[page.id] } : page))
+      : basePages,
     activePageId: input.activePageId ?? currentWorkspace.activePageId,
     viewport: input.viewport ?? currentWorkspace.viewport,
     cards: input.cards ?? currentWorkspace.cards,

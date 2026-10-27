@@ -1,17 +1,40 @@
 export const TEXT_BOX_DEFAULT_TEXT = "Add text";
 export const TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT = TEXT_BOX_DEFAULT_TEXT;
+// Quick text: plain text straight on the canvas, Figma text-tool style.
 export const TEXT_BOX_DEFAULT_STYLE = Object.freeze({
   preset: "simple",
-  fontSize: 48,
-  fontWeight: 500,
+  fontSize: 24,
+  fontWeight: 400,
   italic: false,
   underline: false,
   strike: false,
   align: "left",
-  color: "#1f1f1f",
-  lineHeight: 1.15,
+  color: "#1E1E1E",
+  lineHeight: 1.25,
   letterSpacing: 0,
 });
+export const TEXT_BOX_MIN_FONT_SIZE = 8;
+export const TEXT_BOX_MAX_FONT_SIZE = 600;
+
+export const TEXT_BOX_COLORS = Object.freeze([
+  { id: "#1E1E1E", name: "Black", hex: "#1E1E1E" },
+  { id: "#8A8A8A", name: "Gray", hex: "#8A8A8A" },
+  { id: "#F24822", name: "Red", hex: "#F24822" },
+  { id: "#FFA629", name: "Orange", hex: "#FFA629" },
+  { id: "#14AE5C", name: "Green", hex: "#14AE5C" },
+  { id: "#1E6FFF", name: "Blue", hex: "#1E6FFF" },
+  { id: "#9747FF", name: "Violet", hex: "#9747FF" },
+  { id: "#FF4D94", name: "Pink", hex: "#FF4D94" },
+]);
+
+export const TEXT_BOX_SIZE_OPTIONS = Object.freeze([
+  { id: 16, label: "Small", hint: "16" },
+  { id: 24, label: "Medium", hint: "24" },
+  { id: 40, label: "Large", hint: "40" },
+  { id: 64, label: "Huge", hint: "64" },
+]);
+
+const LAST_STYLE_STORAGE_KEY = "airpaste:quick-text-last-style";
 
 export const TEXT_BOX_PRESET_OPTIONS = Object.freeze([
   {
@@ -61,7 +84,7 @@ export function normalizeTextBoxStyle(style) {
 
   return {
     preset,
-    fontSize: Math.round(clampNumber(safeStyle.fontSize, 8, 240, TEXT_BOX_DEFAULT_STYLE.fontSize)),
+    fontSize: Number(clampNumber(safeStyle.fontSize, TEXT_BOX_MIN_FONT_SIZE, TEXT_BOX_MAX_FONT_SIZE, TEXT_BOX_DEFAULT_STYLE.fontSize).toFixed(2)),
     fontWeight: Math.round(clampNumber(safeStyle.fontWeight, 100, 900, TEXT_BOX_DEFAULT_STYLE.fontWeight) / 100) * 100,
     italic: safeStyle.italic === true,
     underline: safeStyle.underline === true,
@@ -80,4 +103,25 @@ export function getTextBoxFontFamily(preset) {
 
 export function getTextBoxLineCount(text) {
   return String(text ?? "").split(/\r?\n/).length;
+}
+
+// New quick text starts with the style used last (size, weight, italic,
+// alignment, colour). A per-person preference, so browser storage is fine;
+// it may be unavailable, hence the try/catch.
+export function getLastTextBoxStyle() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(LAST_STYLE_STORAGE_KEY) ?? "null");
+    return normalizeTextBoxStyle(stored);
+  } catch {
+    return normalizeTextBoxStyle(null);
+  }
+}
+
+export function rememberTextBoxStyle(style) {
+  try {
+    const { fontSize, fontWeight, italic, align, color } = normalizeTextBoxStyle(style);
+    window.localStorage.setItem(LAST_STYLE_STORAGE_KEY, JSON.stringify({ fontSize, fontWeight, italic, align, color }));
+  } catch {
+    // Not remembered; new text falls back to the defaults.
+  }
 }
