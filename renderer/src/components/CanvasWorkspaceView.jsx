@@ -85,6 +85,7 @@ import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
 const QUICK_TEXT_PADDING_X = 6;
 const QUICK_TEXT_PADDING_Y = 4;
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
+const SHOW_ZOOM_MENU = false;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -3104,8 +3105,9 @@ export default function CanvasWorkspaceView() {
     <CanvasMotionContext.Provider value={isCanvasMoving}>
     <main className="canvas-stage">
 
-      {/* ── Right Tools Portal ── */}
-      {createPortal(
+      {/* ── Right Tools Portal (zoom menu: hidden for now; zoom still works
+          from the keyboard, wheel and pinch) ── */}
+      {SHOW_ZOOM_MENU ? createPortal(
         <div className="canvas-toolbar-shell canvas-toolbar-shell--right">
           <CanvasZoomMenu
             zoom={viewportZoomForRender}
@@ -3119,7 +3121,7 @@ export default function CanvasWorkspaceView() {
           />
         </div>,
         document.getElementById("titlebar-right-slot") || document.body
-      )}
+      ) : null}
 
       {createPortal(
         <div className="canvas-stage__fab">

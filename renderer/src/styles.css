@@ -292,13 +292,11 @@ option {
   cursor: nesw-resize;
 }
 
-.app-shell--loading {
-  cursor: none;
-}
-
+/* Native busy cursor while loading (it used to hide the cursor and draw a
+   fake one, which could show next to the real one). */
 .app-shell--loading,
 .app-shell--loading * {
-  cursor: none !important;
+  cursor: progress !important;
 }
 
 .app-shell__view-container {
@@ -5902,70 +5900,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   z-index: 0;
 }
 
-.global-loading-cursor {
-  position: absolute;
-  inset: 0;
-  z-index: 120;
-  pointer-events: none;
-}
-
-.global-loading-cursor__trail {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.global-loading-cursor__glyph {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 16px;
-  height: 16px;
-  opacity: 0;
-  transform: translate(-1000px, -1000px);
-  transition: opacity 80ms linear;
-  will-change: transform, opacity;
-}
-
-.global-loading-cursor__glyph--visible {
-  opacity: 1;
-}
-
-.global-loading-cursor__cube {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 2px;
-  background: rgba(26, 34, 52, 0.92);
-  border: 1px solid rgba(16, 22, 36, 0.98);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  animation: global-loading-cursor-pulse 820ms ease-in-out infinite;
-}
-
-@keyframes global-loading-cursor-pulse {
-
-  0%,
-  100% {
-    background: rgba(26, 34, 52, 0.9);
-    border-color: rgba(16, 22, 36, 0.98);
-    opacity: 0.8;
-    transform: scale(1);
-  }
-
-  50% {
-    background: rgba(26, 34, 52, 1);
-    border-color: rgba(16, 22, 36, 1);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.14),
-      0 0 12px rgba(26, 34, 52, 0.18);
-    opacity: 1;
-    transform: scale(1.18);
-  }
-}
 
 .home-toolbar {
   display: flex;

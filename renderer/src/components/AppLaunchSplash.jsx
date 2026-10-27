@@ -12,6 +12,14 @@ import "./AppLaunchSplash.css";
 // until the user gives us real destinations for them.
 const REPORT_BUGS_URL = "https://github.com/DEDROX2K/AirPaste/issues";
 
+// One of these photos fills the left of the splash, picked at random each
+// time the app opens (public/splash/).
+const SPLASH_IMAGES = ["splash/splash-1.png", "splash/splash-2.png", "splash/splash-3.png"];
+
+function pickSplashImage() {
+  return `${import.meta.env.BASE_URL}${SPLASH_IMAGES[Math.floor(Math.random() * SPLASH_IMAGES.length)]}`;
+}
+
 function RecentFileIcon({ type }) {
   if (type === "folder") {
     return <Folder size={16} aria-hidden="true" />;
@@ -26,6 +34,7 @@ function RecentFileIcon({ type }) {
 // right after boot, dismissed by any action, outside click, or Escape.
 export default function AppLaunchSplash() {
   const [dismissed, setDismissed] = useState(false);
+  const [splashImage] = useState(pickSplashImage);
   const {
     homeData,
     folderLoading,
@@ -47,6 +56,11 @@ export default function AppLaunchSplash() {
       <AppDialogContent className="app-launch-splash__dialog">
         <AppDialogTitle className="sr-only">AirPaste</AppDialogTitle>
         <div className="app-launch-splash">
+          <div className="app-launch-splash__hero">
+            <img className="app-launch-splash__image" src={splashImage} alt="" draggable={false} />
+            <div className="app-launch-splash__version">V 1.08</div>
+          </div>
+
           <div className="app-launch-splash__panel">
             <section className="app-launch-splash__card app-launch-splash__card--new">
               <h2 className="app-launch-splash__label">New file</h2>
@@ -123,13 +137,6 @@ export default function AppLaunchSplash() {
             </section>
 
             <div className="app-launch-splash__tagline">Ideas meant to be played with</div>
-          </div>
-
-          <div className="app-launch-splash__hero">
-            <div className="app-launch-splash__keycap" aria-hidden="true">
-              <span className="app-launch-splash__keycap-label">airpaste</span>
-            </div>
-            <div className="app-launch-splash__version">V 1.08</div>
           </div>
         </div>
       </AppDialogContent>

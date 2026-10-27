@@ -3,7 +3,6 @@ import AppLaunchSplash from "./components/AppLaunchSplash";
 import ConflictDialog from "./components/ConflictDialog";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import GlobalLoadingCursor from "./components/GlobalLoadingCursor";
 import PixelScreenTransition from "./components/PixelScreenTransition";
 import { TopTabBar } from "./components/TopTabBar";
 import { useAppContext } from "./context/useAppContext";
@@ -295,7 +294,6 @@ export default function App() {
         </div>
       </div>
 
-      {isLoading ? <GlobalLoadingCursor /> : null}
       {import.meta.env.DEV && <DevConsole />}
       <AppLaunchSplash />
       <ConflictDialog />

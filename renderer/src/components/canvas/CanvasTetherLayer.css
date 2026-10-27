@@ -7,8 +7,8 @@
   --tether-violet: #7c5cff;
   --tether-cut: #ff4d4f;
   --tether-link: #9a9aa3;
-  --tether-cursor: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cg%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%2F%3E%3Cpath%20d%3D%22M16%203v6M16%2023v6M3%2016h6M23%2016h6%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%237C5CFF%22%20stroke-width%3D%222.2%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%2F%3E%3Cpath%20d%3D%22M16%203v6M16%2023v6M3%2016h6M23%2016h6%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E") 16 16, crosshair;
-  --tether-cut-cursor: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cg%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%225.2%22%3E%3Cpath%20d%3D%22M11%205l10%2014M21%205L11%2019%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23FF4D4F%22%20stroke-width%3D%222.4%22%3E%3Cpath%20d%3D%22M11%205l10%2014M21%205L11%2019%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E") 16 14, pointer;
+  --tether-cursor: crosshair;
+  --tether-cut-cursor: pointer;
 }
 
 :root[data-theme="dark"] .canvas {
@@ -99,8 +99,8 @@
   fill: var(--tether-cut);
 }
 
-/* Tether tool (L, or hold Alt): violet crosshair everywhere on the board;
-   a line under the pointer still shows the scissors. */
+/* Tether tool (L, or hold Alt): native crosshair everywhere on the board;
+   a line under the pointer still shows the pointer. */
 .canvas--tether-tool,
 .canvas--tether-tool * {
   cursor: var(--tether-cursor) !important;
