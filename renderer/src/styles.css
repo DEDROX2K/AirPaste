@@ -1662,127 +1662,6 @@ option {
   }
 }
 
-/* Tethering: "select a few tiles, float them together with strings
-   attached" (see CanvasTetherLines.jsx / useCanvasCommands.js
-   tetherSelectedTiles). Lines sit at z-index 0, same as the density zones,
-   below every tile; the float/bob animation is applied to .canvas__entry-
-   item (the plain wrapper div around each <Card>), never to
-   .card__surface-frame itself, so it can never collide with that element's
-   own drag-transform or entry-animation (see canvas-tile-settle-in above). */
-.canvas__tether-lines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.canvas__tether-svg {
-  position: absolute;
-  overflow: visible;
-}
-
-.canvas__tether-spoke {
-  animation: canvas-tether-spoke-breathe 4400ms ease-in-out infinite;
-}
-
-/* Three stacked copies of the same path: a soft wide blur underneath for
-   depth, the real stroke, and a thin bright "sheen" offset along the same
-   curve so it reads as a lit piece of string/thread rather than a flat
-   line -- the look the plain single gray stroke this replaced was missing. */
-.canvas__tether-string {
-  stroke: rgba(32, 32, 36, 0.5);
-  stroke-width: 1.6px;
-  stroke-linecap: round;
-  fill: none;
-}
-
-.canvas__tether-string--shadow {
-  stroke: rgba(10, 10, 14, 0.22);
-  stroke-width: 4.5px;
-  filter: blur(2.5px);
-}
-
-.canvas__tether-string--sheen {
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 0.7px;
-  stroke-dasharray: 3 7;
-  opacity: 0.6;
-}
-
-.canvas__tether-anchor {
-  fill: rgba(30, 30, 34, 0.55);
-  stroke: rgba(255, 255, 255, 0.5);
-  stroke-width: 0.75px;
-}
-
-.canvas__tether-knot-halo {
-  fill: none;
-  stroke: rgba(40, 40, 46, 0.18);
-  stroke-width: 6px;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: canvas-tether-knot-pulse 2600ms ease-in-out infinite;
-}
-
-.canvas__tether-knot {
-  stroke: rgba(255, 255, 255, 0.4);
-  stroke-width: 0.75px;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
-}
-
-@keyframes canvas-tether-spoke-breathe {
-  0%,
-  100% {
-    opacity: 0.88;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes canvas-tether-knot-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.9;
-    transform: scale(1.35);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas__tether-spoke,
-  .canvas__tether-knot-halo {
-    animation: none;
-  }
-}
-
-.canvas__entry-item--tethered {
-  animation: canvas-tether-float var(--tether-bob-duration, 6s) ease-in-out infinite;
-  animation-delay: var(--tether-bob-delay, 0s);
-}
-
-@keyframes canvas-tether-float {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-
-  50% {
-    transform: translate(var(--tether-bob-drift, 6px), -9px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas__entry-item--tethered {
-    animation: none;
-  }
-}
-
 .canvas__grid {
   pointer-events: none;
   background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px));
@@ -3414,9 +3293,13 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   /* Keep containment limited to layout/style so transforms remain isolated
      without clipping overflow-heavy tile visuals. */
   contain: layout style;
-  transform: translate3d(calc(var(--tile-x, 0) + var(--tile-drag-x, 0px)),
-      calc(var(--tile-y, 0) + var(--tile-drag-y, 0px)),
-      0);
+  /* --tether-* are written by useTetherSystem while a tile floats or glides:
+     an offset from its saved spot, plus the lift / tilt of the float. */
+  transform: translate3d(calc(var(--tile-x, 0) + var(--tile-drag-x, 0px) + var(--tether-x, 0px)),
+      calc(var(--tile-y, 0) + var(--tile-drag-y, 0px) + var(--tether-y, 0px) + var(--tether-rise, 0px)),
+      0)
+    rotate(var(--tether-rot, 0deg))
+    scale(var(--tether-scale, 1));
   overflow: visible;
   transition: filter 180ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
   opacity: var(--tile-clipboard-opacity, 1);

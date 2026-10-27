@@ -124,6 +124,15 @@ describe("json-canvas round trip", () => {
     });
   });
 
+  it("keeps tethers through save -> load (regression: they were dropped on save)", () => {
+    const original = buildWorkspaceDocument();
+    original.pages[0].tethers = [{ id: "t1", a: "card-link-1", b: "card-2" }];
+
+    const parsed = parseJsonCanvasDocument(serializeJsonCanvasDocument(original));
+    expect(parsed.pages[0].tethers).toEqual([{ id: "t1", a: "card-link-1", b: "card-2" }]);
+    expect(parsed.airpaste?.tethers).toBeUndefined();
+  });
+
   it("drops edges with a missing endpoint instead of emitting a dangling edge", () => {
     const original = buildWorkspaceDocument();
     original.pages[0].edges[0].toNode = "";

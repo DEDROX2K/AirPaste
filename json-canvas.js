@@ -472,12 +472,14 @@ function parseJsonCanvasDocument(raw, fallbackName = "Canvas") {
   const viewport = normalizeViewport(airpaste.viewport);
   const drawings = normalizeDrawings(airpaste.drawings);
   const view = airpaste.view === null || isObject(airpaste.view) ? (cloneStructuredValue(airpaste.view) ?? null) : null;
+  const tethers = Array.isArray(airpaste.tethers) ? cloneStructuredValue(airpaste.tethers) : [];
 
   const boardAirpaste = cloneStructuredValue(airpaste) ?? {};
   delete boardAirpaste.pageId;
   delete boardAirpaste.pageName;
   delete boardAirpaste.viewport;
   delete boardAirpaste.drawings;
+  delete boardAirpaste.tethers;
   delete boardAirpaste.view;
   delete boardAirpaste.pages;
 
@@ -496,6 +498,7 @@ function parseJsonCanvasDocument(raw, fallbackName = "Canvas") {
     drawings,
     edges,
     groups,
+    tethers,
     view,
     airpaste: null,
   };
@@ -554,6 +557,9 @@ function serializeJsonCanvasDocument(workspaceDocument, options = {}) {
       pageName: firstString(activePage?.name, "Page 1"),
       viewport: normalizeViewport(activePage?.viewport),
       drawings: normalizeDrawings(activePage?.drawings),
+      // Tethers (pairwise tile links) have no JSON Canvas equivalent that
+      // other apps would read the same way, so they live in the stash.
+      tethers: Array.isArray(activePage?.tethers) ? cloneStructuredValue(activePage.tethers) : [],
       view: activePage?.view === null || isObject(activePage?.view) ? cloneStructuredValue(activePage.view) : null,
       // Full fidelity stash for every page, including the active one (parsed
       // back out by parseJsonCanvasDocument, which ignores the active page's

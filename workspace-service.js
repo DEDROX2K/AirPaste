@@ -217,6 +217,7 @@ function normalizePagePayload(page, fallbackIndex = 0) {
     drawings: normalizeDrawingsPayload(safePage.drawings),
     edges: cloneStructuredArray(safePage.edges),
     groups: cloneStructuredArray(safePage.groups),
+    tethers: cloneStructuredArray(safePage.tethers),
     view: safePage.view === null || isObject(safePage.view) ? (safePage.view ?? null) : null,
     airpaste: isObject(safePage.airpaste) ? cloneStructuredValue(safePage.airpaste) : null,
   };

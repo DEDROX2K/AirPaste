@@ -1,0 +1,118 @@
+/* Tether system (useTetherSystem + CanvasTetherLayer). The layer lives in
+   .canvas__content (world coordinates, same pan / zoom as the tiles), under
+   every tile. Strokes and effects keep their screen size at any zoom
+   (--canvas-zoom is set on .canvas__content by useCanvasSystem). */
+
+.canvas {
+  --tether-violet: #7c5cff;
+  --tether-cut: #ff4d4f;
+  --tether-link: #9a9aa3;
+  --tether-cursor: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cg%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%2F%3E%3Cpath%20d%3D%22M16%203v6M16%2023v6M3%2016h6M23%2016h6%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%237C5CFF%22%20stroke-width%3D%222.2%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%2F%3E%3Cpath%20d%3D%22M16%203v6M16%2023v6M3%2016h6M23%2016h6%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E") 16 16, crosshair;
+  --tether-cut-cursor: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cg%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%225.2%22%3E%3Cpath%20d%3D%22M11%205l10%2014M21%205L11%2019%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23FF4D4F%22%20stroke-width%3D%222.4%22%3E%3Cpath%20d%3D%22M11%205l10%2014M21%205L11%2019%22%2F%3E%3Ccircle%20cx%3D%2210%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2223%22%20r%3D%223.6%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E") 16 14, pointer;
+}
+
+:root[data-theme="dark"] .canvas {
+  --tether-link: #8a8a93;
+}
+
+.tether-layer {
+  --tether-ui: calc(1 / var(--canvas-zoom, 1));
+
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tether-layer__line {
+  stroke: var(--tether-link);
+  stroke-width: calc(1.4px * var(--tether-ui));
+  stroke-linecap: round;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.tether-layer__hit {
+  stroke: transparent;
+  stroke-width: calc(16px * var(--tether-ui));
+  stroke-linecap: round;
+  pointer-events: stroke;
+  cursor: var(--tether-cut-cursor);
+}
+
+.tether-layer__link {
+  transition: opacity 0.2s ease;
+}
+
+.tether-layer__link--active .tether-layer__line {
+  stroke: var(--tether-violet);
+  stroke-width: calc(1.8px * var(--tether-ui));
+}
+
+.tether-layer__link--hot .tether-layer__line {
+  stroke: var(--tether-cut);
+  stroke-width: calc(2.2px * var(--tether-ui));
+}
+
+.tether-layer__preview {
+  stroke: var(--tether-violet);
+  stroke-width: calc(1.6px * var(--tether-ui));
+  stroke-dasharray: calc(5px * var(--tether-ui)) calc(5px * var(--tether-ui));
+  stroke-linecap: round;
+}
+
+.tether-layer__preview--snapped {
+  stroke-dasharray: none;
+  stroke-width: calc(2px * var(--tether-ui));
+}
+
+.tether-layer__preview-dot {
+  r: calc(4px * var(--tether-ui));
+  fill: var(--tether-violet);
+}
+
+/* Gesture source / target rings: drawn under the tile, a little larger, so
+   they show as a ring around it. */
+.tether-layer__ring {
+  fill: none;
+  stroke: var(--tether-violet);
+  stroke-width: calc(2.5px * var(--tether-ui));
+  rx: calc(8px * var(--tether-ui));
+}
+
+.tether-layer__ring--glow {
+  stroke: rgba(124, 92, 255, 0.22);
+  stroke-width: calc(8px * var(--tether-ui));
+  rx: calc(10px * var(--tether-ui));
+}
+
+.tether-layer__snap {
+  stroke: var(--tether-cut);
+  stroke-width: calc(2px * var(--tether-ui));
+  stroke-linecap: round;
+}
+
+.tether-layer__spark {
+  fill: var(--tether-cut);
+}
+
+/* Tether tool (L, or hold Alt): violet crosshair everywhere on the board;
+   a line under the pointer still shows the scissors. */
+.canvas--tether-tool,
+.canvas--tether-tool * {
+  cursor: var(--tether-cursor) !important;
+}
+
+.canvas .tether-layer__hit {
+  cursor: var(--tether-cut-cursor) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tether-layer__line,
+  .tether-layer__link {
+    transition: none;
+  }
+}

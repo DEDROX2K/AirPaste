@@ -204,6 +204,7 @@ function areWorkspacePagesEqual(a = [], b = []) {
       || !areDrawingsEqual(leftPage?.drawings, rightPage?.drawings)
       || !areStructuredArraysEqual(leftPage?.edges, rightPage?.edges)
       || !areStructuredArraysEqual(leftPage?.groups, rightPage?.groups)
+      || !areStructuredArraysEqual(leftPage?.tethers, rightPage?.tethers)
       || !areStructuredObjectsEqual(leftPage?.airpaste, rightPage?.airpaste)
     ) {
       return false;

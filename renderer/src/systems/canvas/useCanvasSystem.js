@@ -48,15 +48,20 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
-  const containerRef = useCallback((node) => {
+  // Callback refs that also keep `.current`, so callers can read the
+  // element like an object ref (canvas.containerRef.current).
+  const containerRef = useCallback(function setContainerRef(node) {
+    setContainerRef.current = node;
     setContainerElement(node);
   }, []);
 
-  const gridRef = useCallback((node) => {
+  const gridRef = useCallback(function setGridRef(node) {
+    setGridRef.current = node;
     setGridElement(node);
   }, []);
 
-  const contentRef = useCallback((node) => {
+  const contentRef = useCallback(function setContentRef(node) {
+    setContentRef.current = node;
     setContentElement(node);
   }, []);
 

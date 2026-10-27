@@ -223,7 +223,7 @@ export function buildRadialMenuActions({
 
       return {
         id,
-        label: "Remove tether",
+        label: "Cut tethers",
         kind: "action",
         onTrigger: handlers.onUntether,
       };

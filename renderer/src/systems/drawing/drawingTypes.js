@@ -4,6 +4,7 @@ export const DRAWING_TOOL_MODE_SELECT = "select";
 export const DRAWING_TOOL_MODE_HAND = "hand";
 export const DRAWING_TOOL_MODE_TEXT = "text";
 export const DRAWING_TOOL_MODE_LINE = "line";
+export const DRAWING_TOOL_MODE_TETHER = "tether";
 
 export const DEFAULT_DRAWING_STYLE = Object.freeze({
   stroke: "#111111",

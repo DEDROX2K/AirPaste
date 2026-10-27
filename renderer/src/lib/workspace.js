@@ -448,97 +448,82 @@ function cloneStructuredArray(value) {
   ));
 }
 
-export const TETHER_MAX_TILES = 10;
-export const TETHER_MIN_TILES = 2;
+// Tethers link two tiles each (Obsidian-style graph edges), persisted as
+// { id, a, b } on the page. Older pages stored whole groups as
+// { id, tileIds }; those load as a chain of links through the group.
+function getTetherPairKey(a, b) {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
 
 function normalizeTethers(tethers, cards) {
   const cardIdSet = new Set((Array.isArray(cards) ? cards : []).map((card) => card.id));
-  const claimedTileIds = new Set();
+  const seenPairs = new Set();
   const nextTethers = [];
+  const pushLink = (id, a, b) => {
+    const key = getTetherPairKey(a, b);
 
-  (Array.isArray(tethers) ? tethers : []).forEach((tether) => {
-    const tileIds = Array.isArray(tether?.tileIds)
-      ? [...new Set(tether.tileIds)].filter((tileId) => cardIdSet.has(tileId) && !claimedTileIds.has(tileId))
-      : [];
-
-    if (tileIds.length < TETHER_MIN_TILES) {
+    if (a === b || !cardIdSet.has(a) || !cardIdSet.has(b) || seenPairs.has(key)) {
       return;
     }
 
-    const clampedTileIds = tileIds.slice(0, TETHER_MAX_TILES);
-    clampedTileIds.forEach((tileId) => claimedTileIds.add(tileId));
-
+    seenPairs.add(key);
     nextTethers.push({
-      id: typeof tether?.id === "string" && tether.id.trim().length > 0 ? tether.id : generateWorkspaceEntityId("tether"),
-      tileIds: clampedTileIds,
+      id: typeof id === "string" && id.trim().length > 0 ? id : generateWorkspaceEntityId("tether"),
+      a,
+      b,
     });
+  };
+
+  (Array.isArray(tethers) ? tethers : []).forEach((tether) => {
+    if (typeof tether?.a === "string" && typeof tether?.b === "string") {
+      pushLink(tether.id, tether.a, tether.b);
+      return;
+    }
+
+    if (Array.isArray(tether?.tileIds)) {
+      const tileIds = [...new Set(tether.tileIds)].filter((tileId) => cardIdSet.has(tileId));
+      tileIds.slice(1).forEach((tileId, index) => {
+        pushLink(index === 0 ? tether.id : null, tileIds[index], tileId);
+      });
+    }
   });
 
   return nextTethers;
 }
 
-/**
- * Arranges `tileIds` into a small floating cluster centered on their
- * current combined centroid (a simple ring layout, radius scaled to the
- * group's own tile sizes) and records them as one tether group. Tiles
- * already tethered elsewhere are first released from their old group.
- */
-export function tetherTiles(page, tileIds, cards) {
-  const cardById = Object.fromEntries(cards.map((card) => [card.id, card]));
-  const candidateIds = [...new Set(tileIds)].filter((tileId) => cardById[tileId]);
+export function hasTether(page, a, b) {
+  const key = getTetherPairKey(a, b);
+  return (page?.tethers ?? []).some((tether) => getTetherPairKey(tether.a, tether.b) === key);
+}
 
-  if (candidateIds.length < TETHER_MIN_TILES) {
+/** Links tiles `a` and `b`. Self-links and duplicates are refused (null). */
+export function addTether(page, a, b, id = generateWorkspaceEntityId("tether")) {
+  if (!a || !b || a === b || hasTether(page, a, b)) {
     return null;
   }
 
-  const clampedIds = candidateIds.slice(0, TETHER_MAX_TILES);
-  const members = clampedIds.map((tileId) => cardById[tileId]);
-
-  const centroid = members.reduce(
-    (acc, card) => ({
-      x: acc.x + (card.x + card.width / 2) / members.length,
-      y: acc.y + (card.y + card.height / 2) / members.length,
-    }),
-    { x: 0, y: 0 },
-  );
-
-  const averageSpan = members.reduce((acc, card) => acc + Math.max(card.width, card.height), 0) / members.length;
-  const ringRadius = members.length <= 1 ? 0 : Math.max(averageSpan * 0.9, (averageSpan + 40) * members.length / (2 * Math.PI));
-
-  const nextCardById = {};
-  members.forEach((card, index) => {
-    const angle = (index / members.length) * Math.PI * 2 - Math.PI / 2;
-    const centerX = centroid.x + Math.cos(angle) * ringRadius;
-    const centerY = centroid.y + Math.sin(angle) * ringRadius;
-    nextCardById[card.id] = {
-      ...card,
-      x: centerX - card.width / 2,
-      y: centerY - card.height / 2,
-    };
-  });
-
-  const nextCards = cards.map((card) => nextCardById[card.id] ?? card);
-  const releasedTethers = (page.tethers ?? [])
-    .map((tether) => ({ ...tether, tileIds: tether.tileIds.filter((tileId) => !clampedIds.includes(tileId)) }))
-    .filter((tether) => tether.tileIds.length >= TETHER_MIN_TILES);
-
-  const newTether = { id: generateWorkspaceEntityId("tether"), tileIds: clampedIds };
-
-  return {
-    ...page,
-    cards: nextCards,
-    tethers: [...releasedTethers, newTether],
-  };
+  return { ...page, tethers: [...(page.tethers ?? []), { id, a, b }] };
 }
 
-/** Removes a single tile from whatever tether group it belongs to; the
- * group dissolves entirely if that drops it below TETHER_MIN_TILES. */
-export function untetherTile(page, tileId) {
-  const nextTethers = (page.tethers ?? [])
-    .map((tether) => ({ ...tether, tileIds: tether.tileIds.filter((memberId) => memberId !== tileId) }))
-    .filter((tether) => tether.tileIds.length >= TETHER_MIN_TILES);
+/** Links each tile to the next one, in order (skipping pairs already linked). */
+export function chainTethers(page, tileIds) {
+  const ids = [...new Set(Array.isArray(tileIds) ? tileIds : [])].filter(Boolean);
+  let nextPage = page;
 
-  return { ...page, tethers: nextTethers };
+  ids.slice(1).forEach((tileId, index) => {
+    nextPage = addTether(nextPage, ids[index], tileId) ?? nextPage;
+  });
+
+  return nextPage;
+}
+
+export function removeTether(page, tetherId) {
+  return { ...page, tethers: (page.tethers ?? []).filter((tether) => tether.id !== tetherId) };
+}
+
+/** Cuts every tether of one tile. */
+export function untetherTile(page, tileId) {
+  return { ...page, tethers: (page.tethers ?? []).filter((tether) => tether.a !== tileId && tether.b !== tileId) };
 }
 
 function deepCloneStructuredValue(value) {

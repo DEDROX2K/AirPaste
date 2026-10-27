@@ -171,6 +171,7 @@ export function useTileLayoutSystem({
 
   return {
     allTilesBounds,
+    canvasEntries,
     rackStateById,
     rackTileChildrenByRackId,
     rootTiles: visibleCanvasEntries.map((entry) => entry.tile),

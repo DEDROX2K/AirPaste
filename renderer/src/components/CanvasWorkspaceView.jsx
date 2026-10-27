@@ -8,10 +8,10 @@ import GridWorkspaceView from "./GridWorkspaceView";
 import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
-import CanvasTetherLines from "./canvas/CanvasTetherLines";
+import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
+import "./canvas/CanvasTetherLayer.css";
 import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
 import DrawingLayer from "./canvas/DrawingLayer";
-import { hashStringToUnitInterval } from "../lib/hashStringToUnitInterval";
 import { useAppContext } from "../context/useAppContext";
 import { CanvasMotionContext } from "../context/CanvasMotionContext";
 import { useLog } from "../hooks/useLog";
@@ -34,8 +34,6 @@ import {
   removeCard,
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
-  TETHER_MAX_TILES,
-  TETHER_MIN_TILES,
 } from "../lib/workspace";
 import { getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
@@ -56,8 +54,10 @@ import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
   DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_TETHER,
   DRAWING_TOOL_MODE_TEXT,
 } from "../systems/drawing/drawingTypes";
+import { useTetherSystem } from "../systems/tether/useTetherSystem";
 import {
   buildCanvasSnapUiStatePatch,
   DEFAULT_CANVAS_SNAP_SETTINGS,
@@ -193,6 +193,17 @@ function DrawingToolControls({
         >
           <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/hand-back-left.png")} alt="" aria-hidden="true" />
           {!iconOnly ? <span className="drawing-tool-controls__text">Hand</span> : null}
+        </AppButton>
+        <AppButton tone="unstyled"
+          type="button"
+          className={`drawing-tool-controls__button${activeTool === DRAWING_TOOL_MODE_TETHER ? " drawing-tool-controls__button--active" : ""}`}
+          onClick={() => onToolChange(activeTool === DRAWING_TOOL_MODE_TETHER ? DRAWING_TOOL_MODE_SELECT : DRAWING_TOOL_MODE_TETHER)}
+          aria-label="Switch to tether tool"
+          aria-pressed={activeTool === DRAWING_TOOL_MODE_TETHER}
+          title="Tether (L, or hold Alt)"
+        >
+          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/tether.svg")} alt="" aria-hidden="true" />
+          {!iconOnly ? <span className="drawing-tool-controls__text">Tether</span> : null}
         </AppButton>
       </div>
     </div>
@@ -1036,17 +1047,19 @@ export default function CanvasWorkspaceView() {
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
+  const canvasContainerRef = canvas.containerRef;
   useEffect(() => {
-    const container = canvas.containerRef.current;
+    const container = canvasContainerRef.current;
     if (!container) {
       return undefined;
     }
 
     const updateCanvasViewportSize = () => {
-      setCanvasViewportSize({
-        width: container.clientWidth,
-        height: container.clientHeight,
-      });
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      setCanvasViewportSize((current) => (
+        current?.width === width && current?.height === height ? current : { width, height }
+      ));
     };
 
     updateCanvasViewportSize();
@@ -1062,7 +1075,7 @@ export default function CanvasWorkspaceView() {
       observer?.disconnect?.();
       window.removeEventListener("resize", updateCanvasViewportSize);
     };
-  }, [canvas]);
+  }, [canvasContainerRef]);
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
@@ -1876,6 +1889,60 @@ export default function CanvasWorkspaceView() {
   // Only the tiles actually being dragged move: a rack's tiles live inside
   // the rack, so dragging it never drags (or selects) any other tile.
   const dragVisualTileIdSet = draggingTileIdSet;
+  // Tethers: tiles linked pair by pair float together on springs, then
+  // settle; untethered tiles can be flicked (see useTetherSystem).
+  const tetherSvgRef = useRef(null);
+  const [isAltTetherHeld, setIsAltTetherHeld] = useState(false);
+  const isTetherToolActive = canvasToolMode === DRAWING_TOOL_MODE_TETHER || isAltTetherHeld;
+  const tether = useTetherSystem({
+    entries: layout.canvasEntries,
+    tethers: workspace.tethers,
+    resetKey: `${folderPath}:${workspace.activePageId}`,
+    draggingTileIds: interactions.draggingTileIds,
+    dragDelta: interactions.dragVisualDelta,
+    flickEnabled: !snapSettings.enabled,
+    contentRef: canvas.contentRef,
+    svgRef: tetherSvgRef,
+    clientToWorldPoint: canvas.clientToWorldPoint,
+    getZoom: () => canvas.getViewportSnapshot?.()?.zoom ?? 1,
+    onCreateTether: commands.createTether,
+    onCutTether: commands.cutTether,
+    onCommitPositions: commands.setTilePositions,
+  });
+  const cancelTetherGesture = tether.cancelGesture;
+  // Hovering a tethered tile turns its own lines violet (nothing dims).
+  const tetherFocusTileId = useMemo(() => {
+    const hoveredId = interactions.hoveredTileId;
+    return hoveredId && (workspace.tethers ?? []).some((link) => link.a === hoveredId || link.b === hoveredId)
+      ? hoveredId
+      : null;
+  }, [interactions.hoveredTileId, workspace.tethers]);
+
+  // Holding Alt / Option is a momentary tether tool.
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Alt" && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        setIsAltTetherHeld(true);
+      }
+    };
+    const handleKeyUp = (event) => {
+      if (event.key === "Alt") {
+        event.preventDefault();
+        setIsAltTetherHeld(false);
+      }
+    };
+    const handleBlur = () => setIsAltTetherHeld(false);
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
   const viewportZoomForRender = useMemo(() => {
     if (isCanvasMoving) {
       if (!lodFreezeActiveRef.current) {
@@ -2289,6 +2356,17 @@ export default function CanvasWorkspaceView() {
         return;
       }
 
+      if (event.key === "Escape" && cancelTetherGesture()) {
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "Escape" && canvasToolMode === DRAWING_TOOL_MODE_TETHER) {
+        event.preventDefault();
+        setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
+        return;
+      }
+
       if (event.key === "Escape" && canvasToolMode === DRAWING_TOOL_MODE_TEXT) {
         event.preventDefault();
         setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
@@ -2331,6 +2409,12 @@ export default function CanvasWorkspaceView() {
           event.preventDefault();
           interactions.replaceSelection([]);
           setCanvasToolMode(DRAWING_TOOL_MODE_TEXT);
+          return;
+        }
+
+        if (activeKey === "l") {
+          event.preventDefault();
+          setCanvasToolMode(canvasToolMode === DRAWING_TOOL_MODE_TETHER ? DRAWING_TOOL_MODE_SELECT : DRAWING_TOOL_MODE_TETHER);
           return;
         }
 
@@ -2531,6 +2615,7 @@ export default function CanvasWorkspaceView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     canvas,
+    cancelTetherGesture,
     canvasToolMode,
     updateExistingCard,
     canRedo,
@@ -2704,19 +2789,11 @@ export default function CanvasWorkspaceView() {
   const canShowRefreshPreviewAction = canRefreshLinkPreviewCard(activeContextTile)
     || isBookmarkLinkCard(activeContextTile);
   const contextMenuSelectionCount = radialMenu?.kind === "tile" ? (radialMenu?.selectionIds?.length ?? 0) : 0;
-  const showTetherAction = contextMenuSelectionCount >= TETHER_MIN_TILES;
+  const showTetherAction = contextMenuSelectionCount >= 2;
   const isActiveContextTileTethered = Boolean(
     activeContextTile?.id
-    && (workspace.tethers ?? []).some((tether) => tether.tileIds.includes(activeContextTile.id)),
+    && (workspace.tethers ?? []).some((link) => link.a === activeContextTile.id || link.b === activeContextTile.id),
   );
-  // Deliberately independent of tileMetaById (see CanvasDensityZones for why):
-  // this only depends on workspace.tethers, not on anything that changes
-  // per drag frame.
-  const tetheredTileIdSet = useMemo(() => {
-    const ids = new Set();
-    (workspace.tethers ?? []).forEach((tether) => tether.tileIds.forEach((tileId) => ids.add(tileId)));
-    return ids;
-  }, [workspace.tethers]);
   // The GitHub repo tile has its own fixed design; it never shows a webclip.
   const canShowWebclipAction = isBookmarkLinkCard(activeContextTile)
     && activeContextTile?.type !== GITHUB_REPO_CARD_TYPE
@@ -2821,7 +2898,7 @@ export default function CanvasWorkspaceView() {
 
   const handleRadialTether = useCallback(() => {
     const selectionIds = radialMenu?.selectionIds ?? [];
-    if (selectionIds.length < TETHER_MIN_TILES) {
+    if (selectionIds.length < 2) {
       return false;
     }
 
@@ -2944,7 +3021,7 @@ export default function CanvasWorkspaceView() {
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     showTether: radialMenu?.kind === "tile" && showTetherAction,
-    tetherCount: Math.min(contextMenuSelectionCount, TETHER_MAX_TILES),
+    tetherCount: contextMenuSelectionCount,
     showUntether: radialMenu?.kind === "tile" && isActiveContextTileTethered,
     handlers: {
       onCopyCodexReport: handleCopyPreviewCodexReport,
@@ -3067,7 +3144,7 @@ export default function CanvasWorkspaceView() {
         ref={canvas.containerRef}
         id="canvas-board"
         data-airpaste-canvas-capture-root
-        className={`canvas canvas--tool-${canvasToolMode}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isNudging ? " canvas--instant-move" : ""}`}
+        className={`canvas canvas--tool-${canvasToolMode}${isTetherToolActive ? " canvas--tether-tool" : ""}${interactions.marqueeBox ? " canvas--selecting" : ""}${dropImport.isDropTarget ? " canvas--drop-target" : ""}${isNudging ? " canvas--instant-move" : ""}`}
         tabIndex={-1}
         onDragEnter={dropImport.handleDragEnter}
         onDragOver={dropImport.handleDragOver}
@@ -3076,6 +3153,18 @@ export default function CanvasWorkspaceView() {
         onPointerDownCapture={(event) => {
           if (event.button === 1) {
             interactions.handleCanvasPointerDown(event);
+            return;
+          }
+
+          // Tether tool: press on a tile and drag to another tile.
+          if (event.button === 0 && isTetherToolActive) {
+            const tileId = event.target.closest?.("[data-tether-tile]")?.getAttribute("data-tether-tile")
+              ?? (useSceneSurface ? tether.hitTestTile(event.clientX, event.clientY) : null);
+
+            if (tileId && tether.beginGesture(tileId, event)) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
           }
         }}
         onPointerDown={(event) => {
@@ -3180,26 +3269,23 @@ export default function CanvasWorkspaceView() {
               className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
               <CanvasDensityZones tiles={filteredTiles} />
-              <CanvasTetherLines
+              <CanvasTetherLayer
+                svgRef={tetherSvgRef}
                 tethers={workspace.tethers}
-                tiles={filteredTiles}
-                dragVisualDelta={interactions.dragVisualDelta}
-                draggingTileIdSet={dragVisualTileIdSet}
+                hotLinkId={tether.hotLinkId}
+                focusTileId={tetherFocusTileId}
+                gesture={tether.gesture}
+                onHotLinkChange={tether.setHotLinkId}
+                onCutLink={tether.cutLink}
               />
               {activeRenderTiles.map((card, index) => {
-                const isTethered = tetheredTileIdSet.has(card.id);
-                const tetherPhase = isTethered ? hashStringToUnitInterval(card.id) : 0;
                 return (
                 <div
                   key={card.id}
-                  className={`canvas__entry-item${isTethered ? " canvas__entry-item--tethered" : ""}`}
+                  className="canvas__entry-item"
+                  data-tether-tile={card.id}
                   style={{
                     "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
-                    ...(isTethered ? {
-                      "--tether-bob-delay": `${-tetherPhase * 6}s`,
-                      "--tether-bob-duration": `${5.2 + tetherPhase * 2.4}s`,
-                      "--tether-bob-drift": `${(tetherPhase - 0.5) * 10}px`,
-                    } : null),
                   }}
                 >
                   <Card

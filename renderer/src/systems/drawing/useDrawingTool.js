@@ -15,6 +15,7 @@ import {
   DRAWING_TOOL_MODE_HAND,
   DRAWING_TOOL_MODE_LINE,
   DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_TETHER,
   DRAWING_TOOL_MODE_TEXT,
   normalizeDrawings,
 } from "./drawingTypes";
@@ -217,6 +218,7 @@ export function useDrawingTool({
       DRAWING_TOOL_MODE_HAND,
       DRAWING_TOOL_MODE_TEXT,
       DRAWING_TOOL_MODE_LINE,
+      DRAWING_TOOL_MODE_TETHER,
     ].includes(nextToolMode)
       ? nextToolMode
       : DRAWING_TOOL_MODE_SELECT;
