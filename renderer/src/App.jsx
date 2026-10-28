@@ -24,16 +24,16 @@ function BootSplash({ label = "Preparing workspace", syncPending = null, onOverr
     ? "Waiting for this Dome to finish syncing…"
     : (!label || label === "Loading" ? "Preparing workspace" : label);
 
+  // A quiet light screen while the app boots: the launch splash (the photo
+  // + file panel) opens on top of it right after.
   return (
     <main className="boot-splash" aria-label="Starting AirPaste">
-      <div className="boot-splash__ambient" aria-hidden="true" />
       <div className="boot-splash__stage">
-        <div className="boot-splash__mark" aria-hidden="true">
-          <span>A</span>
-        </div>
-        <h1 className="boot-splash__wordmark">AirPaste</h1>
-        <div className="boot-splash__progress" aria-hidden="true">
-          <span />
+        <img className="boot-splash__logo" src={`${import.meta.env.BASE_URL}logo.png`} alt="" draggable={false} />
+        <div className="boot-splash__bars" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, index) => (
+            <span key={index} style={{ "--boot-bar-index": index }} />
+          ))}
         </div>
       </div>
       <div className="boot-splash__status">

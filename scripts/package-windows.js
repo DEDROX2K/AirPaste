@@ -4,12 +4,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const pngToIco = require("png-to-ico").default;
+const { buildInstaller } = require("../installer/build-installer");
 
 const projectRoot = path.resolve(__dirname, "..");
 const buildDir = path.join(projectRoot, "build");
 const distDir = path.join(projectRoot, "dist");
 const releaseDir = path.join(projectRoot, "release");
-const publicLogoPath = path.join(projectRoot, "public", "Logo.png");
+const publicLogoPath = path.join(projectRoot, "public", "logo.png");
 const buildIconPngPath = path.join(buildDir, "icon.png");
 const buildLogoPngPath = path.join(buildDir, "logo.png");
 const buildIconIcoPath = path.join(buildDir, "icon.ico");
@@ -20,16 +21,6 @@ function getUnpackedDir() {
   const candidates = [
     path.join(releaseDir, "win-unpacked"),
     path.join(distDir, "win-unpacked"),
-  ];
-
-  return candidates.find((candidatePath) => fsSync.existsSync(candidatePath)) || candidates[0];
-}
-
-function getInstallerPath() {
-  const candidates = [
-    path.join(releaseDir, "AirPaste Setup 0.1.0.exe"),
-    path.join(distDir, "airpaste Setup 0.1.0.exe"),
-    path.join(distDir, "AirPaste Setup 0.1.0.exe"),
   ];
 
   return candidates.find((candidatePath) => fsSync.existsSync(candidatePath)) || candidates[0];
@@ -177,24 +168,6 @@ async function refreshReleaseIcon() {
   await fs.copyFile(buildIconIcoPath, releaseIconPath);
 }
 
-async function buildInstallerFromPrepackaged(tempConfigPath) {
-  const unpackedDir = getUnpackedDir();
-  const prepackagedArg = process.platform === "win32"
-    ? `"${unpackedDir}"`
-    : unpackedDir;
-  await run("npx", [
-    "electron-builder",
-    "--prepackaged",
-    prepackagedArg,
-    "--win",
-    "nsis",
-    "--publish",
-    "never",
-    "--config",
-    tempConfigPath,
-  ]);
-}
-
 async function main() {
   let tempConfigPath = "";
 
@@ -206,13 +179,14 @@ async function main() {
     await buildUnpackedApp(tempConfigPath);
     const iconPatched = await patchExecutableIcon();
     await refreshReleaseIcon();
-    await buildInstallerFromPrepackaged(tempConfigPath);
+    // Our own setup UI (installer/AirPasteSetup.cs) instead of NSIS.
+    const installerPath = buildInstaller();
     const unpackedDir = getUnpackedDir();
 
     console.log("");
     console.log("Windows package ready:");
     console.log(`- ${unpackedDir}`);
-    console.log(`- ${getInstallerPath()}`);
+    console.log(`- ${installerPath}`);
     if (!iconPatched) {
       console.log("- Note: executable icon patch was skipped because rcedit was unavailable.");
     }

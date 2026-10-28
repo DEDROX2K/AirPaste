@@ -21,6 +21,7 @@ export default [
       "main/**/*.js",
       "preview/**/*.js",
       "scripts/**/*.js",
+      "installer/**/*.js",
     ],
     languageOptions: {
       sourceType: "commonjs",

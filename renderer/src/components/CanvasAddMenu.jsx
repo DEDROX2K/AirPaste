@@ -90,7 +90,7 @@ export default function CanvasAddMenu({
           {iconOnly ? null : (
             <div className="canvas-start-menu__hero">
               <span className="canvas-start-menu__hero-icon-wrap" aria-hidden="true">
-                <img className="canvas-start-menu__hero-icon" src={assetUrl("Logo.png")} alt="" />
+                <img className="canvas-start-menu__hero-icon" src={assetUrl("logo.png")} alt="" />
               </span>
               <span className="canvas-start-menu__hero-label">AirPaste Create</span>
             </div>
@@ -140,7 +140,7 @@ export default function CanvasAddMenu({
           </svg>
         ) : (
           <span className="canvas-start-menu__trigger-inset">
-            <img className="canvas-start-menu__trigger-icon" src={assetUrl("Logo.png")} alt="" aria-hidden="true" />
+            <img className="canvas-start-menu__trigger-icon" src={assetUrl("logo.png")} alt="" aria-hidden="true" />
             <span className="canvas-start-menu__trigger-label">Create</span>
           </span>
         )}

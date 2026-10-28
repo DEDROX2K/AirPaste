@@ -18,7 +18,7 @@ function resolveWindowIconPath() {
   const iconCandidates = [
     path.join(__dirname, "..", "build", "icon.png"),
     path.join(__dirname, "..", "build", "icon.ico"),
-    path.join(__dirname, "..", "public", "Logo.png"),
+    path.join(__dirname, "..", "public", "logo.png"),
     path.join(__dirname, "..", "build", "logo.png"),
     path.join(__dirname, "..", "build", "favicon.ico"),
   ];

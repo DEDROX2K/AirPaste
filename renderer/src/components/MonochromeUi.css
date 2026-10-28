@@ -41,10 +41,6 @@
   background: #4a4a4d !important;
 }
 
-.boot-splash__progress span {
-  background: linear-gradient(90deg, #343436, #858588) !important;
-}
-
 :is(.canvas-dock__item:focus-visible, .titlebar-command-chip:focus-visible, .titlebar-tab:focus-visible, .ap-ui-button:focus-visible) {
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.11), 0 0 0 1px rgba(0, 0, 0, 0.38) !important;
 }

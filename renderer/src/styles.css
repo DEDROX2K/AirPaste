@@ -831,81 +831,84 @@ option {
   cursor: grabbing !important;
 }
 
+/* Boot screen: a quiet light page (never a colour flash) with the logo and
+   a small segmented loader; the launch splash opens on top right after. */
 .app-shell--booting {
   display: flex;
   min-height: 100%;
-  background: #ef130f;
+  background: #f4f4f3;
 }
 
 .boot-splash {
   position: relative;
+  display: grid;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 36%),
-    linear-gradient(180deg, #ff1e18 0%, #e91010 100%);
-}
-
-.boot-splash__texture {
-  position: absolute;
-  inset: -10%;
-  opacity: 0.2;
-  pointer-events: none;
-  background-image:
-    radial-gradient(rgba(0, 0, 0, 0.16) 0.7px, transparent 0.8px),
-    radial-gradient(rgba(255, 255, 255, 0.1) 0.5px, transparent 0.7px);
-  background-position: 0 0, 4px 4px;
-  background-size: 9px 9px, 11px 11px;
-  mix-blend-mode: multiply;
-}
-
-.boot-splash__corner {
-  position: absolute;
-  top: 0;
-  left: min(28vw, 520px);
-  width: 0;
-  height: 0;
-  border-top: 18px solid #0b0b0d;
-  border-right: 18px solid transparent;
-}
-
-.boot-splash__hero {
-  position: absolute;
-  inset: 0;
-  display: grid;
   place-items: center;
-  padding: 48px;
+  overflow: hidden;
+  background: #f4f4f3;
+  color: #1e1e1e;
 }
 
-.boot-splash__image {
-  width: min(56vw, 760px);
-  max-width: 100%;
+.boot-splash__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.boot-splash__logo {
+  width: 72px;
+  height: 72px;
   object-fit: contain;
-  box-shadow: var(--ap-shadow-md);
+  user-select: none;
+}
+
+.boot-splash__bars {
+  display: flex;
+  gap: 3px;
+}
+
+/* Segments light up one after another, then fade (an indeterminate loader). */
+.boot-splash__bars span {
+  width: 5px;
+  height: 16px;
+  border-radius: 1.5px;
+  background: #d6d6d6;
+  animation: boot-splash-bar 1.2s ease-in-out infinite;
+  animation-delay: calc(var(--boot-bar-index) * 70ms);
+}
+
+@keyframes boot-splash-bar {
+  0%,
+  60%,
+  100% {
+    background: #d6d6d6;
+  }
+
+  20% {
+    background: #3a3a3c;
+  }
 }
 
 .boot-splash__status {
   position: absolute;
-  left: 28px;
-  bottom: 24px;
+  left: 0;
+  right: 0;
+  bottom: 32px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.boot-splash__eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  padding: 0 24px;
+  text-align: center;
+  color: #6b6b6e;
 }
 
 .boot-splash__message {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .boot-splash__submessage {
@@ -913,25 +916,29 @@ option {
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.72);
+  color: #8a8a8d;
 }
 
 .boot-splash__override {
-  align-self: flex-start;
   margin-top: 4px;
   padding: 6px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 999px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  background: #ffffff;
+  color: #1e1e1e;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
   cursor: pointer;
 }
 
 .boot-splash__override:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: #ececec;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash__bars span {
+    animation: none;
+  }
 }
 
 .canvas-stage {
@@ -5534,24 +5541,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 @media (max-width: 720px) {
-  .boot-splash__hero {
-    padding: 28px;
-  }
-
-  .boot-splash__image {
-    width: min(82vw, 420px);
-  }
-
-  .boot-splash__status {
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
-  }
-
-  .boot-splash__message {
-    font-size: 14px;
-  }
-
   .startup-splash {
     padding: 16px;
   }
