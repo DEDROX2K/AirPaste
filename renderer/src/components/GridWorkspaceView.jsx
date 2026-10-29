@@ -4,6 +4,7 @@ import { useAppContext } from "../context/useAppContext";
 import { AppEmptyState } from "./ui/app";
 import { isBookmarkLinkCard } from "../lib/workspace";
 import { CANVAS_TEXT_FORMAT_PLAIN } from "../lib/canvasText";
+import { Bookmark, Folder, Plus } from "./ui/icons";
 
 const COLUMN_WIDTH_MIN = 240;
 const COLUMN_WIDTH_MAX = 320;
@@ -639,9 +640,7 @@ export default function GridWorkspaceView({
           title="No workspace open"
           description="Open local folder to start saving links and media."
           icon={(
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            <Folder size={24} aria-hidden="true" />
           )}
         />
       </div>
@@ -668,9 +667,7 @@ export default function GridWorkspaceView({
             title="Canvas is empty"
             description="Use Add button to create tiles. Paste URL or image to import directly."
             icon={(
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <Plus size={24} aria-hidden="true" />
             )}
           />
         ) : visibleCount === 0 ? (
@@ -678,9 +675,7 @@ export default function GridWorkspaceView({
             title="No bookmarks to show"
             description="Switch the grid filter back to show every tile, or add bookmark tiles to this canvas."
             icon={(
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
+              <Bookmark size={24} aria-hidden="true" />
             )}
           />
         ) : (

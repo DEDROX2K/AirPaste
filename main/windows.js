@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, screen, shell } = require("electron");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const context = require("./context");
@@ -9,7 +9,12 @@ const WINDOW_CLOSE_ANIMATION_MS = 190;
 // renderer blocking the app from ever closing.
 const WINDOW_CLOSE_SAFETY_TIMEOUT_MS = 4000;
 
+// ~120Hz cursor poll while the titlebar drags the window.
+const WINDOW_MOVE_POLL_MS = 8;
+const WINDOW_MOVE_THRESHOLD_PX = 3;
+
 let activeWindowResizeSession = null;
+let activeWindowMoveSession = null;
 let allowImmediateWindowClose = false;
 let closeFlushPending = false;
 let pendingCloseReadyResolve = null;
@@ -238,9 +243,86 @@ function registerIpc() {
     activeWindowResizeSession = null;
   });
 
+  // The titlebar moves the window itself instead of using
+  // -webkit-app-region: drag, because Windows always shows the native
+  // cursor over a drag region (it would break the pixel cursors).
+  ipcMain.on("window:moveStart", () => {
+    const mainWindow = context.mainWindow;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    stopWindowMove();
+
+    const startCursor = screen.getCursorScreenPoint();
+    const startBounds = mainWindow.getBounds();
+    activeWindowMoveSession = {
+      startCursor,
+      startBounds,
+      timer: setInterval(() => moveWindowWithCursor(mainWindow), WINDOW_MOVE_POLL_MS),
+    };
+  });
+
+  ipcMain.on("window:moveEnd", () => {
+    const mainWindow = context.mainWindow;
+    const session = activeWindowMoveSession;
+    stopWindowMove();
+
+    // Dropped on the top edge of the screen: maximize, like Windows snap.
+    if (session?.moved && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+      const cursor = screen.getCursorScreenPoint();
+      const { workArea } = screen.getDisplayNearestPoint(cursor);
+      if (cursor.y <= workArea.y + 2) {
+        mainWindow.maximize();
+      }
+    }
+  });
+
   ipcMain.on("window:ready-to-close", () => {
     pendingCloseReadyResolve?.();
   });
+}
+
+function stopWindowMove() {
+  if (activeWindowMoveSession?.timer) {
+    clearInterval(activeWindowMoveSession.timer);
+  }
+  activeWindowMoveSession = null;
+}
+
+function moveWindowWithCursor(mainWindow) {
+  const session = activeWindowMoveSession;
+  if (!session || mainWindow.isDestroyed()) {
+    stopWindowMove();
+    return;
+  }
+
+  const cursor = screen.getCursorScreenPoint();
+  const deltaX = cursor.x - session.startCursor.x;
+  const deltaY = cursor.y - session.startCursor.y;
+
+  if (!session.moved) {
+    if (Math.abs(deltaX) < WINDOW_MOVE_THRESHOLD_PX && Math.abs(deltaY) < WINDOW_MOVE_THRESHOLD_PX) {
+      return;
+    }
+    session.moved = true;
+
+    // Dragging a maximized window restores it under the cursor, keeping
+    // the cursor at the same fraction across the titlebar.
+    if (mainWindow.isMaximized()) {
+      const maximizedBounds = mainWindow.getBounds();
+      const ratio = (session.startCursor.x - maximizedBounds.x) / Math.max(1, maximizedBounds.width);
+      mainWindow.unmaximize();
+      const restored = mainWindow.getBounds();
+      session.startBounds = {
+        ...restored,
+        x: Math.round(session.startCursor.x - (restored.width * ratio)),
+        y: maximizedBounds.y,
+      };
+    }
+  }
+
+  mainWindow.setPosition(
+    Math.round(session.startBounds.x + deltaX),
+    Math.round(session.startBounds.y + deltaY),
+  );
 }
 
 function markImmediateCloseAllowed() {

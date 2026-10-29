@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { buildPaperNoteEditorExtensions } from "../lib/paperNoteLivePreview";
+import { X } from "./ui/icons";
 
 function stopPointer(event) {
   event.stopPropagation();
@@ -207,9 +208,5 @@ export default function PaperNoteFullscreenEditor({ card, startRect, onSave, onC
 }
 
 function CloseIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="18" height="18" fill="none" aria-hidden="true">
-      <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <X size={18} aria-hidden="true" />;
 }

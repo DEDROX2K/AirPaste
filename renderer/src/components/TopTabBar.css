@@ -16,8 +16,14 @@
   backdrop-filter: blur(24px) saturate(1.9) !important;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-app-region: drag;
+  /* No -webkit-app-region: drag -- Windows shows the native cursor over a
+     drag region. TopTabBar.jsx moves the window itself. */
   overflow: visible;
+}
+
+/* Old main process without window:moveStart: use the native drag region. */
+.titlebar-root--native-drag {
+  -webkit-app-region: drag;
 }
 
 /* Flex distribution preventing any absolute overlapping */
@@ -85,7 +91,7 @@
   display: grid;
   place-items: center;
   -webkit-app-region: no-drag;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
 }
 
 .titlebar-eye-toast-shell {
@@ -165,7 +171,7 @@
   color: #0f1726;
   backdrop-filter: blur(18px) saturate(1.2);
   pointer-events: auto;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
   -webkit-app-region: no-drag;
   animation: titlebar-eye-toast-enter 140ms ease-out;
   z-index: 1;
@@ -485,7 +491,7 @@
   border-radius: 6px !important;
   background: transparent !important;
   color: var(--ap-text-secondary);
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
   -webkit-app-region: no-drag;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif !important;
   font-size: 12px;
@@ -568,7 +574,7 @@
   background: transparent;
   color: var(--ap-text-secondary);
   opacity: 0.6;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
   flex-shrink: 0;
   transition:
     background-color var(--ap-transition-fast),
@@ -662,7 +668,7 @@
   border-radius: 0 !important;
   color: var(--ap-text-primary) !important;
   opacity: 0.88 !important;
-  cursor: default !important;
+  cursor: var(--ap-cursor-default) !important;
   transition:
     background-color var(--ap-transition-fast),
     color var(--ap-transition-fast) !important;
@@ -706,7 +712,7 @@
   height: 12px !important;
   border-radius: 50% !important;
   border: none !important;
-  cursor: pointer !important;
+  cursor: var(--ap-cursor-pointer) !important;
   transition:
     background-color var(--ap-transition-fast),
     opacity var(--ap-transition-fast),

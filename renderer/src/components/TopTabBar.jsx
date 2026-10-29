@@ -3,9 +3,10 @@ import { useTabs } from "../context/useTabs";
 import { useAppContext } from "../context/useAppContext";
 import { useToast } from "../hooks/useToast";
 import { desktop } from "../lib/desktop";
+import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Home } from "lucide-react";
+import { Check, ErrorIcon, Home, Info, Minus, Square, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
@@ -14,42 +15,65 @@ const WORD_TYPING_INTERVAL_MS = 140;
 const TOAST_EXIT_MS = 160;
 const EYE_CLOSE_MS = 1000;
 
+// Empty titlebar space moves the window (main/windows.js moves it; a CSS
+// drag region would force the native cursor). Controls stay clickable.
+const NO_WINDOW_DRAG_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "textarea",
+  "select",
+  "[role='button']",
+  "[role='tab']",
+  "[contenteditable='true']",
+  ".titlebar-eye",
+  ".titlebar-eye-toast-shell",
+  "[data-no-window-drag]",
+].join(", ");
+
+function handleTitlebarPointerDown(event) {
+  if (event.button !== 0 || event.target.closest(NO_WINDOW_DRAG_SELECTOR)) {
+    return;
+  }
+
+  const target = event.currentTarget;
+  const pointerId = event.pointerId;
+  target.setPointerCapture?.(pointerId);
+  desktop.window?.moveStart?.();
+
+  const endMove = () => {
+    desktop.window?.moveEnd?.();
+    target.releasePointerCapture?.(pointerId);
+    target.removeEventListener("pointerup", endMove);
+    target.removeEventListener("pointercancel", endMove);
+    window.removeEventListener("blur", endMove);
+  };
+
+  target.addEventListener("pointerup", endMove);
+  target.addEventListener("pointercancel", endMove);
+  window.addEventListener("blur", endMove);
+}
+
 function IconClose() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <X size={12} aria-hidden="true" />;
 }
 
 function IconHomeFilled() {
   return (
-    <Home size={16} strokeWidth={2.2} aria-hidden="true" />
+    <Home size={18} aria-hidden="true" />
   );
 }
 
 function IconWindowsMinimize() {
-  return (
-    <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
-      <path d="M0 0.5 H10" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
+  return <Minus size={12} aria-hidden="true" />;
 }
 
 function IconWindowsMaximize() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
+  return <Square size={12} aria-hidden="true" />;
 }
 
 function IconWindowsClose() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <path d="M1.5 1.5 L8.5 8.5 M8.5 1.5 L1.5 8.5" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
+  return <X size={12} aria-hidden="true" />;
 }
 
 function TitleBarControls({ isMac, onRequestClose }) {
@@ -119,32 +143,10 @@ function TitleBarControls({ isMac, onRequestClose }) {
 }
 
 const TOAST_ICONS = {
-  success: (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <circle cx="7.5" cy="7.5" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M4.5 7.5L6.5 9.5L10.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ),
-  error: (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <circle cx="7.5" cy="7.5" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M5 5L10 10M10 5L5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  ),
-  warn: (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <path d="M7.5 2L13.5 12.5H1.5L7.5 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <line x1="7.5" y1="6" x2="7.5" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="7.5" cy="11" r="0.75" fill="currentColor" />
-    </svg>
-  ),
-  info: (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <circle cx="7.5" cy="7.5" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="7.5" y1="6.5" x2="7.5" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="7.5" cy="4.5" r="0.75" fill="currentColor" />
-    </svg>
-  ),
+  success: <Check size={15} aria-hidden="true" />,
+  error: <ErrorIcon size={15} aria-hidden="true" />,
+  warn: <Warning size={15} aria-hidden="true" />,
+  info: <Info size={15} aria-hidden="true" />,
 };
 
 function EyeNotificationBubble({ onRequestClose }) {
@@ -419,7 +421,14 @@ function TabItem({
           data-tab-id={tab.id}
           className={tabClassName}
           draggable={tab.closable}
-          onClick={onActivate}
+          onClick={() => {
+            // Home logo clicked while already on Home: show the splash.
+            if (isHome && isActive) {
+              openLaunchSplash();
+              return;
+            }
+            onActivate();
+          }}
           onMouseDown={(event) => {
             if (event.button === 1 && tab.closable) {
               event.preventDefault();
@@ -594,9 +603,12 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
 
   return (
     <div
-      className="titlebar-root"
-      onDoubleClick={() => {
-        desktop.window?.maximize?.();
+      className={`titlebar-root${desktop.window.usesCustomWindowMove ? "" : " titlebar-root--native-drag"}`}
+      onPointerDown={desktop.window.usesCustomWindowMove ? handleTitlebarPointerDown : undefined}
+      onDoubleClick={(event) => {
+        if (!event.target.closest(NO_WINDOW_DRAG_SELECTOR)) {
+          desktop.window?.maximize?.();
+        }
       }}
     >
       <div className="titlebar-left">

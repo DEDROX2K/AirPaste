@@ -8,7 +8,7 @@
   --tether-cut: #ff4d4f;
   --tether-link: #9a9aa3;
   --tether-cursor: crosshair;
-  --tether-cut-cursor: pointer;
+  --tether-cut-cursor: var(--ap-cursor-pointer);
 }
 
 :root[data-theme="dark"] .canvas {

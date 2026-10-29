@@ -851,7 +851,7 @@
 .masonry-grid__item > .card .card__surface-frame--interactive,
 .masonry-grid__item > .card .card__surface-frame--interactive .card__surface--link,
 .masonry-grid__item > .card .card__surface-frame--interactive .card__surface--folder {
-  cursor: pointer !important;
+  cursor: var(--ap-cursor-pointer) !important;
 }
 
 .grid-workspace .canvas-minimap__toggle,

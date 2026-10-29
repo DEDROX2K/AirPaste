@@ -25,7 +25,7 @@
   min-height: 100% !important;
   display: flex !important;
   align-items: center;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
 }
 
 .home-shell--workspace-nav .list-row-copy {
@@ -285,7 +285,7 @@ button {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
-  cursor: pointer !important;
+  cursor: var(--ap-cursor-pointer) !important;
   transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
   transform: none !important;
 }
@@ -376,7 +376,7 @@ button {
   border: none !important;
   box-shadow: none !important;
   border-radius: 8px !important;
-  cursor: pointer !important;
+  cursor: var(--ap-cursor-pointer) !important;
   transition: background-color 0.15s ease, transform 0.15s ease !important;
   transform: none !important;
 }
@@ -514,7 +514,7 @@ button {
   font-weight: 600 !important;
   line-height: 24px !important;
   border-radius: 999px !important;
-  cursor: pointer !important;
+  cursor: var(--ap-cursor-pointer) !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;

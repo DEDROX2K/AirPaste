@@ -10,7 +10,7 @@
 
   position: relative;
   width: max-content;
-  cursor: default;
+  cursor: var(--ap-cursor-default);
   touch-action: none;
 }
 
@@ -20,7 +20,7 @@
 }
 
 .card--dragging .quick-text {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .quick-text--text-tool,

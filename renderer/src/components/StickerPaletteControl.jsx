@@ -1,14 +1,8 @@
 import { AppButton } from "./ui/app";
+import { Sticker } from "./ui/icons";
 
 function StickerIcon() {
-  return (
-    <svg className="drawing-tool-controls__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7.5 4h7.25A5.25 5.25 0 0 1 20 9.25v6.25A4.5 4.5 0 0 1 15.5 20H9a5 5 0 0 1-5-5V8.5A4.5 4.5 0 0 1 8.5 4Z" />
-      <path d="M14.5 4.2v4.05a2.4 2.4 0 0 0 2.4 2.4h3.02" />
-      <path d="M10 12.25h4.5" />
-      <path d="M10 15.5h3" />
-    </svg>
-  );
+  return <Sticker className="drawing-tool-controls__icon" size={16} aria-hidden="true" />;
 }
 
 export default function StickerPaletteControl({

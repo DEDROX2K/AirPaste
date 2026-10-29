@@ -105,8 +105,8 @@
 :root {
   --font-sans: var(--ap-font-body);
   --font-mono: var(--ap-font-mono);
-  --cursor-default: default;
-  --cursor-pointer: pointer;
+  --cursor-default: var(--ap-cursor-default);
+  --cursor-pointer: var(--ap-cursor-pointer);
 
   --radius-sm: var(--ap-radius-sm);
   --radius-md: var(--ap-radius-md);
@@ -457,7 +457,7 @@ option {
   color: var(--ap-status-danger-text);
   font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
 }
 
 .error-boundary__retry:hover {
@@ -506,7 +506,7 @@ option {
   border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
 }
 
 .home-search__clear:hover {
@@ -676,7 +676,7 @@ option {
   border-radius: 12px;
   background: transparent;
   color: var(--text-secondary);
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   text-align: left;
   position: relative;
   transition:
@@ -700,7 +700,7 @@ option {
 
 .left-pages-panel__item--dragged {
   opacity: 0.48;
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .left-pages-panel__item--drop-before::before,
@@ -828,7 +828,7 @@ option {
 
 .left-pages-panel--dragging,
 .left-pages-panel--dragging * {
-  cursor: grabbing !important;
+  cursor: var(--ap-cursor-grabbing) !important;
 }
 
 /* Boot screen: a quiet light page (never a colour flash) with the logo and
@@ -928,7 +928,7 @@ option {
   color: #1e1e1e;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
 }
 
 .boot-splash__override:hover {
@@ -1526,11 +1526,11 @@ option {
 }
 
 .canvas--tool-hand {
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
 }
 
 .canvas--tool-hand:active {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .canvas--tool-text {
@@ -1814,7 +1814,7 @@ option {
   -webkit-backdrop-filter: blur(2px);
   pointer-events: auto;
   touch-action: none;
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   transition: opacity 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -1825,7 +1825,7 @@ option {
 }
 
 .canvas-minimap__panel:active {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
   opacity: 0.72;
   transform: none;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
@@ -2440,11 +2440,20 @@ option {
   cursor: var(--cursor-pointer);
 }
 
+/* Floating perf monitor: a pixel icon (with live fps) that opens into the
+   panel, and warps back into the icon from the panel's minimize button.
+   Fixed + anchored by its top-right corner (right/top set inline). */
 .canvas-perf-overlay {
-  position: absolute;
-  top: 76px;
-  right: 16px;
+  position: fixed;
   z-index: 40;
+  color: #f7f8fa;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+}
+
+.canvas-perf-overlay__panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2453,12 +2462,114 @@ option {
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: rgba(22, 24, 28, 0.9);
-  color: #f7f8fa;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
   backdrop-filter: blur(12px);
-  pointer-events: auto;
+  transform-origin: top right;
+  animation: canvas-perf-warp-in 180ms cubic-bezier(.2, .9, .3, 1.15);
+}
+
+.canvas-perf-overlay--closing .canvas-perf-overlay__panel {
+  animation: canvas-perf-warp-out 180ms cubic-bezier(.5, 0, .9, .4) forwards;
+  pointer-events: none;
+}
+
+@keyframes canvas-perf-warp-in {
+  from {
+    opacity: 0;
+    transform: scale(0.18);
+    filter: blur(2px);
+  }
+}
+
+@keyframes canvas-perf-warp-out {
+  to {
+    opacity: 0;
+    transform: scale(0.18);
+    filter: blur(2px);
+  }
+}
+
+.canvas-perf-overlay__dock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(22, 24, 28, 0.9);
+  color: #f7f8fa;
+  backdrop-filter: blur(12px);
+  cursor: var(--ap-cursor-grab);
+  touch-action: none;
+  animation: canvas-perf-dock-pop 200ms cubic-bezier(.2, .9, .3, 1.3);
+  transition: transform 120ms ease;
+}
+
+.canvas-perf-overlay__dock:hover {
+  transform: translateY(-1px) scale(1.04);
+}
+
+.canvas-perf-overlay--dragging .canvas-perf-overlay__dock {
+  cursor: var(--ap-cursor-grabbing);
+  transform: scale(1.06);
+}
+
+@keyframes canvas-perf-dock-pop {
+  from {
+    transform: scale(0.6);
+  }
+}
+
+.canvas-perf-overlay__dock-fps {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: 22px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: #34d399;
+  color: #0b1a12;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+}
+
+.canvas-perf-overlay__dock--warn .canvas-perf-overlay__dock-fps {
+  background: #ffd166;
+}
+
+.canvas-perf-overlay__dock--bad .canvas-perf-overlay__dock-fps {
+  background: #ff6b6b;
+  color: #1a0b0b;
+}
+
+.canvas-perf-overlay__minimize {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.84);
+  cursor: var(--ap-cursor-pointer);
+}
+
+.canvas-perf-overlay__minimize:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-perf-overlay__panel,
+  .canvas-perf-overlay--closing .canvas-perf-overlay__panel,
+  .canvas-perf-overlay__dock {
+    animation-duration: 1ms;
+  }
 }
 
 body.airpaste-thumbnail-capture .canvas-perf-overlay {
@@ -2470,24 +2581,32 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 .canvas-perf-overlay__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   user-select: none;
 }
 
 .canvas-perf-overlay--dragging .canvas-perf-overlay__header {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
+/* Second row under the header: Dev / Console / Copy. */
 .canvas-perf-overlay__header-actions {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+/* PERF, state, then minimize pinned at the far right. */
+.canvas-perf-overlay__header > .canvas-perf-overlay__state {
+  margin-right: auto;
+  margin-left: 8px;
 }
 
 .canvas-perf-overlay__state {
@@ -2522,7 +2641,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: var(--cursor-pointer);
+  cursor: var(--ap-cursor-pointer);
   pointer-events: auto;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
@@ -3395,12 +3514,12 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   gap: 8px;
   max-width: 100%;
   padding: 0 12px;
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   user-select: none;
 }
 
 .card__toolbar:active {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .card__toolbar--text-editor {
@@ -3573,11 +3692,11 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card__surface-frame--interactive,
 .card__surface-frame--interactive .card__surface--link {
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
 }
 
 .card__surface-frame--interactive .card__surface--folder {
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
 }
 
 .card__surface-frame--interactive .card__surface--text-box,
@@ -3587,11 +3706,11 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .card__surface-frame--interactive:active,
 .card__surface-frame--interactive:active .card__surface--link {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .card__surface-frame--interactive:active .card__surface--folder {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .card__surface-frame--text-box:active,
@@ -11015,13 +11134,13 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border: none;
   padding: 0;
   background: transparent;
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   display: grid;
   place-items: center;
 }
 
 .sticker-paper__item:active {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .sticker-paper__chip {

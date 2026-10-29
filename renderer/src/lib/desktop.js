@@ -150,7 +150,12 @@ export const desktop = {
     resizeStart: (direction) => electronBridge.resizeStart?.(direction),
     resizeMove: (deltaX, deltaY) => electronBridge.resizeMove?.(deltaX, deltaY),
     resizeEnd: () => electronBridge.resizeEnd?.(),
+    moveStart: () => electronBridge.moveStart?.(),
+    moveEnd: () => electronBridge.moveEnd?.(),
     usesCustomTitlebar: electronBridge.usesCustomTitlebar === true,
     usesCustomWindowResize: electronBridge.usesCustomWindowResize === true,
+    // False while an older main/preload (e.g. not restarted after an update)
+    // is running: the titlebar then falls back to a native drag region.
+    usesCustomWindowMove: typeof electronBridge.moveStart === "function",
   },
 };

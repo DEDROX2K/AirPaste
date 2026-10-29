@@ -68,6 +68,7 @@ const EXPECTED_HANDLE_CHANNELS = [
 const EXPECTED_ON_CHANNELS = [
   "window:minimize", "window:maximize", "window:close",
   "window:resizeStart", "window:resizeMove", "window:resizeEnd",
+  "window:moveStart", "window:moveEnd",
   "window:ready-to-close",
 ];
 

@@ -1,14 +1,17 @@
 /**
  * AirPaste Design System — cursors.css
  *
- * The app's default and interactive cursors. Native system cursors for now
- * (the custom pixel-art set was dropped: it could show next to the system
- * cursor).
+ * Pixel cursors, made from pixelarticons (MIT) glyphs: cursor-minimal,
+ * pointer and hand, with a white fill so they read on any background.
+ * Every stylesheet uses these variables instead of the bare keywords. The
+ * text I-beam, crosshair and not-allowed stay native.
  */
 
 :root {
-  --ap-cursor-default: default;
-  --ap-cursor-pointer: pointer;
+  --ap-cursor-default: url("./cursors/default.svg") 6 4, default;
+  --ap-cursor-pointer: url("./cursors/pointer.svg") 8 1, pointer;
+  --ap-cursor-grab: url("./cursors/grab.svg") 12 10, grab;
+  --ap-cursor-grabbing: url("./cursors/grab.svg") 12 10, grabbing;
 }
 
 html,

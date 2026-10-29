@@ -1,21 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./FloatingFormatToolbar.css";
+import { AlignCenter, AlignLeft, AlignRight, Check, ChevronDown } from "../ui/icons";
 
 const EDGE_MARGIN = 8;
 const ALIGNS = ["left", "center", "right"];
 
 function Chevron() {
-  return (
-    <svg className="format-toolbar__chevron" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M1.5 3l2.5 2.5L6.5 3" />
-    </svg>
-  );
+  return <ChevronDown className="format-toolbar__chevron" size={12} aria-hidden="true" />;
 }
 
-const ALIGN_ICON_PATHS = {
-  left: "M2.5 4h11M2.5 8h7M2.5 12h10",
-  center: "M2.5 4h11M4.5 8h7M3 12h10",
-  right: "M2.5 4h11M6.5 8h7M3.5 12h10",
+const ALIGN_ICONS = {
+  left: AlignLeft,
+  center: AlignCenter,
+  right: AlignRight,
 };
 
 // Keeps the text focused while editing: toolbar presses never take focus,
@@ -50,6 +47,7 @@ export default function FloatingFormatToolbar({
   const anchorRef = useRef(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [placeBelow, setPlaceBelow] = useState(false);
+  const AlignIcon = ALIGN_ICONS[align] ?? ALIGN_ICONS.left;
 
   // Above the tile unless that would go off the top of the canvas.
   useLayoutEffect(() => {
@@ -137,9 +135,7 @@ export default function FloatingFormatToolbar({
           aria-label={`Text alignment: ${align}`}
           onClick={() => onChange({ align: ALIGNS[(ALIGNS.indexOf(align) + 1) % ALIGNS.length] })}
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-            <path d={ALIGN_ICON_PATHS[align] ?? ALIGN_ICON_PATHS.left} />
-          </svg>
+          <AlignIcon size={16} aria-hidden="true" />
         </button>
 
         <span className="format-toolbar__separator" />
@@ -207,9 +203,7 @@ export default function FloatingFormatToolbar({
                 aria-checked={entry.id === size}
                 onClick={() => choose({ size: entry.id })}
               >
-                <svg className="format-toolbar__check" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2.5 7.5l3 3 6-7" />
-                </svg>
+                <Check className="format-toolbar__check" size={12} aria-hidden="true" />
                 {entry.label}
                 {entry.hint ? <em>{entry.hint}</em> : null}
               </button>

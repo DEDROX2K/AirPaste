@@ -14,7 +14,7 @@ import {
   Target,
   Timer,
   Type,
-} from "lucide-react";
+} from "./ui/icons";
 
 const DOCK_INFLUENCE_RADIUS = 132;
 const STACK_CLOSE_DELAY_MS = 140;

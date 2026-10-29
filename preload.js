@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resizeStart: (direction) => ipcRenderer.send("window:resizeStart", { direction }),
   resizeMove: (deltaX, deltaY) => ipcRenderer.send("window:resizeMove", { deltaX, deltaY }),
   resizeEnd: () => ipcRenderer.send("window:resizeEnd"),
+  moveStart: () => ipcRenderer.send("window:moveStart"),
+  moveEnd: () => ipcRenderer.send("window:moveEnd"),
   onPrepareClose: (listener) => {
     const handler = () => listener();
     ipcRenderer.on("window:prepare-close", handler);

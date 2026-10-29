@@ -18,7 +18,7 @@
   font-weight: 500;
   line-height: 1;
   text-transform: none;
-  cursor: pointer;
+  cursor: var(--ap-cursor-pointer);
   overflow: hidden;
   transition:
     background-color var(--ap-transition-fast),

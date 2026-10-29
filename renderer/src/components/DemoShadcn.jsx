@@ -41,7 +41,7 @@ import {
   AppCardHeader,
   AppCardTitle
 } from "./ui/app";
-import { Copy, MoreHorizontal, Settings } from "lucide-react";
+import { Copy, MoreHorizontal, Settings } from "./ui/icons";
 
 export function DemoShadcn() {
   const [open, setOpen] = useState(false);

@@ -10,14 +10,14 @@
   height: 100%;
   font-family: "Instrument Sans", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
-  cursor: grab;
+  cursor: var(--ap-cursor-grab);
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
 }
 
 .card--dragging .weather-tile {
-  cursor: grabbing;
+  cursor: var(--ap-cursor-grabbing);
 }
 
 .weather-tile * {

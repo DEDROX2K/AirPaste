@@ -42,11 +42,13 @@ import {
   RefreshCw,
   Search,
   Settings2,
+  SidebarClose,
+  SidebarOpen,
   Sparkles,
   Star,
   Trash2,
   X,
-} from "lucide-react";
+} from "./ui/icons";
 import "./HomeShell.css";
 
 const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
@@ -79,19 +81,7 @@ function SectionIcon({ section }) {
 }
 
 function IconSidebarToggle({ collapsed = false }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.5" y="4" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d={collapsed ? "m14 9 3 3-3 3" : "m17 9-3 3 3 3"}
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return collapsed ? <SidebarOpen size={16} aria-hidden="true" /> : <SidebarClose size={16} aria-hidden="true" />;
 }
 
 function buildBrowserItems(items, preferences, searchQuery) {

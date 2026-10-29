@@ -15,6 +15,7 @@ import {
 } from "../../tiles/sticky/model";
 import FloatingFormatToolbar from "./FloatingFormatToolbar";
 import TileShell from "./TileShell";
+import { Plus } from "../ui/icons";
 import "./StickyTile.css";
 
 const STICKY_SIZE_OPTIONS = Object.entries(STICKY_FONT_SIZE_LABELS).map(([id, label]) => ({ id, label }));
@@ -50,11 +51,7 @@ function placeCaret(element, selectAll) {
 }
 
 function PlusIcon() {
-  return (
-    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-      <path d="M6 2v8M2 6h8" />
-    </svg>
-  );
+  return <Plus size={12} aria-hidden="true" />;
 }
 
 function StickyTile({

@@ -46,6 +46,7 @@ Most "save for later" tools either lock your data in the cloud, charge a subscri
 | Rich text | Tiptap 3 (ProseMirror) |
 | Code editor | CodeMirror 6 |
 | UI components | Radix UI primitives |
+| Icons & cursors | [pixelarticons](https://pixelarticons.com) (MIT, © Gerrit Halfmann) |
 | Animations | Framer Motion |
 | 3D (experimental) | Three.js + React Three Fiber |
 | Styling | Tailwind CSS + custom CSS token system |

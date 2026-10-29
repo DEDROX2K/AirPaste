@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
+import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
@@ -84,7 +85,6 @@ import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
 // Quick text's padding around its text: the caret lands on the click point.
 const QUICK_TEXT_PADDING_X = 6;
 const QUICK_TEXT_PADDING_Y = 4;
-const ASSET_BASE_URL = import.meta.env.BASE_URL;
 const SHOW_ZOOM_MENU = false;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
@@ -100,10 +100,6 @@ const ARROW_NUDGE_DIRECTIONS = {
   ArrowLeft: { x: -1, y: 0 },
   ArrowRight: { x: 1, y: 0 },
 };
-
-function assetUrl(relativePath) {
-  return `${ASSET_BASE_URL}${String(relativePath).replace(/^\/+/, "")}`;
-}
 
 function getStickerCanvasHoverState(canvasElement, clientX, clientY) {
   const canvasRect = canvasElement?.getBoundingClientRect?.() ?? null;
@@ -142,7 +138,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         role="tab"
         aria-label="Canvas view"
       >
-        <img className="workspace-view-toggle__icon" src={assetUrl("icons/canvas.png")} alt="" aria-hidden="true" />
+        <Canvas className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
       </AppButton>
       <AppButton tone="unstyled"
         type="button"
@@ -152,7 +148,7 @@ function WorkspaceViewToggle({ mode, onChange }) {
         role="tab"
         aria-label="Tile view"
       >
-        <img className="workspace-view-toggle__icon" src={assetUrl("icons/grid.png")} alt="" aria-hidden="true" />
+        <Grid2X2 className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
       </AppButton>
     </div>
   );
@@ -181,7 +177,7 @@ function DrawingToolControls({
           aria-pressed={activeTool === DRAWING_TOOL_MODE_SELECT}
           title="Select (V)"
         >
-          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/cursor-default.png")} alt="" aria-hidden="true" />
+          <Pointer className="drawing-tool-controls__icon" size={16} aria-hidden="true" />
           {!iconOnly ? <span className="drawing-tool-controls__text">Select</span> : null}
         </AppButton>
         <AppButton tone="unstyled"
@@ -192,7 +188,7 @@ function DrawingToolControls({
           aria-pressed={isHandToolActive}
           title="Hand (H)"
         >
-          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/hand-back-left.png")} alt="" aria-hidden="true" />
+          <PanHand className="drawing-tool-controls__icon" size={16} aria-hidden="true" />
           {!iconOnly ? <span className="drawing-tool-controls__text">Hand</span> : null}
         </AppButton>
         <AppButton tone="unstyled"
@@ -203,7 +199,7 @@ function DrawingToolControls({
           aria-pressed={activeTool === DRAWING_TOOL_MODE_TETHER}
           title="Tether (L, or hold Alt)"
         >
-          <img className="drawing-tool-controls__icon drawing-tool-controls__icon--pixel" src={assetUrl("icons/tether.svg")} alt="" aria-hidden="true" />
+          <Tether className="drawing-tool-controls__icon" size={16} aria-hidden="true" />
           {!iconOnly ? <span className="drawing-tool-controls__text">Tether</span> : null}
         </AppButton>
       </div>
@@ -215,6 +211,13 @@ function DrawingToolControls({
 // prop (a fresh `[]` per render defeats Card's memo for every tile).
 const EMPTY_CHILD_TILES = [];
 const PERF_HISTORY_LIMIT = 64;
+const PERF_DOCK_STORAGE_KEY = "airpaste.perfDock";
+const PERF_DOCK_ICON_SIZE = 44;
+const PERF_DOCK_MARGIN = 8;
+const PERF_DOCK_DEFAULT = Object.freeze({ expanded: false, right: 16, top: 76 });
+const PERF_CLICK_SLOP_PX = 4;
+// Keep in step with the warp animation in styles.css.
+const PERF_WARP_MS = 180;
 const PERF_CHART_WIDTH = 176;
 const PERF_CHART_HEIGHT = 56;
 
@@ -603,6 +606,32 @@ function isPrintableTextKey(event) {
   );
 }
 
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+// Where the perf panel sits and whether it's open, remembered per machine.
+function readPerfDock() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(PERF_DOCK_STORAGE_KEY) ?? "null");
+    return {
+      expanded: stored?.expanded === true,
+      right: Number.isFinite(stored?.right) ? stored.right : PERF_DOCK_DEFAULT.right,
+      top: Number.isFinite(stored?.top) ? stored.top : PERF_DOCK_DEFAULT.top,
+    };
+  } catch {
+    return { ...PERF_DOCK_DEFAULT };
+  }
+}
+
+function writePerfDock(dock) {
+  try {
+    window.localStorage.setItem(PERF_DOCK_STORAGE_KEY, JSON.stringify(dock));
+  } catch {
+    // Storage unavailable: the panel just won't remember its spot.
+  }
+}
+
 function CanvasPerformanceOverlay({
   visibleTileCount,
   renderedTileCount,
@@ -621,9 +650,12 @@ function CanvasPerformanceOverlay({
 }) {
   const { toast } = useToast();
   const overlayRef = useRef(null);
-  const [position, setPosition] = useState({ x: null, y: null });
+  const [dock, setDock] = useState(readPerfDock);
+  // "open" / "closing" (warping back into the icon) / "closed".
+  const [phase, setPhase] = useState(() => (dock.expanded ? "open" : "closed"));
   const [isDragging, setIsDragging] = useState(false);
   const dragStateRef = useRef(null);
+  const closeTimerRef = useRef(0);
   const [snapshot, setSnapshot] = useState({
     fps: 0,
     frameMs: 0,
@@ -707,32 +739,50 @@ function CanvasPerformanceOverlay({
   }, []);
 
   useEffect(() => {
-    function clampOverlayPosition(nextX, nextY) {
-      const overlayRect = overlayRef.current?.getBoundingClientRect();
-      const overlayWidth = overlayRect?.width ?? 208;
-      const overlayHeight = overlayRect?.height ?? 220;
-      const maxX = Math.max(8, window.innerWidth - overlayWidth - 8);
-      const maxY = Math.max(8, window.innerHeight - overlayHeight - 8);
+    writePerfDock(dock);
+  }, [dock]);
 
-      return {
-        x: Math.min(Math.max(8, nextX), maxX),
-        y: Math.min(Math.max(8, nextY), maxY),
-      };
-    }
+  useEffect(() => () => window.clearTimeout(closeTimerRef.current), []);
 
+  // Dragging works from the icon and the panel header. The anchor is the
+  // top-right corner (right/top from the window edges), so the panel opens
+  // out of the icon and the icon stays put when it closes.
+  useEffect(() => {
     function handlePointerMove(event) {
-      if (!dragStateRef.current) {
+      const drag = dragStateRef.current;
+      if (!drag) {
         return;
       }
 
-      const nextX = event.clientX - dragStateRef.current.offsetX;
-      const nextY = event.clientY - dragStateRef.current.offsetY;
-      setPosition(clampOverlayPosition(nextX, nextY));
+      const deltaX = event.clientX - drag.startX;
+      const deltaY = event.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(deltaX, deltaY) < PERF_CLICK_SLOP_PX) {
+        return;
+      }
+
+      drag.moved = true;
+      setIsDragging(true);
+      const rect = overlayRef.current?.getBoundingClientRect();
+      const width = rect?.width ?? PERF_DOCK_ICON_SIZE;
+      const height = rect?.height ?? PERF_DOCK_ICON_SIZE;
+      setDock((current) => ({
+        ...current,
+        right: clampNumber(drag.startRight - deltaX, PERF_DOCK_MARGIN, window.innerWidth - width - PERF_DOCK_MARGIN),
+        top: clampNumber(drag.startTop + deltaY, PERF_DOCK_MARGIN, window.innerHeight - height - PERF_DOCK_MARGIN),
+      }));
     }
 
     function handlePointerUp() {
+      const drag = dragStateRef.current;
       dragStateRef.current = null;
       setIsDragging(false);
+
+      // A click (no drag) on the icon opens the panel.
+      if (drag && !drag.moved && drag.source === "icon") {
+        window.clearTimeout(closeTimerRef.current);
+        setPhase("open");
+        setDock((current) => ({ ...current, expanded: true }));
+      }
     }
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -819,71 +869,98 @@ function CanvasPerformanceOverlay({
     }
   }, [perfSummaryText, toast]);
 
-  const handleDragStart = useCallback((event) => {
+  const beginDrag = useCallback((event, source) => {
     if (event.button !== 0) {
       return;
     }
 
-    if (event.target instanceof Element && event.target.closest("button")) {
-      return;
-    }
-
-    const overlayRect = overlayRef.current?.getBoundingClientRect();
-    if (!overlayRect) {
+    if (source === "header" && event.target instanceof Element && event.target.closest("button")) {
       return;
     }
 
     event.preventDefault();
     dragStateRef.current = {
-      offsetX: event.clientX - overlayRect.left,
-      offsetY: event.clientY - overlayRect.top,
+      source,
+      startX: event.clientX,
+      startY: event.clientY,
+      startRight: dock.right,
+      startTop: dock.top,
+      moved: false,
     };
-    setIsDragging(true);
-    setPosition({
-      x: overlayRect.left,
-      y: overlayRect.top,
-    });
+  }, [dock.right, dock.top]);
+
+  const collapse = useCallback(() => {
+    setPhase("closing");
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => {
+      setPhase("closed");
+      setDock((current) => ({ ...current, expanded: false }));
+    }, PERF_WARP_MS);
   }, []);
+
+  const fpsTone = snapshot.fps >= 55 ? "good" : snapshot.fps >= 30 ? "warn" : "bad";
 
   return (
     <div
       ref={overlayRef}
-      className={`canvas-perf-overlay${isDragging ? " canvas-perf-overlay--dragging" : ""}`}
+      className={`canvas-perf-overlay canvas-perf-overlay--${phase}${isDragging ? " canvas-perf-overlay--dragging" : ""}`}
       aria-live="off"
-      style={{
-        left: position.x == null ? undefined : `${position.x}px`,
-        top: position.y == null ? undefined : `${position.y}px`,
-        right: position.x == null ? "16px" : "auto",
-      }}
+      style={{ right: `${dock.right}px`, top: `${dock.top}px` }}
+      // Keep canvas pan/select/deselect from seeing clicks on the panel.
+      onPointerDown={(event) => event.stopPropagation()}
+      onWheel={(event) => event.stopPropagation()}
     >
+      {phase === "closed" ? (
+        <button
+          type="button"
+          className={`canvas-perf-overlay__dock canvas-perf-overlay__dock--${fpsTone}`}
+          aria-label={`Performance: ${Math.round(snapshot.fps)} fps. Open panel`}
+          title="Performance"
+          onPointerDown={(event) => beginDrag(event, "icon")}
+        >
+          <Gauge size={24} aria-hidden="true" />
+          <span className="canvas-perf-overlay__dock-fps">{Math.round(snapshot.fps)}</span>
+        </button>
+      ) : (
+      <div className="canvas-perf-overlay__panel">
       <div
         className="canvas-perf-overlay__header"
-        onPointerDown={handleDragStart}
+        onPointerDown={(event) => beginDrag(event, "header")}
       >
         <span>PERF</span>
-        <div className="canvas-perf-overlay__header-actions">
-          <span className={`canvas-perf-overlay__state canvas-perf-overlay__state--${isCanvasMoving ? "moving" : "idle"}`}>
-            {isCanvasMoving ? "moving" : "idle"}
-          </span>
-          {onOpenTestingTilesCanvas ? (
-            <AppButton
-              tone="unstyled"
-              className="canvas-perf-overlay__copy"
-              type="button"
-              onClick={() => { void onOpenTestingTilesCanvas(); }}
-            >
-              Dev
-            </AppButton>
-          ) : null}
-          <AppButton tone="unstyled" className="canvas-perf-overlay__copy" type="button" onClick={() => window.dispatchEvent(new CustomEvent("airpaste:toggleDevConsole"))} title="Toggle developer console (Ctrl+`)">Console</AppButton>
-          <AppButton tone="unstyled"
+        <span className={`canvas-perf-overlay__state canvas-perf-overlay__state--${isCanvasMoving ? "moving" : "idle"}`}>
+          {isCanvasMoving ? "moving" : "idle"}
+        </span>
+        <AppButton
+          tone="unstyled"
+          className="canvas-perf-overlay__minimize"
+          type="button"
+          aria-label="Minimize performance panel"
+          title="Minimize"
+          onClick={collapse}
+        >
+          <Minus size={12} aria-hidden="true" />
+        </AppButton>
+      </div>
+      <div className="canvas-perf-overlay__header-actions">
+        {onOpenTestingTilesCanvas ? (
+          <AppButton
+            tone="unstyled"
             className="canvas-perf-overlay__copy"
             type="button"
-            onClick={() => { void handleCopyPerf(); }}
+            onClick={() => { void onOpenTestingTilesCanvas(); }}
           >
-            Copy
+            Dev
           </AppButton>
-        </div>
+        ) : null}
+        <AppButton tone="unstyled" className="canvas-perf-overlay__copy" type="button" onClick={() => window.dispatchEvent(new CustomEvent("airpaste:toggleDevConsole"))} title="Toggle developer console (Ctrl+`)">Console</AppButton>
+        <AppButton tone="unstyled"
+          className="canvas-perf-overlay__copy"
+          type="button"
+          onClick={() => { void handleCopyPerf(); }}
+        >
+          Copy
+        </AppButton>
       </div>
       <svg
         className="canvas-perf-overlay__chart"
@@ -973,6 +1050,8 @@ function CanvasPerformanceOverlay({
           <span className="canvas-perf-overlay__value">t{previewTierCounts.thumbnail}/m{previewTierCounts.medium}/h{previewTierCounts.high}/o{previewTierCounts.original}</span>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }
@@ -3359,9 +3438,7 @@ export default function CanvasWorkspaceView() {
         {!folderPath ? (
           <section className="canvas__empty">
             <div className="canvas__empty-icon" aria-hidden="true">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
+              <Folder size={28} aria-hidden="true" />
             </div>
             <h2 className="canvas__empty-title">No workspace open</h2>
             <p className="canvas__empty-description">Open a local folder to start saving links and media.</p>
@@ -3374,9 +3451,7 @@ export default function CanvasWorkspaceView() {
             title="Canvas is empty"
             description="Use the Add button in the bottom-right to create a rack. Paste a URL or image to import directly."
             icon={
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <Plus size={24} aria-hidden="true" />
             }
           />
         ) : null}

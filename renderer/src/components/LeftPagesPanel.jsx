@@ -9,50 +9,24 @@ import {
   AppTooltipProvider,
   AppTooltipTrigger,
 } from "./ui/app";
+import { Canvas, Plus, Sidebar, SidebarClose, SidebarOpen } from "./ui/icons";
 
 const PANEL_COLLAPSED_STORAGE_KEY = "airpaste.leftPagesPanelCollapsed";
 
 function IconSidebarToggle({ collapsed = false }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.5" y="4" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d={collapsed ? "m14 9 3 3-3 3" : "m17 9-3 3 3 3"}
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return collapsed ? <SidebarOpen size={16} aria-hidden="true" /> : <SidebarClose size={16} aria-hidden="true" />;
 }
 
 function IconAdd() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
+  return <Plus size={14} aria-hidden="true" />;
 }
 
 function IconCanvas() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="4" width="16" height="16" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8 9.5h8M8 14.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
+  return <Canvas size={16} aria-hidden="true" />;
 }
 
 function IconPanel() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3.5" y="4" width="17" height="16" rx="3" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M13 8h4M13 12h4M13 16h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
+  return <Sidebar size={16} aria-hidden="true" />;
 }
 
 function PageListItem({

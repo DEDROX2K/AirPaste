@@ -1,97 +1,113 @@
-/* !important throughout: AppDialogContent's base classes are Tailwind
-   utilities (p-6, max-w-lg, gap-4, ...) merged in via cn(), which only
-   dedupes conflicts between Tailwind utilities -- a plain CSS class like
-   this one doesn't register as "the same kind of thing" to tailwind-merge,
-   so without !important these would silently lose to whichever happened to
-   load later. */
+/* Launch splash: a plain white panel on the left and an 823 x 948 photo on
+   the right. No outer box -- the two pieces float on the dialog backdrop.
+
+   !important on the dialog: AppDialogContent's base classes are Tailwind
+   utilities (p-6, max-w-lg, gap-4, bg-*, shadow-lg, ...) merged in via cn(),
+   which only dedupes Tailwind-vs-Tailwind, so a plain class needs it. */
 .app-launch-splash__dialog {
-  max-width: 900px !important;
-  width: calc(100vw - 48px) !important;
+  width: auto !important;
+  max-width: none !important;
   padding: 0 !important;
   gap: 0 !important;
   border: none !important;
-  border-radius: 20px !important;
-  overflow: hidden !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
 }
 
-/* The dialog primitive's own default close "X" button (rendered as a
-   sibling of our content, inside the same dialog-content element) isn't
-   part of this design -- dismissal already works via outside click,
-   Escape, or any of the actions inside. */
+/* The dialog primitive's own close "X" isn't part of this design --
+   outside click, Escape, or any action inside dismisses it. */
 .app-launch-splash__dialog > button.absolute {
   display: none !important;
 }
 
 .app-launch-splash {
+  --splash-radius: 16px;
+  --splash-gap: 8px;
+  --splash-panel-width: 216px;
+  --splash-image-ratio: calc(823 / 948);
+  /* Photo height: as tall as fits, never wider than the window allows. */
+  --splash-height: min(
+    468px,
+    calc(100vh - 80px),
+    calc((100vw - 48px - var(--splash-panel-width) - var(--splash-gap)) / var(--splash-image-ratio))
+  );
   display: flex;
   align-items: stretch;
-  min-height: 480px;
+  gap: var(--splash-gap);
+  height: var(--splash-height);
+  font-family: var(--ap-font-body);
 }
+
+/* ---------- Left: plain panel ---------- */
 
 .app-launch-splash__panel {
   display: flex;
+  flex: 0 0 var(--splash-panel-width);
   flex-direction: column;
-  gap: 10px;
-  width: 340px;
-  flex: 0 0 340px;
-  padding: 16px;
-  background: var(--ap-bg-page);
+  width: var(--splash-panel-width);
+  min-height: 0;
+  padding: 6px 14px;
+  border-radius: var(--splash-radius);
+  background: #ffffff;
 }
 
 .app-launch-splash__card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px;
-  border-radius: 14px;
-  background: #ffffff;
+  gap: 1px;
+  padding: 12px 0;
+}
+
+.app-launch-splash__card + .app-launch-splash__card {
+  border-top: 1px solid #ececec;
 }
 
 .app-launch-splash__card--recent {
   flex: 1 1 auto;
   min-height: 0;
-  background: var(--ap-bg-page);
   overflow-y: auto;
-}
-
-.app-launch-splash__card--utility {
-  background: var(--ap-bg-base);
+  scrollbar-width: none;
 }
 
 .app-launch-splash__label {
-  margin: 2px 0 4px 8px;
-  color: var(--ap-text-tertiary);
-  font-size: 12.5px;
-  font-weight: 600;
+  margin: 0 0 6px;
+  color: #8e8e93;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .app-launch-splash__item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
+  gap: 8px;
+  min-height: 26px;
+  margin-left: -6px;
+  padding: 4px 6px;
   border: none;
-  border-radius: 9px;
+  border-radius: 6px;
   background: transparent;
-  color: var(--ap-text-primary);
-  font-size: 13.5px;
+  color: #1f1f1f;
+  font-size: 12px;
   font-weight: 500;
   text-align: left;
-  cursor: var(--cursor-pointer);
+  cursor: var(--ap-cursor-pointer);
+  transition: background 120ms ease;
 }
 
 .app-launch-splash__item:hover:not(:disabled) {
-  background: var(--ap-interactive-bg-hover);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .app-launch-splash__item:disabled {
-  color: var(--ap-text-disabled);
-  cursor: default;
+  color: #a1a1a6;
+  cursor: var(--ap-cursor-default);
 }
 
 .app-launch-splash__item svg {
   flex: 0 0 auto;
-  color: var(--ap-icon-muted);
+  color: #1f1f1f;
 }
 
 .app-launch-splash__item-name {
@@ -102,27 +118,34 @@
 }
 
 .app-launch-splash__empty {
-  margin: 4px 8px;
-  color: var(--ap-text-placeholder);
-  font-size: 13px;
+  margin: 2px 0;
+  color: #8e8e93;
+  font-size: 11px;
 }
 
-.app-launch-splash__tagline {
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--ap-text-secondary);
-  color: #ffffff;
-  font-size: 12.5px;
-  font-style: italic;
-  text-align: center;
-}
+/* ---------- Right: the photo (a button: click steps to the next) ---------- */
 
-/* A random photo (AppLaunchSplash SPLASH_IMAGES) filling the left side. */
 .app-launch-splash__hero {
   position: relative;
-  flex: 1 1 auto;
+  display: block;
+  flex: 0 0 auto;
+  width: calc(var(--splash-height) * var(--splash-image-ratio));
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--splash-radius);
   background: #e9e6e1;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   overflow: hidden;
+  cursor: var(--ap-cursor-pointer);
+}
+
+.app-launch-splash__hero:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: -3px;
 }
 
 .app-launch-splash__image {
@@ -132,30 +155,49 @@
   height: 100%;
   object-fit: cover;
   user-select: none;
+  animation: app-launch-splash-image-in 280ms ease-out;
+}
+
+@keyframes app-launch-splash-image-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-launch-splash__image {
+    animation: none;
+  }
 }
 
 .app-launch-splash__version {
   position: absolute;
-  left: 20px;
-  bottom: 16px;
+  right: 16px;
+  bottom: 12px;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 18px;
   font-weight: 700;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
 }
 
-@media (max-width: 680px) {
+/* Narrow windows: cards over a shorter photo strip. */
+@media (max-width: 760px) {
   .app-launch-splash {
+    --splash-panel-width: calc(100vw - 48px);
     flex-direction: column;
-    min-height: 0;
-  }
-
-  .app-launch-splash__panel {
-    width: auto;
-    flex: 1 1 auto;
+    height: auto;
+    max-height: calc(100vh - 48px);
   }
 
   .app-launch-splash__hero {
-    min-height: 220px;
+    order: -1;
+    width: auto;
+    height: 140px;
+  }
+
+  .app-launch-splash__card--recent {
+    max-height: 160px;
   }
 }
