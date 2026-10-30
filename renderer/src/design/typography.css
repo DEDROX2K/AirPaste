@@ -8,6 +8,15 @@
  * Import after tokens.css and theme.css.
  */
 
+/* ─── Bundled fonts ────────────────────────────────────────────────────── */
+/* VT323 (SIL OFL, licence in public/fonts/VT323-OFL.txt): the pixel font
+   of the code-file and default file tiles. */
+@font-face {
+  font-family: "AirPaste VT323";
+  src: url("/fonts/VT323-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
 /* ─── Base Reset ───────────────────────────────────────────────────────── */
 *,
 *::before,

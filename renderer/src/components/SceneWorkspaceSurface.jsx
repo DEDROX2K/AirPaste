@@ -16,8 +16,32 @@ import { PREVIEW_TIER, TILE_RENDER_STATE } from "../systems/canvas/tileLod";
 import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
 import { formatRepoCount, getLanguageSegments, normalizeGitHubRepoData } from "../tiles/github/model";
 import {
+  LINK_NOTE_BASE_MEDIA_WIDTH,
+  LINK_NOTE_CARD_PADDING,
+  isLinkNoteOpen,
+  normalizeLinkNote,
+} from "../tiles/link/notedLink";
+import {
+  DEFAULT_FILE_BASE_HEIGHT,
+  DEFAULT_FILE_BASE_WIDTH,
+  DEFAULT_FILE_COLOR,
+  DEFAULT_FILE_SHAPE_PATH,
+  normalizeFileColor,
+  splitFileName,
+} from "../tiles/file/defaultFileDesign";
+import {
+  CODE_FILE_BASE_HEIGHT,
+  CODE_FILE_BASE_WIDTH,
+  FOLDER_STICKY_BASE_WIDTH,
+  FOLDER_STICKY_FONT_SIZES,
+  FOLDER_STICKY_TAB_RISE,
   STICKY_BASE_SIZE,
+  STICKY_DESIGN_CODE_FILE,
+  STICKY_DESIGN_FOLDER,
   STICKY_FONT_SIZES,
+  getCodeFileLanguage,
+  getFileCardCodeLanguageId,
+  getFolderStickyColorHex,
   getStickyColorHex,
   getStickyDisplayText,
   normalizeStickyStyle,
@@ -341,12 +365,61 @@ function getContainedImageRect(image, x, y, width, height) {
   };
 }
 
+// Mirrors NotedLinkTile: the dark card, the image at its own proportions
+// near the top, and the note's title below (k = image width / 768).
+function drawSceneNotedLinkTile(ctx, tile, bounds, image) {
+  const note = normalizeLinkNote(tile?.note);
+  const mediaWidth = bounds.width / (1 + ((2 * LINK_NOTE_CARD_PADDING) / LINK_NOTE_BASE_MEDIA_WIDTH));
+  const k = mediaWidth / LINK_NOTE_BASE_MEDIA_WIDTH;
+  const padding = LINK_NOTE_CARD_PADDING * k;
+  // Same proportions as NotedLinkTile: the picture's own, never cropped.
+  const knownAspect = tile?.previewMode === "webclip" ? tile?.webclipAspectRatio : tile?.mediaAspectRatio;
+  const mediaAspect = image?.naturalWidth > 0 && image?.naturalHeight > 0
+    ? image.naturalWidth / image.naturalHeight
+    : Number.isFinite(knownAspect) && knownAspect > 0
+      ? knownAspect
+      : note?.mediaWidth ? note.mediaWidth / note.mediaHeight : 1;
+  const mediaHeight = Math.min(bounds.height - padding, mediaWidth / mediaAspect);
+
+  fillRoundedRect(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 60 * k, "#222222");
+
+  ctx.save();
+  ctx.beginPath();
+  traceRoundedRectPath(ctx, bounds.x + padding, bounds.y + padding, mediaWidth, mediaHeight, 46 * k);
+  ctx.clip();
+  if (image) {
+    drawImageCover(ctx, image, bounds.x + padding, bounds.y + padding, mediaWidth, mediaHeight);
+  } else {
+    ctx.fillStyle = "#b9bcc0";
+    ctx.fillRect(bounds.x + padding, bounds.y + padding, mediaWidth, mediaHeight);
+  }
+  ctx.restore();
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = note?.title ? "#5e636c" : "#50545c";
+  ctx.font = `700 ${40 * k}px Inter, "Segoe UI", sans-serif`;
+  drawClampedText(
+    ctx,
+    (note?.title || "Note title here").toUpperCase(),
+    bounds.x + padding + (65 * k),
+    bounds.y + padding + mediaHeight + (58 * k),
+    Math.max(8, mediaWidth - (130 * k)),
+    48 * k,
+    2,
+  );
+
+  // The caller outlines the current path afterwards: leave the card's.
+  ctx.beginPath();
+  traceRoundedRectPath(ctx, bounds.x, bounds.y, bounds.width, bounds.height, 60 * k);
+}
+
 function shouldPreserveTileImageAspect(tile) {
   if (tile?.type !== "link") {
     return false;
   }
 
-  if (tile?.sourceType === "sticker" || tile?.previewKind === "music") {
+  // A noted tile is the image inside a dark card (drawSceneNotedLinkTile).
+  if (tile?.sourceType === "sticker" || tile?.previewKind === "music" || isLinkNoteOpen(tile)) {
     return false;
   }
 
@@ -645,7 +718,8 @@ function strokeSceneStickyCanvasTextTile(ctx, bounds, renderState, strokeStyle, 
 }
 
 function isTextHeavyTile(tile) {
-  return TEXT_HEAVY_TILE_TYPES.has(String(tile?.type || "").toLowerCase());
+  // File cards draw their own design: code-file or the default file blob.
+  return TEXT_HEAVY_TILE_TYPES.has(String(tile?.type || "").toLowerCase()) || tile?.type === "file";
 }
 
 function getSceneCanvasTextFooterLabel(tile) {
@@ -769,7 +843,140 @@ function drawSceneFigJamStickyTile(ctx, tile, bounds) {
   }
 }
 
+// Folder sticky tab colours (the label card, the tab behind it), per colour.
+const SCENE_FOLDER_STICKY_TAB = {
+  maroon: ["#ebe3d3", "#1c1819"],
+  ink: ["#d9dde6", "#2a2a31"],
+  forest: ["#efe9d6", "#14241c"],
+  paper: ["#fbf8ef", "#3a3431"],
+};
+
+// Mirrors StickyFolderTile.css, simplified: tab, sheet, title and text,
+// all scaled with the width (k = width / 640).
+function drawSceneFolderStickyTile(ctx, tile, bounds) {
+  const style = normalizeStickyStyle(tile?.sticky);
+  const k = bounds.width / FOLDER_STICKY_BASE_WIDTH;
+  const isPaper = style.color === "paper";
+  const [labelFill, tabFill] = SCENE_FOLDER_STICKY_TAB[style.color] ?? SCENE_FOLDER_STICKY_TAB.maroon;
+  const sheetY = bounds.y + (FOLDER_STICKY_TAB_RISE * k);
+  const padX = 30 * k;
+  const textWidth = Math.max(8, bounds.width - (padX * 2));
+  const fontFamily = "system-ui, \"Segoe UI\", sans-serif";
+
+  fillRoundedRect(ctx, bounds.x + (40 * k), bounds.y, 320 * k, 124 * k, 16 * k, tabFill);
+  fillRoundedRect(ctx, bounds.x + (62 * k), bounds.y + (22 * k), 150 * k, 110 * k, 10 * k, labelFill);
+  fillRoundedRect(ctx, bounds.x, sheetY, bounds.width, bounds.y + bounds.height - sheetY, 14 * k, getFolderStickyColorHex(style.color));
+
+  ctx.textBaseline = "top";
+  let y = sheetY + (28 * k);
+  const title = typeof tile?.title === "string" ? tile.title.trim() : "";
+  ctx.fillStyle = isPaper ? "rgba(60, 40, 30, 0.3)" : "rgba(255, 255, 255, 0.38)";
+  ctx.font = `900 ${40 * k}px "Arial Black", Impact, sans-serif`;
+  drawClampedText(ctx, (title || "Title").toUpperCase(), bounds.x + padX, y, textWidth, 46 * k, 1);
+  y += (46 + 18) * k;
+
+  const fontSize = FOLDER_STICKY_FONT_SIZES[style.fontSize] * k;
+  const lineHeight = fontSize * 1.4;
+  const maxLines = Math.max(1, Math.floor((bounds.y + bounds.height - (40 * k) - y) / lineHeight));
+  ctx.fillStyle = isPaper ? "#2a1f1d" : "#ffffff";
+  ctx.font = `${style.italic ? "italic " : ""}${style.bold ? 700 : 400} ${fontSize}px ${fontFamily}`;
+  let row = 0;
+  for (const line of (typeof tile?.text === "string" ? tile.text : "").split("\n")) {
+    if (row >= maxLines) {
+      break;
+    }
+    row += Math.max(1, drawClampedText(ctx, line, bounds.x + padX, y + (row * lineHeight), textWidth, lineHeight, maxLines - row));
+  }
+}
+
+// Mirrors StickyCodeFileTile: the card outline, name, extension and
+// footer button, scaled with the width (k = width / 497).
+const SCENE_CODE_FILE_SHAPE = typeof Path2D === "function"
+  ? new Path2D("M65,0 H485 Q497,0 497,12 V80 L425,155 V723 Q425,735 413,735 H12 Q0,735 0,723 V612 Q0,600 12,600 H41 Q53,600 53,588 V12 Q53,0 65,0 Z")
+  : null;
+
+function drawSceneCodeFileStickyTile(ctx, tile, bounds) {
+  // An imported file card takes its language and name from the file.
+  const fileLanguageId = getFileCardCodeLanguageId(tile);
+  const language = getCodeFileLanguage(fileLanguageId ?? normalizeStickyStyle(tile?.sticky).color);
+  const k = bounds.width / CODE_FILE_BASE_WIDTH;
+  const font = "\"AirPaste VT323\", monospace";
+
+  ctx.save();
+  ctx.translate(bounds.x, bounds.y);
+  ctx.scale(k, bounds.height / CODE_FILE_BASE_HEIGHT);
+  ctx.fillStyle = language.hex;
+  if (SCENE_CODE_FILE_SHAPE) {
+    ctx.fill(SCENE_CODE_FILE_SHAPE);
+  } else {
+    ctx.fillRect(53, 0, 372, 735);
+  }
+  ctx.restore();
+
+  fillRoundedRect(ctx, bounds.x + (18 * k), bounds.y + (617 * k), 390 * k, 100 * k, 10 * k, language.tint);
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(bounds.x + (344 * k), bounds.y + (641 * k), 52 * k, 52 * k);
+
+  ctx.textBaseline = "top";
+  ctx.font = `${64 * k}px ${font}`;
+  const title = fileLanguageId
+    ? String(tile?.file?.fileName || tile?.title || "").replace(/\.[^.]+$/, "")
+    : String(tile?.title ?? "");
+  const name = title.trim() || "File name";
+  drawClampedText(ctx, name, bounds.x + (92 * k), bounds.y + (26 * k), 313 * k, 70 * k, 1);
+  ctx.fillText(language.label, bounds.x + (92 * k), bounds.y + (104 * k));
+  ctx.font = `${46 * k}px ${font}`;
+  ctx.fillText(fileLanguageId || tile?.sticky?.filePath ? "Show in explorer" : "Link a file", bounds.x + (40 * k), bounds.y + (650 * k));
+}
+
+// Mirrors FileTile (the default file design): blob, size pill, name and
+// extension, scaled with the width (k = width / 610).
+const SCENE_DEFAULT_FILE_SHAPE = typeof Path2D === "function" ? new Path2D(DEFAULT_FILE_SHAPE_PATH) : null;
+
+function drawSceneDefaultFileTile(ctx, tile, bounds) {
+  const k = bounds.width / DEFAULT_FILE_BASE_WIDTH;
+  const color = normalizeFileColor(tile?.fileColor) ?? DEFAULT_FILE_COLOR;
+  const value = parseInt(color.slice(1), 16);
+  const isDark = (0.299 * ((value >> 16) & 255)) + (0.587 * ((value >> 8) & 255)) + (0.114 * (value & 255)) < 90;
+  const { extension } = splitFileName(tile?.file?.fileName || tile?.title || "Untitled file");
+  // The shown name is the card's title (renamable), without the extension.
+  const title = String(tile?.title || tile?.file?.fileName || "");
+  const name = extension && title.toLowerCase().endsWith(extension) ? title.slice(0, -extension.length) : title;
+  const font = "\"AirPaste VT323\", monospace";
+
+  ctx.save();
+  ctx.translate(bounds.x, bounds.y);
+  ctx.scale(k, bounds.height / DEFAULT_FILE_BASE_HEIGHT);
+  ctx.fillStyle = color;
+  if (SCENE_DEFAULT_FILE_SHAPE) {
+    ctx.fill(SCENE_DEFAULT_FILE_SHAPE);
+  } else {
+    ctx.fillRect(0, 60, 610, 260);
+  }
+  ctx.restore();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = isDark ? "#ffffff" : "#000000";
+  ctx.font = `${80 * k}px ${font}`;
+  ctx.fillText(name || "Untitled", bounds.x + (bounds.width / 2), bounds.y + (179 * k), 570 * k);
+  ctx.font = `${33.5 * k}px ${font}`;
+  ctx.fillText(extension || ".file", bounds.x + (304 * k), bounds.y + (383 * k), 190 * k);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+}
+
 function drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving) {
+  if (tile?.variant === CANVAS_TEXT_VARIANT_STICKY && tile?.source !== "file" && tile?.sticky?.design === STICKY_DESIGN_FOLDER) {
+    drawSceneFolderStickyTile(ctx, tile, bounds);
+    return;
+  }
+
+  if (tile?.variant === CANVAS_TEXT_VARIANT_STICKY && tile?.source !== "file" && tile?.sticky?.design === STICKY_DESIGN_CODE_FILE) {
+    drawSceneCodeFileStickyTile(ctx, tile, bounds);
+    return;
+  }
+
   if (tile?.variant === CANVAS_TEXT_VARIANT_STICKY && tile?.source !== "file") {
     drawSceneFigJamStickyTile(ctx, tile, bounds);
     return;
@@ -1106,6 +1313,16 @@ function drawSceneTextHeavyTile(ctx, tile, bounds, renderState, isCanvasMoving) 
 
   if (tile?.type === "canvas-text") {
     drawSceneCanvasTextTile(ctx, tile, bounds, renderState, isCanvasMoving);
+    return true;
+  }
+
+  if (getFileCardCodeLanguageId(tile) !== null) {
+    drawSceneCodeFileStickyTile(ctx, tile, bounds);
+    return true;
+  }
+
+  if (tile?.type === "file") {
+    drawSceneDefaultFileTile(ctx, tile, bounds);
     return true;
   }
 
@@ -1714,6 +1931,13 @@ function SceneWorkspaceSurface({
           ctx.fillStyle = sampledColor;
           ctx.fillRect(bounds.x, bounds.y + headerHeight, bounds.width, previewHeight);
         }
+      } else if (isLinkNoteOpen(tile)) {
+        drawSceneNotedLinkTile(
+          ctx,
+          tile,
+          bounds,
+          Boolean(source) && renderHint?.imageEnabled !== false && imageEntry?.status === "loaded" ? imageEntry.image : null,
+        );
       } else {
         const shouldDrawImage = Boolean(source)
           && renderHint?.imageEnabled !== false

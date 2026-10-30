@@ -95,12 +95,8 @@ async function createWindow() {
     thickFrame: true,
     hasShadow: true,
     roundedCorners: true,
-    titleBarStyle: "hidden",
-    titleBarOverlay: process.platform === "win32" ? {
-      color: "#ffffff",
-      symbolColor: "#1c1c1e",
-      height: 36
-    } : false,
+    // No titleBarStyle/titleBarOverlay: those ask the OS for native window
+    // buttons. The renderer draws its own (TopTabBar.jsx).
     show: false,
     title: "AirPaste",
     ...(windowIconPath ? { icon: windowIconPath } : {}),

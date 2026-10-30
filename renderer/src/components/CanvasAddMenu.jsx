@@ -31,6 +31,8 @@ const MENU_SECTIONS = [
     items: [
       { key: "text-card", label: "Quick text", icon: "text", command: "createTextCard" },
       { key: "sticky", label: "Sticky note", icon: "sticky", command: "createSticky" },
+      { key: "folder-sticky", label: "Folder note", icon: "sticky", command: "createFolderSticky" },
+      { key: "code-file-sticky", label: "Code file", icon: "code", command: "createCodeFileSticky" },
       { key: "paper-note", label: "Paper note", icon: "paper-note", command: "createPaperNote" },
       { key: "checklist", label: "Checklist", icon: "checklist", command: "createChecklist" },
       { key: "vault-note", label: "Vault note", icon: "notes", command: "addNoteFromVault" },

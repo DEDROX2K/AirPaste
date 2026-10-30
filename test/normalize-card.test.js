@@ -59,7 +59,8 @@ describe("normalizeCard", () => {
     expect(card.title).toBe("report.pdf");
     expect(card.file).toMatchObject({ relativePath: "assets/report.pdf", fileName: "report.pdf" });
     expect(card.width).toBe(344);
-    expect(card.height).toBe(436);
+    // The default file design keeps 610 x 415 proportions.
+    expect(card.height).toBe(234);
   });
 
   it("normalizes an amazon-product card's product fields", () => {

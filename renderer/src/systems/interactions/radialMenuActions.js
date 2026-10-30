@@ -10,6 +10,8 @@ const CANVAS_ACTION_ORDER = [
 
 const TILE_ACTION_ORDER = [
   "edit-text",
+  "link-note",
+  "file-color",
   "refresh-preview",
   "webclip",
   "copy-preview-diagnostics",
@@ -38,6 +40,8 @@ export function buildRadialMenuActions({
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
   showEditText = false,
+  showFileColor = false,
+  linkNoteState = null,
   showTether = false,
   tetherCount = 0,
   showUntether = false,
@@ -143,6 +147,33 @@ export function buildRadialMenuActions({
         kind: "action",
         activeLabel: "Label",
         onTrigger: handlers.onCreateText,
+      };
+    }
+
+    // linkNoteState: "closed" offers Add note, "open" offers Remove note.
+    if (id === "link-note") {
+      if (!linkNoteState) {
+        return null;
+      }
+
+      return {
+        id,
+        label: linkNoteState === "open" ? "Remove note" : "Add note",
+        kind: "action",
+        onTrigger: handlers.onToggleLinkNote,
+      };
+    }
+
+    if (id === "file-color") {
+      if (!showFileColor) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Change colour",
+        kind: "action",
+        onTrigger: handlers.onChangeFileColor,
       };
     }
 

@@ -125,6 +125,7 @@ export const desktop = {
     getPreviewCapabilities: (...args) =>
       airpasteBridge.getPreviewCapabilities?.(...args) ?? Promise.resolve({ enabled: true }),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),
+    revealPath: (...args) => airpasteBridge.revealPath?.(...args) ?? Promise.resolve({ opened: false }),
     getLastFolder: (...args) => airpasteBridge.getLastFolder?.(...args) ?? Promise.resolve(null),
     restoreLastWorkspace: async () => {
       const folderPath = await airpasteBridge.getLastFolder?.();

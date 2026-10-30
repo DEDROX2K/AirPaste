@@ -1,0 +1,329 @@
+/* Default file design (FileTile.jsx): one coloured blob with a grey size
+   pill poking out of the top, the name across the middle and the
+   extension in the bottom tab. Everything in px is measured at 610 x 415
+   and scales through --file-k (width / 610); the colour panel and
+   selection chrome keep their screen size through --file-ui. */
+
+.default-file {
+  --file-k: 1;
+  --file-ui: calc(1 / var(--canvas-zoom, 1));
+  --file-body: #45e6b9;
+  --file-ink: #000000;
+  --file-blue: #0d99ff;
+  --file-font: "AirPaste VT323", ui-monospace, monospace;
+
+  position: relative;
+  width: var(--tile-width, 610px);
+  height: var(--tile-height, 415px);
+  color: var(--file-ink);
+  font-family: var(--file-font);
+  cursor: var(--ap-cursor-default);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.default-file * {
+  box-sizing: border-box;
+}
+
+.default-file__shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.default-file__shape path {
+  fill: var(--file-body);
+  transition: fill 0.2s ease;
+}
+
+.card--dragging .default-file {
+  cursor: var(--ap-cursor-grabbing);
+}
+
+/* Hover / selection outline around the card's box (pill included). */
+.default-file::after {
+  content: "";
+  position: absolute;
+  inset: calc(-34px * var(--file-k) - 4px * var(--file-ui)) calc(-4px * var(--file-ui)) calc(-4px * var(--file-ui));
+  z-index: 2;
+  border: calc(1.5px * var(--file-ui)) solid transparent;
+  border-radius: calc(16px * var(--file-k) + 4px);
+  pointer-events: none;
+}
+
+.card--hovered .default-file::after {
+  border-color: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .default-file::after {
+  border-color: var(--file-blue);
+}
+
+/* ---------- Text ---------- */
+
+.default-file__pill,
+.default-file__name,
+.default-file__ext {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.default-file__pill span,
+.default-file__name span,
+.default-file__ext span {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 calc(3px * var(--file-k));
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Grey on any background, so its text stays black. */
+.default-file__pill {
+  left: calc(197px * var(--file-k));
+  top: calc(-30px * var(--file-k));
+  width: calc(216px * var(--file-k));
+  height: calc(61px * var(--file-k));
+  border-radius: 999px;
+  background: #d9d9d9;
+  color: #000000;
+  font-size: calc(33.5px * var(--file-k));
+}
+
+/* The name: centred when it fits; otherwise cropped from the start, and
+   hovering slides it to show the end (same as the code-file card). */
+.default-file__name {
+  left: calc(20px * var(--file-k));
+  top: calc(117px * var(--file-k));
+  width: calc(570px * var(--file-k));
+  height: calc(124px * var(--file-k));
+  overflow: hidden;
+  font-size: calc(119px * var(--file-k));
+  pointer-events: auto;
+}
+
+.default-file__name--overflow,
+.default-file--editing .default-file__name {
+  justify-content: flex-start;
+}
+
+.default-file .default-file__name span {
+  max-width: none;
+  overflow: visible;
+  flex: none;
+  border-radius: calc(4px * var(--file-k));
+  outline: none;
+  caret-color: var(--file-ink);
+  transition: transform var(--file-name-duration, 0.6s) linear;
+}
+
+.default-file__name--slide span {
+  transform: translateX(calc(var(--file-name-over, 0px) * -1));
+}
+
+.default-file--editing .default-file__name span {
+  background: rgba(255, 255, 255, 0.35);
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.default-file__name span:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.45;
+}
+
+.default-file__name span::selection {
+  background: rgba(13, 153, 255, 0.35);
+}
+
+.default-file__ext {
+  left: calc(208px * var(--file-k));
+  top: calc(352px * var(--file-k));
+  width: calc(192px * var(--file-k));
+  height: calc(62px * var(--file-k));
+  font-size: calc(33.5px * var(--file-k));
+}
+
+/* ---------- Colour panel (screen-sized, beside the card) ---------- */
+
+.default-file__color-panel {
+  position: absolute;
+  left: calc(100% + 12px * var(--file-ui));
+  top: 0;
+  z-index: 6;
+  width: 248px;
+  padding: 12px;
+  border: 1px solid #e4e4e4;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  color: #222222;
+  font: 12px "Inter", var(--ap-font-body, system-ui, sans-serif);
+  cursor: default;
+  transform: scale(var(--file-ui));
+  transform-origin: top left;
+}
+
+.default-file__color-title {
+  margin: 0 0 8px;
+  color: #888888;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.default-file__color-sv {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.default-file__color-sv i {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.default-file__color-hue {
+  width: 100%;
+  height: 10px;
+  margin: 10px 0;
+  border-radius: 6px;
+  outline: none;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.default-file__color-hue::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #999999;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.default-file__color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.default-file__color-swatch {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+}
+
+.default-file__color-hex {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+  color: #222222;
+  font: 12px ui-monospace, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.default-file__color-hex:focus {
+  border-color: #111111;
+}
+
+.default-file__color-presets {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+}
+
+/* !important: the app-wide button styles (SimpleUi.css) restyle every
+   button. */
+.default-file .default-file__color-presets button {
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  cursor: var(--cursor-pointer, pointer);
+}
+
+.default-file .default-file__color-presets button[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #111111 !important;
+}
+
+/* ---------- Selection chrome ---------- */
+
+.default-file__handle {
+  --handle-offset: calc(-8px * var(--file-ui));
+
+  position: absolute;
+  z-index: 3;
+  width: calc(9px * var(--file-ui));
+  height: calc(9px * var(--file-ui));
+  border: calc(1px * var(--file-ui)) solid var(--file-blue);
+  border-radius: calc(2px * var(--file-ui));
+  background: #ffffff;
+}
+
+.default-file__handle--nw { left: var(--handle-offset); top: calc(-30px * var(--file-k) + var(--handle-offset)); cursor: nwse-resize; }
+.default-file__handle--ne { right: var(--handle-offset); top: calc(-30px * var(--file-k) + var(--handle-offset)); cursor: nesw-resize; }
+.default-file__handle--sw { left: var(--handle-offset); bottom: var(--handle-offset); cursor: nesw-resize; }
+.default-file__handle--se { right: var(--handle-offset); bottom: var(--handle-offset); cursor: nwse-resize; }
+
+.default-file__size-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 14px * var(--file-ui));
+  z-index: 4;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--file-blue);
+  color: #ffffff;
+  font-family: "Inter", var(--ap-font-body, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%) scale(var(--file-ui));
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .default-file__shape path,
+  .default-file .default-file__name span {
+    transition: none;
+  }
+}

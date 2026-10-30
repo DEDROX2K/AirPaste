@@ -38,7 +38,15 @@ import {
 } from "../lib/workspace";
 import { getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
-import { getAdjacentStickyPosition, normalizeStickyStyle } from "../tiles/sticky/model";
+import { getAdjacentStickyPosition, getFileCardCodeLanguageId, normalizeStickyStyle } from "../tiles/sticky/model";
+import { OPEN_FILE_COLOR_EVENT } from "../tiles/file/defaultFileDesign";
+import {
+  canAddLinkNote,
+  getCloseLinkNotePatch,
+  getOpenLinkNotePatch,
+  isLinkNoteOpen,
+} from "../tiles/link/notedLink";
+import TILE_TYPES from "../tiles/tileTypes";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_VARIANT_STICKY,
@@ -150,6 +158,34 @@ function WorkspaceViewToggle({ mode, onChange }) {
       >
         <Grid2X2 className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
       </AppButton>
+    </div>
+  );
+}
+
+// Concave fillet that blends the dock's grey base into the canvas bottom edge.
+function CanvasDockFlare({ mirrored = false }) {
+  return (
+    <svg
+      className={`canvas-stage__flare${mirrored ? " canvas-stage__flare--l" : ""}`}
+      viewBox="0 0 72 34"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M0 37.0684V0L2.98812 24.991C3.56412 29.8083 7.51493 33.5172 12.359 33.7881L71.0156 37.0684H0Z" />
+    </svg>
+  );
+}
+
+// Dock on the canvas bottom edge: flare, dock over a grey base, flare.
+function CanvasDockFrame({ children }) {
+  return (
+    <div className="canvas-stage__fab">
+      <CanvasDockFlare mirrored />
+      <div className="canvas-stage__dock-col">
+        <div className="canvas-win-strip">{children}</div>
+        <div className="canvas-stage__dock-base" aria-hidden="true" />
+      </div>
+      <CanvasDockFlare />
     </div>
   );
 }
@@ -654,6 +690,8 @@ function CanvasPerformanceOverlay({
   // "open" / "closing" (warping back into the icon) / "closed".
   const [phase, setPhase] = useState(() => (dock.expanded ? "open" : "closed"));
   const [isDragging, setIsDragging] = useState(false);
+  // The titlebar mounts in the same commit, so look the slot up after it.
+  const [titlebarSlot, setTitlebarSlot] = useState(null);
   const dragStateRef = useRef(null);
   const closeTimerRef = useRef(0);
   const [snapshot, setSnapshot] = useState({
@@ -743,6 +781,10 @@ function CanvasPerformanceOverlay({
   }, [dock]);
 
   useEffect(() => () => window.clearTimeout(closeTimerRef.current), []);
+
+  useEffect(() => {
+    setTitlebarSlot(document.getElementById("titlebar-right-slot"));
+  }, []);
 
   // Dragging works from the icon and the panel header. The anchor is the
   // top-right corner (right/top from the window edges), so the panel opens
@@ -900,7 +942,31 @@ function CanvasPerformanceOverlay({
 
   const fpsTone = snapshot.fps >= 55 ? "good" : snapshot.fps >= 30 ? "warn" : "bad";
 
-  return (
+  const openPanel = useCallback(() => {
+    window.clearTimeout(closeTimerRef.current);
+    setPhase("open");
+    setDock((current) => ({ ...current, expanded: true }));
+  }, []);
+
+  // Closed, the toggle sits at the right end of the titlebar. Open, the panel
+  // is portaled to <body> so nothing on the canvas can paint over it.
+  if (phase === "closed" && titlebarSlot) {
+    return createPortal(
+      <button
+        type="button"
+        className={`titlebar-perf-toggle titlebar-perf-toggle--${fpsTone}`}
+        aria-label={`Performance: ${Math.round(snapshot.fps)} fps. Open panel`}
+        title="Performance"
+        onClick={openPanel}
+      >
+        <Gauge size={14} aria-hidden="true" />
+        <span className="titlebar-perf-toggle__fps">{Math.round(snapshot.fps)}</span>
+      </button>,
+      titlebarSlot,
+    );
+  }
+
+  return createPortal(
     <div
       ref={overlayRef}
       className={`canvas-perf-overlay canvas-perf-overlay--${phase}${isDragging ? " canvas-perf-overlay--dragging" : ""}`}
@@ -1052,7 +1118,8 @@ function CanvasPerformanceOverlay({
       </div>
       </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -2860,6 +2927,13 @@ export default function CanvasWorkspaceView() {
     ? (tileById[radialMenu.card?.id] ?? radialMenu.card ?? null)
     : null;
   const isCodeContextTile = activeContextTile?.type === CODE_CARD_TYPE;
+  // A link/image tile that can take a note, and whether it has one open.
+  const linkNoteContextState = activeContextTile && canAddLinkNote(activeContextTile)
+    ? (isLinkNoteOpen(activeContextTile) ? "open" : "closed")
+    : null;
+  // An imported file in the default design (not a coding file).
+  const isDefaultFileContextTile = activeContextTile?.type === TILE_TYPES.FILE
+    && getFileCardCodeLanguageId(activeContextTile) === null;
   const isCounterContextTile = activeContextTile?.type === COUNTER_CARD_TYPE;
   const isDeadlineContextTile = activeContextTile?.type === DEADLINE_CARD_TYPE;
   const isProgressContextTile = activeContextTile?.type === PROGRESS_CARD_TYPE;
@@ -2959,6 +3033,35 @@ export default function CanvasWorkspaceView() {
     requestTextBoxEdit(activeContextTile.id, { selectAll: false });
     return true;
   }, [activeContextTile, interactions, isPlainTextBoxContextTile, requestTextBoxEdit]);
+
+  const handleRadialLinkNote = useCallback(() => {
+    if (!linkNoteContextState || !activeContextTile) {
+      return false;
+    }
+
+    const patch = linkNoteContextState === "open"
+      ? getCloseLinkNotePatch(activeContextTile)
+      : getOpenLinkNotePatch(activeContextTile);
+
+    if (!patch) {
+      return false;
+    }
+
+    interactions.selectTile(activeContextTile.id, { forceSingle: true });
+    updateExistingCard(activeContextTile.id, patch);
+    return true;
+  }, [activeContextTile, interactions, linkNoteContextState, updateExistingCard]);
+
+  // The colour panel lives on the tile (FileTile); it listens for this.
+  const handleRadialFileColor = useCallback(() => {
+    if (!isDefaultFileContextTile || !activeContextTile) {
+      return false;
+    }
+
+    interactions.selectTile(activeContextTile.id, { forceSingle: true });
+    window.dispatchEvent(new CustomEvent(OPEN_FILE_COLOR_EVENT, { detail: { tileId: activeContextTile.id } }));
+    return true;
+  }, [activeContextTile, interactions, isDefaultFileContextTile]);
 
   const handleRadialDelete = useCallback(() => {
     const selectionIds = radialMenu?.selectionIds ?? [];
@@ -3099,6 +3202,8 @@ export default function CanvasWorkspaceView() {
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
+    showFileColor: radialMenu?.kind === "tile" && isDefaultFileContextTile,
+    linkNoteState: radialMenu?.kind === "tile" ? linkNoteContextState : null,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     showTether: radialMenu?.kind === "tile" && showTetherAction,
     tetherCount: contextMenuSelectionCount,
@@ -3121,6 +3226,8 @@ export default function CanvasWorkspaceView() {
       onCreateChecklist: handleRadialCreateChecklist,
       onCreatePaperNote: handleRadialCreatePaperNote,
       onEditText: handleRadialEditText,
+      onChangeFileColor: handleRadialFileColor,
+      onToggleLinkNote: handleRadialLinkNote,
       onTether: handleRadialTether,
       onUntether: handleRadialUntether,
     },
@@ -3133,6 +3240,8 @@ export default function CanvasWorkspaceView() {
     handleRadialCreateChecklist,
     handleRadialCreatePaperNote,
     handleRadialEditText,
+    handleRadialFileColor,
+    handleRadialLinkNote,
     handleRadialTether,
     handleRadialUntether,
     handleCopyPreviewCodexReport,
@@ -3144,6 +3253,8 @@ export default function CanvasWorkspaceView() {
     canShowRefreshPreviewAction,
     canShowWebclipAction,
     handleToggleWebclip,
+    isDefaultFileContextTile,
+    linkNoteContextState,
     isPlainTextBoxContextTile,
     activeContextTile,
     recoverablePreviewTiles.length,
@@ -3160,12 +3271,10 @@ export default function CanvasWorkspaceView() {
     return (
       <main className="canvas-stage canvas-stage--grid" data-airpaste-canvas-capture-root>
 
-        <div className="canvas-stage__fab">
-          <div className="canvas-win-strip">
-            <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
-            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          </div>
-        </div>
+        <CanvasDockFrame>
+          <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+        </CanvasDockFrame>
         <WorkspaceTopbarTrail />
         <GridWorkspaceView
           dropImport={dropImport}
@@ -3202,20 +3311,16 @@ export default function CanvasWorkspaceView() {
         document.getElementById("titlebar-right-slot") || document.body
       ) : null}
 
-      {createPortal(
-        <div className="canvas-stage__fab">
-          <div className="canvas-win-strip">
-            <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
-            <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-            <DrawingToolControls
-              activeTool={selectedCanvasToolMode}
-              iconOnly
-              onToolChange={setCanvasToolMode}
-            />
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Dock: on the canvas bottom edge, centred (ShellLayers.css). */}
+      <CanvasDockFrame>
+        <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
+        <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+        <DrawingToolControls
+          activeTool={selectedCanvasToolMode}
+          iconOnly
+          onToolChange={setCanvasToolMode}
+        />
+      </CanvasDockFrame>
 
       {/* ── Top bar ── */}
       <WorkspaceTopbarTrail />

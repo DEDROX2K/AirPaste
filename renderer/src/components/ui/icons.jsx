@@ -9,6 +9,8 @@ import {
   ArrowBarRight,
   BatteryMedium,
   BookOpen,
+  Bug as PixelBug,
+  Clipboard as PixelClipboard,
   Bookmark as PixelBookmark,
   Code as PixelCode,
   Image as PixelImage,
@@ -68,6 +70,7 @@ import {
   TextAlignRight,
   TextStartT,
   Trash,
+  Unlink as PixelUnlink,
   CursorMinimal,
   WarningDiamond,
   Zap,
@@ -223,3 +226,6 @@ export const Code = pixelIcon(PixelCode, "Code");
 export const Gauge = pixelIcon(SpeedFast, "Gauge");
 export const Image = pixelIcon(PixelImage, "Image");
 export const Progress = pixelIcon(BatteryMedium, "Progress");
+export const Unlink = pixelIcon(PixelUnlink, "Unlink");
+export const Bug = pixelIcon(PixelBug, "Bug");
+export const Clipboard = pixelIcon(PixelClipboard, "Clipboard");

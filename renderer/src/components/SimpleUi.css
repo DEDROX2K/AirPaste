@@ -14,8 +14,8 @@
   --ap-simple-line-strong: #bdc1c6;
   --ap-simple-ink: #202124;
   --ap-simple-muted: #5f6368;
-  --ap-simple-radius-control: 8px;
-  --ap-simple-radius-surface: 12px;
+  --ap-simple-radius-control: 4px;
+  --ap-simple-radius-surface: 5px;
 }
 
 /* This file used to also redefine every --ap-tile-* token (bg/ink/line/

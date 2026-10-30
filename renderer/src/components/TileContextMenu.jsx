@@ -1,9 +1,47 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppButton } from "./ui/app";
+import {
+  Archive,
+  Bug,
+  Clipboard,
+  Folder,
+  Grid2X2,
+  Image,
+  Link2,
+  ListChecks,
+  Notes,
+  Pencil,
+  RefreshCw,
+  Tether,
+  Trash2,
+  Type,
+  Unlink,
+} from "./ui/icons";
 
 const MENU_GAP = 8;
 const MENU_MIN_WIDTH = 188;
+const MENU_ICON_SIZE = 16;
+
+// Keyed by the action ids from radialMenuActions.js.
+const ACTION_ICONS = Object.freeze({
+  "refresh-failed-previews": RefreshCw,
+  "refresh-preview": RefreshCw,
+  webclip: Image,
+  "copy-preview-diagnostics": Bug,
+  "copy-codex-report": Clipboard,
+  snapping: Grid2X2,
+  text: Type,
+  "edit-text": Pencil,
+  checklist: ListChecks,
+  "paper-note": Notes,
+  folder: Folder,
+  tether: Tether,
+  untether: Unlink,
+  rack: Archive,
+  link: Link2,
+  delete: Trash2,
+});
 
 function buildMenuSections(actions) {
   const visibleActions = Array.isArray(actions) ? actions.filter(Boolean) : [];
@@ -50,6 +88,8 @@ function ContextMenuItem({ action, isPending, onSelect }) {
     .filter(Boolean)
     .join(" ");
 
+  const Icon = ACTION_ICONS[action.id];
+
   return (
     <AppButton
       tone={action.tone === "danger" ? "danger" : "surface"}
@@ -64,6 +104,9 @@ function ContextMenuItem({ action, isPending, onSelect }) {
         void onSelect(action);
       }}
     >
+      {Icon ? (
+        <Icon className="tile-context-menu__action-icon" size={MENU_ICON_SIZE} aria-hidden="true" />
+      ) : null}
       <span className="tile-context-menu__action-copy">
         <span className="tile-context-menu__action-label">{action.label}</span>
       </span>

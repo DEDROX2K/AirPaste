@@ -3169,6 +3169,16 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   cursor: var(--cursor-default);
 }
 
+.tile-context-menu__action-icon {
+  flex-shrink: 0;
+  margin-right: -4px;
+  color: var(--ap-text-secondary);
+}
+
+.tile-context-menu__action--danger .tile-context-menu__action-icon {
+  color: inherit;
+}
+
 .tile-context-menu__action-copy {
   display: flex;
   flex-direction: column;

@@ -9,8 +9,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 36px;
-  padding: 0 16px !important;
+  min-height: 44px;
+  padding: 0 10px 0 10px!important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
   background: rgba(255, 255, 255, 0.72) !important;
   backdrop-filter: blur(24px) saturate(1.9) !important;
@@ -438,107 +438,369 @@
   text-transform: uppercase;
 }
 
-/* Safari/Chrome modern macOS tab layout */
-.titlebar-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  flex: 0 1 auto;
-  justify-content: flex-start;
-  padding: 4px 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: none;
+/* Top-left cluster: [live pill] [logo] [date + time | user].
+   Sizes are the full-size v5 values scaled to the 50px bar (x 50/74). */
+/* Sized to their content: they sit above the centred tabs, so a stretched
+   group would swallow clicks meant for the tabs. */
+.titlebar-left,
+.titlebar-right {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto !important;
 }
 
-.titlebar-tabs::-webkit-scrollbar {
-  display: none;
+.titlebar-cluster {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+
+.titlebar-cluster__live {
+  position: relative;
+  width: 8px;
+  overflow: hidden;
+  border-radius: 2px;
+  background:#bbcfbb;
+  animation: titlebar-live-breathe 3.6s ease-in-out infinite;
+}
+
+.titlebar-cluster__live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background-size: 3px 3px;
+}
+
+/* One-shot pulse when a change registers (useLivePulse in TopTabBar.jsx):
+   green = tile created, red = tile deleted, yellow = text edited. */
+.titlebar-cluster__live::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--live-pulse-color, transparent);
+  opacity: 0;
+}
+
+.titlebar-cluster__live--create { --live-pulse-color: #34c759; }
+.titlebar-cluster__live--delete { --live-pulse-color: #ff4b26; }
+.titlebar-cluster__live--edit { --live-pulse-color: #ffda27; }
+
+.titlebar-cluster__live--create,
+.titlebar-cluster__live--delete,
+.titlebar-cluster__live--edit {
+  animation: titlebar-live-pulse 700ms ease-out;
+}
+
+.titlebar-cluster__live--create::before,
+.titlebar-cluster__live--delete::before,
+.titlebar-cluster__live--edit::before {
+  animation: titlebar-live-pulse-fill 700ms ease-out;
+}
+
+@keyframes titlebar-live-pulse {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  25% { box-shadow: 0 0 0 1px var(--live-pulse-color), 0 0 12px var(--live-pulse-color); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes titlebar-live-pulse-fill {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+
+.titlebar-cluster__chip {
+  display: flex;
+  align-items: center;
+  height: 33px;
+  border: 1px solid rgba(20, 20, 18, 0.08);
+  border-radius: 4px;
+  background: #fafaf9;
+  color: #1b1b1a;
+}
+
+.titlebar-cluster__logo {
+  width: 38px;
+  justify-content: center;
+  padding: 0;
+  cursor: var(--ap-cursor-pointer);
+  transition: transform 0.15s ease;
+}
+
+.titlebar-cluster__logo:hover {
+  transform: translateY(-1px);
+}
+
+.titlebar-cluster__logo:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) inset;
+}
+
+.titlebar-cluster__logo .ap-logo-icon {
+  width: 27px;
+  height: 27px;
+}
+
+.titlebar-cluster__clock {
+  gap: 11px;
+  padding: 0 12px 0 11px;
+}
+
+.titlebar-cluster__date {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.titlebar-cluster__day {
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.titlebar-cluster__date-n {
+  font-size: 9px;
+  color: #6e6e6a;
+}
+
+.titlebar-cluster__time {
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.titlebar-cluster__divider {
+  width: 1px;
+  height: 24px;
+  border-radius: 1px;
+  background: #d4d4d0;
+}
+
+.titlebar-cluster__user {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.titlebar-cluster__user-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34c759;
+  box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-cluster__live {
+    animation: none;
+  }
+}
+
+@media (max-width: 1000px) {
+  .titlebar-cluster__date {
+    display: none;
+  }
+}
+
+/* Tabs (ref: airpaste-ui-shell-v8). Absolutely centred on the bar,
+   independent of the left/right groups. Each tab spans the full bar height
+   so its hit box runs to the top edge; the visible body sits inside it.
+   Unselected: body 3px from the top, top connectors rise into the bar top.
+   Selected: body on the centre line, bottom connectors run to the canvas. */
+.titlebar-tabs {
+  --tab-h: 28px;
+  --tab-unsel-top: 8px;
+  --tab-sel-top: 6px;
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  max-width: calc(100% - 800px);
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+  justify-content: flex-start;
 }
 
 .titlebar-tab-shell {
   display: flex;
-  flex-shrink: 0;
+  flex-shrink: 1;
   min-width: 0;
-  padding-block: 2px;
   position: relative;
-}
-
-/* Micro separator lines between tabs (Safari-style) */
-.titlebar-tab-shell:not(:first-child)::before {
-  content: "";
-  position: absolute;
-  left: -2px;
-  top: 8px;
-  bottom: 8px;
-  width: 1px;
-  background: rgba(0, 0, 0, 0.1);
-  transition: opacity var(--ap-transition-fast);
 }
 
 .titlebar-tab-shell--dragging {
   opacity: 0.68;
 }
 
-/* Pill/Floating Card active tab style */
+/* Open: fade and grow in (neighbours slide via the FLIP in TopTabBar.jsx).
+   Close: the tab stays for TAB_EXIT_MS and shrinks to nothing, eating its
+   6px gap, so its neighbours close in smoothly. */
+.titlebar-tab-shell--entering {
+  animation: titlebar-tab-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.titlebar-tab-shell--exiting {
+  overflow: hidden;
+  pointer-events: none;
+  animation: titlebar-tab-out 180ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+@keyframes titlebar-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.94);
+  }
+}
+
+@keyframes titlebar-tab-out {
+  from {
+    width: var(--tab-exit-w);
+    min-width: var(--tab-exit-w);
+    opacity: 1;
+  }
+  to {
+    width: 0;
+    min-width: 0;
+    margin-left: -6px;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-tab-shell--entering,
+  .titlebar-tab-shell--exiting {
+    animation: none;
+  }
+}
+
 .titlebar-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 4px 12px;
-  border: 1px solid transparent !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: var(--ap-text-secondary);
+  --shape: #cacaca;
+  --top: var(--tab-unsel-top);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  height: 100%;
   cursor: var(--ap-cursor-pointer);
   -webkit-app-region: no-drag;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif !important;
+}
+
+.titlebar-tab:not(.titlebar-tab--active):hover {
+  --shape: #c2c2c2;
+}
+
+.titlebar-tab--active {
+  --shape: #efefee;
+  --top: var(--tab-sel-top);
+}
+
+.titlebar-tab__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: var(--tab-h);
+  margin-top: var(--top);
+  padding: 0 8px 0 11px;
+  border-radius: 999px;
+  background: var(--shape);
+  color: #1b1b1a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   font-size: 12px;
   font-weight: 500;
   line-height: 1;
-  box-shadow: none !important;
-  transition:
-    background-color var(--ap-transition-fast),
-    border-color var(--ap-transition-fast),
-    color var(--ap-transition-fast),
-    box-shadow var(--ap-transition-fast),
-    transform var(--ap-transition-spring);
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
 }
 
-/* Hover state: elegant translucent capsule background */
-.titlebar-tab:hover {
-  background: rgba(0, 0, 0, 0.04) !important;
-  color: var(--ap-text-primary);
-  transform: var(--ap-hover-lift-sm);
+.titlebar-tab--active .titlebar-tab__body {
+  padding-right: 10px;
+  border-radius: 12px;
 }
 
-/* Active State: crisp white floating pill card */
-.titlebar-tab--active {
-  background: #ffffff !important;
-  color: var(--ap-text-primary) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04) !important;
-}
-
-/* Hide neighboring separators when a tab is hovered or active */
-.titlebar-tab-shell:has(.titlebar-tab:hover)::before,
-.titlebar-tab-shell:has(.titlebar-tab--active)::before,
-.titlebar-tab-shell:hover + .titlebar-tab-shell::before,
-.titlebar-tab-shell:has(.titlebar-tab--active) + .titlebar-tab-shell::before {
-  opacity: 0;
-}
-
-.titlebar-tab--home {
-  width: 32px;
-  min-width: 32px;
+.titlebar-tab--home .titlebar-tab__body {
   justify-content: center;
-  padding: 0;
+  padding: 0 11px;
 }
 
 .titlebar-tab--file {
   min-width: 90px;
   max-width: 180px;
+}
+
+/* Connectors: 20% of the tab width, just outside each side. */
+.titlebar-tab__conn {
+  position: absolute;
+  z-index: 0;
+  width: 41%;
+  pointer-events: none;
+}
+
+.titlebar-tab__conn svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.titlebar-tab__conn--top-left,
+.titlebar-tab__conn--top-right {
+  top: 0;
+  height: 10px;
+}
+
+.titlebar-tab__conn--bottom-left,
+.titlebar-tab__conn--bottom-right {
+  top: calc(var(--top) + var(--tab-h));
+  height: 10px;
+}
+
+.titlebar-tab__conn--top-left,
+.titlebar-tab__conn--bottom-left {
+  right: 48%;
+}
+
+.titlebar-tab__conn--top-right,
+.titlebar-tab__conn--bottom-right {
+  left: 48%;
+  transform: scaleX(-1);
+}
+
+.titlebar-tab--active .titlebar-tab__conn--top-left,
+.titlebar-tab--active .titlebar-tab__conn--top-right,
+.titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__conn--bottom-left,
+.titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__conn--bottom-right {
+  display: none;
+}
+
+/* Dotted outline around the selected body. WE DO NOT NEED IT - no dotted lines around the tabs anymore*/
+.titlebar-tab__dots {
+  display: none;
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: calc(var(--top) - 3px);
+  height: calc(var(--tab-h) + 6px);
+  pointer-events: none;
+}
+
+.titlebar-tab--active .titlebar-tab__dots {
+  display: block;
 }
 
 .titlebar-home-icon {
@@ -556,26 +818,31 @@
 }
 
 .titlebar-tab-label {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
+/* Close: the standard Apple tab close -- a quiet x that shows on the active
+   or hovered tab, with a soft round highlight on hover. */
 .titlebar-tab-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--ap-text-secondary);
-  opacity: 0.6;
-  cursor: var(--ap-cursor-pointer);
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 0%;
+  background: #0000001a;
+  color: var(--ap-text-secondary);
+  opacity: 1;
+  cursor: var(--ap-cursor-pointer);
   transition:
     background-color var(--ap-transition-fast),
     color var(--ap-transition-fast),
@@ -583,7 +850,12 @@
     transform var(--ap-transition-spring);
 }
 
-.titlebar-tab:hover .titlebar-tab-close {
+.titlebar-tab--active .titlebar-tab-close {
+  opacity: 0.6;
+}
+
+.titlebar-tab:hover .titlebar-tab-close,
+.titlebar-tab-close:focus-visible {
   opacity: 1;
 }
 
@@ -593,10 +865,38 @@
   transform: scale(1.04);
 }
 
-.titlebar-tab-close svg {
-  width: 6px;
-  height: 6px;
+.titlebar-tab-close:active {
+  background: rgba(0, 0, 0, 0.14);
+  transform: scale(0.96);
 }
+
+.titlebar-tab-close svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Performance toggle (CanvasPerformanceOverlay, closed state). Picks up the
+   standard titlebar button chrome from #titlebar-right-slot below. */
+.titlebar-perf-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.titlebar-perf-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.titlebar-perf-toggle__fps {
+  min-width: 2ch;
+  text-align: right;
+}
+
+.titlebar-perf-toggle--good .titlebar-perf-toggle__fps { color: #248a3d; }
+.titlebar-perf-toggle--warn .titlebar-perf-toggle__fps { color: #b25000; }
+.titlebar-perf-toggle--bad .titlebar-perf-toggle__fps { color: #d70015; }
 
 /* Right side controls */
 #titlebar-right-slot {
@@ -647,50 +947,60 @@
   -webkit-app-region: no-drag;
 }
 
-/* --- Windows Vector Titlebar styling --- */
+/* --- Windows controls (in-app; the native overlay is off).
+   Full-size v5 values scaled to the 50px bar (x 50/74). --- */
 .titlebar-controls--win {
-  align-items: stretch !important;
-  height: 36px !important; /* Spans full height of the header for perfect native feel */
-  gap: 0 !important;
-  margin-right: -16px !important; /* Extends to the very edge of the container */
+  align-items: center !important;
+  gap: 2px !important;
 }
 
 .titlebar-btn--win {
   appearance: none !important;
   -webkit-appearance: none !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 46px !important;
-  height: 100% !important;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  color: var(--ap-text-primary) !important;
-  opacity: 0.88 !important;
-  cursor: var(--ap-cursor-default) !important;
-  transition:
-    background-color var(--ap-transition-fast),
-    color var(--ap-transition-fast) !important;
+  display: grid !important;
+  place-items: center !important;
+  height: 33px !important;
   padding: 0 !important;
   margin: 0 !important;
+  border: 1px solid !important;
+  color: #000 !important;
+  cursor: var(--ap-cursor-default) !important;
+  transition: filter 0.15s ease !important;
 }
 
 .titlebar-btn--win:hover {
-  background: rgba(0, 0, 0, 0.06) !important;
-  color: var(--ap-text-primary) !important;
-  opacity: 1 !important;
+  filter: brightness(1.04) saturate(1.05);
 }
 
-.titlebar-btn--win.is-close:hover {
-  background: #e81123 !important; /* Native Windows close button highlight */
-  color: #ffffff !important;
+.titlebar-btn--win:active {
+  filter: brightness(0.95);
+}
+
+.titlebar-btn--win.is-minimize {
+  width: 32px !important;
+  border-radius: 20px !important;
+  border-color: #9292927f !important;
+  background: #c0c0c0 !important;
+}
+
+.titlebar-btn--win.is-maximize {
+  width: 35px !important;
+  border-radius: 40% !important;
+  border-color: #9292927f !important;
+  background: #c0c0c0 !important;
+}
+
+.titlebar-btn--win.is-close {
+  width: 32px !important;
+  border-radius: 20% !important;
+  border-color: #9292927f !important;
+  background: #c0c0c0 !important;
 }
 
 .titlebar-btn--win svg {
-  width: 10px;
-  height: 10px;
-  color: currentColor;
+    width: 28px;
+    height: 23px;
+  color: rgb(0 0 0 / 49%);
 }
 
 /* --- macOS Traffic Lights styling --- */
@@ -726,24 +1036,24 @@
 }
 
 .titlebar-btn--mac.is-close {
-  background-color: #ff5f56 !important;
+  background: #ff5f56 !important;
 }
 .titlebar-btn--mac.is-close:hover {
-  background-color: #ff3b30 !important;
+  background: #ff3b30 !important;
 }
 
 .titlebar-btn--mac.is-minimize {
   background-color: #ffbd2e !important;
 }
 .titlebar-btn--mac.is-minimize:hover {
-  background-color: #ff9500 !important;
+  background: #ff9500 !important;
 }
 
 .titlebar-btn--mac.is-maximize {
   background-color: #27c93f !important;
 }
 .titlebar-btn--mac.is-maximize:hover {
-  background-color: #34c759 !important;
+  background: #34c759 !important;
 }
 
 .titlebar-tab-menu {

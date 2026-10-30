@@ -31,13 +31,14 @@
   box-sizing: border-box;
 }
 
-/* ---------- Stage: perspective for the leaning cards ---------- */
+/* ---------- Stage ---------- */
 
+/* No shared perspective here: one vanishing point for the whole rack made
+   every leaning card converge on the centre. Each card carries its own
+   perspective() instead, so they all stand straight. */
 .rack-tile__stage {
   position: relative;
   height: 100%;
-  perspective: 1000px;
-  perspective-origin: 50% 8%;
 }
 
 .rack-tile__cards {
@@ -68,6 +69,7 @@
   margin-left: -88px;
   transform-origin: 50% 100%;
   transform:
+    perspective(1000px)
     translate3d(var(--rack-dx), var(--rack-dy), var(--rack-dz))
     rotateX(var(--rack-lean))
     rotateY(var(--rack-ry))
@@ -94,7 +96,7 @@
 
 @keyframes rack-card-drop-in {
   from {
-    transform: translate3d(var(--rack-dx), -150px, 120px) rotateX(-14deg) rotateY(0deg) rotateZ(var(--rack-rz));
+    transform: perspective(1000px) translate3d(var(--rack-dx), -150px, 120px) rotateX(-14deg) rotateY(0deg) rotateZ(var(--rack-rz));
     opacity: 0;
   }
 }
@@ -102,7 +104,7 @@
 /* Hover / focus / press: back to normal, lifted, tipped out of the rack. */
 .rack-tile__card--active,
 .rack-tile__card:focus-visible {
-  transform: translate3d(0, -84px, 90px) rotateX(-8deg) rotateY(0deg) rotateZ(0deg);
+  transform: perspective(1000px) translate3d(0, -84px, 90px) rotateX(-8deg) rotateY(0deg) rotateZ(0deg);
 }
 
 /* Neighbours make room (--rack-dx is set per card). */

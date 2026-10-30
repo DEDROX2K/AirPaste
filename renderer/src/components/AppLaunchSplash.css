@@ -23,9 +23,9 @@
 }
 
 .app-launch-splash {
-  --splash-radius: 16px;
-  --splash-gap: 8px;
-  --splash-panel-width: 216px;
+  --splash-radius: 7px;
+  --splash-gap: 4px;
+  --splash-panel-width: 246px;
   --splash-image-ratio: calc(823 / 948);
   /* Photo height: as tall as fits, never wider than the window allows. */
   --splash-height: min(
@@ -61,7 +61,7 @@
 }
 
 .app-launch-splash__card + .app-launch-splash__card {
-  border-top: 1px solid #ececec;
+  border-top: 1px solid #7b7878;
 }
 
 .app-launch-splash__card--recent {
@@ -73,7 +73,7 @@
 
 .app-launch-splash__label {
   margin: 0 0 6px;
-  color: #8e8e93;
+  color: #a1a1a9;
   font-size: 11px;
   font-weight: 400;
 }
@@ -101,7 +101,7 @@
 }
 
 .app-launch-splash__item:disabled {
-  color: #a1a1a6;
+  color: #f80000;
   cursor: var(--ap-cursor-default);
 }
 
@@ -135,7 +135,7 @@
   padding: 0;
   border: 0;
   border-radius: var(--splash-radius);
-  background: #e9e6e1;
+  background: #00000000;
   color: inherit;
   font: inherit;
   text-align: left;
@@ -144,7 +144,7 @@
 }
 
 .app-launch-splash__hero:focus-visible {
-  outline: 2px solid #111;
+  outline: 2px solid #00000000;
   outline-offset: -3px;
 }
 

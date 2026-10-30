@@ -98,6 +98,43 @@ async function resolveSpotifyPreview(url, fetchJson) {
   });
 }
 
+// vxtwitter first, fxtwitter as a fallback: vxtwitter's API now sits behind
+// a Cloudflare challenge, and when both miss the link falls through to the
+// generic resolver, which screenshots the X page instead of showing media.
+async function fetchTweetPayload(identity, fetchJson) {
+  const vxPayload = await fetchJson(`https://api.vxtwitter.com/${identity.username}/status/${identity.tweetId}`);
+
+  if (vxPayload && typeof vxPayload === "object") {
+    return {
+      text: vxPayload.text,
+      mediaUrls: [
+        ...(Array.isArray(vxPayload.media_extended)
+          ? vxPayload.media_extended.flatMap((media) => [
+            media?.thumbnail_url,
+            media?.image,
+            media?.url,
+          ])
+          : []),
+        ...(Array.isArray(vxPayload.mediaURLs) ? vxPayload.mediaURLs : []),
+      ],
+    };
+  }
+
+  const fxPayload = await fetchJson(`https://api.fxtwitter.com/${identity.username}/status/${identity.tweetId}`);
+  const tweet = fxPayload?.tweet;
+
+  if (!tweet || typeof tweet !== "object") {
+    return null;
+  }
+
+  const fxMedia = Array.isArray(tweet.media?.all) ? tweet.media.all : [];
+
+  return {
+    text: tweet.text,
+    mediaUrls: fxMedia.flatMap((media) => [media?.thumbnail_url, media?.url]),
+  };
+}
+
 async function resolveXPreview(url, fetchJson) {
   const identity = parseTweetIdentity(url);
 
@@ -105,22 +142,14 @@ async function resolveXPreview(url, fetchJson) {
     return null;
   }
 
-  const payload = await fetchJson(`https://api.vxtwitter.com/${identity.username}/status/${identity.tweetId}`);
+  const payload = await fetchTweetPayload(identity, fetchJson);
 
   if (!payload) {
     return null;
   }
 
-  const mediaUrls = uniqueValues([
-    ...(Array.isArray(payload.media_extended)
-      ? payload.media_extended.flatMap((media) => [
-        media?.thumbnail_url,
-        media?.image,
-        media?.url,
-      ])
-      : []),
-    ...(Array.isArray(payload.mediaURLs) ? payload.mediaURLs : []),
-  ]).filter((candidateUrl) => isLikelyPreviewImageUrl(candidateUrl));
+  const mediaUrls = uniqueValues(payload.mediaUrls)
+    .filter((candidateUrl) => isLikelyPreviewImageUrl(candidateUrl));
 
   return createResolvedPreviewResult({
     kind: PREVIEW_KIND.X_POST,

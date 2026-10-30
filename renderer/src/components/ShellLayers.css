@@ -1,0 +1,139 @@
+/* Window layering (ref: airpaste-ui-shell-v7), for Home and open canvases.
+   Layering, positioning and shape only -- sizes, spacing, fonts and colours
+   of the existing pieces stay as the earlier stylesheets set them.
+
+   1. .app-window          base layer: plain grey background
+      .titlebar-root       sits on the base, no fill of its own
+   2. The floating card, rounded with a gap on every side:
+      .ap-home                         on Home
+      .app-shell__workspace-layout     on a canvas (pan/zoom happen inside)
+      .left-pages-panel    floats on top of the canvas inside the card
+      .canvas-stage__fab   the dock, on the canvas bottom edge: flare, dock
+                           over a grey base, flare (CanvasDockFrame)
+
+   Loaded last, after the !important passes in SimpleUi/CanvasDockPolish/
+   MonochromeUi. */
+
+.app-shell--ready .app-window {
+  --ap-shell-base: #b0b0b0;
+    --ap-shell-gap-x: 8px;
+    --ap-shell-gap-b: 8px;
+    --ap-shell-card-radius: 5px;
+    --ap-shell-float-inset: 7px;
+    --ap-shell-float-radius: 5px;
+    --ap-shell-dock-base: 6px;
+
+  background: var(--ap-shell-base) !important;
+}
+
+/* 1. Top nav sits on the base layer. */
+.app-shell--ready .app-window > .titlebar-root {
+  border-bottom: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.app-shell--ready .app-window > .app-shell__view-container {
+  background: transparent !important;
+}
+
+/* 2. The floating card. */
+.app-window .app-shell__view-container > :is(.ap-home, .app-shell__workspace-layout) {
+  position: relative;
+  margin: 0 var(--ap-shell-gap-x) var(--ap-shell-gap-b);
+  border-radius: var(--ap-shell-card-radius);
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+/* The stage fills the whole card; the pages panel no longer takes a column. */
+.app-window .app-shell__workspace-layout .canvas-stage {
+  position: relative;
+  z-index: 0;
+}
+
+/* The board gets its own stacking layer, so high z-index tiles and overlays
+   inside it can't paint over the dock. */
+.app-window .app-shell__workspace-layout #canvas-board {
+  z-index: 0;
+}
+
+.app-window .app-shell__workspace-layout .canvas-stage__fab {
+  z-index: 1;
+}
+
+/* Pages panel floats on the canvas, as tall as its content. */
+.app-window .app-shell__workspace-layout > :is(.left-pages-panel, .left-pages-rail) {
+  position: absolute;
+  top: var(--ap-shell-float-inset);
+  left: var(--ap-shell-float-inset);
+  max-height: calc(100% - var(--ap-shell-float-inset) * 2);
+  z-index: 10;
+  border: 1px solid rgba(20, 20, 18, 0.08) !important;
+  border-radius: var(--ap-shell-float-radius) !important;
+  box-shadow: none !important;
+}
+
+/* Dock on the canvas bottom edge. The strip keeps its own size and styling;
+   only its bottom corners square off where it meets the grey base. */
+.app-window .app-shell__workspace-layout .canvas-stage__fab {
+  position: absolute;
+  bottom: 0 !important;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0 !important;
+}
+
+.canvas-stage__dock-col {
+  /* Matches the strip's border-radius (CanvasDockPolish.css). */
+  --ap-shell-dock-radius: 16px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fill the two gaps outside the strip's rounded bottom corners with the base
+   grey, so the strip and base read as one piece. Transparent inside the
+   curve, so the strip itself is untouched. */
+.canvas-stage__dock-col::before,
+.canvas-stage__dock-col::after {
+  content: "";
+  position: absolute;
+  bottom: var(--ap-shell-dock-base);
+  width: var(--ap-shell-dock-radius);
+  height: var(--ap-shell-dock-radius);
+  pointer-events: none;
+}
+
+.canvas-stage__dock-col::before {
+  left: 0;
+  background: radial-gradient(circle at 100% 0, transparent calc(var(--ap-shell-dock-radius) - 0.5px), var(--ap-shell-base) var(--ap-shell-dock-radius));
+}
+
+.canvas-stage__dock-col::after {
+  right: 0;
+  background: radial-gradient(circle at 0 0, transparent calc(var(--ap-shell-dock-radius) - -3.5px), var(--ap-shell-base) var(--ap-shell-dock-radius));
+}
+
+/*
+.app-window .app-shell__workspace-layout .canvas-stage__fab .canvas-win-strip {
+   border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important; 
+}*/
+
+.canvas-stage__dock-base {
+  height: var(--ap-shell-dock-base);
+  background: var(--ap-shell-base);
+}
+
+.canvas-stage__flare {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 38px;
+  fill: var(--ap-shell-base);
+}
+
+.canvas-stage__flare--l {
+  transform: scaleX(-1);
+}

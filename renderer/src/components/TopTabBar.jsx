@@ -6,7 +6,7 @@ import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, ErrorIcon, Home, Info, Minus, Square, Warning, X } from "./ui/icons";
+import { Check, Copy, ErrorIcon, Home, Info, Minus, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
@@ -14,6 +14,8 @@ const HOME_COOLDOWN_MS = 90000;
 const WORD_TYPING_INTERVAL_MS = 140;
 const TOAST_EXIT_MS = 160;
 const EYE_CLOSE_MS = 1000;
+// The cursor-following eye is hidden for now; toasts show in ToastStack.
+const SHOW_TITLEBAR_EYE = false;
 
 // Empty titlebar space moves the window (main/windows.js moves it; a CSS
 // drag region would force the native cursor). Controls stay clickable.
@@ -69,7 +71,7 @@ function IconWindowsMinimize() {
 }
 
 function IconWindowsMaximize() {
-  return <Square size={12} aria-hidden="true" />;
+  return <Copy size={14} aria-hidden="true" />;
 }
 
 function IconWindowsClose() {
@@ -138,6 +140,171 @@ function TitleBarControls({ isMac, onRequestClose }) {
       >
         <IconWindowsClose />
       </button>
+    </div>
+  );
+}
+
+function formatClock(date) {
+  return {
+    day: date.toLocaleDateString("en-GB", { weekday: "long" }),
+    date: date.toLocaleDateString("en-GB", { day: "numeric", month: "long" }),
+    time: date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
+  };
+}
+
+// Re-renders on each minute boundary, then every 60s after that.
+function useMinuteClock() {
+  const [clock, setClock] = useState(() => formatClock(new Date()));
+
+  useEffect(() => {
+    let intervalId = null;
+    const tick = () => setClock(formatClock(new Date()));
+    const timeoutId = window.setTimeout(() => {
+      tick();
+      intervalId = window.setInterval(tick, 60000);
+    }, 60000 - (Date.now() % 60000));
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  return clock;
+}
+
+const LIVE_PULSE_MS = 700;
+const LIVE_EDIT_SELECTOR = "textarea, input, [contenteditable='true'], [contenteditable='plaintext-only']";
+
+function readEditableText(element) {
+  return "value" in element ? element.value : element.textContent;
+}
+
+// One pulse per change the canvas registers: green when a tile appears, red
+// when one goes, yellow when text in a tile was changed and then left.
+function useLivePulse() {
+  const { workspace, currentEditor } = useAppContext();
+  const [pulse, setPulse] = useState(null);
+  const baselineRef = useRef(null);
+  const pulseIdRef = useRef(0);
+
+  const firePulse = useCallback((kind) => {
+    pulseIdRef.current += 1;
+    setPulse({ id: pulseIdRef.current, kind });
+  }, []);
+
+  // Tile ids, diffed per canvas + page so switching tabs/pages never pulses.
+  const scope = currentEditor?.kind === "canvas"
+    ? `${currentEditor.filePath}::${workspace.activePageId}`
+    : null;
+
+  useEffect(() => {
+    const ids = new Set((workspace.cards ?? []).map((card) => card.id));
+    const baseline = baselineRef.current;
+    baselineRef.current = { scope, ids };
+
+    // New scope, or the canvas just loaded from empty: no pulse.
+    if (!scope || baseline?.scope !== scope || (baseline.ids.size === 0 && ids.size > 1)) {
+      return;
+    }
+
+    let added = false;
+    ids.forEach((id) => { if (!baseline.ids.has(id)) added = true; });
+    let removed = false;
+    baseline.ids.forEach((id) => { if (!ids.has(id)) removed = true; });
+
+    if (removed) {
+      firePulse("delete");
+    } else if (added) {
+      firePulse("create");
+    }
+  }, [firePulse, scope, workspace.cards]);
+
+  useEffect(() => {
+    const startText = new WeakMap();
+
+    function handleFocusIn(event) {
+      const target = event.target;
+      if (target instanceof Element && target.matches(LIVE_EDIT_SELECTOR) && target.closest("#canvas-board")) {
+        startText.set(target, readEditableText(target));
+      }
+    }
+
+    function handleFocusOut(event) {
+      const target = event.target;
+      if (!(target instanceof Element) || !startText.has(target)) {
+        return;
+      }
+
+      const changed = startText.get(target) !== readEditableText(target);
+      startText.delete(target);
+      if (changed) {
+        firePulse("edit");
+      }
+    }
+
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("focusout", handleFocusOut);
+    return () => {
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("focusout", handleFocusOut);
+    };
+  }, [firePulse]);
+
+  useEffect(() => {
+    if (!pulse) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => setPulse(null), LIVE_PULSE_MS);
+    return () => window.clearTimeout(timerId);
+  }, [pulse]);
+
+  return pulse;
+}
+
+// Top-left cluster: live pill, logo (home), date + time, divider, user.
+function TitlebarCluster({ isHomeActive, onHome, userName = "" }) {
+  const clock = useMinuteClock();
+  const pulse = useLivePulse();
+
+  return (
+    <div className="titlebar-cluster" aria-label="Status">
+      {/* Keyed by pulse id so back-to-back pulses restart the animation. */}
+      <span
+        key={pulse?.id ?? "idle"}
+        className={`titlebar-cluster__live${pulse ? ` titlebar-cluster__live--${pulse.kind}` : ""}`}
+        aria-hidden="true"
+      />
+      <button
+        type="button"
+        className="titlebar-cluster__chip titlebar-cluster__logo"
+        onClick={() => {
+          // Logo clicked while already on Home: show the splash.
+          if (isHomeActive) {
+            openLaunchSplash();
+            return;
+          }
+          onHome();
+        }}
+        title="Home"
+        aria-label="Home"
+        aria-current={isHomeActive ? "page" : undefined}
+      >
+        <IconHomeFilled />
+      </button>
+      <div className="titlebar-cluster__chip titlebar-cluster__clock">
+        <span className="titlebar-cluster__date">
+          <span className="titlebar-cluster__day">{clock.day}</span>
+          <span className="titlebar-cluster__date-n">{clock.date}</span>
+        </span>
+        <span className="titlebar-cluster__time">{clock.time}</span>
+        {/* <span className="titlebar-cluster__divider" aria-hidden="true" />
+        <span className="titlebar-cluster__user">
+          <span className="titlebar-cluster__user-dot" aria-hidden="true" />
+          {userName}
+        </span> */}
+      </div>
     </div>
   );
 }
@@ -397,6 +564,24 @@ function TitlebarEye({ currentEditorKind }) {
   );
 }
 
+// Tab connectors (supplied SVGs), stretched to 20% of the tab width. The
+// left one is drawn as supplied; the right one is mirrored in CSS.
+function TabConnector({ edge, side }) {
+  return (
+    <span className={`titlebar-tab__conn titlebar-tab__conn--${edge}-${side}`} aria-hidden="true">
+      {edge === "top" ? (
+        <svg viewBox="0 0 65 4" preserveAspectRatio="none">
+          <path fill="#CCCCCD" d="M1.03449 0C4.94617 0.207373 5.06887 3.22934 -0.000228882 3.42383H64.7974V0H1.03449Z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 22 6" preserveAspectRatio="none">
+          <path fill="#ECECEC" d="M0.934851 5.80273C4.46825 5.45128 4.57908 0.329623 0.000196964 3.86433e-06L21.25 5.72205e-06L21.25 5.80273L0.934851 5.80273Z" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 function TabItem({
   tab,
   isActive,
@@ -449,32 +634,40 @@ function TabItem({
           title={tab.title}
           aria-label={tab.title}
         >
-          {isHome ? (
-            <span className="titlebar-home-icon" aria-hidden="true">
-              <IconHomeFilled />
-            </span>
-          ) : (
-            <>
-              <span className="titlebar-tab-label">{tab.title}</span>
-              {tab.closable ? (
-                <button
-                  type="button"
-                  className="titlebar-tab-close"
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onClose();
-                  }}
-                  title="Close tab"
-                  aria-label="Close tab"
-                >
-                  <IconClose />
-                </button>
-              ) : null}
-            </>
-          )}
+          <span className="titlebar-tab__body">
+            {isHome ? (
+              <span className="titlebar-home-icon" aria-hidden="true">
+                <IconHomeFilled />
+              </span>
+            ) : (
+              <>
+                <span className="titlebar-tab-label">{tab.title}</span>
+                {tab.closable ? (
+                  <button
+                    type="button"
+                    className="titlebar-tab-close"
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onClose();
+                    }}
+                    title="Close tab"
+                    aria-label="Close tab"
+                  >
+                    <IconClose />
+                  </button>
+                ) : null}
+              </>
+            )}
+          </span>
+          {/* Unselected: top connectors. Selected: bottom connectors + dots. */}
+          <TabConnector edge="top" side="left" />
+          <TabConnector edge="top" side="right" />
+          <TabConnector edge="bottom" side="left" />
+          <TabConnector edge="bottom" side="right" />
+          <span className="titlebar-tab__dots" aria-hidden="true" />
         </div>
       </AppContextMenuTrigger>
 
@@ -501,6 +694,29 @@ function TabItem({
   );
 }
 
+const TAB_EXIT_MS = 180;
+
+// Tabs to draw: the open ones (new ones flagged `entering`) plus closed ones
+// kept for TAB_EXIT_MS (`exiting`, at their old spot) so they can shrink away.
+function mergeTabPresence(previousEntries, nextTabs, measureWidth) {
+  const nextIds = new Set(nextTabs.map((tab) => tab.id));
+  const previousIds = new Set(previousEntries.map((entry) => entry.tab.id));
+  const merged = nextTabs.map((tab) => ({ tab, entering: !previousIds.has(tab.id), exiting: false }));
+
+  previousEntries.forEach((entry, index) => {
+    if (nextIds.has(entry.tab.id)) {
+      return;
+    }
+
+    const exitingEntry = entry.exiting
+      ? entry
+      : { tab: entry.tab, entering: false, exiting: true, width: measureWidth(entry.tab.id) };
+    merged.splice(Math.min(index, merged.length), 0, exitingEntry);
+  });
+
+  return merged;
+}
+
 export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const {
     tabs,
@@ -520,6 +736,31 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const [historyDialogTab, setHistoryDialogTab] = useState(null);
 
   const orderedTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
+  const stripTabs = useMemo(() => tabs.filter((tab) => tab.id !== "home"), [tabs]);
+  const [tabEntries, setTabEntries] = useState(() => stripTabs.map((tab) => ({ tab, entering: false, exiting: false })));
+  const [previousStripTabs, setPreviousStripTabs] = useState(stripTabs);
+
+  // Adjust during render (before commit) so a closed tab never blinks out:
+  // its DOM node is still there to measure.
+  if (stripTabs !== previousStripTabs) {
+    setPreviousStripTabs(stripTabs);
+    setTabEntries((current) => mergeTabPresence(
+      current,
+      stripTabs,
+      (tabId) => tabRefs.current.get(tabId)?.getBoundingClientRect().width ?? 0,
+    ));
+  }
+
+  useEffect(() => {
+    if (!tabEntries.some((entry) => entry.exiting)) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setTabEntries((current) => current.filter((entry) => !entry.exiting));
+    }, TAB_EXIT_MS);
+    return () => window.clearTimeout(timerId);
+  }, [tabEntries]);
 
   useLayoutEffect(() => {
     const nextRects = new Map();
@@ -613,45 +854,48 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     >
       <div className="titlebar-left">
         {isMac && <TitleBarControls isMac={true} onRequestClose={onRequestClose} />}
-        <div className="titlebar-tabs">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              ref={(node) => registerTabRef(tab.id, node)}
-              className={`titlebar-tab-shell ${draggedTabId === tab.id ? "titlebar-tab-shell--dragging" : ""}`}
-            >
-              <TabItem
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                canReopenClosedTab={canReopenClosedTab}
-                onActivate={() => {
-                  if (tab.id === "home") {
-                    void showHome();
-                    return;
-                  }
-                  setActiveTab(tab.id);
-                }}
-                onClose={() => closeTab(tab.id)}
-                onCloseOtherTabs={() => closeOtherTabs(tab.id)}
-                onCloseTabsToRight={() => closeTabsToRight(tab.id)}
-                onReopenClosedTab={reopenClosedTab}
-                onShowHistory={() => setHistoryDialogTab(tab)}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnd={handleDragEnd}
-              />
-            </div>
-          ))}
-        </div>
+        <TitlebarCluster isHomeActive={activeTabId === "home"} onHome={() => void showHome()} />
       </div>
 
-      <div id="titlebar-center-slot">
-        <TitlebarEye currentEditorKind={currentEditor?.kind ?? "home"} />
+      {/* Centred on the whole bar, independent of the left/right groups. */}
+      <div className="titlebar-tabs">
+        {tabEntries.map(({ tab, entering, exiting, width }) => (
+          <div
+            key={tab.id}
+            ref={exiting ? undefined : (node) => registerTabRef(tab.id, node)}
+            className={`titlebar-tab-shell${draggedTabId === tab.id ? " titlebar-tab-shell--dragging" : ""}${entering ? " titlebar-tab-shell--entering" : ""}${exiting ? " titlebar-tab-shell--exiting" : ""}`}
+            style={exiting ? { "--tab-exit-w": `${width}px` } : undefined}
+            inert={exiting ? true : undefined}
+            aria-hidden={exiting ? true : undefined}
+          >
+            <TabItem
+              tab={tab}
+              isActive={tab.id === activeTabId}
+              canReopenClosedTab={canReopenClosedTab}
+              onActivate={() => {
+                if (tab.id === "home") {
+                  void showHome();
+                  return;
+                }
+                setActiveTab(tab.id);
+              }}
+              onClose={() => closeTab(tab.id)}
+              onCloseOtherTabs={() => closeOtherTabs(tab.id)}
+              onCloseTabsToRight={() => closeTabsToRight(tab.id)}
+              onReopenClosedTab={reopenClosedTab}
+              onShowHistory={() => setHistoryDialogTab(tab)}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="titlebar-right">
+        {SHOW_TITLEBAR_EYE ? <TitlebarEye currentEditorKind={currentEditor?.kind ?? "home"} /> : null}
         <div id="titlebar-right-slot" />
-        {!isMac && <div style={{ width: 138, flexShrink: 0 }} />}
+        {!isMac && <TitleBarControls isMac={false} onRequestClose={onRequestClose} />}
       </div>
 
       <CanvasHistoryDialog

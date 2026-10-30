@@ -1,0 +1,250 @@
+/* Noted link tile (NotedLinkTile.jsx). Measured on a 768px-wide image and
+   scaled through --nl-k (image width / 768). It starts in the plain link
+   look and opens to the noted look when .noted-link--revealed is added a
+   frame after mounting: the dark card fades in around the image, the
+   corners round off and the note slides open to its own height. */
+
+.noted-link {
+  --nl-k: 1;
+  --nl-ui: calc(1 / var(--canvas-zoom, 1));
+  --nl-card: #222222;
+  --nl-media-height: 648px;
+  --nl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nl-blue: #0d99ff;
+
+  position: relative;
+  width: var(--tile-width, 786px);
+  font-family: "Inter", var(--ap-font-body, system-ui, -apple-system, "Segoe UI", sans-serif);
+  cursor: var(--ap-cursor-default);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.noted-link * {
+  box-sizing: border-box;
+}
+
+.card--dragging .noted-link {
+  cursor: var(--ap-cursor-grabbing);
+}
+
+/* Hover / selection outline around the card. */
+.noted-link::after {
+  content: "";
+  position: absolute;
+  inset: calc(-4px * var(--nl-ui));
+  z-index: 3;
+  border: calc(1.5px * var(--nl-ui)) solid transparent;
+  border-radius: calc(60px * var(--nl-k) + 4px);
+  pointer-events: none;
+}
+
+.card--hovered .noted-link::after {
+  border-color: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .noted-link::after {
+  border-color: var(--nl-blue);
+}
+
+/* ---------- Notch: tucked behind the card, peeks out on hover ---------- */
+
+.noted-link__notch {
+  position: absolute;
+  left: calc(22.9% - 96px * var(--nl-k));
+  top: calc(-66px * var(--nl-k));
+  z-index: 0;
+  width: calc(192px * var(--nl-k));
+  height: calc(66px * var(--nl-k));
+  opacity: 0;
+  transform: translateY(calc(66px * var(--nl-k)));
+  transition: transform 0.7s var(--nl-ease), opacity 0.4s ease;
+  pointer-events: none;
+}
+
+/* The shape only: the icon has an <svg> of its own. */
+.noted-link__notch > svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.noted-link__notch path {
+  fill: var(--nl-card);
+}
+
+.noted-link__notch-icon {
+  position: absolute;
+  left: calc(73px * var(--nl-k));
+  top: calc(13px * var(--nl-k));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(46px * var(--nl-k));
+  height: calc(46px * var(--nl-k));
+  color: #d9d9d9;
+  opacity: 0;
+  transform: translateY(calc(8px * var(--nl-k))) scale(0.9);
+  transition: opacity 0.35s ease 0.18s, transform 0.5s var(--nl-ease) 0.18s;
+}
+
+.noted-link__notch-icon svg {
+  display: block;
+  flex: none;
+  width: calc(22px * var(--nl-k));
+  height: calc(22px * var(--nl-k));
+}
+
+.noted-link--revealed .noted-link__notch {
+  opacity: 1;
+}
+
+.card--hovered .noted-link--revealed .noted-link__notch {
+  transform: translateY(0);
+}
+
+.card--hovered .noted-link--revealed .noted-link__notch-icon {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Card: the dark background grows with the note ---------- */
+
+.noted-link__card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: calc(20px * var(--nl-k));
+  background: transparent;
+  transition: background 0.7s ease, border-radius 0.7s ease, padding 0.7s ease;
+}
+
+.noted-link--revealed .noted-link__card {
+  padding: calc(9px * var(--nl-k)) calc(9px * var(--nl-k)) 0;
+  border-radius: calc(60px * var(--nl-k));
+  background: var(--nl-card);
+}
+
+.noted-link__media {
+  position: relative;
+  flex: none;
+  width: 100%;
+  height: var(--nl-media-height);
+  overflow: hidden;
+  border-radius: calc(20px * var(--nl-k));
+  /* background: linear-gradient(90deg, #b9bcc0 0%, #eef0f2 50%, #9ea2a8 100%); */
+  transition: border-radius 0.7s var(--nl-ease);
+}
+
+.noted-link--revealed .noted-link__media {
+  border-radius: calc(46px * var(--nl-k));
+}
+
+.noted-link__media img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* ---------- Note: grid rows open smoothly to the content's height ---------- */
+
+.noted-link__note {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.7s var(--nl-ease);
+}
+
+.noted-link--revealed .noted-link__note {
+  grid-template-rows: 1fr;
+}
+
+.noted-link__note-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.noted-link__text {
+  padding: calc(58px * var(--nl-k)) calc(65px * var(--nl-k)) calc(70px * var(--nl-k));
+  opacity: 0;
+  transform: translateY(calc(12px * var(--nl-k)));
+  transition: opacity 0.45s ease 0.35s, transform 0.6s var(--nl-ease) 0.35s;
+}
+
+.noted-link--revealed .noted-link__text {
+  opacity: 1;
+  transform: none;
+}
+
+.noted-link__title,
+.noted-link__body {
+  min-height: 1.2em;
+  border-radius: calc(6px * var(--nl-k));
+  outline: none;
+  overflow-wrap: anywhere;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.noted-link__title {
+  margin-bottom: calc(26px * var(--nl-k));
+  color: #5e636c;
+  font-size: calc(40px * var(--nl-k));
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  caret-color: #9ea3ab;
+}
+
+.noted-link__body {
+  color: #9ea3ab;
+  font-size: calc(31px * var(--nl-k));
+  line-height: 1.3;
+  white-space: pre-wrap;
+  caret-color: #9ea3ab;
+}
+
+.noted-link__title:empty::before,
+.noted-link__body:empty::before {
+  content: attr(data-placeholder);
+  color: #50545c;
+  pointer-events: none;
+}
+
+.noted-link--editing .noted-link__title,
+.noted-link--editing .noted-link__body {
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.noted-link--editing .noted-link__title:focus,
+.noted-link--editing .noted-link__body:focus {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.noted-link__title::selection,
+.noted-link__body::selection {
+  background: rgba(13, 153, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noted-link__notch,
+  .noted-link__notch-icon,
+  .noted-link__card,
+  .noted-link__media,
+  .noted-link__note,
+  .noted-link__text {
+    transition: none;
+  }
+}

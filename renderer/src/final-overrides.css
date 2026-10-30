@@ -164,16 +164,7 @@ button {
   color: var(--ap-text-primary) !important;
 }
 
-/* 3. Titlebar Tab Bar Hover Fix */
-.titlebar-tab:not(.titlebar-tab--active):hover {
-  background: rgba(0, 0, 0, 0.04) !important;
-  color: var(--ap-text-primary) !important;
-}
-
-.titlebar-tab--active:hover {
-  background: #ffffff !important;
-  color: var(--ap-text-primary) !important;
-}
+/* 3. Titlebar tab hover now lives in TopTabBar.css (tab body). */
 
 /* ==========================================================================
    SLEEK MODERN PAGES PANEL REDESIGN (DE-PIXELATION OVERRIDE)

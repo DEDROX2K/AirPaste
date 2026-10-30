@@ -12,6 +12,9 @@ import PaperNoteTile from "../components/tiles/PaperNoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
 import StickyNoteTile from "../components/tiles/StickyNoteTile";
+import NotedLinkTile from "../components/tiles/NotedLinkTile";
+import StickyCodeFileTile from "../components/tiles/StickyCodeFileTile";
+import StickyFolderTile from "../components/tiles/StickyFolderTile";
 import StickyTile from "../components/tiles/StickyTile";
 import TableTile from "../components/tiles/TableTile";
 import TextBoxTile from "../components/tiles/TextBoxTile";
@@ -23,6 +26,8 @@ import {
 } from "../lib/canvasText";
 import TILE_TYPES from "./tileTypes";
 import validateTileRegistry from "./validateTileRegistry";
+import { isLinkNoteOpen } from "./link/notedLink";
+import { STICKY_DESIGN_CODE_FILE, STICKY_DESIGN_FOLDER, getFileCardCodeLanguageId } from "./sticky/model";
 
 function createPlaceholderTile(displayName) {
   function PlaceholderTile() {
@@ -181,21 +186,44 @@ if (import.meta.env.DEV) {
   validateTileRegistry(tileRegistry);
 }
 
+// Local stickies other than the classic one, by sticky.design.
+const STICKY_DESIGN_COMPONENTS = {
+  [STICKY_DESIGN_FOLDER]: StickyFolderTile,
+  [STICKY_DESIGN_CODE_FILE]: StickyCodeFileTile,
+};
+
 // Resolves the component for an actual card instance, not just its type:
 // the canvas-text family (canvas-text/note/text-box) renders one of three
 // different components depending on the card's variant/format/source.
 export function getTileRegistration(cardOrType) {
   const tileType = typeof cardOrType === "string" ? cardOrType : cardOrType?.type;
 
+  // A link/image tile with its note open.
+  if (tileType === TILE_TYPES.LINK && isLinkNoteOpen(cardOrType)) {
+    return {
+      ...tileRegistry[tileType],
+      Component: NotedLinkTile,
+    };
+  }
+
+  // An imported coding file (.html, .css, ...) uses the code-file design.
+  if (tileType === TILE_TYPES.FILE && getFileCardCodeLanguageId(cardOrType) !== null) {
+    return {
+      ...tileRegistry[tileType],
+      Component: StickyCodeFileTile,
+    };
+  }
+
   if (
     tileType === TILE_TYPES.CANVAS_TEXT
     && cardOrType?.variant === CANVAS_TEXT_VARIANT_STICKY
   ) {
-    // FigJam-style sticky; the older titled design stays for stickies
-    // backed by a Markdown file.
+    // FigJam-style sticky, or another design picked by sticky.design; the
+    // older titled design stays for stickies backed by a Markdown file.
+    const LocalStickyComponent = STICKY_DESIGN_COMPONENTS[cardOrType?.sticky?.design] ?? StickyTile;
     return {
       ...tileRegistry[tileType],
-      Component: cardOrType?.source === CANVAS_TEXT_SOURCE_FILE ? StickyNoteTile : StickyTile,
+      Component: cardOrType?.source === CANVAS_TEXT_SOURCE_FILE ? StickyNoteTile : LocalStickyComponent,
     };
   }
 

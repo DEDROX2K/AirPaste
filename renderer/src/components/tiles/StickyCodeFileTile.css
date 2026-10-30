@@ -1,0 +1,347 @@
+/* "Code file" sticky design: a tall card in its language's colour, cut at
+   the top right and stepped at the bottom left, with the file name and
+   extension in a pixel font and a footer button. Everything in px is
+   measured at 497 x 735 and scales through --code-k (width / 497); the
+   language picker and selection chrome keep their screen size through
+   --code-ui, like StickyTile.css. */
+
+.code-file {
+  --code-k: 1;
+  --code-ui: calc(1 / var(--canvas-zoom, 1));
+  --code-main: #f25757;
+  --code-tint: #faa9a9;
+  --code-ink: #000000;
+  --code-blue: #0d99ff;
+  --code-font: "AirPaste VT323", ui-monospace, monospace;
+
+  position: relative;
+  width: var(--tile-width, 497px);
+  height: var(--tile-height, 735px);
+  color: var(--code-ink);
+  cursor: var(--ap-cursor-default);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-file * {
+  box-sizing: border-box;
+}
+
+.code-file__shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 calc(8px * var(--code-k)) calc(14px * var(--code-k)) rgba(0, 0, 0, 0.16));
+  pointer-events: none;
+}
+
+.code-file__shape path {
+  fill: var(--code-main);
+  transition: fill 0.35s ease;
+}
+
+.card--dragging .code-file {
+  cursor: var(--ap-cursor-grabbing);
+}
+
+.card--dragging .code-file__shape {
+  filter: drop-shadow(0 calc(18px * var(--code-k)) calc(26px * var(--code-k)) rgba(0, 0, 0, 0.24));
+}
+
+/* Hover / selection outline around the card's box. */
+.code-file::after {
+  content: "";
+  position: absolute;
+  inset: calc(-4px * var(--code-ui));
+  z-index: 2;
+  border: calc(1.5px * var(--code-ui)) solid transparent;
+  border-radius: calc(12px * var(--code-k) + 4px);
+  pointer-events: none;
+}
+
+.card--hovered .code-file::after {
+  border-color: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .code-file::after {
+  border-color: var(--code-blue);
+}
+
+/* ---------- Name: cropped to its box, slides on hover ---------- */
+
+.code-file__name-wrap {
+  position: absolute;
+  left: calc(88px * var(--code-k));
+  top: calc(22px * var(--code-k));
+  width: calc(317px * var(--code-k));
+  height: calc(72px * var(--code-k));
+  overflow: hidden;
+}
+
+.code-file__name {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0 calc(4px * var(--code-k));
+  border-radius: calc(4px * var(--code-k));
+  outline: none;
+  font-family: var(--code-font);
+  font-size: calc(64px * var(--code-k));
+  line-height: 1.1;
+  white-space: nowrap;
+  caret-color: var(--code-ink);
+  transition: transform var(--code-name-duration, 0.6s) linear;
+}
+
+.code-file__name--slide {
+  transform: translateX(calc(var(--code-name-over, 0px) * -1));
+}
+
+.code-file__name:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.code-file--editing .code-file__name {
+  background: rgba(255, 255, 255, 0.35);
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.code-file__name::selection {
+  background: rgba(13, 153, 255, 0.35);
+}
+
+/* ---------- Extension: opens the language picker ---------- */
+
+/* !important: the app-wide button styles (SimpleUi.css) restyle every
+   button; :not(:disabled) out-ranks its :hover rule. */
+.code-file .code-file__ext {
+  position: absolute;
+  left: calc(88px * var(--code-k));
+  top: calc(100px * var(--code-k));
+  height: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 calc(4px * var(--code-k)) !important;
+  border: 0 !important;
+  border-radius: calc(4px * var(--code-k)) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--code-ink) !important;
+  font-family: var(--code-font) !important;
+  font-size: calc(64px * var(--code-k)) !important;
+  font-weight: 400 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap;
+  cursor: var(--cursor-pointer, pointer);
+}
+
+.code-file .code-file__ext:hover:not(:disabled),
+.code-file .code-file__ext[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* An imported file's extension is the file's own; it isn't a picker. */
+.code-file .code-file__ext--static,
+.code-file .code-file__ext--static:hover:not(:disabled) {
+  background: transparent !important;
+  cursor: inherit;
+}
+
+/* ---------- Footer button ---------- */
+
+.code-file .code-file__button {
+  position: absolute;
+  left: calc(18px * var(--code-k));
+  top: calc(617px * var(--code-k));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(6px * var(--code-k));
+  width: calc(390px * var(--code-k));
+  height: calc(100px * var(--code-k));
+  margin: 0;
+  /* Narrower than the reference's 34px / 20px so "Show in explorer" fits. */
+  padding: 0 calc(12px * var(--code-k)) 0 calc(22px * var(--code-k)) !important;
+  border: 0 !important;
+  border-radius: calc(10px * var(--code-k)) !important;
+  background: var(--code-tint) !important;
+  box-shadow: none !important;
+  color: var(--code-ink) !important;
+  font-family: var(--code-font) !important;
+  font-size: calc(46px * var(--code-k)) !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  cursor: var(--cursor-pointer, pointer);
+  transition: background 0.35s ease, transform 0.12s ease, filter 0.12s ease;
+}
+
+.code-file .code-file__button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-file .code-file__button:hover:not(:disabled) {
+  background: var(--code-tint) !important;
+  filter: brightness(0.97);
+}
+
+.code-file .code-file__button--pressed {
+  transform: translateY(calc(2px * var(--code-k))) scale(0.99);
+}
+
+.code-file__button i {
+  flex: none;
+  width: calc(52px * var(--code-k));
+  height: calc(52px * var(--code-k));
+  background: var(--code-ink);
+}
+
+/* ---------- Language picker (screen-sized, on the card) ---------- */
+
+.code-file__picker {
+  position: absolute;
+  left: calc(88px * var(--code-k));
+  top: calc(180px * var(--code-k));
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  height: 400px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  color: #222222;
+  font-family: "Inter", var(--ap-font-body, system-ui, sans-serif);
+  cursor: default;
+  transform: scale(var(--code-ui));
+  transform-origin: top left;
+}
+
+.code-file__picker-search {
+  flex: none;
+  padding: 8px 10px;
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: #222222;
+  font: 14px "Inter", var(--ap-font-body, system-ui, sans-serif);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.code-file__picker-search:focus {
+  border-color: #111111;
+}
+
+.code-file__picker-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.code-file .code-file__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 8px !important;
+  border: 2px solid transparent !important;
+  border-radius: 8px !important;
+  background: #f5f5f5 !important;
+  box-shadow: none !important;
+  color: #222222 !important;
+  font: 13px "Inter", var(--ap-font-body, system-ui, sans-serif) !important;
+  text-align: left;
+  cursor: var(--cursor-pointer, pointer);
+}
+
+.code-file .code-file__pick:hover:not(:disabled) {
+  background: #ececec !important;
+}
+
+.code-file .code-file__pick[aria-selected="true"] {
+  border-color: #111111 !important;
+}
+
+.code-file__pick i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.code-file__pick b {
+  min-width: 52px;
+  font-weight: 650;
+}
+
+.code-file__pick span {
+  overflow: hidden;
+  color: #666666;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Selection chrome ---------- */
+
+.code-file__handle {
+  --handle-offset: calc(-8px * var(--code-ui));
+
+  position: absolute;
+  z-index: 3;
+  width: calc(9px * var(--code-ui));
+  height: calc(9px * var(--code-ui));
+  border: calc(1px * var(--code-ui)) solid var(--code-blue);
+  border-radius: calc(2px * var(--code-ui));
+  background: #ffffff;
+}
+
+.code-file__handle--nw { left: var(--handle-offset); top: var(--handle-offset); cursor: nwse-resize; }
+.code-file__handle--ne { right: var(--handle-offset); top: var(--handle-offset); cursor: nesw-resize; }
+.code-file__handle--sw { left: var(--handle-offset); bottom: var(--handle-offset); cursor: nesw-resize; }
+.code-file__handle--se { right: var(--handle-offset); bottom: var(--handle-offset); cursor: nwse-resize; }
+
+.code-file__size-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 14px * var(--code-ui));
+  z-index: 4;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--code-blue);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%) scale(var(--code-ui));
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-file__name,
+  .code-file__shape path,
+  .code-file .code-file__button {
+    transition: none;
+  }
+}

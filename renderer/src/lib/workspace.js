@@ -127,7 +127,22 @@ import {
   normalizeCanvasTextPayload,
   normalizeLanguageHints,
 } from "../tiles/canvasText/model";
-import { clampStickySize } from "../tiles/sticky/model";
+import { normalizeLinkNote } from "../tiles/link/notedLink";
+import {
+  clampDefaultFileWidth,
+  getDefaultFileHeight,
+  normalizeFileColor,
+} from "../tiles/file/defaultFileDesign";
+import {
+  STICKY_DESIGN_CODE_FILE,
+  STICKY_DESIGN_FOLDER,
+  clampCodeFileWidth,
+  clampFolderStickyWidth,
+  clampStickySize,
+  getCodeFileHeight,
+  getCodeFileLanguageIdForExtension,
+  getFolderStickyMinHeight,
+} from "../tiles/sticky/model";
 import {
   PAPER_NOTE_CARD_SIZE,
   normalizePaperNoteSubtitle,
@@ -948,10 +963,28 @@ export function normalizeCard(card, fallbackIndex = 0) {
   const tableColumns = type === TABLE_CARD_TYPE ? normalizeTableColumns(card?.columns) : [];
   const tableRows = type === TABLE_CARD_TYPE ? normalizeTableRows(card?.rows, tableColumns) : [];
   const canvasText = type === CANVAS_TEXT_CARD_TYPE ? normalizeCanvasTextPayload(card) : null;
-  // A (local) sticky is always square: its width is its size.
-  const stickySize = canvasText?.variant === CANVAS_TEXT_VARIANT_STICKY && canvasText.source === CANVAS_TEXT_SOURCE_LOCAL
+  // A (local) classic sticky is always square: its width is its size. A
+  // folder sticky keeps its width and is at least as tall as an empty one;
+  // a code-file sticky keeps its proportions.
+  const isLocalSticky = canvasText?.variant === CANVAS_TEXT_VARIANT_STICKY && canvasText.source === CANVAS_TEXT_SOURCE_LOCAL;
+  const isFolderSticky = isLocalSticky && canvasText.sticky.design === STICKY_DESIGN_FOLDER;
+  // An imported coding file (.html, .css, ...) shows as a code-file card too.
+  const isCodeFileCard = (isLocalSticky && canvasText.sticky.design === STICKY_DESIGN_CODE_FILE)
+    || (type === FILE_CARD_TYPE && getCodeFileLanguageIdForExtension(file?.extension) !== null);
+  const stickySize = isLocalSticky && !isFolderSticky && !isCodeFileCard
     ? clampStickySize(Number.isFinite(card?.width) ? card.width : size.width)
     : null;
+  // Every other imported file uses the default file design.
+  const isDefaultFileCard = type === FILE_CARD_TYPE && !isCodeFileCard;
+  // Sizes of the stickies (and files) that aren't square, by design.
+  const designStickyWidth = isFolderSticky
+    ? clampFolderStickyWidth(card?.width)
+    : isCodeFileCard ? clampCodeFileWidth(card?.width)
+    : isDefaultFileCard ? clampDefaultFileWidth(card?.width) : null;
+  const designStickyHeight = isFolderSticky
+    ? Math.max(getFolderStickyMinHeight(designStickyWidth), Number.isFinite(card?.height) ? card.height : 0)
+    : isCodeFileCard ? getCodeFileHeight(designStickyWidth)
+    : isDefaultFileCard ? getDefaultFileHeight(designStickyWidth) : null;
   const paperNoteTitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteTitle(card?.title) : "";
   const paperNoteSubtitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteSubtitle(card?.subtitle) : "";
   const paperNoteText = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteText(card?.text) : "";
@@ -970,12 +1003,12 @@ export function normalizeCard(card, fallbackIndex = 0) {
     y: Number.isFinite(card?.y) ? card.y : 120,
     width: type === RACK_CARD_TYPE
       ? rackSize.width
-      : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
+      : stickySize ?? designStickyWidth ?? (type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(canvasText.format === CANVAS_TEXT_FORMAT_PLAIN ? QUICK_TEXT_MIN_WIDTH : TEXT_BOX_MIN_WIDTH, Number.isFinite(card?.width) ? card.width : size.width)
         : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width)),
     height: type === RACK_CARD_TYPE
       ? rackSize.height
-      : stickySize ?? (type === CANVAS_TEXT_CARD_TYPE
+      : stickySize ?? designStickyHeight ?? (type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(canvasText.format === CANVAS_TEXT_FORMAT_PLAIN ? QUICK_TEXT_MIN_HEIGHT : TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
         : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height)),
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
@@ -1087,7 +1120,11 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? card.webclipStatus
       : "idle",
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
+    // A link/image tile's note (see tiles/link/notedLink.js).
+    note: type === TILE_TYPES.LINK ? normalizeLinkNote(card?.note) : null,
     file: type === CANVAS_TEXT_CARD_TYPE ? canvasText.file : file,
+    // A default-design file's background colour (null: the default green).
+    fileColor: isDefaultFileCard ? normalizeFileColor(card?.fileColor) : null,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",
     productPrice: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productPrice ?? "") : "",
     productDomain: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productDomain ?? "") : "",

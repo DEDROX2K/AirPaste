@@ -131,6 +131,22 @@ function registerIpc() {
     const errorMessage = await shell.openPath(filePath);
     return { opened: errorMessage === "" };
   });
+
+  // Shows a file selected in Explorer / Finder (code-file stickies).
+  ipcMain.handle("airpaste:revealPath", async (_event, filePath) => {
+    if (!filePath || typeof filePath !== "string") {
+      return { opened: false };
+    }
+
+    const resolvedPath = path.resolve(filePath);
+
+    if (!fsSync.existsSync(resolvedPath)) {
+      return { opened: false };
+    }
+
+    shell.showItemInFolder(resolvedPath);
+    return { opened: true };
+  });
 }
 
 module.exports = {

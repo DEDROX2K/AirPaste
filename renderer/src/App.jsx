@@ -4,6 +4,7 @@ import ConflictDialog from "./components/ConflictDialog";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import PixelScreenTransition from "./components/PixelScreenTransition";
+import { ToastStack } from "./components/ToastStack";
 import { TopTabBar } from "./components/TopTabBar";
 import { useAppContext } from "./context/useAppContext";
 import { useLog } from "./hooks/useLog";
@@ -297,6 +298,8 @@ export default function App() {
       {import.meta.env.DEV && <DevConsole />}
       <AppLaunchSplash />
       <ConflictDialog />
+      {/* Toasts used to speak through the titlebar eye, which is hidden for now. */}
+      <ToastStack />
     </div>
   );
 }

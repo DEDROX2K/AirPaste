@@ -34,7 +34,15 @@ import {
 } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { getUserName } from "../../lib/userName";
-import { getLastStickyColor } from "../../tiles/sticky/model";
+import {
+  CODE_FILE_DEFAULT_WIDTH,
+  FOLDER_STICKY_DEFAULT_WIDTH,
+  STICKY_DESIGN_CODE_FILE,
+  STICKY_DESIGN_FOLDER,
+  getCodeFileHeight,
+  getFolderStickyMinHeight,
+  getLastStickyColor,
+} from "../../tiles/sticky/model";
 import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/dropMessages";
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
@@ -672,6 +680,23 @@ export function useCanvasCommands({
     return sticky;
   }, [createNewCanvasTextCard, folderPath, getViewportCenter, log, toast]);
 
+  // A sticky in the "folder" design (tabbed, dark sheet); it picks its own
+  // colour rather than the classic sticky's last one.
+  const createFolderSticky = useCallback((preferredCenter = null, options = {}) => createSticky(preferredCenter, {
+    width: FOLDER_STICKY_DEFAULT_WIDTH,
+    height: getFolderStickyMinHeight(FOLDER_STICKY_DEFAULT_WIDTH),
+    ...options,
+    sticky: { design: STICKY_DESIGN_FOLDER, color: undefined, ...options?.sticky },
+  }), [createSticky]);
+
+  // A sticky in the "code-file" design; its colour is its language.
+  const createCodeFileSticky = useCallback((preferredCenter = null, options = {}) => createSticky(preferredCenter, {
+    width: CODE_FILE_DEFAULT_WIDTH,
+    height: getCodeFileHeight(CODE_FILE_DEFAULT_WIDTH),
+    ...options,
+    sticky: { design: STICKY_DESIGN_CODE_FILE, color: undefined, ...options?.sticky },
+  }), [createSticky]);
+
   const createPaperNote = useCallback((preferredCenter = null, options = {}) => {
     if (!folderPath) {
       log("warn", "New paper note blocked because no folder is open");
@@ -1222,6 +1247,8 @@ export function useCanvasCommands({
       // the real aspect ratio instead (see --video-media-aspect in
       // LinkTile.jsx) -- resizing the whole tile here would fight that.
       || tile?.contentType === "video"
+      // A noted tile is the image plus its note; its size follows the note.
+      || tile?.note?.open === true
       // Pasted/dropped images are expected to resize to their real aspect
       // ratio right away. For a fetched preview thumbnail, only do this
       // once, while the tile is still at the untouched default size --
@@ -1610,6 +1637,8 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
+    createFolderSticky,
+    createCodeFileSticky,
     createPaperNote,
     addNoteFromVault,
     convertTextCardToFile,
@@ -1662,6 +1691,8 @@ export function useCanvasCommands({
     createTable,
     createTextBox,
     createSticky,
+    createFolderSticky,
+    createCodeFileSticky,
     createPaperNote,
     addNoteFromVault,
     convertTextCardToFile,

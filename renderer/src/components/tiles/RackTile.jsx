@@ -23,8 +23,9 @@ const CARD_LEAVE_DELAY_MS = 70;
 const CARD_SHOWN_MIN_HEIGHT = 150;
 const CARD_BASE_BOTTOM = 34;
 const CARD_MAX_BOTTOM = 95;
-// Rest-pose variety, cycled left to right: [lean back, rotateZ].
-const CARD_REST_POSES = [[42, -1.2], [40, 0.6], [44, -0.8]];
+// Rest-pose lean back. No sideways turn or twist, so every card sits
+// straight in the rack.
+const CARD_LEAN_DEG = 42;
 // "rackId:tileId" of every card already shown this session: only cards that
 // are new (app load, freshly racked) play the drop-in intro, not every
 // remount from panning or zooming.
@@ -93,7 +94,6 @@ function RackCard({
   const introKey = `${rackId}:${tile.id}`;
   const [playsIntro] = useState(() => !introducedCardKeys.has(introKey));
   const isActive = activeIndex === index;
-  const [lean, rotateZ] = CARD_REST_POSES[index % CARD_REST_POSES.length];
   const column = index - ((count - 1) / 2);
   const typeLabel = getTileTypeLabel(tile);
   const title = getTileTitle(tile);
@@ -148,9 +148,7 @@ function RackCard({
       style={{
         "--rack-col": column,
         "--rack-n": index,
-        "--rack-lean": `${lean}deg`,
-        "--rack-ry": `${Math.max(-8, Math.min(8, -column * 8))}deg`,
-        "--rack-rz": `${rotateZ}deg`,
+        "--rack-lean": `${CARD_LEAN_DEG}deg`,
         "--rack-dx": `${neighbourShift}px`,
         height: `${cardHeight}px`,
         bottom: `${cardBottom}px`,
@@ -379,7 +377,7 @@ function RackTile({
                 aria-hidden="true"
                 style={{
                   "--rack-col": childTiles.length - ((slotCount - 1) / 2),
-                  "--rack-lean": `${CARD_REST_POSES[childTiles.length % CARD_REST_POSES.length][0]}deg`,
+                  "--rack-lean": `${CARD_LEAN_DEG}deg`,
                 }}
               />
             ) : null}
