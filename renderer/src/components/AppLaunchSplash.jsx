@@ -22,6 +22,8 @@ const SPLASH_IMAGES = [
   "splash/splash-4.png",
   "splash/splash-5.png",
   "splash/splash-6.png",
+    "splash/splash-7.png",
+      "splash/splash-8.png",  "splash/splash-9.png",
 ];
 
 function pickSplashIndex() {
