@@ -63,9 +63,7 @@
    rest of the canvas tiles. */
 .card--selected .checklist-tile {
   box-shadow:
-    var(--checklist-shadow-base),
-    0 20px 44px -14px rgba(0, 0, 0, 0.2),
-    var(--checklist-glow);
+    var(--checklist-shadow-base),    0 20px 44px -14px rgba(0, 0, 0, 0),    var(--checklist-glow);
 }
 
 .card--dragging .checklist-tile {
