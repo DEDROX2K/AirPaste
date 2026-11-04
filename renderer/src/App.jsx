@@ -16,9 +16,11 @@ import { desktop } from "./lib/desktop";
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
 const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
 const SCREEN_TRANSITION_DURATION_MS = 920;
-const CanvasWorkspaceView = lazy(() => import("./components/CanvasWorkspaceView"));
+const loadCanvasWorkspaceView = () => import("./components/CanvasWorkspaceView");
+const loadLeftPagesPanel = () => import("./components/LeftPagesPanel");
+const CanvasWorkspaceView = lazy(loadCanvasWorkspaceView);
 const HomeShell = lazy(() => import("./components/HomeShell"));
-const LeftPagesPanel = lazy(() => import("./components/LeftPagesPanel"));
+const LeftPagesPanel = lazy(loadLeftPagesPanel);
 
 function BootSplash({ label = "Preparing workspace", syncPending = null, onOverrideSyncWait }) {
   const displayLabel = syncPending
@@ -213,6 +215,27 @@ export default function App() {
 
     return () => window.clearTimeout(transitionTimeoutRef.current);
   }, [booting, currentEditorKey]);
+
+  // While Home is up, fetch the canvas code in the background so opening a
+  // canvas doesn't wait on it.
+  useEffect(() => {
+    if (booting || currentEditor.kind === "canvas") {
+      return undefined;
+    }
+
+    const prefetch = () => {
+      void loadCanvasWorkspaceView();
+      void loadLeftPagesPanel();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 3000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = window.setTimeout(prefetch, 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [booting, currentEditor.kind]);
 
   useEffect(() => {
     const updatePointerPosition = (event) => {

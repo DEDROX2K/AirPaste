@@ -1,18 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
-import GridWorkspaceView from "./GridWorkspaceView";
-import SceneWorkspaceSurface from "./SceneWorkspaceSurface";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import "./canvas/CanvasTetherLayer.css";
-import CanvasEmbedLayer from "./canvas/CanvasEmbedLayer";
-import DrawingLayer from "./canvas/DrawingLayer";
 import { useAppContext } from "../context/useAppContext";
 import { CanvasMotionContext } from "../context/CanvasMotionContext";
 import { useLog } from "../hooks/useLog";
@@ -88,7 +84,12 @@ import {
   resolveWorkspaceLodLevel,
   WORKSPACE_LOD_LEVEL,
 } from "../systems/canvas/tileLod";
-import { isSceneSafeTile } from "../systems/canvas/sceneSurfaceSafety";
+
+// Loaded on demand: the drawing layer pulls in Konva (~300 kB), and most
+// canvases have no drawings; the grid view is only for Tile view.
+const loadDrawingLayer = () => import("./canvas/DrawingLayer");
+const DrawingLayer = lazy(loadDrawingLayer);
+const GridWorkspaceView = lazy(() => import("./GridWorkspaceView"));
 
 // Quick text's padding around its text: the caret lands on the click point.
 const QUICK_TEXT_PADDING_X = 6;
@@ -602,6 +603,7 @@ function areTileMetaEquivalent(left, right) {
 
   return left.isDragging === right.isDragging
     && left.isSelected === right.isSelected
+    && left.isMultiSelect === right.isMultiSelect
     && left.isFocused === right.isFocused
     && left.isHovered === right.isHovered
     && left.isMergeTarget === right.isMergeTarget
@@ -673,13 +675,10 @@ function CanvasPerformanceOverlay({
   renderedTileCount,
   totalTileCount,
   activeDragLayers,
-  sceneTileCount,
   domIslandCount,
-  forcedDomFallbackTileCount,
   activeEmbedTileCount,
   isCanvasMoving,
   workspaceLodLevel,
-  rendererMode,
   lodLevelCounts,
   previewTierCounts,
   onOpenTestingTilesCanvas,
@@ -847,12 +846,9 @@ function CanvasPerformanceOverlay({
     `Frame ms: ${roundMetric(snapshot.frameMs)} ms`,
     `Dropped: ${snapshot.droppedFrames}`,
     `Visible: ${visibleTileCount}/${totalTileCount}`,
-    `Renderer: ${rendererMode}`,
     `Rendered: ${renderedTileCount}`,
     `Drag layers: ${activeDragLayers}`,
-    `Scene tiles: ${sceneTileCount}`,
     `DOM islands: ${domIslandCount}`,
-    `Forced DOM: ${forcedDomFallbackTileCount}`,
     `Live embeds: ${activeEmbedTileCount}`,
     `Pointer avg: ${roundMetric(snapshot.pointerAvgMs)} ms`,
     `Pointer max: ${roundMetric(snapshot.pointerMaxMs)} ms`,
@@ -873,7 +869,6 @@ function CanvasPerformanceOverlay({
     activeDragLayers,
     activeEmbedTileCount,
     domIslandCount,
-    forcedDomFallbackTileCount,
     isCanvasMoving,
     snapshot.boardRenderCount,
     snapshot.boardMovingRenderCount,
@@ -891,8 +886,6 @@ function CanvasPerformanceOverlay({
     snapshot.pointerMaxMs,
     totalTileCount,
     renderedTileCount,
-    rendererMode,
-    sceneTileCount,
     workspaceLodLevel,
     lodLevelCounts.lod0,
     lodLevelCounts.lod1,
@@ -1065,26 +1058,14 @@ function CanvasPerformanceOverlay({
           <span className="canvas-perf-overlay__label">Visible</span>
           <span className="canvas-perf-overlay__value">{visibleTileCount}/{totalTileCount}</span>
         </div>
-        <div className="canvas-perf-overlay__row">
-          <span className="canvas-perf-overlay__label">Renderer</span>
-          <span className="canvas-perf-overlay__value">{rendererMode}</span>
-        </div>
         <div className="canvas-perf-overlay__divider" />
         <div className="canvas-perf-overlay__row">
           <span className="canvas-perf-overlay__label">Rendered</span>
           <span className="canvas-perf-overlay__value">{renderedTileCount}</span>
         </div>
         <div className="canvas-perf-overlay__row">
-          <span className="canvas-perf-overlay__label">Scene tiles</span>
-          <span className="canvas-perf-overlay__value">{sceneTileCount}</span>
-        </div>
-        <div className="canvas-perf-overlay__row">
           <span className="canvas-perf-overlay__label">DOM islands</span>
           <span className="canvas-perf-overlay__value">{domIslandCount}</span>
-        </div>
-        <div className="canvas-perf-overlay__row">
-          <span className="canvas-perf-overlay__label">Forced DOM</span>
-          <span className="canvas-perf-overlay__value">{forcedDomFallbackTileCount}</span>
         </div>
         <div className="canvas-perf-overlay__row">
           <span className="canvas-perf-overlay__label">Live embeds</span>
@@ -1177,7 +1158,6 @@ export default function CanvasWorkspaceView() {
   const [stickerDragState, setStickerDragState] = useState(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
-  const [canvasViewportSize, setCanvasViewportSize] = useState({ width: 0, height: 0 });
   const [canvasEntrySequence, setCanvasEntrySequence] = useState(0);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const textBoxEditRequestIdRef = useRef(0);
@@ -1188,41 +1168,11 @@ export default function CanvasWorkspaceView() {
   const isStickerDragging = stickerDragState !== null;
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
-  const rendererMode = "dom";
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
     onViewportChange: setViewport,
   });
-  const canvasContainerRef = canvas.containerRef;
-  useEffect(() => {
-    const container = canvasContainerRef.current;
-    if (!container) {
-      return undefined;
-    }
-
-    const updateCanvasViewportSize = () => {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      setCanvasViewportSize((current) => (
-        current?.width === width && current?.height === height ? current : { width, height }
-      ));
-    };
-
-    updateCanvasViewportSize();
-
-    let observer = null;
-    if (typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(updateCanvasViewportSize);
-      observer.observe(container);
-    }
-
-    window.addEventListener("resize", updateCanvasViewportSize);
-    return () => {
-      observer?.disconnect?.();
-      window.removeEventListener("resize", updateCanvasViewportSize);
-    };
-  }, [canvasContainerRef]);
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
@@ -1239,6 +1189,17 @@ export default function CanvasWorkspaceView() {
   canvasToolModeRef.current = canvasToolMode;
   const clearDraftLine = drawingTool.clearDraftLine;
   const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
+  const needsDrawingLayer = isLineToolActive
+    || Boolean(drawingTool.draftLine)
+    || drawingTool.drawings.objects.length > 0;
+
+  useEffect(() => {
+    // Warm the chunk as soon as the line tool is picked, so the first
+    // stroke isn't waiting on Konva.
+    if (isLineToolActive) {
+      void loadDrawingLayer();
+    }
+  }, [isLineToolActive]);
 
   const commands = useCanvasCommands({
     folderPath,
@@ -2104,37 +2065,6 @@ export default function CanvasWorkspaceView() {
     lodFrozenZoomRef.current = liveViewport.zoom;
     return liveViewport.zoom;
   }, [isCanvasMoving, liveViewport.zoom]);
-  const stickerTileIdSet = useMemo(() => new Set(
-    layout.rootTiles
-      .filter((tile) => tile?.sourceType === "sticker")
-      .map((tile) => tile.id),
-  ), [layout.rootTiles]);
-  const stickyCanvasTextTileIdSet = useMemo(() => new Set(
-    layout.rootTiles
-      .filter((tile) => tile?.type === CANVAS_TEXT_CARD_TYPE && tile?.variant === CANVAS_TEXT_VARIANT_STICKY)
-      .map((tile) => tile.id),
-  ), [layout.rootTiles]);
-  const passiveInteractionOverlayTileIdSet = useMemo(() => new Set([
-    ...interactions.selectedTileIds,
-    ...(interactions.focusedTileId ? [interactions.focusedTileId] : []),
-    ...(interactions.contextMenu?.kind === "tile" ? [interactions.contextMenu.card?.id] : []),
-  ].filter((tileId) => tileId && !stickyCanvasTextTileIdSet.has(tileId))), [
-    interactions.contextMenu,
-    interactions.focusedTileId,
-    interactions.selectedTileIds,
-    stickyCanvasTextTileIdSet,
-  ]);
-  const interactionOverlayTileIdSet = useMemo(() => new Set([
-    ...passiveInteractionOverlayTileIdSet,
-    ...interactions.draggingTileIds,
-    ...(textBoxEditorState?.tileId ? [textBoxEditorState.tileId] : []),
-    ...stickerTileIdSet,
-  ]), [
-    passiveInteractionOverlayTileIdSet,
-    interactions.draggingTileIds,
-    stickerTileIdSet,
-    textBoxEditorState?.tileId,
-  ]);
   const workspaceLodLevel = useMemo(() => {
     if (isGridMode) {
       return WORKSPACE_LOD_LEVEL.NORMAL;
@@ -2157,7 +2087,6 @@ export default function CanvasWorkspaceView() {
     workspaceLodLevelRef.current = workspaceLodLevel;
   }, [workspaceLodLevel]);
 
-  const useSceneSurface = rendererMode === "guarded-hybrid";
   const stableTileMetaById = useMemo(() => {
     const previousCache = tileMetaCacheRef.current;
     const nextCache = new Map();
@@ -2187,16 +2116,6 @@ export default function CanvasWorkspaceView() {
     tileMetaCacheRef.current = nextCache;
     return nextTileMetaById;
   }, [cutSourceTileIdSet, layout.rootTiles, layout.tileMetaById]);
-  const forcedDomFallbackTileIdSet = useMemo(() => (
-    useSceneSurface
-      ? new Set(layout.rootTiles.filter((tile) => !isSceneSafeTile(tile)).map((tile) => tile.id))
-      : new Set()
-  ), [layout.rootTiles, useSceneSurface]);
-  const overlayTileIdSet = useMemo(() => (
-    useSceneSurface
-      ? new Set([...interactionOverlayTileIdSet, ...forcedDomFallbackTileIdSet])
-      : new Set()
-  ), [forcedDomFallbackTileIdSet, interactionOverlayTileIdSet, useSceneSurface]);
   const tileRenderHintsById = useMemo(() => {
     const previousCache = tileRenderHintCacheRef.current;
     const nextCache = new Map();
@@ -2206,7 +2125,7 @@ export default function CanvasWorkspaceView() {
       const previousHint = previousCache.get(tile.id) ?? null;
       const nextHint = buildTileRenderHint({
         lodLevel: workspaceLodLevel,
-        forceFullFidelity: overlayTileIdSet.has(tile.id),
+        forceFullFidelity: false,
         // Keep existing previews mounted while panning. Swapping render
         // modes mid-drag caused image flicker and full-canvas repaint
         // glitches on image-heavy workspaces.
@@ -2223,7 +2142,7 @@ export default function CanvasWorkspaceView() {
 
     tileRenderHintCacheRef.current = nextCache;
     return nextHints;
-  }, [layout.rootTiles, overlayTileIdSet, viewportZoomForRender, workspaceLodLevel]);
+  }, [layout.rootTiles, viewportZoomForRender, workspaceLodLevel]);
   const previewTierCounts = useMemo(() => {
     return layout.rootTiles.reduce((counts, tile) => {
       const tier = tileRenderHintsById[tile.id]?.previewTier ?? "original";
@@ -2257,21 +2176,8 @@ export default function CanvasWorkspaceView() {
       lod1: 0,
     })
   ), [layout.rootTiles, tileRenderHintsById]);
-  const sceneTiles = useMemo(() => (
-    useSceneSurface
-      ? layout.rootTiles.filter((tile) => !overlayTileIdSet.has(tile.id))
-      : layout.rootTiles
-  ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
-  const overlayTiles = useMemo(() => (
-    useSceneSurface
-      ? layout.rootTiles.filter((tile) => overlayTileIdSet.has(tile.id))
-      : layout.rootTiles
-  ), [layout.rootTiles, overlayTileIdSet, useSceneSurface]);
-  const activeRenderTiles = useMemo(() => (
-    useSceneSurface ? overlayTiles : layout.rootTiles
-  ), [layout.rootTiles, overlayTiles, useSceneSurface]);
+  const activeRenderTiles = layout.rootTiles;
   const promotedDomTileCount = activeRenderTiles.length;
-  const forcedDomFallbackTileCount = forcedDomFallbackTileIdSet.size;
   const activeEmbedTileCount = useMemo(() => (
     activeRenderTiles.filter((tile) => tile?.airpaste?.embed?.mode === "live" && typeof tile?.url === "string" && tile.url.trim().length > 0).length
   ), [activeRenderTiles]);
@@ -2280,7 +2186,6 @@ export default function CanvasWorkspaceView() {
     workspace.cards.map((card) => [card.id, card]),
   ), [workspace.cards]);
   const layoutRootTileIdSet = useMemo(() => new Set(layout.rootTiles.map((tile) => tile.id)), [layout.rootTiles]);
-  const activeRenderTileIdSet = useMemo(() => new Set(activeRenderTiles.map((tile) => tile.id)), [activeRenderTiles]);
   const decoratedTileMetaById = useMemo(() => {
     if (animatingStickerTileIdSet.size === 0) {
       return stableTileMetaById;
@@ -2316,9 +2221,8 @@ export default function CanvasWorkspaceView() {
         markStickerPlacementStage(entry.tileId, "in-layout");
       }
 
-      if (activeRenderTileIdSet.has(entry.tileId) && entry.stages?.["render-layer"] !== true) {
+      if (layoutRootTileIdSet.has(entry.tileId) && entry.stages?.["render-layer"] !== true) {
         const reachedRenderLayer = markStickerPlacementStage(entry.tileId, "render-layer", {
-          surfaceRenderer: rendererMode,
         });
 
         if (reachedRenderLayer && entry.stages?.animated !== true) {
@@ -2342,73 +2246,11 @@ export default function CanvasWorkspaceView() {
       }
     });
   }, [
-    activeRenderTileIdSet,
     layoutRootTileIdSet,
     markStickerPlacementStage,
     presentWorkspaceCardsById,
-    rendererMode,
     stickerPlacementStates,
   ]);
-
-  const handleSceneTilePressStart = useCallback((tile, event) => {
-    if (isTextToolActive && tile.type === CANVAS_TEXT_CARD_TYPE) {
-      interactions.selectTile(tile.id, { forceSingle: true });
-      requestTextBoxEdit(tile.id, { selectAll: false });
-      return true;
-    }
-
-    return interactions.handleTilePressStart(tile, event);
-  }, [interactions, isTextToolActive, requestTextBoxEdit]);
-  const handleSceneTileDoubleActivate = useCallback((tile) => {
-    if (tile?.type !== CANVAS_TEXT_CARD_TYPE) {
-      return false;
-    }
-
-    interactions.selectTile(tile.id, { forceSingle: true });
-    requestTextBoxEdit(tile.id, { selectAll: false });
-    return true;
-  }, [interactions, requestTextBoxEdit]);
-
-  const handleSceneTileDragStart = useCallback((tile, event) => {
-    interactions.beginTileDrag(tile, event);
-  }, [interactions]);
-
-  const handleSceneTileContextMenu = useCallback((tile, event) => {
-    interactions.handleTileContextMenu(tile, event);
-  }, [interactions]);
-
-  const handleSceneTileHoverChange = useCallback((tileId, isHovered) => {
-    interactions.handleTileHoverChange(tileId, isHovered);
-  }, [interactions]);
-
-  const handleSceneGroupPressStart = useCallback((group, event) => {
-    return interactions.handleGroupPressStart(group, event);
-  }, [interactions]);
-
-  const handleSceneGroupDragStart = useCallback((group, event) => {
-    interactions.beginGroupDrag(group, event);
-  }, [interactions]);
-
-  const handleSceneGroupContextMenu = useCallback((group, event) => {
-    interactions.handleGroupContextMenu(group, event);
-  }, [interactions]);
-
-  const handleSceneGroupHoverChange = useCallback((groupId, isHovered) => {
-    interactions.handleGroupHoverChange(groupId, isHovered);
-  }, [interactions]);
-
-  const handleSceneBackgroundPointerDown = useCallback((event) => {
-    if (textBoxEditorState?.tileId && event.button === 0) {
-      return;
-    }
-
-    if (isTextToolActive && event.button === 0) {
-      beginQuickTextGesture(event);
-      return;
-    }
-
-    interactions.handleCanvasPointerDown(event);
-  }, [beginQuickTextGesture, interactions, isTextToolActive, textBoxEditorState?.tileId]);
 
   useEffect(() => {
     if (
@@ -2431,10 +2273,6 @@ export default function CanvasWorkspaceView() {
     setCanvasClipboard,
     workspace.activePageId,
   ]);
-
-  const handleSceneBackgroundContextMenu = useCallback((event) => {
-    interactions.handleCanvasContextMenu(event);
-  }, [interactions]);
 
   const zoomToFitAll = useCallback(() => {
     canvas.zoomToBounds(layout.allTilesBounds);
@@ -2793,17 +2631,14 @@ export default function CanvasWorkspaceView() {
   const renderedTileCount = layout.rootTiles.length;
   const performanceMode = useMemo(() => ({
     simplifyDuringMotion: isCanvasMoving,
-    rendererMode,
     workspaceLodLevel,
-  }), [isCanvasMoving, rendererMode, workspaceLodLevel]);
+  }), [isCanvasMoving, workspaceLodLevel]);
   // What tiles receive: no motion flag, so starting or stopping a pan or drag
   // doesn't re-render every tile. Tiles that care read CanvasMotionContext.
   const tilePerformanceMode = useMemo(() => ({
-    rendererMode,
     workspaceLodLevel,
-  }), [rendererMode, workspaceLodLevel]);
+  }), [workspaceLodLevel]);
   const boardSnapshot = useMemo(() => ({
-    surfaceRenderer: rendererMode,
     workspaceLodLevel,
     viewMode: workspaceView.mode,
     viewport: `${Math.round(liveViewport.x)}:${Math.round(liveViewport.y)}:${liveViewport.zoom.toFixed(2)}`,
@@ -2811,9 +2646,7 @@ export default function CanvasWorkspaceView() {
     filteredTileCount: filteredTiles.length,
     visibleTileCount,
     renderedTileCount,
-    sceneTileCount: sceneTiles.length,
     domIslandCount: promotedDomTileCount,
-    forcedDomFallbackTileCount,
     selectedCount: interactions.selectedTileIds.length,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
@@ -2848,9 +2681,6 @@ export default function CanvasWorkspaceView() {
     snapSettings.enabled,
     visibleTileCount,
     workspaceView.mode,
-    rendererMode,
-    sceneTiles.length,
-    forcedDomFallbackTileCount,
     workspaceLodLevel,
     workspace.cards.length,
   ]);
@@ -2874,26 +2704,19 @@ export default function CanvasWorkspaceView() {
       previewTierCounts,
       lodLevelCounts,
       perfMode: performanceMode,
-      surfaceRenderer: rendererMode,
-      rendererMode,
       workspaceLodLevel,
       promotedDomTileCount,
-      sceneTileCount: sceneTiles.length,
       domIslandCount: promotedDomTileCount,
-      forcedDomFallbackTileCount,
       activeEmbedTileCount,
     });
   }, [
     activeEmbedTileCount,
-    forcedDomFallbackTileCount,
     interactions.draggingTileIds.length,
     lodLevelCounts,
     performanceMode,
     promotedDomTileCount,
     previewTierCounts,
     renderedTileCount,
-    rendererMode,
-    sceneTiles.length,
     totalTileCount,
     visibleTileCount,
     workspaceLodLevel,
@@ -3276,15 +3099,17 @@ export default function CanvasWorkspaceView() {
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
         </CanvasDockFrame>
         <WorkspaceTopbarTrail />
-        <GridWorkspaceView
-          dropImport={dropImport}
-          tileFilter="all"
-          isDropTarget={dropImport.isDropTarget}
-          openTileLink={commands.openTileLink}
-          updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
-          retryTilePreview={commands.retryTilePreview}
-          onPaste={handleWorkspacePaste}
-        />
+        <Suspense fallback={null}>
+          <GridWorkspaceView
+            dropImport={dropImport}
+            tileFilter="all"
+            isDropTarget={dropImport.isDropTarget}
+            openTileLink={commands.openTileLink}
+            updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
+            retryTilePreview={commands.retryTilePreview}
+            onPaste={handleWorkspacePaste}
+          />
+        </Suspense>
       </main>
     );
   }
@@ -3344,8 +3169,7 @@ export default function CanvasWorkspaceView() {
 
           // Tether tool: press on a tile and drag to another tile.
           if (event.button === 0 && isTetherToolActive) {
-            const tileId = event.target.closest?.("[data-tether-tile]")?.getAttribute("data-tether-tile")
-              ?? (useSceneSurface ? tether.hitTestTile(event.clientX, event.clientY) : null);
+            const tileId = event.target.closest?.("[data-tether-tile]")?.getAttribute("data-tether-tile") ?? null;
 
             if (tileId && tether.beginGesture(tileId, event)) {
               event.preventDefault();
@@ -3354,10 +3178,6 @@ export default function CanvasWorkspaceView() {
           }
         }}
         onPointerDown={(event) => {
-          if (useSceneSurface) {
-            return;
-          }
-
           const isCanvasBackground = event.target === event.currentTarget
             || event.target.classList?.contains("canvas__content")
             || event.target.classList?.contains("canvas__grid");
@@ -3386,7 +3206,7 @@ export default function CanvasWorkspaceView() {
           event.preventDefault();
           beginStickyCreation(canvas.clientToWorldPoint(event.clientX, event.clientY));
         }}
-        onContextMenu={useSceneSurface ? undefined : interactions.handleCanvasContextMenu}
+        onContextMenu={interactions.handleCanvasContextMenu}
         onClick={(event) => {
           if (!isEditableElement(event.target)) {
             event.currentTarget.focus({ preventScroll: true });
@@ -3396,63 +3216,29 @@ export default function CanvasWorkspaceView() {
           <CanvasMiniMap canvas={canvas} tiles={filteredTiles} hidden={isGridMode} />
           <>
             <div ref={canvas.gridRef} className="canvas__grid" />
-            {useSceneSurface ? (
-              <SceneWorkspaceSurface
-                folderPath={folderPath}
-                tiles={sceneTiles}
-                edges={workspace.edges}
-                groups={workspace.groups}
-                selectedGroupIds={interactions.selectedGroupIds}
-                hoveredGroupId={interactions.hoveredGroupId}
-                dragVisualDelta={interactions.dragVisualDelta}
-                dragVisualTileIdSet={new Set(interactions.draggingTileIds)}
-                draggingGroupIdSet={new Set(interactions.dragVisualDelta && interactions.selectedGroupIds.length > 0 ? interactions.selectedGroupIds : [])}
-                tileMetaById={decoratedTileMetaById}
-                tileRenderHintsById={tileRenderHintsById}
-                isCanvasMoving={isCanvasMoving}
-                cameraSnapshot={workspace.viewport}
-                getViewportSnapshot={canvas.getViewportSnapshot}
-                onTilePressStart={handleSceneTilePressStart}
-                onTileDoubleActivate={handleSceneTileDoubleActivate}
-                onTileDragStart={handleSceneTileDragStart}
-                onTileContextMenu={handleSceneTileContextMenu}
-                onTileHoverChange={handleSceneTileHoverChange}
-                onGroupPressStart={handleSceneGroupPressStart}
-                onGroupDragStart={handleSceneGroupDragStart}
-                onGroupContextMenu={handleSceneGroupContextMenu}
-                onGroupHoverChange={handleSceneGroupHoverChange}
-                onBackgroundPointerDown={handleSceneBackgroundPointerDown}
-                onBackgroundContextMenu={handleSceneBackgroundContextMenu}
-              />
-            ) : null}
-            <DrawingLayer
-              drawings={drawingTool.drawings}
-              draftLine={drawingTool.draftLine}
-              selectedObjectId={drawingTool.selectedObjectId}
-              activeTool={drawingTool.activeTool}
-              isSpacePanning={drawingTool.isSpacePanning}
-              getViewportSnapshot={canvas.getViewportSnapshot}
-              subscribeViewportTransform={canvas.subscribeViewportTransform}
-              onSelectObject={drawingTool.handleSelectObject}
-              onStagePointerDown={drawingTool.handleStagePointerDown}
-              onStagePointerMove={drawingTool.handleStagePointerMove}
-              onStagePointerUp={drawingTool.handleStagePointerUp}
-              onStagePointerCancel={drawingTool.handleStagePointerCancel}
-              onStageContextMenu={drawingTool.handleStageContextMenu}
-            />
-            {useSceneSurface ? (
-              <CanvasEmbedLayer
-                cards={overlayTiles}
-                tileMetaById={decoratedTileMetaById}
-                viewport={liveViewport}
-                canvasSize={canvasViewportSize}
-                isCanvasMoving={isCanvasMoving}
-              />
+            {needsDrawingLayer ? (
+              <Suspense fallback={null}>
+                <DrawingLayer
+                  drawings={drawingTool.drawings}
+                  draftLine={drawingTool.draftLine}
+                  selectedObjectId={drawingTool.selectedObjectId}
+                  activeTool={drawingTool.activeTool}
+                  isSpacePanning={drawingTool.isSpacePanning}
+                  getViewportSnapshot={canvas.getViewportSnapshot}
+                  subscribeViewportTransform={canvas.subscribeViewportTransform}
+                  onSelectObject={drawingTool.handleSelectObject}
+                  onStagePointerDown={drawingTool.handleStagePointerDown}
+                  onStagePointerMove={drawingTool.handleStagePointerMove}
+                  onStagePointerUp={drawingTool.handleStagePointerUp}
+                  onStagePointerCancel={drawingTool.handleStagePointerCancel}
+                  onStageContextMenu={drawingTool.handleStageContextMenu}
+                />
+              </Suspense>
             ) : null}
             <div
               key={canvasEntrySequence}
               ref={canvas.contentRef}
-              className={`canvas__content${useSceneSurface ? " canvas__content--overlay" : ""}${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
+              className={`canvas__content${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
             >
               <CanvasDensityZones tiles={filteredTiles} />
               <CanvasTetherLayer
@@ -3527,13 +3313,10 @@ export default function CanvasWorkspaceView() {
           renderedTileCount={renderedTileCount}
           totalTileCount={totalTileCount}
           activeDragLayers={interactions.draggingTileIds.length}
-          sceneTileCount={sceneTiles.length}
           domIslandCount={promotedDomTileCount}
-          forcedDomFallbackTileCount={forcedDomFallbackTileCount}
           activeEmbedTileCount={activeEmbedTileCount}
           isCanvasMoving={isCanvasMoving}
           workspaceLodLevel={workspaceLodLevel}
-          rendererMode={rendererMode}
           lodLevelCounts={lodLevelCounts}
           previewTierCounts={previewTierCounts}
           onOpenTestingTilesCanvas={showDeveloperQaActions ? openTestingTilesCanvas : null}

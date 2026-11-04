@@ -612,7 +612,8 @@ export function useTetherSystem({
       }
     }
 
-    // Tiles drawn by the zoomed-out scene surface have no DOM: use boxes.
+    // No tile element under the pointer (e.g. a culled tile, or the few px
+    // of slop around an edge): fall back to the tile boxes.
     const point = clientToWorldPoint(clientX, clientY);
     const list = entriesRef.current;
 

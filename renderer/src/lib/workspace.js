@@ -12,14 +12,6 @@ import {
   deriveCanvasTextTitle,
   getCanvasTextLineCount,
 } from "./canvasText";
-import {
-  clamp,
-  getDefaultCameraDistance,
-  getDefaultWorkspaceView,
-  MAX_CAMERA_DISTANCE,
-  MIN_GLOBE_RADIUS,
-  getSoftGlobeRadius,
-} from "../systems/globe/globeLayout";
 import { createEmptyDrawings, normalizeDrawings } from "../systems/drawing/drawingTypes";
 import { TEXT_BOX_DEFAULT_PLACEHOLDER_TEXT } from "./textBoxStyle";
 // Per-tile-type data model modules (Phase 2B extraction). These import
@@ -425,20 +417,11 @@ function normalizePreviewDiagnostics(previewDiagnostics) {
   return JSON.parse(JSON.stringify(previewDiagnostics));
 }
 
-function normalizeWorkspaceView(view, tileCount = 0) {
-  const defaults = getDefaultWorkspaceView(tileCount);
-  const globeRadius = Number.isFinite(view?.globeRadius)
-    ? clamp(view.globeRadius, MIN_GLOBE_RADIUS, getSoftGlobeRadius(9999))
-    : defaults.globeRadius;
-
+// The old globe view's camera fields (globeRadius, yaw, pitch,
+// cameraDistance) are dropped here: nothing reads them any more.
+function normalizeWorkspaceView(view) {
   return {
     mode: view?.mode === "grid" ? "grid" : "flat",
-    globeRadius,
-    yaw: Number.isFinite(view?.yaw) ? view.yaw : defaults.yaw,
-    pitch: Number.isFinite(view?.pitch) ? view.pitch : defaults.pitch,
-    cameraDistance: Number.isFinite(view?.cameraDistance)
-      ? clamp(view.cameraDistance, getDefaultCameraDistance(globeRadius), MAX_CAMERA_DISTANCE)
-      : getDefaultCameraDistance(globeRadius),
     focusedTileId: typeof view?.focusedTileId === "string" ? view.focusedTileId : null,
   };
 }
@@ -689,7 +672,7 @@ function normalizeWorkspacePage(page, fallbackIndex = 0) {
     id: typeof page?.id === "string" && page.id.trim().length > 0 ? page.id : generateWorkspacePageId(),
     name: firstString(page?.name, `Page ${fallbackIndex + 1}`, DEFAULT_PAGE_NAME),
     viewport: normalizeWorkspaceViewport(page?.viewport),
-    view: normalizeWorkspaceView(page?.view, cards.length),
+    view: normalizeWorkspaceView(page?.view),
     cards,
     drawings: normalizeDrawings(page?.drawings),
     edges: cloneStructuredArray(page?.edges),
@@ -1507,10 +1490,42 @@ export function getNextCardPosition(
 }
 
 
+// Plain-data deep equality for cards and their nested fields (cards are
+// JSON-shaped: no functions, dates or class instances).
+export function isSameJsonValue(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") {
+    return false;
+  }
+
+  if (Array.isArray(left) !== Array.isArray(right)) {
+    return false;
+  }
+
+  if (Array.isArray(left)) {
+    return left.length === right.length && left.every((value, index) => isSameJsonValue(value, right[index]));
+  }
+
+  const leftKeys = Object.keys(left);
+
+  return leftKeys.length === Object.keys(right).length
+    && leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && isSameJsonValue(left[key], right[key]));
+}
+
+// A patch that changes nothing (a tile re-writing the size it already has)
+// keeps the card as-is, rather than stamping a new updatedAt that makes it
+// look changed and re-renders it.
+function patchChangesCard(card, updates) {
+  return Object.keys(updates ?? {}).some((key) => !isSameJsonValue(card[key], updates[key]));
+}
+
 export function updateCard(cards, cardId, updates) {
   return cards
     .map((card) =>
-      card.id === cardId
+      card.id === cardId && patchChangesCard(card, updates)
         ? normalizeCard({
           ...card,
           ...updates,
@@ -1525,7 +1540,7 @@ export function updateCards(cards, updatesById) {
     .map((card) => {
       const updates = updatesById?.[card.id];
 
-      if (!updates) {
+      if (!updates || !patchChangesCard(card, updates)) {
         return card;
       }
 
@@ -2007,4 +2022,62 @@ export function withActivePageMirror(workspace) {
     groups: activePage.groups,
     tethers: activePage.tethers,
   };
+}
+
+// normalizeWorkspace rebuilds every card with fresh nested objects, so an
+// edit to one tile used to hand every tile a new `card` and re-render (and
+// re-measure) the whole canvas. This puts back the previous object for each
+// card whose data didn't change, and the previous cards array when a page
+// is untouched, so memo(Card) skips unchanged tiles and the store's
+// "nothing changed" check can bail out.
+export function reuseUnchangedCards(previousWorkspace, nextWorkspace) {
+  if (
+    !previousWorkspace
+    || !nextWorkspace
+    || previousWorkspace === nextWorkspace
+    || !Array.isArray(previousWorkspace.pages)
+    || !Array.isArray(nextWorkspace.pages)
+  ) {
+    return nextWorkspace;
+  }
+
+  const previousPagesById = new Map(previousWorkspace.pages.map((page) => [page.id, page]));
+  const previousCardsById = new Map();
+  previousWorkspace.pages.forEach((page) => {
+    (page.cards ?? []).forEach((card) => previousCardsById.set(card.id, card));
+  });
+
+  let reusedAny = false;
+  const pages = nextWorkspace.pages.map((page) => {
+    const nextCards = Array.isArray(page.cards) ? page.cards : [];
+    let reusedOnPage = false;
+    const cards = nextCards.map((card) => {
+      const previousCard = previousCardsById.get(card?.id);
+
+      if (previousCard && previousCard !== card && isSameJsonValue(previousCard, card)) {
+        reusedOnPage = true;
+        return previousCard;
+      }
+
+      return card;
+    });
+
+    if (!reusedOnPage) {
+      return page;
+    }
+
+    reusedAny = true;
+    const previousCards = previousPagesById.get(page.id)?.cards;
+    const isUnchangedList = Array.isArray(previousCards)
+      && previousCards.length === cards.length
+      && previousCards.every((card, index) => card === cards[index]);
+
+    return { ...page, cards: isUnchangedList ? previousCards : cards };
+  });
+
+  if (!reusedAny) {
+    return nextWorkspace;
+  }
+
+  return withActivePageMirror({ ...nextWorkspace, pages, activePage: null });
 }

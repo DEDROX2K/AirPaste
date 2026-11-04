@@ -21,6 +21,7 @@
     "dev:electron": "wait-on tcp:5173 && electron .",
     "start": "electron .",
     "check:tiles": "node scripts/check-tile-book.js",
+    "check:styles": "vitest run test/tile-style-guardrails.test.js",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

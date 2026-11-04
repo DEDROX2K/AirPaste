@@ -180,11 +180,12 @@ function GitHubRepoTile({
 
   // Height is auto (the description and legend vary), but card.height is
   // what selection, hit-testing and layout use, so write the rendered height
-  // back. offsetHeight is layout size, unaffected by canvas zoom.
+  // back. offsetHeight is layout size, unaffected by canvas zoom. Skipped
+  // in a rack's static preview, which is drawn at another size.
   useLayoutEffect(() => {
     const surface = surfaceRef.current;
 
-    if (!surface) {
+    if (!surface || renderHint?.isStaticPreview === true) {
       return;
     }
 

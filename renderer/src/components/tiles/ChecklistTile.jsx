@@ -107,10 +107,12 @@ function ChecklistTile({
   // The tile has no fixed height -- it grows with every task -- but
   // card.height is what selection, hit-testing and layout use, so write the
   // rendered height back. offsetHeight is layout size, unaffected by zoom.
+  // A rack's static preview is a copy drawn at another size: it must never
+  // write, or it and the live tile can fight over card.height.
   useLayoutEffect(() => {
     const surface = surfaceRef.current;
 
-    if (!surface) {
+    if (!surface || renderHint?.isStaticPreview === true) {
       return;
     }
 

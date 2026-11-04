@@ -260,8 +260,17 @@
     transform 120ms ease;
 }
 
-.checklist-tile__check:hover {
+/* SimpleUi.css paints every button's hover grey and rounds it to 8px with
+   !important at (0,3,0): restate radius and background here to out-rank it,
+   or a ticked box turns grey on hover and hides its checkmark. */
+.checklist-tile .checklist-tile__check {
+  border-radius: 7px !important;
+  background: var(--checklist-sheet) !important;
+}
+
+.checklist-tile .checklist-tile__check:hover:not(:disabled) {
   border-color: var(--checklist-box-border-hover);
+  background: var(--checklist-sheet) !important;
 }
 
 .checklist-tile__check:active {
@@ -280,9 +289,10 @@
   transition: stroke-dashoffset 180ms ease;
 }
 
-.checklist-tile__task[data-done="true"] .checklist-tile__check {
+.checklist-tile .checklist-tile__task[data-done="true"] .checklist-tile__check,
+.checklist-tile .checklist-tile__task[data-done="true"] .checklist-tile__check:hover:not(:disabled) {
   border-color: var(--checklist-box-checked);
-  background: var(--checklist-box-checked);
+  background: var(--checklist-box-checked) !important;
 }
 
 .checklist-tile__task[data-done="true"] .checklist-tile__check svg path {

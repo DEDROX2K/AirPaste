@@ -35,6 +35,12 @@ function isCanvasBackgroundTarget(event) {
     || event.target.classList?.contains("canvas__grid");
 }
 
+// These pruning effects run on every card write; handing back the same array
+// when nothing was removed saves a full canvas re-render each time.
+function keepIfUnchanged(currentIds, filteredIds) {
+  return filteredIds.length === currentIds.length ? currentIds : filteredIds;
+}
+
 export function useCanvasInteractionSystem({
   cards,
   groups = [],
@@ -132,8 +138,8 @@ export function useCanvasInteractionSystem({
   }, [resetKey, resetTransientState]);
 
   useEffect(() => {
-    setSelectedTileIds((currentIds) => currentIds.filter((tileId) => cards.some((tile) => tile.id === tileId)));
-    setSelectedGroupIds((currentIds) => currentIds.filter((groupId) => groups.some((group) => group.id === groupId)));
+    setSelectedTileIds((currentIds) => keepIfUnchanged(currentIds, currentIds.filter((tileId) => cards.some((tile) => tile.id === tileId))));
+    setSelectedGroupIds((currentIds) => keepIfUnchanged(currentIds, currentIds.filter((groupId) => groups.some((group) => group.id === groupId))));
     setHoveredTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
     setHoveredGroupId((currentId) => (groups.some((group) => group.id === currentId) ? currentId : null));
     setFocusedTileId((currentId) => (cards.some((tile) => tile.id === currentId) ? currentId : null));
@@ -154,7 +160,7 @@ export function useCanvasInteractionSystem({
         .map((entry) => entry.tile.id),
     );
 
-    setSelectedTileIds((currentIds) => currentIds.filter((tileId) => renderableTileIds.has(tileId)));
+    setSelectedTileIds((currentIds) => keepIfUnchanged(currentIds, currentIds.filter((tileId) => renderableTileIds.has(tileId))));
     setHoveredTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
     setFocusedTileId((currentId) => (renderableTileIds.has(currentId) ? currentId : null));
   }, [cards]);

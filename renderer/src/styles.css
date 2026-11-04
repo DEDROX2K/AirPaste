@@ -1696,24 +1696,6 @@ option {
   background-size: var(--canvas-background-plane-size, 320px auto);
 }
 
-.canvas__scene-surface {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  touch-action: none;
-  z-index: 1;
-}
-
-.canvas__content--overlay {
-  pointer-events: none;
-}
-
-.canvas__content--overlay .card {
-  pointer-events: auto;
-}
-
 .canvas__content .card {
   z-index: max(1, var(--tile-z, 1));
 }

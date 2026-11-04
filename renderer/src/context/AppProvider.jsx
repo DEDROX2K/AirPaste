@@ -23,10 +23,12 @@ import {
   getViewportOnlyPageChanges,
   getWorkspaceActivePage,
   isBookmarkLinkCard,
+  isSameJsonValue,
   normalizeWorkspace,
   removeCard,
   reorderCards,
   replaceCards,
+  reuseUnchangedCards,
   updateCard,
   updateCards,
   withActivePageMirror,
@@ -124,15 +126,14 @@ function areStructuredObjectsEqual(a, b) {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
+// A full data compare: the old top-level `===` check failed on nested
+// objects normalizeCard rebuilds every time (layout, style, items...), so
+// every workspace looked changed and the store never bailed out.
 function areCardsEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
 
-  return areObjectsEqual(a, b)
-    && areObjectsEqual(a.asset, b.asset)
-    && areObjectsEqual(a.file, b.file)
-    && areStructuredObjectsEqual(a.airpaste, b.airpaste)
-    && areObjectsEqual(a.layout?.globe, b.layout?.globe);
+  return isSameJsonValue(a, b);
 }
 
 function areNumberArraysEqual(a, b) {
@@ -1479,7 +1480,7 @@ export function AppProvider({ children }) {
             ? candidateWorkspace
             : currentWorkspace
         )
-        : normalizeWorkspace(candidateWorkspace);
+        : reuseUnchangedCards(currentWorkspace, normalizeWorkspace(candidateWorkspace));
       const committedBaseWorkspace = workspaceDraftBaseRef.current[activePath] ?? currentWorkspace;
 
       if (options.commitHistory) {

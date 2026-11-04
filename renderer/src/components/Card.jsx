@@ -65,10 +65,13 @@ function areCardPropsEqual(previousProps, nextProps) {
   const dragVisualDeltaEqual = (!wasDragAffected && !isDragAffected)
     || previousProps.dragVisualDelta === nextProps.dragVisualDelta;
 
+  // Tiles only ask the drag set whether they're in it, so compare that
+  // rather than the set: a drag starting or ending then re-renders the
+  // dragged tiles, not every tile on the canvas.
   return previousProps.card === nextProps.card
     && previousProps.tileMeta === nextProps.tileMeta
     && dragVisualDeltaEqual
-    && previousProps.dragVisualTileIdSet === nextProps.dragVisualTileIdSet
+    && wasDragAffected === isDragAffected
     && previousProps.childTiles === nextProps.childTiles
     && previousProps.rackState === nextProps.rackState
     && previousProps.renderHint === nextProps.renderHint
