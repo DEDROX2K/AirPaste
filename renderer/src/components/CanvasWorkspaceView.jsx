@@ -602,6 +602,7 @@ function areTileMetaEquivalent(left, right) {
 
   return left.isDragging === right.isDragging
     && left.isSelected === right.isSelected
+    && left.isMultiSelect === right.isMultiSelect
     && left.isFocused === right.isFocused
     && left.isHovered === right.isHovered
     && left.isMergeTarget === right.isMergeTarget

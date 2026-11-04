@@ -844,6 +844,13 @@ export function useCanvasInteractionSystem({
       }
       pendingMoveEvent = null;
 
+      // Catch up to the release point first: the last flushed frame can be
+      // up to a frame behind the pointer, and committing that stale delta
+      // made the tile slide the last few px after letting go.
+      if (event && dragStateRef.current) {
+        processPointerMove(event);
+      }
+
       const dragState = dragStateRef.current;
 
       if (!dragState) {

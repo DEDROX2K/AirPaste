@@ -98,7 +98,9 @@ export function useTileLayoutSystem({
           // than one tile is selected at once -- rendering every selected
           // tile's full detail text simultaneously is the expensive case,
           // not showing it for exactly one.
-          isMultiSelect: selectedTileIds.length > 1,
+          // Only selected tiles carry it, so selecting a second tile doesn't
+          // re-render every unselected tile on the board.
+          isMultiSelect: selectedTileIds.length > 1 && selectedTileIdSet.has(tile.id),
           isFocused: focusedTileId === tile.id,
           isHovered: hoveredTileId === tile.id,
           isMergeTarget: false,

@@ -363,14 +363,28 @@ function LinkTile({
   const linkTitle = card.title || formatShortUrl(card.url) || (isImageTile ? "Imported image" : "Untitled link");
   const linkDescription = typeof card.description === "string" ? card.description.trim() : "";
   const hasLinkDescription = linkDescription.length > 0;
-  // Every tile shows a title except direct images -- the image itself is
-  // the content, a title line would just restate "Imported image".
-  const isTitleVisible = !isImageTile;
-  // Detail text (description) only earns its render cost for a single
-  // selected tile; selecting several at once would mean paying that cost
-  // for all of them at once for no one tile's benefit.
-  const isDescriptionVisible = (tileMeta?.isSelected === true || tileMeta?.interactionState === "selected")
+  // Text over the tile: hovering shows the title; clicking (a single
+  // selection) shows the title and the description. While a tile is being
+  // dragged, and in a multi-selection, it shows neither. After a drag the
+  // text stays away until the pointer leaves the tile or it is clicked
+  // again, so dropping a tile doesn't pop its overlays back in.
+  // Direct images never show a title: the image itself is the content.
+  const isDragging = tileMeta?.isDragging === true;
+  const isHovered = tileMeta?.isHovered === true;
+  const isSingleSelected = (tileMeta?.isSelected === true || tileMeta?.interactionState === "selected")
     && tileMeta?.isMultiSelect !== true;
+  const [isQuietAfterDrag, setIsQuietAfterDrag] = useState(false);
+
+  if (isDragging && !isQuietAfterDrag) {
+    setIsQuietAfterDrag(true);
+  } else if (isQuietAfterDrag && !isDragging && !isHovered) {
+    setIsQuietAfterDrag(false);
+  }
+
+  const isTextAllowed = !isDragging && !isQuietAfterDrag && tileMeta?.isMultiSelect !== true;
+  const isTitleVisible = !isImageTile;
+  const isTitleShown = isTitleVisible && isTextAllowed && (isHovered || isSingleSelected);
+  const isDescriptionVisible = isTextAllowed && isSingleSelected;
   const fallbackDomainLabel = getLinkDomain(card.url);
   const surfaceFrameClassName = [
     "card__surface-frame",
@@ -388,7 +402,11 @@ function LinkTile({
   const surfaceGesture = useTileGesture({
     card,
     onDragStart: onBeginDrag,
-    onPressStart,
+    onPressStart: (...args) => {
+      // A fresh click on a just-dropped tile brings its text back.
+      setIsQuietAfterDrag(false);
+      return onPressStart?.(...args);
+    },
     onDoubleActivate: async () => {
       await openTileLink({
         card,
@@ -745,7 +763,7 @@ function LinkTile({
 
           {isTitleVisible ? (
             <div className="card__link-float-overlay" aria-hidden="true">
-              <div className="card__link-float-overlay__title">{linkTitle}</div>
+              <div className={`card__link-float-overlay__title ${isTitleShown ? "card__link-float-overlay__title--shown" : "card__link-float-overlay__title--hidden"}`}>{linkTitle}</div>
             </div>
           ) : null}
 

@@ -161,9 +161,13 @@
   box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.14), 0 0 0 1px rgba(52, 199, 89, 0.46), var(--ap-tile-shadow) !important;
 }
 
+/* A dragged tile reads as lifted by its shadow alone: animating a lift /
+   scale here (on the spring ease, which overshoots) bounced the tile at
+   the moment it was picked up and again when it was dropped, and the
+   scale re-rasterised it both times. */
 .canvas__content .card--dragging .card__surface-frame,
 .grid-workspace .card--dragging .card__surface-frame {
-  transform: translateY(-3px) scale(1.01) !important;
+  transform: none !important;
 }
 
 .canvas__content .card--dragging .card__surface,
@@ -896,4 +900,25 @@
   .grid-workspace .card--focused:not(.card--dragging):not(.card--selected) .card__surface-frame {
     transform: none !important;
   }
+}
+
+/* Link tile title: LinkTile decides when it shows (hover, or a single
+   selection; never while dragging or in a multi-selection) and marks it
+   --shown / --hidden. These outrank the generic hover/focus reveal rules. */
+.canvas__content .card .card__link-float-overlay .card__link-float-overlay__title.card__link-float-overlay__title--shown,
+.grid-workspace .card .card__link-float-overlay .card__link-float-overlay__title.card__link-float-overlay__title--shown {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  backdrop-filter: blur(16px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+}
+
+.canvas__content .card .card__link-float-overlay .card__link-float-overlay__title.card__link-float-overlay__title--hidden,
+.grid-workspace .card .card__link-float-overlay .card__link-float-overlay__title.card__link-float-overlay__title--hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: opacity 120ms ease, visibility 0s linear 120ms !important;
 }

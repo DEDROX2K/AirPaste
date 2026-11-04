@@ -54,7 +54,7 @@
 }
 
 .card--dragging .github-tile {
-  transform: translateY(-3px) scale(1.01);
+  transform: none;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.16), 0 8px 22px rgba(0, 0, 0, 0.1);
 }
 

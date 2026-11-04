@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 const PIXEL_SIZE = 44;
 
@@ -11,7 +11,10 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-export default function PixelScreenTransition({
+// Memoized: it sits in App, which re-renders on every workspace change
+// (picking up or dropping a tile included), and rebuilding its several
+// hundred grid cells each time blocked the main thread mid-gesture.
+function PixelScreenTransition({
   active = false,
   transitionId = 0,
   origin = null,
@@ -80,3 +83,5 @@ export default function PixelScreenTransition({
     </div>
   );
 }
+
+export default memo(PixelScreenTransition);
