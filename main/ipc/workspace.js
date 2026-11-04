@@ -94,9 +94,9 @@ function registerIpc() {
     ));
   }
 
-  ipcMain.handle("airpaste:loadCanvas", async (_event, filePath) => {
+  ipcMain.handle("airpaste:loadCanvas", async (_event, filePath, options = null) => {
     const queueKey = await resolveWorkspaceQueueKeyForFile(filePath);
-    return withWorkspaceQueue(queueKey, () => workspaceService.loadCanvas(filePath));
+    return withWorkspaceQueue(queueKey, () => workspaceService.loadCanvas(filePath, options));
   });
 
   ipcMain.handle("airpaste:saveCanvas", async (_event, filePath, data, options = null) => {

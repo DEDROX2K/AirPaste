@@ -457,6 +457,8 @@ export function AppProvider({ children }) {
   // successful save. Compared against the real file on every save to detect
   // a conflict; see flushCanvasSave.
   const canvasDiskUpdatedAtRef = useRef({});
+  // Tail of each canvas's queue of off-screen rewrites (rewriteCanvasFile).
+  const canvasRewriteQueueRef = useRef({});
   // One-shot per-path flag: the next save for this path should snapshot
   // whatever's currently on disk into history even if the normal throttle
   // would otherwise skip it. Set by resolveCanvasConflictKeepMine, since an
@@ -1427,6 +1429,63 @@ export function AppProvider({ children }) {
     }, "Deleting item");
   }, [canvasSaveTrackingRefs, clearCanvasConflict, closeTabsForEntity, folderPath, refreshHomeData, trackLoading]);
 
+  // Edits a canvas that isn't open on screen (Serendipity's "let go"):
+  // read it fresh from disk, apply `transform(workspace)`, and write it back
+  // with conflict detection and a forced history snapshot so the change can
+  // be undone from Version History. Any copy cached by a background tab is
+  // dropped so it rehydrates from the new file rather than overwriting it.
+  // `transform` returns { workspace, ...extra } (or null to skip saving);
+  // the extra fields are passed back to the caller. Rewrites of the same
+  // canvas run one after another: each is a separate load and save, so two
+  // quick "let go"s would otherwise both read the file before either wrote.
+  const rewriteCanvasFile = useCallback((canvasPath, transform) => {
+    if (!canvasPath || typeof transform !== "function") return Promise.resolve(null);
+
+    const rewrite = async () => {
+      if (pendingCanvasSaveRef.current[canvasPath]) {
+        await flushCanvasSave(canvasPath);
+      }
+
+      const doc = await desktop.workspace.loadCanvas(canvasPath, { recordRecent: false });
+      const result = transform(normalizeWorkspace(doc.workspace));
+      if (!result?.workspace) return null;
+
+      const saveResult = await desktop.workspace.saveCanvas(canvasPath, {
+        activePageId: result.workspace.activePageId,
+        pages: result.workspace.pages,
+      }, {
+        partial: true,
+        returnWorkspace: false,
+        changedKeys: ["pages"],
+        expectedUpdatedAt: doc.updatedAt,
+        forceHistorySnapshot: true,
+      });
+
+      delete workspaceDraftBaseRef.current[canvasPath];
+      clearCanvasPathKeyedRefs(canvasSaveTrackingRefs, canvasPath);
+      if (saveResult?.updatedAt) {
+        canvasDiskUpdatedAtRef.current[canvasPath] = saveResult.updatedAt;
+      }
+      setWorkspacesByPath((prev) => {
+        if (!prev[canvasPath]) return prev;
+        const next = { ...prev };
+        delete next[canvasPath];
+        return next;
+      });
+      return result;
+    };
+
+    const queued = (canvasRewriteQueueRef.current[canvasPath] ?? Promise.resolve())
+      .catch(() => {})
+      .then(rewrite);
+    canvasRewriteQueueRef.current[canvasPath] = queued;
+    return queued.finally(() => {
+      if (canvasRewriteQueueRef.current[canvasPath] === queued) {
+        delete canvasRewriteQueueRef.current[canvasPath];
+      }
+    });
+  }, [canvasSaveTrackingRefs, flushCanvasSave]);
+
   const toggleItemStarred = useCallback(async (filePath, starred) => {
     if (!folderPath || !filePath) return null;
     const item = await desktop.workspace.markItemStarred(folderPath, filePath, starred);
@@ -2021,6 +2080,7 @@ export function AppProvider({ children }) {
     renameItemEntry,
     reorderExistingCards,
     replaceWorkspaceCards,
+    rewriteCanvasFile,
     saveHomeUiState,
     revealDome,
     setError,
@@ -2097,6 +2157,7 @@ export function AppProvider({ children }) {
     renameItemEntry,
     reorderExistingCards,
     replaceWorkspaceCards,
+    rewriteCanvasFile,
     saveHomeUiState,
     revealDome,
     setError,

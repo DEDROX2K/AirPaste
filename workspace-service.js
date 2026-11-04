@@ -906,7 +906,7 @@ async function restoreCanvasHistoryEntry(filePath, entryId) {
   return loadCanvas(abs);
 }
 
-async function loadCanvas(filePath) {
+async function loadCanvas(filePath, options = null) {
   const abs = path.resolve(filePath);
   if (!isCanvasPath(abs)) {
     throw new Error('Canvas path must end with ".canvas" or ".airpaste.json".');
@@ -932,7 +932,11 @@ async function loadCanvas(filePath) {
       airpaste: isObject(raw.airpaste) ? cloneStructuredValue(raw.airpaste) : null,
     };
 
-  await recordRecentItem(root, abs);
+  // Serendipity reads every canvas just to shuffle its tiles; that browsing
+  // shouldn't reorder the user's Recents.
+  if (options?.recordRecent !== false) {
+    await recordRecentItem(root, abs);
+  }
 
   return {
     id: firstString(raw.id, legacyDocumentId(rel)),

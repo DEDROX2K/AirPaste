@@ -49,6 +49,7 @@ import {
   Trash2,
   X,
 } from "./ui/icons";
+import SerendipityView from "./SerendipityView";
 import "./HomeShell.css";
 
 const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
@@ -476,6 +477,7 @@ function HomeSidebarContent({
   onSectionChange,
   onToggleCollapsed,
   onManageWorkspaces,
+  onOpenSerendipity,
 }) {
   return (
     <>
@@ -513,6 +515,19 @@ function HomeSidebarContent({
             </span>
           </AppButton>
         ))}
+        <AppButton
+          type="button"
+          tone="unstyled"
+          className="ap-home-nav-link"
+          title="Serendipity: shuffle through old saves"
+          disabled={allCanvasItems.length === 0}
+          onClick={onOpenSerendipity}
+        >
+          <span className="ap-home-nav-link__label">
+            <Sparkles size={16} aria-hidden="true" />
+            <span className="ap-home-nav-link__text">Serendipity</span>
+          </span>
+        </AppButton>
       </nav>
 
       <div className="ap-home-sidebar__spacer" />
@@ -663,6 +678,7 @@ export default function HomeShell() {
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
+  const [serendipityOpen, setSerendipityOpen] = useState(false);
   const [homeSidebarCollapsed, setHomeSidebarCollapsed] = useState(false);
   const [homeViewMode, setHomeViewMode] = useState(() => getResolvedHomeViewMode(homeData.uiState));
   const listButtonRefs = useRef([]);
@@ -937,6 +953,7 @@ export default function HomeShell() {
             onSectionChange={handleSectionChange}
             onToggleCollapsed={() => setHomeSidebarCollapsed((current) => !current)}
             onManageWorkspaces={() => setManageDomesOpen(true)}
+            onOpenSerendipity={() => setSerendipityOpen(true)}
           />
         </aside>
       ) : null}
@@ -1125,9 +1142,20 @@ export default function HomeShell() {
                 setSidebarDrawerOpen(false);
                 setManageDomesOpen(true);
               }}
+              onOpenSerendipity={() => {
+                setSidebarDrawerOpen(false);
+                setSerendipityOpen(true);
+              }}
             />
           </AppSheetContent>
         </AppSheet>
+      ) : null}
+
+      {serendipityOpen && hasWorkspace ? (
+        <SerendipityView
+          canvasItems={allCanvasItems}
+          onClose={() => setSerendipityOpen(false)}
+        />
       ) : null}
 
       <TextPromptDialog

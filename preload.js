@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:createCanvas", folderPath, name, targetFolderPath),
   createFolder: (folderPath, name, targetFolderPath) =>
     ipcRenderer.invoke("airpaste:createFolder", folderPath, name, targetFolderPath),
-  loadCanvas: (filePath) =>
-    ipcRenderer.invoke("airpaste:loadCanvas", filePath),
+  loadCanvas: (filePath, options = null) =>
+    ipcRenderer.invoke("airpaste:loadCanvas", filePath, options),
   saveCanvas: (filePath, data, options = null) =>
     ipcRenderer.invoke("airpaste:saveCanvas", filePath, data, options),
   listCanvasHistory: (filePath) => ipcRenderer.invoke("airpaste:listCanvasHistory", filePath),

@@ -10,6 +10,8 @@
  */
 
 .ap-home {
+  /* Anchors the Serendipity overlay (SerendipityView.css). */
+  position: relative;
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
   height: 100%;
