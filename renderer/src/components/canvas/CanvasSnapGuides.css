@@ -1,0 +1,56 @@
+/* Snap guides live in world space; --snap-ui turns screen pixels into world
+   units (--canvas-zoom is set on .canvas__content by useCanvasSystem). */
+.snap-guides {
+  --snap-ui: calc(1 / var(--canvas-zoom, 1));
+  --snap-guide-color: #ff3d7f;
+  position: absolute;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+}
+
+.snap-guides__line {
+  position: absolute;
+  display: block;
+  background: var(--snap-guide-color);
+}
+
+.snap-guides__line--vertical {
+  width: calc(1px * var(--snap-ui));
+  transform: translateX(-50%);
+}
+
+.snap-guides__line--horizontal {
+  height: calc(1px * var(--snap-ui));
+  transform: translateY(-50%);
+}
+
+/* A gap bar has end caps so it reads as a measured distance. */
+.snap-guides__line--gap::before,
+.snap-guides__line--gap::after {
+  content: "";
+  position: absolute;
+  background: var(--snap-guide-color);
+}
+
+.snap-guides__line--gap.snap-guides__line--horizontal::before,
+.snap-guides__line--gap.snap-guides__line--horizontal::after {
+  top: 50%;
+  width: calc(1px * var(--snap-ui));
+  height: calc(8px * var(--snap-ui));
+  transform: translateY(-50%);
+}
+
+.snap-guides__line--gap.snap-guides__line--horizontal::before { left: 0; }
+.snap-guides__line--gap.snap-guides__line--horizontal::after { right: 0; }
+
+.snap-guides__line--gap.snap-guides__line--vertical::before,
+.snap-guides__line--gap.snap-guides__line--vertical::after {
+  left: 50%;
+  width: calc(8px * var(--snap-ui));
+  height: calc(1px * var(--snap-ui));
+  transform: translateX(-50%);
+}
+
+.snap-guides__line--gap.snap-guides__line--vertical::before { top: 0; }
+.snap-guides__line--gap.snap-guides__line--vertical::after { bottom: 0; }

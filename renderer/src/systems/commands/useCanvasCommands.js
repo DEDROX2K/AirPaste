@@ -48,6 +48,7 @@ import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 import { getRenderableTileEntries } from "../layout/tileLayout";
 import { LINK_CARD_SIZE } from "../../tiles/link/model";
+import { getArticleModePatch, getStandardLinkTileSize } from "../../tiles/link/articleView";
 import { maybeRemark, NOTE_CREATE_QUIPS, TILE_CREATE_QUIPS, TILE_DELETE_QUIPS } from "../../lib/eyeCommentary";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
@@ -324,27 +325,78 @@ export function useCanvasCommands({
       return false;
     }
 
+    // Every mode is sized from the standard card, so switching between
+    // webclip, article and standard always returns to the same size.
+    const standardSize = getStandardLinkTileSize(tile);
+
     if (mode === "webclip") {
       if (!tile.webclipImagePath) {
         return false;
       }
 
       const aspect = tile.webclipAspectRatio;
-      const nextHeight = aspect > 0 ? Math.round(tile.width / aspect) : tile.height;
       updateExistingCard(tile.id, {
         previewMode: "webclip",
-        height: nextHeight,
-        webclipPreviousHeight: Number.isFinite(tile.webclipPreviousHeight) ? tile.webclipPreviousHeight : tile.height,
+        width: standardSize.width,
+        height: aspect > 0 ? Math.round(standardSize.width / aspect) : standardSize.height,
+        webclipPreviousHeight: standardSize.height,
       });
+      return true;
+    }
+
+    if (mode === "article") {
+      if (tile.article?.status !== "ready" || !tile.article.path) {
+        return false;
+      }
+
+      updateExistingCard(tile.id, getArticleModePatch(tile));
       return true;
     }
 
     updateExistingCard(tile.id, {
       previewMode: "standard",
-      height: Number.isFinite(tile.webclipPreviousHeight) ? tile.webclipPreviousHeight : tile.height,
+      width: standardSize.width,
+      height: standardSize.height,
     });
     return true;
   }, [updateExistingCard]);
+
+  // Reader view (right-click → Article): extracts the page's article in the
+  // main process and turns the tile into an article sheet.
+  const captureTileArticle = useCallback(async (tile) => {
+    if (!isBookmarkLinkCard(tile) || !tile.url?.trim()) {
+      return false;
+    }
+
+    updateExistingCard(tile.id, { article: { ...tile.article, status: "capturing" } });
+    toast("info", "Getting the article...");
+
+    try {
+      const result = await desktop.workspace.captureArticle(folderPath, tile.url);
+
+      if (!result?.articlePath) {
+        updateExistingCard(tile.id, { article: { ...tile.article, status: "error" } });
+        toast("error", "Couldn't find an article to read on this page.");
+        return false;
+      }
+
+      updateExistingCard(tile.id, getArticleModePatch(tile, {
+        path: result.articlePath,
+        status: "ready",
+        title: result.title,
+        byline: result.byline,
+        siteName: result.siteName,
+        excerpt: result.excerpt,
+        wordCount: result.wordCount,
+      }));
+      return true;
+    } catch (error) {
+      updateExistingCard(tile.id, { article: { ...tile.article, status: "error" } });
+      log("error", "Article capture failed", error?.message || "Unable to read this page.");
+      toast("error", "Couldn't find an article to read on this page.");
+      return false;
+    }
+  }, [folderPath, log, toast, updateExistingCard]);
 
   // One-off, user-triggered capture (right-click → Webclip), distinct from the
   // automatic, queued og-image fetch above: a single on-demand screenshot, not
@@ -367,15 +419,16 @@ export function useCanvasCommands({
       }
 
       const aspect = result.width > 0 && result.height > 0 ? result.width / result.height : null;
-      const nextHeight = aspect > 0 ? Math.round(tile.width / aspect) : tile.height;
+      const standardSize = getStandardLinkTileSize(tile);
 
       updateExistingCard(tile.id, {
         webclipImagePath: result.webclipPath,
         webclipAspectRatio: aspect,
-        webclipPreviousHeight: tile.height,
+        webclipPreviousHeight: standardSize.height,
         webclipStatus: "ready",
         previewMode: "webclip",
-        height: nextHeight,
+        width: standardSize.width,
+        height: aspect > 0 ? Math.round(standardSize.width / aspect) : standardSize.height,
       });
       return true;
     } catch (error) {
@@ -1674,6 +1727,7 @@ export function useCanvasCommands({
     retryTilePreview,
     updateTileFromMediaLoad,
     captureTileWebclip,
+    captureTileArticle,
     setLinkPreviewMode,
   }), [
     addTileToRackCommand,
@@ -1726,6 +1780,7 @@ export function useCanvasCommands({
     retryTilePreview,
     updateTileFromMediaLoad,
     captureTileWebclip,
+    captureTileArticle,
     setLinkPreviewMode,
   ]);
 }

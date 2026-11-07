@@ -3,6 +3,7 @@ import { useAppContext } from "../../context/useAppContext";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { formatPaperNoteShortDate } from "../../tiles/paperNote/model";
 import TileShell from "./TileShell";
 import "./PaperNoteTile.css";
 
@@ -20,13 +21,12 @@ const PAGE_CONTENT_CAPACITY_PX = 220;
 const MAX_STACK_PAGES = 3;
 const TRAIL_LAG_FACTORS = [0.22, 0.13];
 
-function hashUnitInterval(seed) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-  return (hash % 1000) / 1000;
-}
+// Extra pages sit squarely behind the front one, each a little lower and
+// smaller, like stacked iOS notifications -- no scatter or rotation.
+const GHOST_STYLES = [1, 2].map((depth) => ({
+  "--pn-oy": `${depth * 7}px`,
+  "--pn-scale": String(1 - depth * 0.045),
+}));
 
 // Makes the extra stacked pages lag behind the front page while it's being
 // dragged, then settle back into place after the drop -- a lightweight
@@ -106,6 +106,7 @@ function PaperNoteTile({
   const hasSubtitle = subtitle.trim().length > 0;
   const hasBody = text.trim().length > 0;
   const bodyPreview = useMemo(() => renderSimpleMarkdown(text), [text]);
+  const dateLabel = formatPaperNoteShortDate(card.updatedAt || card.createdAt);
 
   useLayoutEffect(() => {
     const measuredHeight = measureRef.current?.getBoundingClientRect?.().height ?? 0;
@@ -155,18 +156,6 @@ function PaperNoteTile({
   const frontAbsoluteY = card.y + (dragDelta ? dragDelta.y : 0);
   const trailRefs = useTrailingGhostRefs(frontAbsoluteX, frontAbsoluteY, pageCount);
 
-  const ghostSeeds = useMemo(() => {
-    const base = hashUnitInterval(card.id);
-    return [1, 2].map((depth) => {
-      const seed = (base + depth * 0.37) % 1;
-      return {
-        offsetX: 7 + seed * 9 + depth * 2,
-        offsetY: 11 + depth * 8 + seed * 6,
-        rotation: (seed - 0.5) * 9 * depth,
-      };
-    });
-  }, [card.id]);
-
   return (
     <TileShell
       card={card}
@@ -185,11 +174,7 @@ function PaperNoteTile({
             <div
               ref={(node) => { trailRefs[1] = node; }}
               className="paper-note__page paper-note__page--ghost paper-note__page--ghost-2"
-              style={{
-                "--pn-ox": `${ghostSeeds[1].offsetX}px`,
-                "--pn-oy": `${ghostSeeds[1].offsetY}px`,
-                "--pn-rot": `${ghostSeeds[1].rotation}deg`,
-              }}
+              style={GHOST_STYLES[1]}
               aria-hidden="true"
             />
           ) : null}
@@ -197,11 +182,7 @@ function PaperNoteTile({
             <div
               ref={(node) => { trailRefs[0] = node; }}
               className="paper-note__page paper-note__page--ghost paper-note__page--ghost-1"
-              style={{
-                "--pn-ox": `${ghostSeeds[0].offsetX}px`,
-                "--pn-oy": `${ghostSeeds[0].offsetY}px`,
-                "--pn-rot": `${ghostSeeds[0].rotation}deg`,
-              }}
+              style={GHOST_STYLES[0]}
               aria-hidden="true"
             />
           ) : null}
@@ -213,6 +194,7 @@ function PaperNoteTile({
             {...surfaceGesture}
           >
             <header className="paper-note__head">
+              {dateLabel ? <div className="paper-note__date">{dateLabel}</div> : null}
               <div className={`paper-note__title${hasTitle ? "" : " paper-note__title--placeholder"}`}>
                 {hasTitle ? title : "Untitled"}
               </div>

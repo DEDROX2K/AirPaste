@@ -1,4 +1,5 @@
 import AmazonProductTile from "../components/tiles/AmazonProductTile";
+import ArticleLinkTile from "../components/tiles/ArticleLinkTile";
 import CanvasTextTile from "../components/tiles/CanvasTextTile";
 import CalendarTile from "../components/tiles/CalendarTile";
 import ChecklistTile from "../components/tiles/ChecklistTile";
@@ -197,6 +198,14 @@ const STICKY_DESIGN_COMPONENTS = {
 // different components depending on the card's variant/format/source.
 export function getTileRegistration(cardOrType) {
   const tileType = typeof cardOrType === "string" ? cardOrType : cardOrType?.type;
+
+  // Any link in reader view (right-click → Read article).
+  if (cardOrType?.previewMode === "article" && cardOrType.article?.path) {
+    return {
+      ...(tileRegistry[tileType] ?? tileRegistry[TILE_TYPES.LINK]),
+      Component: ArticleLinkTile,
+    };
+  }
 
   // A link/image tile with its note open.
   if (tileType === TILE_TYPES.LINK && isLinkNoteOpen(cardOrType)) {

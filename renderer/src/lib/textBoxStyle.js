@@ -13,6 +13,14 @@ export const TEXT_BOX_DEFAULT_STYLE = Object.freeze({
   lineHeight: 1.25,
   letterSpacing: 0,
 });
+// A label: a bold heading that titles a group of tiles on the canvas.
+export const TEXT_BOX_LABEL_STYLE = Object.freeze({
+  ...TEXT_BOX_DEFAULT_STYLE,
+  fontSize: 40,
+  fontWeight: 700,
+  lineHeight: 1.1,
+  letterSpacing: -0.5,
+});
 export const TEXT_BOX_MIN_FONT_SIZE = 8;
 export const TEXT_BOX_MAX_FONT_SIZE = 600;
 

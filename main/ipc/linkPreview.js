@@ -279,6 +279,31 @@ function normalizeFileAttachment(file) {
   };
 }
 
+// A link's reader-view summary; mirrors normalizeLinkArticle in
+// renderer/src/tiles/link/articleView.js.
+const LINK_ARTICLE_STATUSES = ["idle", "capturing", "ready", "error"];
+
+function normalizeLinkArticle(article) {
+  if (!article || typeof article !== "object") {
+    return null;
+  }
+
+  const cleanString = (value, maxLength) => (typeof value === "string" ? value.trim().slice(0, maxLength) : "");
+  const finitePositive = (value) => (Number.isFinite(value) && value > 0 ? Number(value) : null);
+
+  return {
+    path: cleanString(article.path, 512),
+    status: LINK_ARTICLE_STATUSES.includes(article.status) ? article.status : "idle",
+    title: cleanString(article.title, 500),
+    byline: cleanString(article.byline, 200),
+    siteName: cleanString(article.siteName, 200),
+    excerpt: cleanString(article.excerpt, 1000),
+    wordCount: Number.isFinite(article.wordCount) && article.wordCount > 0 ? Math.round(article.wordCount) : 0,
+    previousWidth: finitePositive(article.previousWidth),
+    previousHeight: finitePositive(article.previousHeight),
+  };
+}
+
 function normalizePreviewDiagnostics(previewDiagnostics) {
   if (!previewDiagnostics || typeof previewDiagnostics !== "object" || Array.isArray(previewDiagnostics)) {
     return null;
@@ -418,7 +443,7 @@ function normalizeCard(card, index = 0) {
       ? card.status
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
-    previewMode: isLinkLikeCard && card?.previewMode === "webclip" ? "webclip" : "standard",
+    previewMode: isLinkLikeCard && ["webclip", "article"].includes(card?.previewMode) ? card.previewMode : "standard",
     webclipImagePath: isLinkLikeCard ? String(card?.webclipImagePath ?? "") : "",
     webclipAspectRatio: isLinkLikeCard && Number.isFinite(card?.webclipAspectRatio) && card.webclipAspectRatio > 0
       ? Number(card.webclipAspectRatio)
@@ -429,6 +454,7 @@ function normalizeCard(card, index = 0) {
     webclipStatus: isLinkLikeCard && ["idle", "capturing", "ready", "error"].includes(card?.webclipStatus)
       ? card.webclipStatus
       : "idle",
+    article: isLinkLikeCard ? normalizeLinkArticle(card?.article) : null,
     asset: type === "link" ? linkAsset : null,
     file,
     productAsin: type === AMAZON_PRODUCT_CARD_TYPE ? String(card?.productAsin ?? "") : "",

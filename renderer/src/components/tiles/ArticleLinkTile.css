@@ -1,0 +1,131 @@
+/* Article tile: a link in reader view, drawn as a printed page -- lead image,
+   serif headline, a few lines of the article and a Read button. Like
+   PaperNoteTile it skips .card__surface/.card__surface-frame, which
+   TilePolish.css forces flat white with !important. The Read button carries
+   !important to out-rank SimpleUi.css's global button rules. */
+
+.article-tile {
+  --at-page: #fbfaf7;
+  --at-ink: #1f1d1a;
+  --at-body: #4a463f;
+  --at-muted: #8a847a;
+  --at-rule: rgba(31, 29, 26, 0.08);
+  --at-serif: "Iowan Old Style", Charter, Georgia, Cambria, "Times New Roman", serif;
+  --at-sans: var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: var(--tile-height);
+  overflow: hidden;
+  box-sizing: border-box;
+  border-radius: 18px;
+  background: var(--at-page);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 10px 28px -14px rgba(0, 0, 0, 0.28);
+  color: var(--at-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.card--selected .article-tile {
+  box-shadow: 0 0 0 2px var(--ap-accent, #0a84ff), 0 10px 28px -14px rgba(0, 0, 0, 0.28);
+}
+
+.article-tile__image {
+  flex: none;
+  height: 150px;
+  overflow: hidden;
+  background: var(--at-rule);
+}
+
+.article-tile__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.article-tile__text {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 20px 0;
+}
+
+/* The excerpt fades out rather than cutting off mid-line. */
+.article-tile__text::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 36px;
+  background: linear-gradient(to bottom, rgba(251, 250, 247, 0), var(--at-page));
+  pointer-events: none;
+}
+
+.article-tile__site {
+  overflow: hidden;
+  margin-bottom: 8px;
+  color: var(--at-muted);
+  font: 600 11px/1.3 var(--at-sans);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.article-tile__title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--at-ink);
+  font: 700 21px/1.22 var(--at-serif);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.article-tile__byline {
+  margin-top: 8px;
+  color: var(--at-muted);
+  font: 500 12px/1.35 var(--at-sans);
+}
+
+.article-tile__excerpt {
+  margin: 12px 0 0;
+  font: 400 14.5px/1.55 var(--at-serif);
+}
+
+.article-tile__footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 14px 20px;
+  border-top: 1px solid var(--at-rule);
+  font-family: var(--at-sans);
+}
+
+.article-tile__time {
+  color: var(--at-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.article-tile__read {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px !important;
+  background: var(--at-ink) !important;
+  box-shadow: none !important;
+  color: var(--at-page);
+  font: 600 12px/1 var(--at-sans);
+  cursor: pointer;
+}
+
+.article-tile__read:hover:not(:disabled) {
+  background: #3a3631 !important;
+}

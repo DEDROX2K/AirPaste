@@ -7,11 +7,12 @@ const workspaceService = require("../../workspace-service");
 const context = require("../context");
 const { pathExists } = require("../fsUtils");
 const { withWorkspaceQueue } = require("../workspaceQueue");
-const { captureFullPageScreenshot } = require("../../preview/resolvers/generic");
+const { captureFullPageScreenshot, extractReadableArticle } = require("../../preview/resolvers/generic");
 
 const ASSET_PREVIEW_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "asset-lod"]);
 const CANVAS_THUMB_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "canvas-thumbs"]);
 const WEBCLIP_DIR_SEGMENTS = Object.freeze([".airpaste", "previews", "webclip"]);
+const ARTICLE_DIR_SEGMENTS = Object.freeze([".airpaste", "articles"]);
 const ASSET_PREVIEW_TIER_WIDTHS = Object.freeze({
   thumbnail: 256,
   medium: 768,
@@ -268,6 +269,62 @@ function registerIpc() {
       };
     } catch {
       return { webclipPath: "" };
+    }
+  });
+
+  // Reader view: the article's clean text is saved next to the canvas so it
+  // reads offline; the card keeps only the path and a summary.
+  ipcMain.handle("airpaste:captureArticle", async (_event, folderPath, url) => {
+    try {
+      const trimmedUrl = typeof url === "string" ? url.trim() : "";
+      if (!folderPath || !/^https?:\/\//i.test(trimmedUrl)) {
+        return { articlePath: "" };
+      }
+
+      const article = await extractReadableArticle(trimmedUrl);
+      if (!article) {
+        return { articlePath: "" };
+      }
+
+      const articleDir = path.join(folderPath, ...ARTICLE_DIR_SEGMENTS);
+      await fs.mkdir(articleDir, { recursive: true });
+
+      const outPath = path.join(articleDir, `${webclipIdFromUrl(trimmedUrl)}.json`);
+      await fs.writeFile(outPath, JSON.stringify({
+        ...article,
+        sourceUrl: trimmedUrl,
+        capturedAt: new Date().toISOString(),
+      }), "utf8");
+
+      return {
+        articlePath: normalizeRel(path.relative(folderPath, outPath), ""),
+        title: article.title,
+        byline: article.byline,
+        siteName: article.siteName,
+        excerpt: article.excerpt,
+        wordCount: article.wordCount,
+      };
+    } catch {
+      return { articlePath: "" };
+    }
+  });
+
+  ipcMain.handle("airpaste:readArticle", async (_event, folderPath, articlePath) => {
+    if (!folderPath || typeof articlePath !== "string" || !articlePath) {
+      return null;
+    }
+
+    // Only files in the canvas folder's article store can be read.
+    const articleDir = path.resolve(folderPath, ...ARTICLE_DIR_SEGMENTS);
+    const resolvedPath = path.resolve(folderPath, articlePath);
+    if (path.dirname(resolvedPath) !== articleDir || path.extname(resolvedPath) !== ".json") {
+      return null;
+    }
+
+    try {
+      return JSON.parse(await fs.readFile(resolvedPath, "utf8"));
+    } catch {
+      return null;
     }
   });
 }

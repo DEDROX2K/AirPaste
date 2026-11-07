@@ -19,6 +19,12 @@ import {
   normalizeRect,
 } from "../layout/tileLayout";
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
+import {
+  getSnapRectsBounds,
+  isSameSnapGuides,
+  resolveTileMagnetSnap,
+  toSnapRect,
+} from "../snapping/tileMagnetSnapping";
 
 const VIEWPORT_PADDING = 16;
 const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
@@ -61,6 +67,7 @@ export function useCanvasInteractionSystem({
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
+  const [snapGuides, setSnapGuides] = useState(null);
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
@@ -125,6 +132,7 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(null);
     setDraggingTileIds([]);
     setDragVisualDelta(null);
+    setSnapGuides(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
     marqueeStateRef.current = null;
@@ -566,13 +574,22 @@ export function useCanvasInteractionSystem({
 
     commands.bringTilesToFront(dragTileIds);
 
-    const dragTargetRootTiles = getRenderableTileEntries(
+    const rootTileEntries = getRenderableTileEntries(
       cardsRef.current,
       tileByIdRef.current,
-    )
-      .filter((entry) => entry.containerType === "canvas")
-      .map((entry) => entry.tile);
+    ).filter((entry) => entry.containerType === "canvas");
+    const dragTargetRootTiles = rootTileEntries.map((entry) => entry.tile);
     const dragTileIdSet = new Set(dragTileIds);
+    const dragOriginList = Object.values(dragOrigins);
+    // Magnetic snapping is for canvas tiles; tiles in a rack move with it.
+    const magnet = dragOriginList.length > 0 && dragOriginList.every((origin) => origin.containerType === "canvas")
+      ? {
+        bounds: getSnapRectsBounds(dragOriginList.map(toSnapRect)),
+        neighbours: rootTileEntries
+          .filter((entry) => !dragTileIdSet.has(entry.tile.id))
+          .map(toSnapRect),
+      }
+      : null;
 
     dragStateRef.current = {
       tileId: tile.id,
@@ -583,6 +600,7 @@ export function useCanvasInteractionSystem({
       lastDelta: { x: 0, y: 0 },
       origins: dragOrigins,
       hasMoved: false,
+      magnet,
       targetCache: {
         rootTiles: dragTargetRootTiles,
         draggedTile: tileByIdRef.current[tile.id] ?? tile,
@@ -927,6 +945,7 @@ export function useCanvasInteractionSystem({
 
       dragStateRef.current = null;
       setDraggingTileIds([]);
+      setSnapGuides(null);
       clearRackDropPreview();
       if (dragState.kind === "group") {
         setSelectedGroupIds(dragState.groupIds);
@@ -973,7 +992,25 @@ export function useCanvasInteractionSystem({
         rawDelta: rawWorldDelta,
         snapSettings: snapSettingsRef.current,
       });
-      const worldDelta = snapResolution.appliedDelta;
+      let worldDelta = snapResolution.appliedDelta;
+      let nextSnapGuides = null;
+
+      // The grid snap wins when it's on; otherwise tiles pull to their
+      // neighbours unless Alt is held.
+      if (!snapResolution.snapEnabled && dragState.magnet && !event.altKey) {
+        const magnetSnap = resolveTileMagnetSnap({
+          bounds: dragState.magnet.bounds,
+          neighbours: dragState.magnet.neighbours,
+          rawDelta: rawWorldDelta,
+          zoom: canvas.getViewportSnapshot()?.zoom,
+        });
+        worldDelta = magnetSnap.delta;
+        nextSnapGuides = magnetSnap.guides.length > 0 ? magnetSnap.guides : null;
+      }
+
+      setSnapGuides((currentGuides) => (
+        isSameSnapGuides(currentGuides, nextSnapGuides) ? currentGuides : nextSnapGuides
+      ));
 
       if (SNAP_DEBUG_LOG_ENABLED) {
         console.debug("[canvas-snap]", {
@@ -1177,6 +1214,7 @@ export function useCanvasInteractionSystem({
     draggingTileIds,
     dragVisualDelta,
     rackDropPreview,
+    snapGuides,
     marqueeBox,
     marqueeStyleVars,
     beginGroupDrag,
@@ -1230,5 +1268,6 @@ export function useCanvasInteractionSystem({
     selectedGroupIds,
     selectedTileIdSet,
     selectedTileIds,
+    snapGuides,
   ]);
 }

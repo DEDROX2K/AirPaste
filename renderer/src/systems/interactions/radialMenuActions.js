@@ -14,6 +14,7 @@ const TILE_ACTION_ORDER = [
   "file-color",
   "refresh-preview",
   "webclip",
+  "article",
   "copy-preview-diagnostics",
   "copy-codex-report",
   "tether",
@@ -37,6 +38,8 @@ export function buildRadialMenuActions({
   showWebclip = false,
   isWebclipActive = false,
   webclipPending = false,
+  isArticleActive = false,
+  articlePending = false,
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
   showEditText = false,
@@ -102,6 +105,24 @@ export function buildRadialMenuActions({
       };
     }
 
+    // Reader view sits beside Webclip and shows for the same links.
+    if (id === "article") {
+      if (!showWebclip) {
+        return null;
+      }
+
+      return {
+        id,
+        label: isArticleActive ? "Standard preview" : "Read article",
+        kind: "toggle",
+        placement: "pill",
+        isActive: isArticleActive,
+        isDisabled: articlePending,
+        activeLabel: articlePending ? "Reading" : "",
+        onTrigger: handlers.onToggleArticle,
+      };
+    }
+
     if (id === "copy-preview-diagnostics") {
       if (!showCopyPreviewDiagnostics) {
         return null;
@@ -131,7 +152,7 @@ export function buildRadialMenuActions({
     if (id === "snapping") {
       return {
         id,
-        label: snapEnabled ? "Disable snapping" : "Enable snapping",
+        label: snapEnabled ? "Turn off grid snap" : "Snap to grid",
         kind: "toggle",
         placement: "pill",
         activeLabel: snapEnabled ? "Grid On" : "Grid Off",

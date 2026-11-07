@@ -122,6 +122,10 @@ export const desktop = {
       airpasteBridge.captureCanvasThumbnail?.(folderPath, canvasFilePath, rect, devicePixelRatio) ?? Promise.resolve({ thumbnailPath: "" }),
     captureWebclip: (folderPath, url) =>
       airpasteBridge.captureWebclip?.(folderPath, url) ?? Promise.resolve({ webclipPath: "" }),
+    captureArticle: (folderPath, url) =>
+      airpasteBridge.captureArticle?.(folderPath, url) ?? Promise.resolve({ articlePath: "" }),
+    readArticle: (folderPath, articlePath) =>
+      airpasteBridge.readArticle?.(folderPath, articlePath) ?? Promise.resolve(null),
     getPreviewCapabilities: (...args) =>
       airpasteBridge.getPreviewCapabilities?.(...args) ?? Promise.resolve({ enabled: true }),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),

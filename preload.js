@@ -81,6 +81,10 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:captureCanvasThumbnail", folderPath, canvasFilePath, rect, devicePixelRatio),
   captureWebclip: (folderPath, url) =>
     ipcRenderer.invoke("airpaste:captureWebclip", folderPath, url),
+  captureArticle: (folderPath, url) =>
+    ipcRenderer.invoke("airpaste:captureArticle", folderPath, url),
+  readArticle: (folderPath, articlePath) =>
+    ipcRenderer.invoke("airpaste:readArticle", folderPath, articlePath),
   getPreviewCapabilities: () => ipcRenderer.invoke("airpaste:getPreviewCapabilities"),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {

@@ -1,3 +1,4 @@
+const fs = require("node:fs");
 const cheerio = require("cheerio");
 const { BrowserWindow } = require("electron");
 const openGraphScraper = require("open-graph-scraper");
@@ -553,6 +554,95 @@ async function captureFullPageScreenshot(url) {
   }
 }
 
+let readabilitySource = null;
+
+function getReadabilitySource() {
+  if (readabilitySource === null) {
+    readabilitySource = fs.readFileSync(require.resolve("@mozilla/readability/Readability.js"), "utf8");
+  }
+
+  return readabilitySource;
+}
+
+// Reader view: loads the page in the offscreen browser (so script-rendered
+// articles work too) and runs Mozilla's Readability -- the engine behind
+// Firefox Reader View -- on a copy of the DOM. That keeps the article's text,
+// headings and images and drops ads, navigation, comments and pop-ups.
+// Returns null when the page has no readable article. The HTML still comes
+// from the web, so the renderer sanitizes it before showing it.
+async function extractReadableArticle(url) {
+  try {
+    const previewWindow = await getPreviewBrowser();
+
+    if (!previewWindow || previewWindow.isDestroyed()) {
+      return null;
+    }
+
+    const { webContents } = previewWindow;
+
+    await webContents.loadURL(url, {
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    });
+
+    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    // Readability is wrapped in a function so it never touches the page's
+    // globals; it parses a clone, so the live page is left alone.
+    const article = await webContents.executeJavaScript(
+      [
+        "(() => {",
+        getReadabilitySource(),
+        "  const parsed = new Readability(document.cloneNode(true)).parse();",
+        "  if (!parsed || !parsed.content) { return null; }",
+        "  return {",
+        "    title: parsed.title || document.title || '',",
+        "    byline: parsed.byline || '',",
+        "    siteName: parsed.siteName || '',",
+        "    excerpt: parsed.excerpt || '',",
+        "    content: parsed.content,",
+        "    textContent: parsed.textContent || '',",
+        "    lang: parsed.lang || document.documentElement.lang || '',",
+        "    dir: parsed.dir || '',",
+        "    publishedTime: parsed.publishedTime || '',",
+        "    url: location.href,",
+        "  };",
+        "})();",
+      ].join("\n"),
+      true,
+    );
+
+    if (!article || typeof article.content !== "string") {
+      return null;
+    }
+
+    const textContent = String(article.textContent ?? "");
+    const wordCount = textContent.trim() ? textContent.trim().split(/\s+/).length : 0;
+
+    // Under ~80 words it's a landing page or a paywall stub, not an article.
+    if (wordCount < 80) {
+      return null;
+    }
+
+    return {
+      title: cleanPreviewText(article.title),
+      byline: cleanPreviewText(article.byline),
+      siteName: cleanPreviewText(article.siteName),
+      excerpt: cleanPreviewText(article.excerpt),
+      content: article.content,
+      wordCount,
+      lang: String(article.lang ?? "").slice(0, 32),
+      dir: article.dir === "rtl" ? "rtl" : "ltr",
+      publishedTime: String(article.publishedTime ?? "").slice(0, 64),
+      url: String(article.url || url),
+    };
+  } catch {
+    return null;
+  } finally {
+    await closePreviewBrowser();
+  }
+}
+
 async function fetchOpenGraphMetadata(url) {
   try {
     const { error, result } = await openGraphScraper({
@@ -668,6 +758,7 @@ module.exports = {
   acquirePreviewImage,
   capturePreviewScreenshot,
   captureFullPageScreenshot,
+  extractReadableArticle,
   closePreviewBrowser,
   fetchJson,
   isLikelyPreviewImageUrl,

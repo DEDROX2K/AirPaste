@@ -120,6 +120,7 @@ import {
   normalizeLanguageHints,
 } from "../tiles/canvasText/model";
 import { normalizeLinkNote } from "../tiles/link/notedLink";
+import { normalizeLinkArticle } from "../tiles/link/articleView";
 import {
   clampDefaultFileWidth,
   getDefaultFileHeight,
@@ -1091,7 +1092,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
       ? card.status
       : "idle",
     previewDiagnostics: isLinkLikeCard ? normalizePreviewDiagnostics(card?.previewDiagnostics) : null,
-    previewMode: isLinkLikeCard && card?.previewMode === "webclip" ? "webclip" : "standard",
+    previewMode: isLinkLikeCard && ["webclip", "article"].includes(card?.previewMode) ? card.previewMode : "standard",
     webclipImagePath: isLinkLikeCard ? String(card?.webclipImagePath ?? "") : "",
     webclipAspectRatio: isLinkLikeCard && Number.isFinite(card?.webclipAspectRatio) && card.webclipAspectRatio > 0
       ? Number(card.webclipAspectRatio)
@@ -1102,6 +1103,7 @@ export function normalizeCard(card, fallbackIndex = 0) {
     webclipStatus: isLinkLikeCard && ["idle", "capturing", "ready", "error"].includes(card?.webclipStatus)
       ? card.webclipStatus
       : "idle",
+    article: isLinkLikeCard ? normalizeLinkArticle(card?.article) : null,
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
     // A link/image tile's note (see tiles/link/notedLink.js).
     note: type === TILE_TYPES.LINK ? normalizeLinkNote(card?.note) : null,

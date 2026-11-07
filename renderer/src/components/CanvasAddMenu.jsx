@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Archive,
+  Bookmark,
   CalendarDays,
   Canvas,
   CloudSun,
@@ -30,6 +31,7 @@ const MENU_SECTIONS = [
     label: "Write",
     items: [
       { key: "text-card", label: "Quick text", icon: "text", command: "createTextCard" },
+      { key: "label", label: "Label", icon: "label", command: "createLabel" },
       { key: "sticky", label: "Sticky note", icon: "sticky", command: "createSticky" },
       { key: "folder-sticky", label: "Folder note", icon: "sticky", command: "createFolderSticky" },
       { key: "code-file-sticky", label: "Code file", icon: "code", command: "createCodeFileSticky" },
@@ -180,6 +182,7 @@ const MENU_ICONS = {
   checklist: ListChecks,
   table: Table2,
   text: Type,
+  label: Bookmark,
   "paper-note": NotebookText,
   rack: Archive,
   import: Import,

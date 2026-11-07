@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { buildPaperNoteEditorExtensions } from "../lib/paperNoteLivePreview";
+import { formatPaperNoteLongDate } from "../tiles/paperNote/model";
 import { X } from "./ui/icons";
 
 function stopPointer(event) {
@@ -154,6 +155,7 @@ export default function PaperNoteFullscreenEditor({ card, startRect, onSave, onC
   }, []);
 
   const isExpanded = phase === "expanded";
+  const dateLabel = formatPaperNoteLongDate(card.updatedAt || card.createdAt);
 
   return createPortal(
     <div
@@ -180,6 +182,7 @@ export default function PaperNoteFullscreenEditor({ card, startRect, onSave, onC
 
         <div className="paper-note-fullscreen__content">
           <div className="paper-note-fullscreen__scroll">
+            {dateLabel ? <div className="paper-note-fullscreen__date">{dateLabel}</div> : null}
             <input
               ref={titleInputRef}
               type="text"

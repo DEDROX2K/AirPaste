@@ -7,6 +7,7 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
+import CanvasSnapGuides from "./canvas/CanvasSnapGuides";
 import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
@@ -32,7 +33,7 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
-import { getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
+import { TEXT_BOX_LABEL_STYLE, getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
 import { getAdjacentStickyPosition, getFileCardCodeLanguageId, normalizeStickyStyle } from "../tiles/sticky/model";
 import { OPEN_FILE_COLOR_EVENT } from "../tiles/file/defaultFileDesign";
@@ -68,6 +69,7 @@ import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
   normalizeCanvasSnapSettings,
 } from "../systems/snapping/canvasSnapSettings";
+import { TILE_SNAP_GAP, getSnapRectsBounds, toSnapRect } from "../systems/snapping/tileMagnetSnapping";
 import {
   AppButton,
   AppEmptyState,
@@ -1815,6 +1817,42 @@ export default function CanvasWorkspaceView() {
     requestTextBoxEdit(textBox.id, { selectAll: false });
     return true;
   });
+  // A label titles a group of tiles. With tiles selected it goes just above
+  // them, its text lined up with their left edge; otherwise it lands in the
+  // middle of the view. Either way it starts ready to type.
+  const createLabel = useStableCallback(() => {
+    const style = TEXT_BOX_LABEL_STYLE;
+    const height = Math.ceil((style.fontSize * style.lineHeight) + (QUICK_TEXT_PADDING_Y * 2));
+    const selectionBounds = getSnapRectsBounds(
+      interactions.selectedTileIds
+        .map((tileId) => tileById[tileId])
+        .filter(Boolean)
+        .map(toSnapRect),
+    );
+    const center = canvas.getViewportCenter();
+    const position = selectionBounds
+      ? { x: selectionBounds.left - QUICK_TEXT_PADDING_X, y: selectionBounds.top - height - TILE_SNAP_GAP }
+      : { x: center.x - (QUICK_TEXT_MIN_WIDTH / 2), y: center.y - (height / 2) };
+    const label = commands.createTextCard(center, {
+      text: "",
+      style,
+      quiet: true,
+      height,
+      width: QUICK_TEXT_MIN_WIDTH,
+      autoWidth: true,
+      ...position,
+    });
+
+    if (!label) {
+      return null;
+    }
+
+    setCanvasToolMode(DRAWING_TOOL_MODE_SELECT);
+    interactions.selectTile(label.id, { forceSingle: true });
+    requestTextBoxEdit(label.id, { selectAll: false });
+    return label;
+  });
+  const addMenuCommands = useMemo(() => ({ ...commands, createLabel }), [commands, createLabel]);
   const beginTextBoxCreation = useCallback((worldPoint) => createQuickText(worldPoint), [createQuickText]);
   // Text tool armed: press on empty canvas, then click (auto-width) or drag
   // out a box (fixed width; the marquee shows it). A drag under 4px, or
@@ -2959,6 +2997,23 @@ export default function CanvasWorkspaceView() {
     return commands.captureTileWebclip(activeContextTile);
   }, [activeContextTile, commands]);
 
+  // Read article: switch to the article sheet, extracting it the first time.
+  const handleToggleArticle = useCallback(async () => {
+    if (!activeContextTile) {
+      return false;
+    }
+
+    if (activeContextTile.previewMode === "article") {
+      return commands.setLinkPreviewMode(activeContextTile, "standard");
+    }
+
+    if (activeContextTile.article?.status === "ready" && activeContextTile.article.path) {
+      return commands.setLinkPreviewMode(activeContextTile, "article");
+    }
+
+    return commands.captureTileArticle(activeContextTile);
+  }, [activeContextTile, commands]);
+
   const handleCopyPreviewDiagnostics = useCallback(async () => {
     if (!canCopyPreviewDiagnostics || !activeContextTile) {
       return false;
@@ -3022,6 +3077,8 @@ export default function CanvasWorkspaceView() {
     showWebclip: radialMenu?.kind === "tile" && canShowWebclipAction,
     isWebclipActive: activeContextTile?.previewMode === "webclip",
     webclipPending: activeContextTile?.webclipStatus === "capturing",
+    isArticleActive: activeContextTile?.previewMode === "article",
+    articlePending: activeContextTile?.article?.status === "capturing",
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
@@ -3037,6 +3094,7 @@ export default function CanvasWorkspaceView() {
       onRefreshFailedPreviews: handleRefreshFailedPreviews,
       onRefreshPreview: handleRefreshTilePreview,
       onToggleWebclip: handleToggleWebclip,
+      onToggleArticle: handleToggleArticle,
       onToggleSnapping: () => {
         toggleCanvasSnapping();
         return true;
@@ -3076,6 +3134,7 @@ export default function CanvasWorkspaceView() {
     canShowRefreshPreviewAction,
     canShowWebclipAction,
     handleToggleWebclip,
+    handleToggleArticle,
     isDefaultFileContextTile,
     linkNoteContextState,
     isPlainTextBoxContextTile,
@@ -3095,7 +3154,7 @@ export default function CanvasWorkspaceView() {
       <main className="canvas-stage canvas-stage--grid" data-airpaste-canvas-capture-root>
 
         <CanvasDockFrame>
-          <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
+          <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
         </CanvasDockFrame>
         <WorkspaceTopbarTrail />
@@ -3138,7 +3197,7 @@ export default function CanvasWorkspaceView() {
 
       {/* Dock: on the canvas bottom edge, centred (ShellLayers.css). */}
       <CanvasDockFrame>
-        <CanvasAddMenu commands={commands} disabled={!folderPath} iconOnly />
+        <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
         <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
         <DrawingToolControls
           activeTool={selectedCanvasToolMode}
@@ -3289,6 +3348,7 @@ export default function CanvasWorkspaceView() {
                 </div>
                 );
               })}
+              <CanvasSnapGuides guides={interactions.snapGuides} />
               {quickTextDraft ? (
                 <div
                   className="quick-text-marquee"
