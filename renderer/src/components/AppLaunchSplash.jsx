@@ -180,7 +180,7 @@ export default function AppLaunchSplash() {
               alt=""
               draggable={false}
             />
-            {/* <div className="app-launch-splash__version">V 1.08</div> */}
+            <span className="app-launch-splash__version">Beta v1</span>
           </button>
         </div>
       </AppDialogContent>

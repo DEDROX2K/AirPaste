@@ -44,11 +44,11 @@
     
     /* AirPaste Geometry & Motion Tokens */
     --ap-radius-sm: 6px;
-    --ap-radius-md: 10px;
-    --ap-radius-lg: 14px;
-    --ap-radius-xl: 18px;
+    --ap-radius-md: 6px;
+    --ap-radius-lg: 6px;
+    --ap-radius-xl: 6px;
     
-    --ap-duration-fast: 150ms;
+    --ap-duration-fas--ap-radius-xlt: 150ms;
     --ap-duration-normal: 250ms;
     --ap-duration-slow: 400ms;
     --ap-ease-spring: cubic-bezier(0.25, 1, 0.5, 1);

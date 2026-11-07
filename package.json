@@ -1,8 +1,28 @@
 {
   "name": "airpaste",
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
   "private": true,
-  "description": "A local-first desktop canvas for bookmarks, links, and images.",
+  "description": "AirPaste is a local-first desktop canvas for everything you save. Paste links, images, files and notes, then arrange them freely on an infinite board. Your canvases stay as plain files on your computer: private, offline and yours.",
+  "keywords": [
+    "airpaste",
+    "canvas",
+    "infinite canvas",
+    "visual bookmarks",
+    "link saver",
+    "moodboard",
+    "mood board",
+    "whiteboard",
+    "sticky notes",
+    "notes",
+    "research board",
+    "inspiration board",
+    "spatial notes",
+    "local-first",
+    "offline",
+    "desktop app",
+    "electron",
+    "productivity"
+  ],
   "homepage": "https://github.com/DEDROX2K/AirPaste#readme",
   "bugs": {
     "url": "https://github.com/DEDROX2K/AirPaste/issues"
@@ -126,6 +146,7 @@
       "target": [
         "AppImage"
       ]
-    }
+    },
+    "copyright": "Copyright © 2026 AirPaste"
   }
 }

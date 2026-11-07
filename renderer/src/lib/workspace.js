@@ -901,7 +901,28 @@ export function canAttachTileToRack(tile) {
   );
 }
 
+// Cards this module has already normalized. Normalizing is idempotent, so
+// one of these coming back in (every workspace update re-normalizes the
+// whole document) is returned as the same object: unchanged tiles keep
+// their identity, and React skips re-rendering them. Picking up or
+// dropping one tile used to re-render every tile on the canvas.
+const normalizedCards = new WeakSet();
+
 export function normalizeCard(card, fallbackIndex = 0) {
+  if (card && typeof card === "object" && normalizedCards.has(card)) {
+    return card;
+  }
+
+  const normalized = normalizeCardFresh(card, fallbackIndex);
+
+  if (normalized) {
+    normalizedCards.add(normalized);
+  }
+
+  return normalized;
+}
+
+function normalizeCardFresh(card, fallbackIndex = 0) {
   const type = getCardType(card);
 
   if (!type) {
@@ -2064,16 +2085,19 @@ export function reuseUnchangedCards(previousWorkspace, nextWorkspace) {
       return card;
     });
 
-    if (!reusedOnPage) {
+    // normalizeCard can hand back the very same card objects in a new array,
+    // so check the list even when no card needed swapping.
+    const previousCards = previousPagesById.get(page.id)?.cards;
+    const isUnchangedList = Array.isArray(previousCards)
+      && previousCards !== nextCards
+      && previousCards.length === cards.length
+      && previousCards.every((card, index) => card === cards[index]);
+
+    if (!reusedOnPage && !isUnchangedList) {
       return page;
     }
 
     reusedAny = true;
-    const previousCards = previousPagesById.get(page.id)?.cards;
-    const isUnchangedList = Array.isArray(previousCards)
-      && previousCards.length === cards.length
-      && previousCards.every((card, index) => card === cards[index]);
-
     return { ...page, cards: isUnchangedList ? previousCards : cards };
   });
 

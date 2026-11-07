@@ -3478,10 +3478,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   background: var(--ap-tile-bg-solid);
 }
 
-.card--hovered:not(.card--dragging):not(.card--music) {
-  filter: brightness(1.02);
-}
-
 .card--hovered:not(.card--selected):not(.card--dragging) .card__surface-frame .card__surface:not(.card__surface--music):not(.card__surface--rack),
 .card--hovered:not(.card--selected):not(.card--dragging) .card__surface-frame .card__record-sleeve,
 .card--hovered:not(.card--selected):not(.card--dragging) .card__surface-frame .card__folder-front {
@@ -3493,6 +3489,10 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-color: rgba(255, 255, 255, 0.32);
 }
 
+/* Promoted from the press (pressing selects the tile) and kept through the
+   drop, so neither picking a tile up nor letting it go creates or tears
+   down a compositor layer mid-motion. */
+.card--selected,
 .card--dragging {
   will-change: transform;
 }
@@ -4925,6 +4925,9 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .card__link-desc--visible {
+  /* Revealed a beat after the click selects the tile, so pressing to drag
+     never flashes the description in for a frame or two. */
+  transition-delay: 140ms;
   opacity: 1;
   visibility: visible;
   backdrop-filter: blur(16px) saturate(160%);

@@ -34,6 +34,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("AirPaste Setup")]
 [assembly: AssemblyProduct("AirPaste")]
 [assembly: AssemblyCompany("AirPaste")]
+[assembly: AssemblyDescription("Installer for AirPaste, the local-first desktop canvas for everything you save.")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 AirPaste")]
 
 namespace AirPasteInstaller
 {

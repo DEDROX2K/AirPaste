@@ -174,7 +174,8 @@ describe("tether physics", () => {
   it("turns the last drag samples into a clamped throw, or nothing after a pause", () => {
     const samples = [{ t: 0, x: 0, y: 0 }, { t: 50, x: 100, y: 0 }];
     expect(getThrowVelocity(samples, 60).vx).toBeCloseTo(PHYS.THROW_MAX);
-    expect(getThrowVelocity([{ t: 0, x: 0, y: 0 }, { t: 100, x: 20, y: 0 }], 110).vx).toBeCloseTo(200);
+    expect(getThrowVelocity([{ t: 0, x: 0, y: 0 }, { t: 100, x: 80, y: 0 }], 110).vx).toBeCloseTo(800);
+    expect(getThrowVelocity([{ t: 0, x: 0, y: 0 }, { t: 100, x: 20, y: 0 }], 110)).toEqual({ vx: 0, vy: 0 });
     expect(getThrowVelocity(samples, 200)).toEqual({ vx: 0, vy: 0 });
   });
 

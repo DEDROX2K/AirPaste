@@ -28,6 +28,7 @@ export const PHYS = Object.freeze({
   SLEEP_TIME: 0.35,
   DAMP_REST: 9,
   CUT_IMPULSE: 60,
+  THROW_MIN: 700,
   THROW_MAX: 1000,
   STEP: 1 / 120,
   MAX_SUBSTEPS: 4,
@@ -181,7 +182,9 @@ export function detachLink(world, link) {
 }
 
 // Throw velocity from the last few drag samples ({ t ms, x, y }), clamped
-// to THROW_MAX. A release that comes after a pause (> 80ms) throws nothing.
+// to THROW_MAX. A release that comes after a pause (> 80ms) throws nothing,
+// and neither does one slower than THROW_MIN: an ordinary move-and-drop
+// lands exactly where it was let go; only a deliberate flick glides.
 export function getThrowVelocity(samples, now) {
   if (!Array.isArray(samples) || samples.length < 2) {
     return { vx: 0, vy: 0 };
@@ -198,6 +201,10 @@ export function getThrowVelocity(samples, now) {
   let vx = (last.x - first.x) / dt;
   let vy = (last.y - first.y) / dt;
   const speed = Math.hypot(vx, vy);
+
+  if (speed < PHYS.THROW_MIN) {
+    return { vx: 0, vy: 0 };
+  }
 
   if (speed > PHYS.THROW_MAX) {
     vx *= PHYS.THROW_MAX / speed;

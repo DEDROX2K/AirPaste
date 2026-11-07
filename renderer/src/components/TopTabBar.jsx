@@ -264,7 +264,8 @@ function useLivePulse() {
 }
 
 // Top-left cluster: live pill, logo (home), date + time, divider, user.
-function TitlebarCluster({ isHomeActive, onHome, userName = "" }) {
+// The user chip is hidden for now; restore a `userName = ""` prop with it.
+function TitlebarCluster({ isHomeActive, onHome }) {
   const clock = useMinuteClock();
   const pulse = useLivePulse();
 
