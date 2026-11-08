@@ -1,6 +1,7 @@
 const CANVAS_ACTION_ORDER = [
   "refresh-failed-previews",
   "snapping",
+  "magnet-snapping",
   "text",
   "checklist",
   "paper-note",
@@ -31,6 +32,7 @@ const GROUP_ACTION_ORDER = [
 export function buildRadialMenuActions({
   menu,
   snapEnabled,
+  magnetEnabled = false,
   deleteDisabled,
   failedPreviewRefreshCount = 0,
   singlePreviewRefreshDisabled = false,
@@ -158,6 +160,18 @@ export function buildRadialMenuActions({
         activeLabel: snapEnabled ? "Grid On" : "Grid Off",
         isActive: snapEnabled,
         onTrigger: handlers.onToggleSnapping,
+      };
+    }
+
+    if (id === "magnet-snapping") {
+      return {
+        id,
+        label: magnetEnabled ? "Turn off magnetic snap" : "Magnetic snap",
+        kind: "toggle",
+        placement: "pill",
+        activeLabel: magnetEnabled ? "Magnet On" : "Magnet Off",
+        isActive: magnetEnabled,
+        onTrigger: handlers.onToggleMagnetSnapping,
       };
     }
 

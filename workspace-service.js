@@ -87,6 +87,7 @@ const DEFAULT_UI_STATE = Object.freeze({
   homeScrollTop: 0,
   canvasSnapToGrid: false,
   canvasSnapGridSize: 32,
+  canvasMagnetSnap: false,
   lastOpenedItemPath: null,
   lastOpenedCanvasPath: null,
   lastHomeRoute: {

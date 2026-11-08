@@ -20,8 +20,8 @@ import {
 } from "../layout/tileLayout";
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 import {
+  easeSnapOffset,
   getSnapRectsBounds,
-  isSameSnapGuides,
   resolveTileMagnetSnap,
   toSnapRect,
 } from "../snapping/tileMagnetSnapping";
@@ -33,6 +33,10 @@ const RACK_PULL_OUT_GAP = 24;
 
 function isSelectionModifierPressed(event) {
   return event.shiftKey || event.ctrlKey || event.metaKey;
+}
+
+function isMagnetSettled(dragState) {
+  return dragState.snapShown.x === dragState.snapTarget.x && dragState.snapShown.y === dragState.snapTarget.y;
 }
 
 function isCanvasBackgroundTarget(event) {
@@ -67,7 +71,6 @@ export function useCanvasInteractionSystem({
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
-  const [snapGuides, setSnapGuides] = useState(null);
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
@@ -118,6 +121,65 @@ export function useCanvasInteractionSystem({
     setRackDropPreview(null);
   }, []);
 
+  // Magnet glide: while a drag's shown pull differs from its target, one
+  // step per frame (see easeSnapOffset), aged by the frame's own timestamp.
+  // It lives outside the drag effect below because that effect re-runs mid
+  // drag, and its cleanup would cancel a glide halfway.
+  const magnetGlideRef = useRef({ rafId: 0, frameTime: null });
+
+  const showDragDelta = useCallback((dragState) => {
+    const visualDelta = {
+      x: dragState.baseDelta.x + dragState.snapShown.x,
+      y: dragState.baseDelta.y + dragState.snapShown.y,
+    };
+
+    setDragVisualDelta((currentDelta) => (
+      currentDelta?.x === visualDelta.x && currentDelta?.y === visualDelta.y ? currentDelta : visualDelta
+    ));
+  }, []);
+
+  const stopMagnetGlide = useCallback(() => {
+    const glide = magnetGlideRef.current;
+
+    if (glide.rafId) {
+      cancelAnimationFrame(glide.rafId);
+    }
+    glide.rafId = 0;
+    glide.frameTime = null;
+  }, []);
+
+  const stepMagnetGlide = useCallback(function step(frameTime) {
+    const glide = magnetGlideRef.current;
+    const dragState = dragStateRef.current;
+    glide.rafId = 0;
+
+    if (!dragState?.snapShown) {
+      glide.frameTime = null;
+      return;
+    }
+
+    const frameMs = glide.frameTime === null ? 16 : Math.min(64, frameTime - glide.frameTime);
+    glide.frameTime = frameTime;
+    dragState.snapShown = easeSnapOffset(dragState.snapShown, dragState.snapTarget, frameMs);
+    showDragDelta(dragState);
+
+    if (isMagnetSettled(dragState)) {
+      glide.frameTime = null;
+    } else {
+      glide.rafId = requestAnimationFrame(step);
+    }
+  }, [showDragDelta]);
+
+  const startMagnetGlide = useCallback(() => {
+    const dragState = dragStateRef.current;
+
+    if (dragState?.snapShown && !isMagnetSettled(dragState) && !magnetGlideRef.current.rafId) {
+      magnetGlideRef.current.rafId = requestAnimationFrame(stepMagnetGlide);
+    }
+  }, [stepMagnetGlide]);
+
+  useEffect(() => stopMagnetGlide, [stopMagnetGlide]);
+
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
@@ -132,7 +194,6 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(null);
     setDraggingTileIds([]);
     setDragVisualDelta(null);
-    setSnapGuides(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
     marqueeStateRef.current = null;
@@ -601,6 +662,11 @@ export function useCanvasInteractionSystem({
       origins: dragOrigins,
       hasMoved: false,
       magnet,
+      // The drag before any magnet pull, the pull's target (snapped minus
+      // that) and the pull shown so far, which glides toward the target.
+      baseDelta: { x: 0, y: 0 },
+      snapTarget: { x: 0, y: 0 },
+      snapShown: { x: 0, y: 0 },
       targetCache: {
         rootTiles: dragTargetRootTiles,
         draggedTile: tileByIdRef.current[tile.id] ?? tile,
@@ -867,6 +933,9 @@ export function useCanvasInteractionSystem({
         moveRafId = 0;
       }
       pendingMoveEvent = null;
+      // The drop commits the snapped spot; .card's transform transition
+      // carries the tile the rest of the way once .card--dragging is gone.
+      stopMagnetGlide();
 
       // Catch up to the release point first: the last flushed frame can be
       // up to a frame behind the pointer, and committing that stale delta
@@ -952,7 +1021,6 @@ export function useCanvasInteractionSystem({
 
       dragStateRef.current = null;
       setDraggingTileIds([]);
-      setSnapGuides(null);
       clearRackDropPreview();
       if (dragState.kind === "group") {
         setSelectedGroupIds(dragState.groupIds);
@@ -999,25 +1067,24 @@ export function useCanvasInteractionSystem({
         rawDelta: rawWorldDelta,
         snapSettings: snapSettingsRef.current,
       });
-      let worldDelta = snapResolution.appliedDelta;
-      let nextSnapGuides = null;
+      const baseDelta = snapResolution.appliedDelta;
+      let worldDelta = baseDelta;
 
-      // The grid snap wins when it's on; otherwise tiles pull to their
-      // neighbours unless Alt is held.
-      if (!snapResolution.snapEnabled && dragState.magnet && !event.altKey) {
-        const magnetSnap = resolveTileMagnetSnap({
+      // Magnetic snap, when it's switched on: the grid snap wins if that's
+      // on too, and Alt turns the magnet off for this drag.
+      if (
+        snapSettingsRef.current?.magnetEnabled
+        && !snapResolution.snapEnabled
+        && dragState.magnet
+        && !event.altKey
+      ) {
+        worldDelta = resolveTileMagnetSnap({
           bounds: dragState.magnet.bounds,
           neighbours: dragState.magnet.neighbours,
           rawDelta: rawWorldDelta,
           zoom: canvas.getViewportSnapshot()?.zoom,
         });
-        worldDelta = magnetSnap.delta;
-        nextSnapGuides = magnetSnap.guides.length > 0 ? magnetSnap.guides : null;
       }
-
-      setSnapGuides((currentGuides) => (
-        isSameSnapGuides(currentGuides, nextSnapGuides) ? currentGuides : nextSnapGuides
-      ));
 
       if (SNAP_DEBUG_LOG_ENABLED) {
         console.debug("[canvas-snap]", {
@@ -1032,14 +1099,13 @@ export function useCanvasInteractionSystem({
       }
 
       dragState.hasMoved = true;
+      // The drop and the rack hit test use the snapped spot; the tile on
+      // screen follows the pointer and glides the pull in.
       dragState.lastDelta = worldDelta;
-      setDragVisualDelta((currentDelta) => {
-        if (currentDelta?.x === worldDelta.x && currentDelta?.y === worldDelta.y) {
-          return currentDelta;
-        }
-
-        return worldDelta;
-      });
+      dragState.baseDelta = baseDelta;
+      dragState.snapTarget = { x: worldDelta.x - baseDelta.x, y: worldDelta.y - baseDelta.y };
+      showDragDelta(dragState);
+      startMagnetGlide();
 
       const canDropOnRack = dragState.tileIds.every((tileId) => {
         const origin = dragState.origins[tileId];
@@ -1127,7 +1193,7 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canvas, clearRackDropPreview, commands]);
+  }, [canvas, clearRackDropPreview, commands, showDragDelta, startMagnetGlide, stopMagnetGlide]);
 
   const handleCanvasPointerDown = useCallback((event) => {
     if (isHandMode && event.button !== 2) {
@@ -1221,7 +1287,6 @@ export function useCanvasInteractionSystem({
     draggingTileIds,
     dragVisualDelta,
     rackDropPreview,
-    snapGuides,
     marqueeBox,
     marqueeStyleVars,
     beginGroupDrag,
@@ -1275,6 +1340,5 @@ export function useCanvasInteractionSystem({
     selectedGroupIds,
     selectedTileIdSet,
     selectedTileIds,
-    snapGuides,
   ]);
 }

@@ -7,7 +7,6 @@ import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
-import CanvasSnapGuides from "./canvas/CanvasSnapGuides";
 import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
@@ -2760,11 +2759,13 @@ export default function CanvasWorkspaceView() {
     workspaceLodLevel,
   ]);
 
-  const toggleCanvasSnapping = useCallback(() => {
+  // Flips one snap setting -- `enabled` (grid) or `magnetEnabled` -- and
+  // saves it with the home UI state.
+  const toggleSnapSetting = useCallback((key, name) => {
     setSnapSettings((currentSettings) => {
       const nextSettings = {
         ...currentSettings,
-        enabled: !currentSettings.enabled,
+        [key]: !currentSettings[key],
       };
 
       void saveHomeUiState(buildCanvasSnapUiStatePatch(nextSettings)).catch((error) => {
@@ -2773,11 +2774,13 @@ export default function CanvasWorkspaceView() {
         toast("error", message);
       });
 
-      log("info", `Canvas snapping ${nextSettings.enabled ? "enabled" : "disabled"}`, nextSettings);
-      toast("info", `Canvas snapping ${nextSettings.enabled ? "enabled" : "disabled"}.`);
+      log("info", `${name} ${nextSettings[key] ? "enabled" : "disabled"}`, nextSettings);
+      toast("info", `${name} ${nextSettings[key] ? "on" : "off"}.`);
       return nextSettings;
     });
   }, [log, saveHomeUiState, toast]);
+  const toggleCanvasSnapping = useCallback(() => toggleSnapSetting("enabled", "Grid snap"), [toggleSnapSetting]);
+  const toggleMagnetSnapping = useCallback(() => toggleSnapSetting("magnetEnabled", "Magnetic snap"), [toggleSnapSetting]);
 
   const radialMenu = interactions.contextMenu;
   const recoverablePreviewTiles = useMemo(
@@ -3071,6 +3074,7 @@ export default function CanvasWorkspaceView() {
   const contextMenuActions = useMemo(() => buildRadialMenuActions({
     menu: radialMenu,
     snapEnabled: snapSettings.enabled,
+    magnetEnabled: snapSettings.magnetEnabled,
     deleteDisabled: (radialMenu?.selectionIds?.length ?? 0) === 0,
     failedPreviewRefreshCount: radialMenu?.kind === "canvas" ? recoverablePreviewTiles.length : 0,
     showSinglePreviewRefresh: radialMenu?.kind === "tile" && canShowRefreshPreviewAction,
@@ -3097,6 +3101,10 @@ export default function CanvasWorkspaceView() {
       onToggleArticle: handleToggleArticle,
       onToggleSnapping: () => {
         toggleCanvasSnapping();
+        return true;
+      },
+      onToggleMagnetSnapping: () => {
+        toggleMagnetSnapping();
         return true;
       },
       onDeleteSelection: handleRadialDelete,
@@ -3142,7 +3150,9 @@ export default function CanvasWorkspaceView() {
     recoverablePreviewTiles.length,
     radialMenu,
     snapSettings.enabled,
+    snapSettings.magnetEnabled,
     toggleCanvasSnapping,
+    toggleMagnetSnapping,
     showTetherAction,
     contextMenuSelectionCount,
     isActiveContextTileTethered,
@@ -3348,7 +3358,6 @@ export default function CanvasWorkspaceView() {
                 </div>
                 );
               })}
-              <CanvasSnapGuides guides={interactions.snapGuides} />
               {quickTextDraft ? (
                 <div
                   className="quick-text-marquee"
