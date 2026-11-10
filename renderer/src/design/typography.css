@@ -17,6 +17,37 @@
   font-display: swap;
 }
 
+/* Geist (SIL OFL): the app's default UI face. One variable file covers every
+   weight 100-900, so light/regular/medium/semibold/bold/extrabold cost one
+   request (~70 KB). Italic is declared but only fetched if something uses it. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist/Geist-VF.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist/Geist-Italic-VF.woff2") format("woff2");
+}
+
+/* Tab bar and Home read a touch larger: the type scale is bumped inside
+   those two surfaces only, never on the canvas. */
+.titlebar-root,
+.ap-home {
+  --ap-text-2xs: 0.6875rem;  /* 11px */
+  --ap-text-xs:  0.8125rem;  /* 13px */
+  --ap-text-sm:  0.875rem;   /* 14px */
+  --ap-text-base: 0.9375rem; /* 15px */
+  --ap-text-md:  1.0625rem;  /* 17px */
+  --ap-text-lg:  1.1875rem;  /* 19px */
+}
+
 /* ─── Base Reset ───────────────────────────────────────────────────────── */
 *,
 *::before,
@@ -68,10 +99,12 @@ p {
 .ap-text-4xl   { font-size: var(--ap-text-4xl); }
 
 /* ─── Weight Utilities ─────────────────────────────────────────────────── */
+.ap-weight-light    { font-weight: var(--ap-weight-light); }
 .ap-weight-regular  { font-weight: var(--ap-weight-regular); }
 .ap-weight-medium   { font-weight: var(--ap-weight-medium); }
 .ap-weight-semibold { font-weight: var(--ap-weight-semibold); }
 .ap-weight-bold     { font-weight: var(--ap-weight-bold); }
+.ap-weight-extrabold { font-weight: var(--ap-weight-extrabold); }
 
 /* ─── Color Utilities ──────────────────────────────────────────────────── */
 .ap-text-primary     { color: var(--ap-text-primary); }
@@ -105,7 +138,7 @@ p {
 .ap-type-display {
   font-family: var(--ap-font-display);
   font-size: var(--ap-text-4xl);
-  font-weight: var(--ap-weight-bold);
+  font-weight: var(--ap-weight-extrabold);
   line-height: var(--ap-leading-tight);
   letter-spacing: var(--ap-tracking-tight);
 }
@@ -114,7 +147,7 @@ p {
 .ap-type-heading-1 {
   font-family: var(--ap-font-display);
   font-size: var(--ap-text-3xl);
-  font-weight: var(--ap-weight-semibold);
+  font-weight: var(--ap-weight-bold);
   line-height: var(--ap-leading-tight);
   letter-spacing: var(--ap-tracking-snug);
 }
@@ -170,7 +203,7 @@ p {
 .ap-type-caption {
   font-family: var(--ap-font-body);
   font-size: var(--ap-text-xs);
-  font-weight: var(--ap-weight-regular);
+  font-weight: var(--ap-weight-light);
   line-height: var(--ap-leading-normal);
   letter-spacing: var(--ap-tracking-normal);
   color: var(--ap-text-tertiary);

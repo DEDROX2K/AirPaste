@@ -1935,6 +1935,15 @@ export function AppProvider({ children }) {
         return;
       }
 
+      // The main process wrote this canvas file itself; adopt its new
+      // timestamp so our next autosave isn't mistaken for a conflict.
+      if (typeof payload.diskUpdatedAt === "string" && payload.diskUpdatedAt) {
+        const known = canvasDiskUpdatedAtRef.current[targetPath];
+        if (!known || payload.diskUpdatedAt > known) {
+          canvasDiskUpdatedAtRef.current[targetPath] = payload.diskUpdatedAt;
+        }
+      }
+
       logPreviewDebug("tile-state-updated", {
         canvasFilePath: targetPath,
         pageId: payload.pageId || "",

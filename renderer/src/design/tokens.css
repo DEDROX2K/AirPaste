@@ -57,8 +57,8 @@
   --ap-info-dark:     #404040;
 
   /* ─── Typography: Families ──────────────────────────────────── */
-  --ap-font-display:  -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-  --ap-font-body:     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  --ap-font-display:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ap-font-body:     "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --ap-font-mono:     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* ─── Typography: Scale ─────────────────────────────────────── */
@@ -80,10 +80,12 @@
   --ap-leading-relaxed:  1.65;
 
   /* ─── Typography: Font Weights ──────────────────────────────── */
+  --ap-weight-light:     300;
   --ap-weight-regular:   400;
   --ap-weight-medium:    500;
   --ap-weight-semibold:  600;
   --ap-weight-bold:      700;
+  --ap-weight-extrabold: 800;
 
   /* ─── Typography: Letter Spacing ────────────────────────────── */
   --ap-tracking-tight:    -0.025em;

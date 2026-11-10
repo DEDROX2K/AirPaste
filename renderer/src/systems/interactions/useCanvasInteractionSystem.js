@@ -69,6 +69,8 @@ export function useCanvasInteractionSystem({
   const [focusedTileId, setFocusedTileId] = useState(null);
   const [draggingTileIds, setDraggingTileIds] = useState([]);
   const [dragVisualDelta, setDragVisualDelta] = useState(null);
+  // Where the tile was grabbed (world point), for the grab-corner tilt.
+  const [dragGrabPoint, setDragGrabPoint] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
   const [rackDropPreview, setRackDropPreview] = useState(null);
 
@@ -194,6 +196,7 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(null);
     setDraggingTileIds([]);
     setDragVisualDelta(null);
+    setDragGrabPoint(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
     marqueeStateRef.current = null;
@@ -540,7 +543,7 @@ export function useCanvasInteractionSystem({
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [canvas, selectedTileIds]);
 
-  const beginTileDrag = useStableCallback((tile, event) => {
+  const beginTileDrag = useStableCallback((tile, event, pressOrigin = null) => {
     if (!isSelectMode) {
       return;
     }
@@ -633,7 +636,11 @@ export function useCanvasInteractionSystem({
       setSelectedTileIds([tile.id]);
     }
 
-    commands.bringTilesToFront(dragTileIds);
+    // The z-order change used to happen here, rewriting the whole workspace
+    // on the same frame the drag begins (every tile's layout, culling and
+    // tether sync reran) -- that was the stutter at the start of a grab. A
+    // dragged tile already sits on top through its drag layer, so the
+    // reorder is applied when the drag ends instead (see finishDrag).
 
     const rootTileEntries = getRenderableTileEntries(
       cardsRef.current,
@@ -652,19 +659,32 @@ export function useCanvasInteractionSystem({
       }
       : null;
 
+    // Anchor to the press point and start with the distance already
+    // travelled, so the tile is under the cursor on the very first frame
+    // instead of waiting for the next pointer move.
+    const pointerWorldStart = canvas.clientToWorldPoint(
+      pressOrigin?.clientX ?? event.clientX,
+      pressOrigin?.clientY ?? event.clientY,
+    );
+    const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+    const initialDelta = {
+      x: currentWorldPoint.x - pointerWorldStart.x,
+      y: currentWorldPoint.y - pointerWorldStart.y,
+    };
+
     dragStateRef.current = {
       tileId: tile.id,
       tileIds: dragTileIds,
       tileIdSet: dragTileIdSet,
       startedFromRack: anchorEntry.containerType === "rack",
-      pointerWorldStart: canvas.clientToWorldPoint(event.clientX, event.clientY),
-      lastDelta: { x: 0, y: 0 },
+      pointerWorldStart,
+      lastDelta: initialDelta,
       origins: dragOrigins,
       hasMoved: false,
       magnet,
       // The drag before any magnet pull, the pull's target (snapped minus
       // that) and the pull shown so far, which glides toward the target.
-      baseDelta: { x: 0, y: 0 },
+      baseDelta: initialDelta,
       snapTarget: { x: 0, y: 0 },
       snapShown: { x: 0, y: 0 },
       targetCache: {
@@ -673,7 +693,8 @@ export function useCanvasInteractionSystem({
       },
     };
     setDraggingTileIds(dragTileIds);
-    setDragVisualDelta({ x: 0, y: 0 });
+    setDragVisualDelta(initialDelta);
+    setDragGrabPoint(pointerWorldStart);
   });
 
   // Clicking a tile's card in a rack takes it out, full size, just above the
@@ -957,6 +978,10 @@ export function useCanvasInteractionSystem({
         return;
       }
 
+      if (event && dragState.kind !== "group" && !rackDropPreviewRef.current?.rackId) {
+        commands.bringTilesToFront(dragState.tileIds);
+      }
+
       const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
       const activeRackPreview = rackDropPreviewRef.current;
       const dragDelta = dragState.lastDelta ?? { x: 0, y: 0 };
@@ -1018,6 +1043,7 @@ export function useCanvasInteractionSystem({
       if (dragState.tileIds.length > 0) {
         setDragVisualDelta(null);
       }
+      setDragGrabPoint(null);
 
       dragStateRef.current = null;
       setDraggingTileIds([]);
@@ -1286,6 +1312,7 @@ export function useCanvasInteractionSystem({
     focusedTileId,
     draggingTileIds,
     dragVisualDelta,
+    dragGrabPoint,
     rackDropPreview,
     marqueeBox,
     marqueeStyleVars,
@@ -1314,6 +1341,7 @@ export function useCanvasInteractionSystem({
     closeContextMenu,
     contextMenu,
     dragVisualDelta,
+    dragGrabPoint,
     draggingTileIds,
     focusedTileId,
     handleGroupContextMenu,

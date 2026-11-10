@@ -63,6 +63,7 @@ import {
   DRAWING_TOOL_MODE_TEXT,
 } from "../systems/drawing/drawingTypes";
 import { useTetherSystem } from "../systems/tether/useTetherSystem";
+import { useTileFeel } from "../systems/feel/useTileFeel";
 import {
   buildCanvasSnapUiStatePatch,
   DEFAULT_CANVAS_SNAP_SETTINGS,
@@ -2045,7 +2046,6 @@ export default function CanvasWorkspaceView() {
     resetKey: `${folderPath}:${workspace.activePageId}`,
     draggingTileIds: interactions.draggingTileIds,
     dragDelta: interactions.dragVisualDelta,
-    flickEnabled: !snapSettings.enabled,
     contentRef: canvas.contentRef,
     svgRef: tetherSvgRef,
     clientToWorldPoint: canvas.clientToWorldPoint,
@@ -2055,6 +2055,16 @@ export default function CanvasWorkspaceView() {
     onCommitPositions: commands.setTilePositions,
   });
   const cancelTetherGesture = tether.cancelGesture;
+  // Subtle weight while tiles are dragged and when they land (visual only).
+  useTileFeel({
+    entries: layout.canvasEntries,
+    draggingTileIds: interactions.draggingTileIds,
+    dragDelta: interactions.dragVisualDelta,
+    grabPoint: interactions.dragGrabPoint,
+    resetKey: `${folderPath}:${workspace.activePageId}`,
+    contentRef: canvas.contentRef,
+    getZoom: () => canvas.getViewportSnapshot?.()?.zoom ?? 1,
+  });
   // Hovering a tethered tile turns its own lines violet (nothing dims).
   const tetherFocusTileId = useMemo(() => {
     const hoveredId = interactions.hoveredTileId;

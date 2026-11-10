@@ -516,11 +516,12 @@ async function savePreviewWorkspaceTarget(folderPath, workspace, canvasFilePath 
   const targetCanvasPath = typeof canvasFilePath === "string" ? canvasFilePath.trim() : "";
 
   if (targetCanvasPath) {
-    await workspaceService.saveCanvas(targetCanvasPath, workspace);
-    return;
+    const saved = await workspaceService.saveCanvas(targetCanvasPath, workspace, { returnWorkspace: false, internalWrite: true });
+    return saved?.updatedAt || "";
   }
 
   await workspaceService.saveWorkspace(folderPath, workspace);
+  return "";
 }
 
 function pumpPreviewExecutionQueue() {
@@ -675,7 +676,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot, resolved
     });
   }
 
-  await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
+  const savedUpdatedAt = await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
   logPreviewJob("tile-state-updated", {
     folderPath,
     canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
@@ -687,6 +688,7 @@ async function updateCardPreview(folderPath, cardId, url, cardSnapshot, resolved
   const mainWindow = context.mainWindow;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
+      diskUpdatedAt: savedUpdatedAt,
       folderPath,
       canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
       pageId: nextState.pageId,
@@ -725,7 +727,7 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
     return null;
   }
 
-  await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
+  const savedUpdatedAt = await savePreviewWorkspaceTarget(folderPath, nextState.workspace, previewTarget.canvasFilePath);
   logPreviewJob("tile-state-updated", {
     folderPath,
     canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
@@ -738,6 +740,7 @@ async function markCardPreviewFailed(folderPath, cardId, url, cardSnapshot, erro
   const mainWindow = context.mainWindow;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("airpaste:previewUpdated", {
+      diskUpdatedAt: savedUpdatedAt,
       folderPath,
       canvasFilePath: previewTarget.canvasFilePath || canvasFilePath || "",
       pageId: nextState.pageId,

@@ -542,7 +542,7 @@ h6 {
   background: var(--ap-surface-default);
   width: 24px;
   height: 24px;
-  border: 1px solid var(--ap-border-subtle);
+  border: 2px solid var(--ap-border-subtle);
   cursor: pointer;
   display: flex;
   align-items: center;

@@ -315,10 +315,15 @@ function moveWindowWithCursor(mainWindow) {
     }
   }
 
-  mainWindow.setPosition(
-    Math.round(session.startBounds.x + deltaX),
-    Math.round(session.startBounds.y + deltaY),
-  );
+  // setBounds with a pinned size, not setPosition: on Windows with fractional
+  // display scaling, setPosition re-rounds the size every call and the
+  // window slowly grows while dragging.
+  mainWindow.setBounds({
+    x: Math.round(session.startBounds.x + deltaX),
+    y: Math.round(session.startBounds.y + deltaY),
+    width: session.startBounds.width,
+    height: session.startBounds.height,
+  });
 }
 
 function markImmediateCloseAllowed() {

@@ -13,7 +13,6 @@ import {
   findLink,
   getLinkRestLength,
   getNodeVisual,
-  getThrowVelocity,
   isNodeMoving,
   recountDegrees,
 } from "./tetherPhysics";
@@ -82,7 +81,6 @@ export function useTetherSystem({
   resetKey,
   draggingTileIds = EMPTY_LIST,
   dragDelta = null,
-  flickEnabled = true,
   contentRef,
   svgRef,
   clientToWorldPoint,
@@ -194,7 +192,20 @@ export function useTetherSystem({
 
       setLine(elements.line, link.a.x, link.a.y, link.b.x, link.b.y);
       setLine(elements.hit, link.a.x, link.a.y, link.b.x, link.b.y);
-      elements.line.style.opacity = Math.min(1, 0.5 + Math.abs(link.stretch ?? 0) * 0.8).toFixed(2);
+      const stretch = Math.abs(link.stretch ?? 0);
+      elements.line.style.opacity = Math.min(1, 0.5 + stretch * 0.8).toFixed(2);
+
+      // Under tension the line thickens (up to +1px); slack lines keep the
+      // stylesheet width. The width the stylesheet gives is in screen px
+      // (--tether-ui), so the extra is scaled the same way.
+      if (stretch > 0.04) {
+        const extra = Math.min(1, (stretch - 0.04) * 2.5);
+        elements.line.style.strokeWidth = `calc(${(1.4 + extra).toFixed(2)}px * var(--tether-ui))`;
+        elements.line.dataset.tense = "1";
+      } else if (elements.line.dataset.tense) {
+        elements.line.style.removeProperty("stroke-width");
+        delete elements.line.dataset.tense;
+      }
     });
   }, []);
 
@@ -394,7 +405,6 @@ export function useTetherSystem({
     const isRunning = loopRef.current.running;
     const draggingSet = new Set(draggingTileIds);
     const hasDragDelta = Boolean(dragDelta && (dragDelta.x !== 0 || dragDelta.y !== 0));
-    const now = performance.now();
     const seenIds = new Set();
     let shouldWake = false;
 
@@ -434,12 +444,6 @@ export function useTetherSystem({
 
         node.x = baseX + node.holdX;
         node.y = baseY + node.holdY;
-        node.samples.push({ t: now, x: node.x, y: node.y });
-
-        if (node.samples.length > 5) {
-          node.samples.shift();
-        }
-
         // A plain drag needs no simulation (the drag itself moves the
         // tile); only a tethered tile pulls its group along.
         if (node.deg > 0) {
@@ -449,14 +453,12 @@ export function useTetherSystem({
         // Dropped: the drop saved the dragged spot; the hold offset rides on top.
         node.x = baseX + node.holdX;
         node.y = baseY + node.holdY;
-        // Only an untethered tile is flicked. A tethered one is let go in
-        // place and its group floats and settles around it: a throw would
-        // carry the whole group across the canvas (there are no walls).
-        const throwVelocity = flickEnabled && node.deg === 0
-          ? getThrowVelocity(node.samples, now)
-          : { vx: 0, vy: 0 };
-        node.vx = throwVelocity.vx;
-        node.vy = throwVelocity.vy;
+        // Let go in place, no throw: a flick glide only started after the
+        // drop, so it read as a second animation rather than the tile's
+        // weight while being dragged. A tethered tile's group floats and
+        // settles around it.
+        node.vx = 0;
+        node.vy = 0;
         node.mode = node.deg > 0 ? NODE_MODE_FLOAT : NODE_MODE_REST;
         node.samples = [];
         disturb(world, node);
@@ -585,7 +587,7 @@ export function useTetherSystem({
     if (shouldWake || (isRunning && isActive())) {
       wake();
     }
-  }, [entries, tethers, heldKey, dragDelta, flickEnabled, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [entries, tethers, heldKey, dragDelta, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Hover slow-mo
   const setHotLinkId = useCallback((linkId) => {

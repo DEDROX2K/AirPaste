@@ -3249,6 +3249,16 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     color 140ms ease !important;
 }
 
+.ap-context-menu-item svg,
+.tile-context-menu__action-icon {
+  flex: none;
+  opacity: 0.75;
+}
+
+.ap-context-menu-item {
+  justify-content: flex-start !important;
+}
+
 .ap-context-menu-item:hover,
 .ap-context-menu-item[data-highlighted],
 .ap-context-menu-item:focus-visible,
@@ -3411,9 +3421,12 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   contain: layout style;
   /* --tether-* are written by useTetherSystem while a tile floats or glides:
      an offset from its saved spot, plus the lift / tilt of the float. */
-  transform: translate3d(calc(var(--tile-x, 0) + var(--tile-drag-x, 0px) + var(--tether-x, 0px)),
-      calc(var(--tile-y, 0) + var(--tile-drag-y, 0px) + var(--tether-y, 0px) + var(--tether-rise, 0px)),
+  transform: translate3d(calc(var(--tile-x, 0) + var(--tile-drag-x, 0px) + var(--tether-x, 0px) + var(--feel-x, 0px)),
+      calc(var(--tile-y, 0) + var(--tile-drag-y, 0px) + var(--tether-y, 0px) + var(--tether-rise, 0px) + var(--feel-y, 0px)),
       0)
+    /* --feel-* come from useTileFeel: a few px of offset and a subtle
+       perspective tilt / stretch / lift while dragging and settling. */
+    var(--feel-transform, )
     rotate(var(--tether-rot, 0deg))
     scale(var(--tether-scale, 1));
   overflow: visible;
@@ -3422,6 +3435,13 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .card--dragging {
+  transition: filter 180ms ease;
+}
+
+/* While useTileFeel drives a card (dragging, settling, nudged by a
+   neighbour) the transform is written every frame, so the eased transition
+   must not smear it. */
+.card[data-feel] {
   transition: filter 180ms ease;
 }
 

@@ -42,6 +42,7 @@ import {
   Hand,
   Hash as PixelHash,
   Heart,
+  Home as PixelHome,
   Hourglass,
   Layout,
   Link as PixelLink,
@@ -153,6 +154,9 @@ export const Home = forwardRef(function Home({ size = 24, className, ...props },
     />
   );
 });
+
+// The pixel house: the Home button while a file is open (the logo shows on Home).
+export const HomeGlyph = pixelIcon(PixelHome, "HomeGlyph");
 
 // lucide names -> pixel glyphs.
 export const Archive = pixelIcon(PixelArchive, "Archive");

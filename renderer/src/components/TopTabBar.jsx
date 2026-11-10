@@ -6,7 +6,7 @@ import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, Copy, ErrorIcon, Home, Info, Minus, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, RefreshCw, Timer, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
@@ -144,168 +144,28 @@ function TitleBarControls({ isMac, onRequestClose }) {
   );
 }
 
-function formatClock(date) {
-  return {
-    day: date.toLocaleDateString("en-GB", { weekday: "long" }),
-    date: date.toLocaleDateString("en-GB", { day: "numeric", month: "long" }),
-    time: date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
-  };
-}
-
-// Re-renders on each minute boundary, then every 60s after that.
-function useMinuteClock() {
-  const [clock, setClock] = useState(() => formatClock(new Date()));
-
-  useEffect(() => {
-    let intervalId = null;
-    const tick = () => setClock(formatClock(new Date()));
-    const timeoutId = window.setTimeout(() => {
-      tick();
-      intervalId = window.setInterval(tick, 60000);
-    }, 60000 - (Date.now() % 60000));
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  return clock;
-}
-
-const LIVE_PULSE_MS = 700;
-const LIVE_EDIT_SELECTOR = "textarea, input, [contenteditable='true'], [contenteditable='plaintext-only']";
-
-function readEditableText(element) {
-  return "value" in element ? element.value : element.textContent;
-}
-
-// One pulse per change the canvas registers: green when a tile appears, red
-// when one goes, yellow when text in a tile was changed and then left.
-function useLivePulse() {
-  const { workspace, currentEditor } = useAppContext();
-  const [pulse, setPulse] = useState(null);
-  const baselineRef = useRef(null);
-  const pulseIdRef = useRef(0);
-
-  const firePulse = useCallback((kind) => {
-    pulseIdRef.current += 1;
-    setPulse({ id: pulseIdRef.current, kind });
-  }, []);
-
-  // Tile ids, diffed per canvas + page so switching tabs/pages never pulses.
-  const scope = currentEditor?.kind === "canvas"
-    ? `${currentEditor.filePath}::${workspace.activePageId}`
-    : null;
-
-  useEffect(() => {
-    const ids = new Set((workspace.cards ?? []).map((card) => card.id));
-    const baseline = baselineRef.current;
-    baselineRef.current = { scope, ids };
-
-    // New scope, or the canvas just loaded from empty: no pulse.
-    if (!scope || baseline?.scope !== scope || (baseline.ids.size === 0 && ids.size > 1)) {
-      return;
-    }
-
-    let added = false;
-    ids.forEach((id) => { if (!baseline.ids.has(id)) added = true; });
-    let removed = false;
-    baseline.ids.forEach((id) => { if (!ids.has(id)) removed = true; });
-
-    if (removed) {
-      firePulse("delete");
-    } else if (added) {
-      firePulse("create");
-    }
-  }, [firePulse, scope, workspace.cards]);
-
-  useEffect(() => {
-    const startText = new WeakMap();
-
-    function handleFocusIn(event) {
-      const target = event.target;
-      if (target instanceof Element && target.matches(LIVE_EDIT_SELECTOR) && target.closest("#canvas-board")) {
-        startText.set(target, readEditableText(target));
-      }
-    }
-
-    function handleFocusOut(event) {
-      const target = event.target;
-      if (!(target instanceof Element) || !startText.has(target)) {
-        return;
-      }
-
-      const changed = startText.get(target) !== readEditableText(target);
-      startText.delete(target);
-      if (changed) {
-        firePulse("edit");
-      }
-    }
-
-    document.addEventListener("focusin", handleFocusIn);
-    document.addEventListener("focusout", handleFocusOut);
-    return () => {
-      document.removeEventListener("focusin", handleFocusIn);
-      document.removeEventListener("focusout", handleFocusOut);
-    };
-  }, [firePulse]);
-
-  useEffect(() => {
-    if (!pulse) {
-      return undefined;
-    }
-
-    const timerId = window.setTimeout(() => setPulse(null), LIVE_PULSE_MS);
-    return () => window.clearTimeout(timerId);
-  }, [pulse]);
-
-  return pulse;
-}
-
-// Top-left cluster: live pill, logo (home), date + time, divider, user.
-// The user chip is hidden for now; restore a `userName = ""` prop with it.
+// Top-left: one Home button. On Home it shows the AirPaste logo (click =
+// splash); in a file it shows a house icon (click = back to Home). The clock
+// and live pill are removed for now.
 function TitlebarCluster({ isHomeActive, onHome }) {
-  const clock = useMinuteClock();
-  const pulse = useLivePulse();
-
   return (
-    <div className="titlebar-cluster" aria-label="Status">
-      {/* Keyed by pulse id so back-to-back pulses restart the animation. */}
-      <span
-        key={pulse?.id ?? "idle"}
-        className={`titlebar-cluster__live${pulse ? ` titlebar-cluster__live--${pulse.kind}` : ""}`}
-        aria-hidden="true"
-      />
+    <div className="titlebar-cluster" aria-label="Home">
       <button
         type="button"
         className="titlebar-cluster__chip titlebar-cluster__logo"
         onClick={() => {
-          // Logo clicked while already on Home: show the splash.
           if (isHomeActive) {
             openLaunchSplash();
             return;
           }
           onHome();
         }}
-        title="Home"
+        title={isHomeActive ? "AirPaste" : "Back to Home"}
         aria-label="Home"
         aria-current={isHomeActive ? "page" : undefined}
       >
-        <IconHomeFilled />
+        {isHomeActive ? <IconHomeFilled /> : <HomeGlyph size={20} aria-hidden="true" />}
       </button>
-      <div className="titlebar-cluster__chip titlebar-cluster__clock">
-        <span className="titlebar-cluster__date">
-          <span className="titlebar-cluster__day">{clock.day}</span>
-          <span className="titlebar-cluster__date-n">{clock.date}</span>
-        </span>
-        <span className="titlebar-cluster__time">{clock.time}</span>
-        {/* <span className="titlebar-cluster__divider" aria-hidden="true" />
-        <span className="titlebar-cluster__user">
-          <span className="titlebar-cluster__user-dot" aria-hidden="true" />
-          {userName}
-        </span> */}
-      </div>
     </div>
   );
 }
@@ -565,24 +425,6 @@ function TitlebarEye({ currentEditorKind }) {
   );
 }
 
-// Tab connectors (supplied SVGs), stretched to 20% of the tab width. The
-// left one is drawn as supplied; the right one is mirrored in CSS.
-function TabConnector({ edge, side }) {
-  return (
-    <span className={`titlebar-tab__conn titlebar-tab__conn--${edge}-${side}`} aria-hidden="true">
-      {edge === "top" ? (
-        <svg viewBox="0 0 65 4" preserveAspectRatio="none">
-          <path fill="#CCCCCD" d="M1.03449 0C4.94617 0.207373 5.06887 3.22934 -0.000228882 3.42383H64.7974V0H1.03449Z" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 22 6" preserveAspectRatio="none">
-          <path fill="#ECECEC" d="M0.934851 5.80273C4.46825 5.45128 4.57908 0.329623 0.000196964 3.86433e-06L21.25 5.72205e-06L21.25 5.80273L0.934851 5.80273Z" />
-        </svg>
-      )}
-    </span>
-  );
-}
-
 function TabItem({
   tab,
   isActive,
@@ -663,31 +505,30 @@ function TabItem({
               </>
             )}
           </span>
-          {/* Unselected: top connectors. Selected: bottom connectors + dots. */}
-          <TabConnector edge="top" side="left" />
-          <TabConnector edge="top" side="right" />
-          <TabConnector edge="bottom" side="left" />
-          <TabConnector edge="bottom" side="right" />
-          <span className="titlebar-tab__dots" aria-hidden="true" />
         </div>
       </AppContextMenuTrigger>
 
       <AppContextMenuContent className="titlebar-tab-menu">
         {tab.type === "canvas" ? (
           <AppContextMenuItem onSelect={onShowHistory}>
+            <Timer size={15} aria-hidden="true" />
             Version History
           </AppContextMenuItem>
         ) : null}
         <AppContextMenuItem disabled={!tab.closable} onSelect={onClose}>
+          <X size={15} aria-hidden="true" />
           Close Tab
         </AppContextMenuItem>
         <AppContextMenuItem onSelect={onCloseOtherTabs}>
+          <Minus size={15} aria-hidden="true" />
           Close Other Tabs
         </AppContextMenuItem>
         <AppContextMenuItem onSelect={onCloseTabsToRight}>
+          <ChevronRight size={15} aria-hidden="true" />
           Close Tabs to the Right
         </AppContextMenuItem>
         <AppContextMenuItem disabled={!canReopenClosedTab} onSelect={onReopenClosedTab}>
+          <RefreshCw size={15} aria-hidden="true" />
           Reopen Closed Tab
         </AppContextMenuItem>
       </AppContextMenuContent>
@@ -695,7 +536,7 @@ function TabItem({
   );
 }
 
-const TAB_EXIT_MS = 180;
+const TAB_EXIT_MS = 200;
 
 // Tabs to draw: the open ones (new ones flagged `entering`) plus closed ones
 // kept for TAB_EXIT_MS (`exiting`, at their old spot) so they can shrink away.
@@ -789,7 +630,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
       node.style.transform = `translateX(${deltaX}px)`;
 
       requestAnimationFrame(() => {
-        node.style.transition = "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+        node.style.transition = "transform 240ms cubic-bezier(0.34, 1.4, 0.64, 1)";
         node.style.transform = "";
       });
     });

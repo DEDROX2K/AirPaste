@@ -1,6 +1,6 @@
 {
   "name": "airpaste",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "private": true,
   "description": "AirPaste is a local-first desktop canvas for everything you save. Paste links, images, files and notes, then arrange them freely on an infinite board. Your canvases stay as plain files on your computer: private, offline and yours.",
   "keywords": [

@@ -68,7 +68,7 @@
   background: transparent !important;
   box-shadow: none !important;
   padding: 0 !important;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif !important;
+  font-family: var(--ap-font-body) !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   letter-spacing: -0.01em !important;
@@ -558,18 +558,19 @@
 }
 
 .titlebar-cluster__day {
-  font-size: 9.5px;
-  font-weight: 500;
+  font-size: 10.5px;
+  font-weight: 600;
 }
 
 .titlebar-cluster__date-n {
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 300;
   color: #6e6e6a;
 }
 
 .titlebar-cluster__time {
-  font-size: 23px;
-  font-weight: 500;
+  font-size: 24px;
+  font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -614,12 +615,22 @@
 /* Tabs (ref: airpaste-ui-shell-v8). Absolutely centred on the bar,
    independent of the left/right groups. Each tab spans the full bar height
    so its hit box runs to the top edge; the visible body sits inside it.
-   Unselected: body 3px from the top, top connectors rise into the bar top.
-   Selected: body on the centre line, bottom connectors run to the canvas. */
+   Unselected: boxy bodies; the outermost two sweep their outer top corner up.
+   Selected: a fully rounded pill, sitting slightly higher. */
 .titlebar-tabs {
-  --tab-h: 28px;
-  --tab-unsel-top: 8px;
-  --tab-sel-top: 6px;
+    --tab-h: 34px;
+    --tab-unsel-top: 5px;
+    --tab-sel-top: 5px;
+  /* Expressive motion: a quick, slightly overshooting spring for
+     select/deselect/open; a fast decelerating ease for close. */
+  --tab-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --tab-ease-out: cubic-bezier(0.3, 0, 0.2, 1);
+  --tab-radius-box: 7px;
+  --tab-radius-end: 30px;
+  /* Emphasized decelerate: fast start, soft landing, never overshoots.
+     Used for radius/size (an overshoot there goes negative and clamps to a
+     hard corner, which reads as a stutter). */
+  --tab-smooth: cubic-bezier(0.2, 0, 0, 1);
 
   position: absolute;
   top: 0;
@@ -630,7 +641,7 @@
   max-width: calc(100% - 800px);
   display: flex;
   align-items: stretch;
-  gap: 12px;
+  gap: 5px;
   min-width: 0;
   justify-content: flex-start;
 }
@@ -650,19 +661,19 @@
    Close: the tab stays for TAB_EXIT_MS and shrinks to nothing, eating its
    6px gap, so its neighbours close in smoothly. */
 .titlebar-tab-shell--entering {
-  animation: titlebar-tab-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: titlebar-tab-in 260ms var(--tab-spring);
 }
 
 .titlebar-tab-shell--exiting {
   overflow: hidden;
   pointer-events: none;
-  animation: titlebar-tab-out 180ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  animation: titlebar-tab-out 200ms var(--tab-ease-out) forwards;
 }
 
 @keyframes titlebar-tab-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.94);
+    transform: translateY(-6px) scale(0.7);
   }
 }
 
@@ -675,8 +686,9 @@
   to {
     width: 0;
     min-width: 0;
-    margin-left: -6px;
+    margin-left: -12px;
     opacity: 0;
+    transform: scale(0.8);
   }
 }
 
@@ -685,10 +697,13 @@
   .titlebar-tab-shell--exiting {
     animation: none;
   }
+  .titlebar-tab__body {
+    transition: none;
+  }
 }
 
 .titlebar-tab {
-  --shape: #cacaca;
+  --shape: #dadada;
   --top: var(--tab-unsel-top);
   position: relative;
   display: flex;
@@ -699,11 +714,11 @@
 }
 
 .titlebar-tab:not(.titlebar-tab--active):hover {
-  --shape: #c2c2c2;
+  --shape: #d0d0d0;
 }
 
 .titlebar-tab--active {
-  --shape: #efefee;
+  --shape: #f5f5f7;
   --top: var(--tab-sel-top);
 }
 
@@ -717,21 +732,36 @@
   min-width: 0;
   height: var(--tab-h);
   margin-top: var(--top);
-  padding: 0 8px 0 11px;
-  border-radius: 999px;
+  padding: 0 18px 0 11px;
+  /* Unselected: boxy. The outermost tabs sweep their outer top corner up. */
+  border-radius: var(--tab-radius-box);
   background: var(--shape);
   color: #1b1b1a;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  font-size: 12px;
+  font-family: var(--ap-font-body);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
-  transition: background-color 0.15s ease;
+  transition:
+    background-color 140ms ease,
+    border-radius 280ms var(--tab-smooth),
+    margin-top 280ms var(--tab-smooth),
+    padding 240ms var(--tab-smooth);
 }
 
 .titlebar-tab--active .titlebar-tab__body {
   padding-right: 10px;
-  border-radius: 12px;
+  /* Half the height, not 999px: a huge radius is clamped when drawn, so
+     animating to/from it sits still and then snaps. */
+  border-radius: calc(var(--tab-h) / 2);
+}
+
+.titlebar-tab-shell:first-child .titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__body {
+  border-top-left-radius: var(--tab-radius-end);
+}
+
+.titlebar-tab-shell:last-child .titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__body {
+  border-top-right-radius: var(--tab-radius-end);
 }
 
 .titlebar-tab--home .titlebar-tab__body {
@@ -742,65 +772,6 @@
 .titlebar-tab--file {
   min-width: 90px;
   max-width: 180px;
-}
-
-/* Connectors: 20% of the tab width, just outside each side. */
-.titlebar-tab__conn {
-  position: absolute;
-  z-index: 0;
-  width: 41%;
-  pointer-events: none;
-}
-
-.titlebar-tab__conn svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.titlebar-tab__conn--top-left,
-.titlebar-tab__conn--top-right {
-  top: 0;
-  height: 10px;
-}
-
-.titlebar-tab__conn--bottom-left,
-.titlebar-tab__conn--bottom-right {
-  top: calc(var(--top) + var(--tab-h));
-  height: 10px;
-}
-
-.titlebar-tab__conn--top-left,
-.titlebar-tab__conn--bottom-left {
-  right: 48%;
-}
-
-.titlebar-tab__conn--top-right,
-.titlebar-tab__conn--bottom-right {
-  left: 48%;
-  transform: scaleX(-1);
-}
-
-.titlebar-tab--active .titlebar-tab__conn--top-left,
-.titlebar-tab--active .titlebar-tab__conn--top-right,
-.titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__conn--bottom-left,
-.titlebar-tab:not(.titlebar-tab--active) .titlebar-tab__conn--bottom-right {
-  display: none;
-}
-
-/* Dotted outline around the selected body. WE DO NOT NEED IT - no dotted lines around the tabs anymore*/
-.titlebar-tab__dots {
-  display: none;
-  position: absolute;
-  left: -3px;
-  right: -3px;
-  top: calc(var(--top) - 3px);
-  height: calc(var(--tab-h) + 6px);
-  pointer-events: none;
-}
-
-.titlebar-tab--active .titlebar-tab__dots {
-  display: block;
 }
 
 .titlebar-home-icon {
@@ -823,8 +794,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
+  transition: font-weight 200ms ease;
+}
+
+/* Hierarchy: the open tab is semibold, the rest regular. */
+.titlebar-tab--active .titlebar-tab-label {
+  font-weight: 600;
 }
 
 /* Close: the standard Apple tab close -- a quiet x that shows on the active
@@ -838,23 +815,34 @@
   height: 16px;
   padding: 0;
   border: none;
-  border-radius: 0%;
+  border-radius: 50%;
   background: #0000001a;
   color: var(--ap-text-secondary);
-  opacity: 1;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
   cursor: var(--ap-cursor-pointer);
   transition:
     background-color var(--ap-transition-fast),
     color var(--ap-transition-fast),
-    opacity var(--ap-transition-fast),
+    opacity 160ms ease,
+    width 280ms var(--tab-smooth),
+    margin 280ms var(--tab-smooth),
     transform var(--ap-transition-spring);
+}
+
+/* Unselected tabs show no close button: it collapses to nothing. */
+.titlebar-tab:not(.titlebar-tab--active) .titlebar-tab-close {
+  width: 0;
+  margin-left: -6px;
 }
 
 .titlebar-tab--active .titlebar-tab-close {
   opacity: 0.6;
+  pointer-events: auto;
 }
 
-.titlebar-tab:hover .titlebar-tab-close,
+.titlebar-tab--active:hover .titlebar-tab-close,
 .titlebar-tab-close:focus-visible {
   opacity: 1;
 }
@@ -947,60 +935,83 @@
   -webkit-app-region: no-drag;
 }
 
-/* --- Windows controls (in-app; the native overlay is off).
-   Full-size v5 values scaled to the 50px bar (x 50/74). --- */
+/* --- Windows controls (in-app; the native overlay is off). ---
+   Compact pills; each one's real hit box is stretched past the visible shape
+   (::after) so it reaches the bar's top/bottom, and the close button reaches
+   the window's right edge (the bar has 10px side padding). */
 .titlebar-controls--win {
   align-items: center !important;
-  gap: 2px !important;
+  gap: 4px !important;
 }
 
 .titlebar-btn--win {
   appearance: none !important;
   -webkit-appearance: none !important;
+  position: relative;
   display: grid !important;
   place-items: center !important;
-  height: 33px !important;
+  width: 36px !important;
+  height: 36px !important;
   padding: 0 !important;
   margin: 0 !important;
-  border: 1px solid !important;
-  color: #000 !important;
+  border: 2px solid #7676767f !important;
+  border-radius: 100px !important;
+  background: #c0c0c0 !important;
+  color: rgba(0, 0, 0, 0.45) !important;
   cursor: var(--ap-cursor-default) !important;
-  transition: filter 0.15s ease !important;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.titlebar-btn--win::after {
+  content: "";
+  position: absolute;
+  inset: -9px -2px;
+}
+
+.titlebar-btn--win.is-close::after {
+  right: -10px;
 }
 
 .titlebar-btn--win:hover {
-  filter: brightness(1.04) saturate(1.05);
+  color: rgba(0, 0, 0, 0.7) !important;
 }
 
 .titlebar-btn--win:active {
-  filter: brightness(0.95);
+  transform: scale(0.94);
 }
 
-.titlebar-btn--win.is-minimize {
-  width: 32px !important;
-  border-radius: 20px !important;
-  border-color: #9292927f !important;
-  background: #c0c0c0 !important;
+/* Hover colours: orange / green / red, like the traffic lights. */
+.titlebar-btn--win.is-minimize:hover {
+  background: #ffbd2e !important;
+  border-color: #ffffff !important;
 }
 
 .titlebar-btn--win.is-maximize {
-  width: 35px !important;
-  border-radius: 40% !important;
-  border-color: #9292927f !important;
-  background: #c0c0c0 !important;
+  border-radius: 30% !important;
+}
+
+.titlebar-btn--win.is-maximize:hover {
+  background: #27c93f !important;
+  border-color: #ffffff !important;
 }
 
 .titlebar-btn--win.is-close {
-  width: 32px !important;
-  border-radius: 20% !important;
-  border-color: #9292927f !important;
-  background: #c0c0c0 !important;
+  border-radius: 30% !important;
+}
+
+.titlebar-btn--win.is-close:hover {
+  background-color: #ff5f56 !important;
+  border-color: #ffffff !important;
 }
 
 .titlebar-btn--win svg {
-    width: 28px;
-    height: 23px;
-  color: rgb(0 0 0 / 49%);
+  width: 14px;
+  height: 14px;
+  color: inherit;
 }
 
 /* --- macOS Traffic Lights styling --- */
@@ -1032,7 +1043,7 @@
 }
 
 .titlebar-btn--mac:hover {
-  transform: scale(1.06);
+  transform: scale(4.06);
 }
 
 .titlebar-btn--mac.is-close {

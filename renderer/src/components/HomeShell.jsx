@@ -29,6 +29,9 @@ import {
   AppSheetContent,
 } from "./ui/app";
 import {
+  Check,
+  ChevronRight,
+  Folder,
   FolderOpen,
   FolderPlus,
   Grid2X2,
@@ -47,6 +50,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Warning,
   X,
 } from "./ui/icons";
 import SerendipityView from "./SerendipityView";
@@ -597,39 +601,69 @@ function ConfirmDialog({ open, title, description, disabled, onCancel, onConfirm
 function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onClose, onRefresh, onCreateNew, onOpenFolder, onOpenDome, onRevealDome, onRemoveDome }) {
   return (
     <AppDialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <AppDialogContent className="max-w-xl">
+      <AppDialogContent className="max-w-xl ap-home-manage">
         <AppDialogHeader>
-          <AppDialogTitle>Manage Workspaces</AppDialogTitle>
-          <AppDialogDescription>Switch, reveal, remove, or create workspaces.</AppDialogDescription>
+          <AppDialogTitle className="ap-home-manage__title">
+            <Folder size={20} aria-hidden="true" />
+            Workspaces
+          </AppDialogTitle>
+          <AppDialogDescription>Every folder AirPaste knows about. Pick one to work in.</AppDialogDescription>
         </AppDialogHeader>
+
+        <div className="ap-home-manage__quick">
+          <button type="button" className="ap-home-manage__quick-btn" onClick={onCreateNew}>
+            <Plus size={18} aria-hidden="true" />
+            <span><strong>New workspace</strong><small>Start with an empty folder</small></span>
+          </button>
+          <button type="button" className="ap-home-manage__quick-btn" onClick={onOpenFolder}>
+            <FolderOpen size={18} aria-hidden="true" />
+            <span><strong>Open a folder</strong><small>Use one you already have</small></span>
+          </button>
+        </div>
+
         <div className="ap-home-dome-list">
           {domes.length === 0 ? (
-            <p className="ap-home-empty__copy">No workspaces yet.</p>
+            <p className="ap-home-empty__copy">No workspaces yet. Create or open one above.</p>
           ) : (
-            domes.map((dome) => (
-              <div key={dome.id} className="ap-home-dome-row">
-                <div>
-                  <div className="ap-home-dome-row__name">{dome.name}{dome.id === activeDomeId ? " (active)" : ""}</div>
-                  <div className="ap-home-dome-row__meta">
-                    {dome.path}
-                    {dome.exists === false ? " · Missing" : ""}
-                    {dome.valid === false ? " · Needs initialization" : ""}
+            domes.map((dome) => {
+              const isActive = dome.id === activeDomeId;
+              const isMissing = dome.exists === false;
+              return (
+                <div key={dome.id} className={`ap-home-dome-row${isActive ? " is-active" : ""}${isMissing ? " is-missing" : ""}`}>
+                  <span className="ap-home-dome-row__icon" aria-hidden="true">
+                    {isMissing ? <Warning size={18} /> : <Folder size={18} />}
+                  </span>
+                  <div className="ap-home-dome-row__text">
+                    <div className="ap-home-dome-row__name">
+                      {dome.name}
+                      {isActive ? <span className="ap-home-dome-row__badge"><Check size={11} aria-hidden="true" />Active</span> : null}
+                      {isMissing ? <span className="ap-home-dome-row__badge is-warn">Missing</span> : null}
+                      {!isMissing && dome.valid === false ? <span className="ap-home-dome-row__badge is-warn">Needs setup</span> : null}
+                    </div>
+                    <div className="ap-home-dome-row__meta" title={dome.path}>{dome.path}</div>
+                  </div>
+                  <div className="ap-home-dome-row__actions">
+                    <button type="button" className="ap-home-icon-btn" title={isActive ? "Already open" : "Switch to this workspace"} aria-label="Open workspace" disabled={folderLoading || isActive || isMissing} onClick={() => onOpenDome(dome.id)}>
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                    <button type="button" className="ap-home-icon-btn" title="Show in file explorer" aria-label="Reveal in file explorer" disabled={isMissing} onClick={() => onRevealDome(dome.path)}>
+                      <FolderOpen size={16} aria-hidden="true" />
+                    </button>
+                    <button type="button" className="ap-home-icon-btn is-danger" title="Remove from list (files stay on disk)" aria-label="Remove workspace" onClick={() => onRemoveDome(dome.id)}>
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
                   </div>
                 </div>
-                <div className="ap-home-dome-row__actions">
-                  <AppButton type="button" tone="surface" size="sm" disabled={folderLoading} onClick={() => onOpenDome(dome.id)}>Open</AppButton>
-                  <AppButton type="button" tone="surface" size="sm" onClick={() => onRevealDome(dome.path)}>Reveal</AppButton>
-                  <AppButton type="button" tone="danger" size="sm" onClick={() => onRemoveDome(dome.id)}>Remove</AppButton>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
+
         <AppDialogFooter>
-          <AppButton type="button" tone="surface" onClick={onClose}>Close</AppButton>
-          <AppButton type="button" tone="surface" onClick={onRefresh}>Refresh</AppButton>
-          <AppButton type="button" tone="surface" onClick={onCreateNew}>Create New</AppButton>
-          <AppButton type="button" tone="accent" onClick={onOpenFolder}>Open Folder</AppButton>
+          <AppButton type="button" tone="surface" onClick={onRefresh}>
+            <RefreshCw size={14} aria-hidden="true" /> Refresh
+          </AppButton>
+          <AppButton type="button" tone="accent" onClick={onClose}>Done</AppButton>
         </AppDialogFooter>
       </AppDialogContent>
     </AppDialog>

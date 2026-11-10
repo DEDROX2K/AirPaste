@@ -77,7 +77,10 @@ export function useTileGesture({
     }
 
     pressState.hasTriggeredDrag = true;
-    onDragStart?.(card, event);
+    // The press point goes along so the drag can anchor to where the tile
+    // was actually grabbed, not to where the pointer was once the dead zone
+    // was crossed (that left the tile trailing the cursor by the dead zone).
+    onDragStart?.(card, event, { clientX: pressState.startX, clientY: pressState.startY });
   }, [canDrag, card, onDragStart]);
 
   const handlePointerUp = useCallback((event) => {

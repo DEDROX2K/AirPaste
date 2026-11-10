@@ -951,6 +951,10 @@ async function loadCanvas(filePath, options = null) {
   };
 }
 
+// abs canvas path -> updatedAt of the last background write made by the app
+// itself (see saveCanvas's internalWrite option).
+const internalWriteStamps = new Map();
+
 async function saveCanvas(filePath, data, options = null) {
   const abs = path.resolve(filePath);
   if (!isCanvasPath(abs)) {
@@ -992,7 +996,10 @@ async function saveCanvas(filePath, data, options = null) {
   if (typeof saveOptions.expectedUpdatedAt === "string" && saveOptions.expectedUpdatedAt) {
     const diskStat = await fs.stat(abs).catch(() => null);
     const actualUpdatedAt = diskStat ? diskStat.mtime.toISOString() : null;
-    if (actualUpdatedAt && actualUpdatedAt !== saveOptions.expectedUpdatedAt) {
+    // A write the app itself made in the background (link-preview results)
+    // is not someone else's edit; the renderer's copy already has that card.
+    const isOwnInternalWrite = actualUpdatedAt && internalWriteStamps.get(abs) === actualUpdatedAt;
+    if (actualUpdatedAt && actualUpdatedAt !== saveOptions.expectedUpdatedAt && !isOwnInternalWrite) {
       const error = new Error(`"${path.basename(abs)}" was changed elsewhere since you opened it.`);
       error.code = "CANVAS_CONFLICT";
       error.updatedAt = actualUpdatedAt;
@@ -1081,6 +1088,11 @@ async function saveCanvas(filePath, data, options = null) {
   await atomicWriteJson(root, abs, payload);
   const finalStat = await fs.stat(abs);
   const finalUpdatedAt = finalStat.mtime.toISOString();
+  if (saveOptions.internalWrite === true) {
+    internalWriteStamps.set(abs, finalUpdatedAt);
+  } else {
+    internalWriteStamps.delete(abs);
+  }
   const rel = toWorkspaceRel(root, abs);
 
   if (saveOptions.returnWorkspace !== false) {
