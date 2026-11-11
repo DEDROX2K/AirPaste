@@ -58,6 +58,7 @@ const EXPECTED_HANDLE_CHANNELS = [
   "airpaste:listCanvasHistory", "airpaste:restoreCanvasHistoryEntry",
   // main/ipc/assets.js
   "airpaste:importImageAsset", "airpaste:resolveAssetUrl", "airpaste:captureCanvasThumbnail",
+  "airpaste:saveCanvasThumbnail",
   "airpaste:importFiles", "airpaste:captureWebclip", "airpaste:captureArticle", "airpaste:readArticle",
   // main/ipc/files.js
   "airpaste:watchMarkdownFile", "airpaste:unwatchMarkdownFile", "airpaste:getUserName", "airpaste:openExternal", "airpaste:openFile", "airpaste:revealPath",
@@ -67,6 +68,7 @@ const EXPECTED_HANDLE_CHANNELS = [
 
 const EXPECTED_ON_CHANNELS = [
   "window:minimize", "window:maximize", "window:close",
+  "window:enterImmersive", "window:exitImmersive",
   "window:resizeStart", "window:resizeMove", "window:resizeEnd",
   "window:moveStart", "window:moveEnd",
   "window:ready-to-close",

@@ -6,7 +6,7 @@ import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, RefreshCw, Timer, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Timer, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
@@ -435,12 +435,49 @@ function TabItem({
   onCloseTabsToRight,
   onReopenClosedTab,
   onShowHistory,
+  onRename,
   onDragStart,
   onDragOver,
   onDragEnd,
 }) {
   const isHome = tab.id === "home";
-  const tabClassName = `titlebar-tab ${isHome ? "titlebar-tab--home" : "titlebar-tab--file"} ${isActive ? "titlebar-tab--active" : ""}`;
+  const canRename = !isHome && Boolean(tab.entityId) && typeof onRename === "function";
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const renameInputRef = useRef(null);
+  // Set when "Rename" is picked, so the menu closing doesn't hand focus back
+  // to the tab (which would blur the field the moment it appears).
+  const renameRequestedRef = useRef(false);
+  const tabClassName = `titlebar-tab ${isHome ? "titlebar-tab--home" : "titlebar-tab--file"} ${isActive ? "titlebar-tab--active" : ""}${isRenaming ? " titlebar-tab--renaming" : ""}`;
+
+  useEffect(() => {
+    if (!isRenaming) {
+      return;
+    }
+
+    const input = renameInputRef.current;
+    input?.focus();
+    input?.select();
+  }, [isRenaming]);
+
+  function startRename() {
+    renameRequestedRef.current = true;
+    setDraftName(tab.title ?? "");
+    setIsRenaming(true);
+  }
+
+  function finishRename(commit) {
+    if (!isRenaming) {
+      return;
+    }
+
+    setIsRenaming(false);
+    const name = draftName.trim();
+
+    if (commit && name && name !== tab.title) {
+      void onRename(name);
+    }
+  }
 
   return (
     <AppContextMenu>
@@ -448,8 +485,11 @@ function TabItem({
         <div
           data-tab-id={tab.id}
           className={tabClassName}
-          draggable={tab.closable}
+          draggable={tab.closable && !isRenaming}
           onClick={() => {
+            if (isRenaming) {
+              return;
+            }
             // Home logo clicked while already on Home: show the splash.
             if (isHome && isActive) {
               openLaunchSplash();
@@ -469,6 +509,14 @@ function TabItem({
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
+            if (isRenaming) {
+              return;
+            }
+            if (event.key === "F2" && canRename) {
+              event.preventDefault();
+              startRename();
+              return;
+            }
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
               onActivate();
@@ -484,7 +532,44 @@ function TabItem({
               </span>
             ) : (
               <>
-                <span className="titlebar-tab-label">{tab.title}</span>
+                {isRenaming ? (
+                  <input
+                    ref={renameInputRef}
+                    className="titlebar-tab-rename"
+                    value={draftName}
+                    aria-label="Rename file"
+                    spellCheck={false}
+                    onChange={(event) => setDraftName(event.target.value)}
+                    onBlur={() => finishRename(true)}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        finishRename(true);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        finishRename(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="titlebar-tab-label"
+                    onDoubleClick={(event) => {
+                      if (!canRename) {
+                        return;
+                      }
+                      // Double-click the name to rename (not the bar's maximize).
+                      event.stopPropagation();
+                      startRename();
+                    }}
+                  >
+                    {tab.title}
+                  </span>
+                )}
                 {tab.closable ? (
                   <button
                     type="button"
@@ -508,7 +593,22 @@ function TabItem({
         </div>
       </AppContextMenuTrigger>
 
-      <AppContextMenuContent className="titlebar-tab-menu">
+      <AppContextMenuContent
+        className="titlebar-tab-menu"
+        onCloseAutoFocus={(event) => {
+          if (renameRequestedRef.current) {
+            renameRequestedRef.current = false;
+            event.preventDefault();
+            renameInputRef.current?.focus();
+          }
+        }}
+      >
+        {canRename ? (
+          <AppContextMenuItem onSelect={startRename}>
+            <Pencil size={15} aria-hidden="true" />
+            Rename
+          </AppContextMenuItem>
+        ) : null}
         {tab.type === "canvas" ? (
           <AppContextMenuItem onSelect={onShowHistory}>
             <Timer size={15} aria-hidden="true" />
@@ -571,7 +671,8 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     closeTabsToRight,
     canReopenClosedTab,
   } = useTabs();
-  const { showHome, currentEditor } = useAppContext();
+  const { showHome, currentEditor, renameItemEntry } = useAppContext();
+  const { toast } = useToast();
   const tabRefs = useRef(new Map());
   const previousRectsRef = useRef(new Map());
   const [draggedTabId, setDraggedTabId] = useState(null);
@@ -726,6 +827,13 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
               onCloseTabsToRight={() => closeTabsToRight(tab.id)}
               onReopenClosedTab={reopenClosedTab}
               onShowHistory={() => setHistoryDialogTab(tab)}
+              onRename={async (name) => {
+                try {
+                  await renameItemEntry?.({ type: tab.type, filePath: tab.entityId, name: tab.title }, name);
+                } catch (error) {
+                  toast?.("error", `Couldn't rename: ${error?.message ?? "unknown error"}`);
+                }
+              }}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}

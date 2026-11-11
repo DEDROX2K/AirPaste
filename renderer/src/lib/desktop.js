@@ -120,6 +120,8 @@ export const desktop = {
       airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
     captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
       airpasteBridge.captureCanvasThumbnail?.(folderPath, canvasFilePath, rect, devicePixelRatio) ?? Promise.resolve({ thumbnailPath: "" }),
+    saveCanvasThumbnail: (folderPath, canvasFilePath, dataUrl) =>
+      airpasteBridge.saveCanvasThumbnail?.(folderPath, canvasFilePath, dataUrl) ?? Promise.resolve({ thumbnailPath: "" }),
     captureWebclip: (folderPath, url) =>
       airpasteBridge.captureWebclip?.(folderPath, url) ?? Promise.resolve({ webclipPath: "" }),
     captureArticle: (folderPath, url) =>
@@ -150,6 +152,9 @@ export const desktop = {
     minimize: () => electronBridge.minimize?.(),
     maximize: () => electronBridge.maximize?.(),
     close: () => electronBridge.close?.(),
+    // Full screen while Constellation is open (restored on exit).
+    enterImmersive: () => electronBridge.enterImmersive?.(),
+    exitImmersive: () => electronBridge.exitImmersive?.(),
     onPrepareClose: (listener) => electronBridge.onPrepareClose?.(listener) ?? (() => { }),
     notifyReadyToClose: () => electronBridge.notifyReadyToClose?.(),
     resizeStart: (direction) => electronBridge.resizeStart?.(direction),

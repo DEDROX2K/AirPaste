@@ -138,7 +138,8 @@ async function buildUnpackedApp(tempConfigPath) {
 }
 
 async function patchExecutableIcon() {
-  const rceditPath = findLatestRcedit();
+  const bundledRcedit = path.join(projectRoot, "node_modules", "rcedit", "bin", "rcedit-x64.exe");
+  const rceditPath = fsSync.existsSync(bundledRcedit) ? bundledRcedit : findLatestRcedit();
   const unpackedDir = getUnpackedDir();
   const exeCandidates = [
     path.join(unpackedDir, "AirPaste.exe"),
@@ -159,7 +160,7 @@ async function patchExecutableIcon() {
     unpackedExePath,
     "--set-icon",
     buildIconIcoPath,
-  ]);
+  ], { shell: false }); // no shell: the project path contains spaces
   return true;
 }
 

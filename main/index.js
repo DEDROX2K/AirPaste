@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require("electron");
 const context = require("./context");
+const graphics = require("./graphics");
 const windows = require("./windows");
 const assetsIpc = require("./ipc/assets");
 const domeIpc = require("./ipc/dome");
@@ -19,6 +20,7 @@ linkPreviewIpc.registerIpc();
 
 app.whenReady().then(async () => {
   assetsIpc.registerProtocolHandler();
+  graphics.watchGpu(() => context.mainWindow);
 
   await windows.createWindow();
 

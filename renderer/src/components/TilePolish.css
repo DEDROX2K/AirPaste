@@ -880,6 +880,11 @@
   }
 }
 
+@keyframes canvas-tile-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .canvas__content .card__surface-frame,
   .grid-workspace .card__surface-frame,
@@ -892,6 +897,13 @@
   .grid-workspace .card__link-loading {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* Windows "animation effects" off still gets a soft page entrance, just
+     without the drop: a plain fade (no movement) is fine under reduced motion. */
+  .canvas__content--entering .canvas__entry-item .card__surface-frame {
+    animation: canvas-tile-fade-in 320ms ease-out both !important;
+    animation-delay: var(--canvas-entry-delay, 0ms) !important;
   }
 
   .canvas__content .card--hovered:not(.card--dragging):not(.card--selected) .card__surface-frame,
@@ -921,4 +933,109 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transition: opacity 120ms ease, visibility 0s linear 120ms !important;
+}
+
+/* Stacked tiles (systems/stack/tileStack.js): each sits a touch askew in the
+   pile with a mild shadow, and shows no hover / selection chrome (the tile
+   is inert until ungrouped). The tilt is on the surface, not the .card, so
+   it never fights the card's own position transform. */
+.canvas__content .card--stacked .card__surface-frame {
+  rotate: var(--stack-tilt, 0deg);
+  transition: rotate 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.canvas__content .card--stacked {
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.1)) !important;
+  cursor: var(--ap-cursor-default);
+}
+
+.canvas__content .card--stacked :is(.card__toolbar, .card__action-strip) {
+  display: none !important;
+}
+
+.canvas__content .card--stacked * {
+  cursor: var(--ap-cursor-default) !important;
+}
+
+/* The rubber band round a stacked pile (getStackBands in tileStack.js): a
+   plain red strip across the whole bundle. Hover shows the scissors; a click
+   cuts it (the two halves spring apart) and the pile comes apart one tile at
+   a time. Placed with the individual translate / rotate / scale properties,
+   not `transform`, so no shared hover rule can knock it out of place. */
+.canvas__content .canvas__stack-band {
+  position: absolute;
+  display: flex;
+  height: 10px;
+  translate: -50% -50%;
+  rotate: var(--band-angle, 0deg);
+  outline: none;
+  cursor: var(--ap-cursor-cut) !important;
+  animation: canvas-stack-band-snap 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* A taller invisible hit strip, so the band is easy to catch. */
+.canvas__content .canvas__stack-band::before {
+  content: "";
+  position: absolute;
+  inset: -7px -2px;
+}
+
+.canvas__stack-band-half {
+  flex: 1 1 50%;
+  height: 100%;
+  background: #e0332b;
+  pointer-events: none;
+  transition: transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 220ms ease;
+}
+
+.canvas__stack-band-half--l {
+  border-radius: 5px 0 0 5px;
+  transform-origin: 0 50%;
+}
+
+.canvas__stack-band-half--r {
+  border-radius: 0 5px 5px 0;
+  transform-origin: 100% 50%;
+}
+
+/* Cut: each half springs back toward its own end, curling, and fades. */
+.canvas__stack-band.is-cut .canvas__stack-band-half--l {
+  transform: translateX(-14%) scaleX(0.55) rotate(-16deg);
+  opacity: 0;
+}
+
+.canvas__stack-band.is-cut .canvas__stack-band-half--r {
+  transform: translateX(14%) scaleX(0.55) rotate(16deg);
+  opacity: 0;
+}
+
+/* Snaps on: stretched wide and thin, then pulls tight round the pile. */
+@keyframes canvas-stack-band-snap {
+  from {
+    opacity: 0;
+    scale: 1.25 0.5;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1 1;
+  }
+}
+
+/* Tiles leaving a pile: one after another (--release-delay), each gliding
+   home with a little overshoot. */
+.canvas__content .canvas__entry-item[data-releasing] > .card {
+  transition:
+    filter 180ms ease,
+    transform 560ms cubic-bezier(0.34, 1.35, 0.64, 1) var(--release-delay, 0ms) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__content .canvas__stack-band {
+    animation: none;
+  }
+
+  .canvas__content .canvas__entry-item[data-releasing] > .card {
+    transition: none !important;
+  }
 }

@@ -97,6 +97,7 @@
     "pixelarticons": "^2.4.2",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.8",
+    "rcedit": "^5.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.3",

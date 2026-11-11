@@ -52,6 +52,21 @@ const AppButton = React.forwardRef(
       )
     }
 
+    if (tone === "purple") {
+      return (
+        <button
+          ref={ref}
+          className={cn(
+            "ap-ui-button ap-ui-button--purple ap-type-label",
+            block ? "ap-ui-button--block" : "",
+            sizeClassName,
+            className,
+          )}
+          {...props}
+        />
+      )
+    }
+
     if (tone === "danger") {
       return (
         <button

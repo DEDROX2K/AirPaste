@@ -233,3 +233,17 @@ export const Progress = pixelIcon(BatteryMedium, "Progress");
 export const Unlink = pixelIcon(PixelUnlink, "Unlink");
 export const Bug = pixelIcon(PixelBug, "Bug");
 export const Clipboard = pixelIcon(PixelClipboard, "Clipboard");
+
+// Split screen: two side-by-side panes on the 24px pixel grid
+// (pixelarticons has no columns glyph).
+const SPLIT_COLUMNS_PATH = "M2 3h20v2H2zM2 19h20v2H2zM2 5h2v14H2zM20 5h2v14h-2zM11 5h2v14h-2z";
+
+function SplitColumnsGlyph(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d={SPLIT_COLUMNS_PATH} />
+    </svg>
+  );
+}
+
+export const SplitColumns = pixelIcon(SplitColumnsGlyph, "SplitColumns");

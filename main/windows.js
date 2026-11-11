@@ -111,6 +111,11 @@ async function createWindow() {
 
   context.mainWindow = mainWindow;
 
+  // Every load (including a dev reload) gets the current graphics mode.
+  mainWindow.webContents.on("did-finish-load", () => {
+    require("./graphics").sendGraphicsInfo(mainWindow);
+  });
+
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
   });
@@ -163,6 +168,23 @@ function registerIpc() {
     } else {
       mainWindow.maximize();
     }
+  });
+  // Constellation takes the whole screen: the window goes full screen while it
+  // is open, and goes back to how it was (full screen or not) afterwards.
+  let fullScreenBeforeImmersive = null;
+  ipcMain.on("window:enterImmersive", () => {
+    const mainWindow = context.mainWindow;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (fullScreenBeforeImmersive === null) {
+      fullScreenBeforeImmersive = mainWindow.isFullScreen();
+    }
+    mainWindow.setFullScreen(true);
+  });
+  ipcMain.on("window:exitImmersive", () => {
+    const mainWindow = context.mainWindow;
+    if (!mainWindow || mainWindow.isDestroyed() || fullScreenBeforeImmersive === null) return;
+    mainWindow.setFullScreen(fullScreenBeforeImmersive);
+    fullScreenBeforeImmersive = null;
   });
   ipcMain.on("window:close", () => context.mainWindow?.close());
   ipcMain.on("window:resizeStart", (_event, payload = {}) => {

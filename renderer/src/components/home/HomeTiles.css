@@ -1,0 +1,192 @@
+/* Home tiles: the reel along the top of Home and the canvas peek
+   (HomeTileReel / HomeCanvasPeek). Both draw saved tiles with Constellation's
+   card faces, shrunk with `zoom` by HomeTileCard. */
+
+.ap-home-tile {
+  --ap-seren-card: #fffdfa;
+  --ap-seren-card-edge: rgba(29, 27, 25, 0.08);
+  --ap-seren-ink: #1d1b19;
+  --ap-seren-ink-soft: rgba(29, 27, 25, 0.62);
+  --ap-seren-ink-faint: rgba(29, 27, 25, 0.4);
+  --ap-seren-glass: rgba(29, 27, 25, 0.06);
+  --ap-seren-shadow: none;
+
+  appearance: none;
+  display: block;
+  flex: none;
+  width: var(--ap-home-tile-w, 180px);
+  max-height: calc(var(--ap-home-tile-w, 180px) * 1.25);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid #7676764d;
+  border-radius: 4px;
+  background: #fffdfa;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ap-home-tile__face {
+  display: block;
+}
+
+.ap-home-tile__face .ap-seren-face {
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ap-home-tile__face .ap-seren-face--image {
+  width: 100%;
+}
+
+.ap-home-tile__face .ap-seren-face--image img {
+  width: 100%;
+  max-height: none;
+}
+
+/* ─── Reel ─────────────────────────────────────────────────────────────── */
+
+.ap-home-reel {
+  position: relative;
+  height: 164px;
+  margin: 0 0 16px;
+  overflow: hidden;
+  border: 2px solid #7676764d;
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.09) 1px, transparent 1.4px) 0 0 / 14px 14px,
+    #ececea;
+  /* Tiles fade in and out at the ends instead of being cut off. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  animation: ap-home-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ap-home-reel__track {
+  display: flex;
+  width: max-content;
+  height: 100%;
+  animation: ap-home-reel-loop var(--ap-reel-duration, 80s) linear infinite;
+}
+
+.ap-home-reel:hover .ap-home-reel__track {
+  animation-play-state: paused;
+}
+
+.ap-home-reel__run {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 12px;
+}
+
+.ap-home-reel__run:first-child {
+  padding-left: 12px;
+}
+
+.ap-home-reel__tile {
+  max-height: 136px;
+  transform: rotate(var(--ap-tilt, 0deg));
+  cursor: var(--ap-cursor-pointer);
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 160ms ease,
+    box-shadow 220ms ease;
+}
+
+.ap-home-reel__tile:hover,
+.ap-home-reel__tile:focus-visible {
+  border-color: #ffffff;
+  box-shadow: 0 14px 28px -12px rgba(0, 0, 0, 0.45);
+  transform: rotate(0deg) translateY(-3px) scale(1.03);
+  outline: none;
+}
+
+@keyframes ap-home-reel-loop {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ─── Canvas peek ──────────────────────────────────────────────────────── */
+
+.ap-home-peek {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ap-home-peek__slot {
+  position: absolute;
+  transition:
+    transform 560ms cubic-bezier(0.34, 1.4, 0.64, 1) var(--ap-peek-delay, 0ms),
+    opacity 260ms ease var(--ap-peek-delay, 0ms);
+}
+
+.ap-home-peek__slot .ap-home-tile {
+  border-color: #ffffff;
+  box-shadow: 0 22px 44px -16px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Cards peek over the edge: only part of each comes into view. */
+.ap-home-peek__slot--bottom {
+  left: var(--ap-peek-at);
+  bottom: -70px;
+  transform: translateY(110%) rotate(calc(var(--ap-peek-tilt) * 2));
+}
+
+.ap-home-peek__slot--left {
+  top: var(--ap-peek-at);
+  left: -54px;
+  transform: translateX(-115%) rotate(calc(var(--ap-peek-tilt) * 2));
+}
+
+.ap-home-peek__slot--right {
+  top: var(--ap-peek-at);
+  right: -54px;
+  transform: translateX(115%) rotate(calc(var(--ap-peek-tilt) * 2));
+}
+
+.ap-home-peek.is-in .ap-home-peek__slot {
+  transform: rotate(var(--ap-peek-tilt));
+}
+
+.ap-home-peek.is-out .ap-home-peek__slot {
+  opacity: 0;
+  /* Leave together and quickly, in reverse feel: no stagger, no overshoot. */
+  transition:
+    transform 380ms cubic-bezier(0.55, 0, 0.75, 0),
+    opacity 380ms ease;
+}
+
+/* Shared entrance for Home sections. */
+@keyframes ap-home-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-home-reel__track {
+    animation: none;
+  }
+
+  .ap-home-peek__slot,
+  .ap-home-peek.is-out .ap-home-peek__slot {
+    transition: opacity 200ms ease;
+  }
+
+  .ap-home-peek__slot--bottom,
+  .ap-home-peek__slot--left,
+  .ap-home-peek__slot--right,
+  .ap-home-peek.is-in .ap-home-peek__slot {
+    transform: rotate(var(--ap-peek-tilt));
+  }
+
+  .ap-home-peek:not(.is-in) .ap-home-peek__slot {
+    opacity: 0;
+  }
+}

@@ -145,6 +145,7 @@ export function useTetherSystem({
         clearCardStyle(node.styledCard);
         node.styledCard = null;
       }
+      node.shadowOn = false;
       return;
     }
 
@@ -154,6 +155,7 @@ export function useTetherSystem({
       delete node.styledCard.dataset.tetherStyled;
       clearCardStyle(node.styledCard);
       node.styledCard = null;
+      node.shadowOn = false;
     }
 
     if (!card) {
@@ -169,14 +171,20 @@ export function useTetherSystem({
     card.style.setProperty("--tether-rot", `${visual.rot.toFixed(2)}deg`);
     card.style.setProperty("--tether-scale", visual.scale.toFixed(4));
 
-    if (visual.lift > 0.02) {
-      const lift = visual.lift;
-      card.style.setProperty(
-        "filter",
-        `drop-shadow(0 ${(4 + lift * 14).toFixed(1)}px ${(6 + lift * 16).toFixed(1)}px rgba(0, 0, 0, ${(lift * 0.2).toFixed(3)}))`,
-      );
-    } else {
-      card.style.removeProperty("filter");
+    // One fixed shadow while the tile floats, switched on and off rather
+    // than recomputed every frame: a drop-shadow whose blur changes each
+    // frame re-renders the whole tile every frame, which on weaker GPUs
+    // made linked tiles stutter (and the window flash) while they hovered.
+    const lifted = visual.lift > 0.15;
+
+    if (lifted !== Boolean(node.shadowOn)) {
+      node.shadowOn = lifted;
+
+      if (lifted) {
+        card.style.setProperty("filter", "drop-shadow(0 12px 14px rgba(0, 0, 0, 0.14))");
+      } else {
+        card.style.removeProperty("filter");
+      }
     }
   }, [getCardElement]);
 

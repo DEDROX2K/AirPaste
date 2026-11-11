@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { applyInPageScope } from "../systems/canvas/splitView";
 import { AppContext } from "./AppContext";
 import { useTabs } from "./useTabs";
 import { useToast } from "../hooks/useToast";
@@ -35,6 +36,8 @@ import {
 } from "../lib/workspace";
 import { clearCanvasPathKeyedRefs, migrateCanvasPathKeyedRefs } from "../lib/canvasPathKeyedRefs";
 import { desktop, parseCanvasConflictError, parseDomeSyncPendingError } from "../lib/desktop";
+import { bumpCanvasThumbnailVersion } from "../lib/canvasThumbnail";
+import { renderCanvasThumbnail } from "../lib/canvasThumbnailRender";
 import { recordSaveSample } from "../lib/perf";
 import {
   createTestingTilesWorkspace,
@@ -451,6 +454,7 @@ export function AppProvider({ children }) {
   const workspaceDraftBaseRef = useRef({});
   const workspacesRef = useRef(workspacesByPath);
   const activeCanvasPathRef = useRef(null);
+  const pageScopeRef = useRef(null);
   const canvasClipboardRef = useRef(null);
   // The on-disk updatedAt this session last synced its in-memory copy of a
   // canvas with -- from loadCanvas, or from that canvas's own previous
@@ -1078,57 +1082,44 @@ export function AppProvider({ children }) {
     return item;
   }, [applyHomeData, folderPath, openCanvasFile, refreshHomeData]);
 
-  const withTemporaryThumbnailMask = useCallback(async (task) => {
-    const body = document.body;
-    if (!body) {
-      return task();
+  // Home thumbnail: drawn offscreen from the canvas's own data
+  // (lib/canvasThumbnailRender.js) and saved in the background, so leaving a
+  // canvas shows nothing and isn't held up. The old on-screen capture had to
+  // zoom the view out and hide the UI in front of you first.
+  const refreshHomeDataRef = useRef(refreshHomeData);
+  refreshHomeDataRef.current = refreshHomeData;
+
+  const captureActiveCanvasThumbnail = useCallback(() => {
+    if (!folderPath || currentEditor.kind !== "canvas" || !currentEditor.filePath) {
+      return false;
     }
 
-    body.classList.add("airpaste-thumbnail-capture");
-    try {
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return await task();
-    } finally {
-      body.classList.remove("airpaste-thumbnail-capture");
-    }
-  }, []);
+    const cards = workspace?.cards ?? [];
+    const canvasFilePath = currentEditor.filePath;
+    const targetFolderPath = folderPath;
 
-  const captureActiveCanvasThumbnail = useCallback(async () => {
-    if (folderPath && currentEditor.kind === "canvas" && currentEditor.filePath) {
-      try {
-        const captureRoot = document.querySelector("[data-airpaste-canvas-capture-root]");
-        if (captureRoot) {
-          const rect = captureRoot.getBoundingClientRect();
-          const viewportWidth = window.innerWidth;
-          const viewportHeight = window.innerHeight;
-          const clamped = {
-            x: Math.max(0, Math.min(rect.left, viewportWidth)),
-            y: Math.max(0, Math.min(rect.top, viewportHeight)),
-            width: Math.max(0, Math.min(rect.width, viewportWidth - Math.max(0, rect.left))),
-            height: Math.max(0, Math.min(rect.height, viewportHeight - Math.max(0, rect.top))),
-          };
-
-          if (clamped.width >= 32 && clamped.height >= 32) {
-            await withTemporaryThumbnailMask(() => desktop.workspace.captureCanvasThumbnail(
-              folderPath,
-              currentEditor.filePath,
-              clamped,
-              window.devicePixelRatio || 1,
-            ));
-            return true;
-          }
+    void renderCanvasThumbnail(cards, targetFolderPath)
+      .then(async (dataUrl) => {
+        if (!dataUrl) {
+          return;
         }
-      } catch {
-        // Ignore capture failures; keep any previous thumbnail.
-      }
-    }
 
-    return false;
-  }, [currentEditor.filePath, currentEditor.kind, folderPath, withTemporaryThumbnailMask]);
+        const saved = await desktop.workspace.saveCanvasThumbnail(targetFolderPath, canvasFilePath, dataUrl);
+
+        if (saved?.thumbnailPath) {
+          bumpCanvasThumbnailVersion(canvasFilePath);
+          await refreshHomeDataRef.current?.(targetFolderPath);
+        }
+      })
+      .catch(() => {
+        // Keep whatever thumbnail the canvas already has.
+      });
+
+    return true;
+  }, [currentEditor.filePath, currentEditor.kind, folderPath, workspace?.cards]);
 
   const showHome = useCallback(async () => {
-    await captureActiveCanvasThumbnail();
-
+    captureActiveCanvasThumbnail();
     showHomeTab();
     if (folderPath) await refreshHomeData(folderPath);
   }, [captureActiveCanvasThumbnail, folderPath, refreshHomeData, showHomeTab]);
@@ -1138,7 +1129,7 @@ export function AppProvider({ children }) {
       return false;
     }
 
-    const captured = await captureActiveCanvasThumbnail();
+    const captured = captureActiveCanvasThumbnail();
     await flushAllPendingCanvasSaves().catch(() => {});
     if (captured && folderPath) {
       await refreshHomeData(folderPath);
@@ -1528,11 +1519,17 @@ export function AppProvider({ children }) {
   const updateWorkspaceState = useCallback((updater, options = {}) => {
     const activePath = options.targetPath ?? activeCanvasPathRef.current;
     if (!activePath) return;
+    // Split screen: a call made inside runInPageScope(pageId) edits that
+    // page as if it were the active one. Captured now, because React may
+    // run the state updater below later.
+    const scopedPageId = options.targetPath ? null : pageScopeRef.current;
 
     setWorkspacesByPath((current) => {
       const currentHistory = normalizeWorkspaceHistory(current[activePath]);
       const currentWorkspace = currentHistory.present;
-      const candidateWorkspace = typeof updater === "function" ? updater(currentWorkspace) : updater;
+      const candidateWorkspace = scopedPageId
+        ? applyInPageScope(currentWorkspace, scopedPageId, updater)
+        : typeof updater === "function" ? updater(currentWorkspace) : updater;
       const nextWorkspace = options.skipNormalize
         ? (
           candidateWorkspace && typeof candidateWorkspace === "object"
@@ -1591,6 +1588,17 @@ export function AppProvider({ children }) {
   const commitWorkspaceChange = useCallback((nextWorkspace) => {
     updateWorkspaceState(nextWorkspace, { commitHistory: true });
   }, [updateWorkspaceState]);
+  // Runs `fn` with workspace edits redirected to `pageId` (see
+  // applyInPageScope). Used by the split screen's second pane.
+  const runInPageScope = useCallback((pageId, fn) => {
+    const previous = pageScopeRef.current;
+    pageScopeRef.current = pageId || null;
+    try {
+      return fn();
+    } finally {
+      pageScopeRef.current = previous;
+    }
+  }, []);
   const commitWorkspaceChangeForPath = useCallback((targetPath, nextWorkspace) => {
     if (!targetPath) {
       return;
@@ -1952,13 +1960,20 @@ export function AppProvider({ children }) {
         previewStatus: payload.card.previewStatus || "",
       });
 
+      // The preview job started from a snapshot of the card (where it was
+      // pasted), so its x / y are stale if the tile was moved while the
+      // preview loaded. Position is the user's: never take it from a preview.
+      const previewFields = { ...payload.card };
+      delete previewFields.x;
+      delete previewFields.y;
+
       updateWorkspaceState((current) => ({
         ...current,
         pages: current.pages.map((page) => (
           ((payload.pageId && page.id === payload.pageId) || page.cards.some((card) => card.id === payload.card.id))
             ? {
               ...page,
-              cards: page.cards.map((card) => (card.id === payload.card.id ? { ...card, ...payload.card } : card)),
+              cards: page.cards.map((card) => (card.id === payload.card.id ? { ...card, ...previewFields } : card)),
             }
             : page
         )),
@@ -2032,6 +2047,7 @@ export function AppProvider({ children }) {
   }, [canvasInteractionVersion, flushCanvasSave, folderPath, workspaceHistory.present]);
 
   const value = useMemo(() => ({
+    runInPageScope,
     activeDome,
     booting,
     bootSyncPending,
@@ -2167,6 +2183,7 @@ export function AppProvider({ children }) {
     reorderExistingCards,
     replaceWorkspaceCards,
     rewriteCanvasFile,
+    runInPageScope,
     saveHomeUiState,
     revealDome,
     setError,

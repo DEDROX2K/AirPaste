@@ -6,6 +6,7 @@ import { TILE_TYPES } from "../tiles/tileTypes";
 import { STICKY_COLORS } from "../tiles/sticky/model";
 import {
   addTileToRack,
+  getDomainLabel,
   isImageLinkCard,
   normalizeWorkspace,
   removeCard,
@@ -236,4 +237,54 @@ export function rememberShown(key, now = Date.now()) {
   } catch {
     // Ignore storage failures.
   }
+}
+
+/** A short title for a card, for captions and tile faces. */
+export function getEntryTitle(card) {
+  const kind = getSerendipityKind(card);
+  if (kind === "file") return card.file?.fileName || card.title || "File";
+  if (kind === "link" || kind === "image") return card.title || getDomainLabel(card.url) || "";
+  return card.title || "";
+}
+
+/** Whether a tile has somewhere to keep a note (links/images carry one; note tiles are their own text). */
+export function canEditSerendipityNote(card) {
+  return card?.type === TILE_TYPES.LINK || card?.type === TILE_TYPES.PAPER_NOTE || card?.type === TILE_TYPES.CANVAS_TEXT;
+}
+
+/** The note text a tile currently has (what the notes box shows). */
+export function getSerendipityNote(card) {
+  if (card?.type === TILE_TYPES.LINK) return card.note?.body ?? "";
+  if (card?.type === TILE_TYPES.PAPER_NOTE || card?.type === TILE_TYPES.CANVAS_TEXT) return card.text ?? "";
+  return "";
+}
+
+/**
+ * Sets a tile's note: a link/image keeps it in `note.body` (shown as a noted
+ * tile only if it was opened on the canvas); note tiles keep it as their text.
+ * Returns { workspace, card } or null when the tile is gone or can't take one.
+ */
+export function updateSerendipityNote(workspace, pageId, cardId, text) {
+  const normalized = normalizeWorkspace(workspace);
+  const hasCard = (candidate) => candidate.cards.some((card) => card.id === cardId);
+  const page = normalized.pages.find((candidate) => candidate.id === pageId && hasCard(candidate))
+    ?? normalized.pages.find(hasCard);
+  const card = page?.cards.find((candidate) => candidate.id === cardId);
+
+  if (!page || !card || !canEditSerendipityNote(card)) {
+    return null;
+  }
+
+  const nextCard = card.type === TILE_TYPES.LINK
+    ? { ...card, note: { open: false, title: "", mediaWidth: null, mediaHeight: null, ...(card.note ?? {}), body: text } }
+    : { ...card, text };
+  const nextPage = { ...page, cards: page.cards.map((candidate) => (candidate.id === cardId ? nextCard : candidate)) };
+
+  return {
+    card: nextCard,
+    workspace: {
+      ...normalized,
+      pages: normalized.pages.map((candidate) => (candidate.id === page.id ? nextPage : candidate)),
+    },
+  };
 }

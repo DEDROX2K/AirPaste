@@ -1,9 +1,11 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppLaunchSplash from "./components/AppLaunchSplash";
+import CanvasSplitLayout from "./components/canvas/CanvasSplitLayout";
 import ConflictDialog from "./components/ConflictDialog";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import PixelScreenTransition from "./components/PixelScreenTransition";
+import QuickNote from "./components/QuickNote";
 import { ToastStack } from "./components/ToastStack";
 import { TopTabBar } from "./components/TopTabBar";
 import { useAppContext } from "./context/useAppContext";
@@ -12,10 +14,14 @@ import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { desktop } from "./lib/desktop";
+import { installNeighbourReact } from "./systems/feel/neighbourReact";
 
 const LAST_POINTER_POSITION_KEY = "__airpasteLastPointerPosition";
 const RESIZE_HANDLE_DIRECTIONS = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
 const SCREEN_TRANSITION_DURATION_MS = 920;
+// The pixel "cube" screen transition between Home and a canvas is off for
+// now; views fade in and out instead (ShellLayers.css, AppProvider.showHome).
+const ENABLE_SCREEN_TRANSITION = false;
 const loadCanvasWorkspaceView = () => import("./components/CanvasWorkspaceView");
 const loadLeftPagesPanel = () => import("./components/LeftPagesPanel");
 const CanvasWorkspaceView = lazy(loadCanvasWorkspaceView);
@@ -173,6 +179,9 @@ export default function App() {
     window.clearTimeout(transitionTimeoutRef.current);
   }, []);
 
+  // Hovering a card nudges the cards around it (see neighbourReact.js).
+  useEffect(() => installNeighbourReact(), []);
+
   useEffect(() => {
     if (booting) {
       previousEditorKeyRef.current = currentEditorKey;
@@ -183,6 +192,10 @@ export default function App() {
     previousEditorKeyRef.current = currentEditorKey;
 
     if (!previousEditorKey || previousEditorKey === currentEditorKey) {
+      return undefined;
+    }
+
+    if (!ENABLE_SCREEN_TRANSITION) {
       return undefined;
     }
 
@@ -293,7 +306,7 @@ export default function App() {
               >
                 <div className={`app-shell__workspace-layout${isNarrowDesktop ? " app-shell__workspace-layout--narrow" : ""}`}>
                   <LeftPagesPanel isNarrowDesktop={isNarrowDesktop} />
-                  <CanvasWorkspaceView />
+                  <CanvasSplitLayout CanvasView={CanvasWorkspaceView} />
                 </div>
               </ErrorBoundary>
             ) : null}
@@ -308,16 +321,19 @@ export default function App() {
               </ErrorBoundary>
             ) : null}
           </Suspense>
-          <PixelScreenTransition
-            active={Boolean(screenTransition)}
-            transitionId={screenTransition?.id ?? 0}
-            origin={screenTransition?.origin ?? null}
-            fromLabel={screenTransition?.fromLabel ?? "screen"}
-            toLabel={screenTransition?.toLabel ?? "screen"}
-          />
+          {ENABLE_SCREEN_TRANSITION ? (
+            <PixelScreenTransition
+              active={Boolean(screenTransition)}
+              transitionId={screenTransition?.id ?? 0}
+              origin={screenTransition?.origin ?? null}
+              fromLabel={screenTransition?.fromLabel ?? "screen"}
+              toLabel={screenTransition?.toLabel ?? "screen"}
+            />
+          ) : null}
         </div>
       </div>
 
+      <QuickNote />
       {import.meta.env.DEV && <DevConsole />}
       <AppLaunchSplash />
       <ConflictDialog />

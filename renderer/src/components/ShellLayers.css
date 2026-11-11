@@ -54,8 +54,15 @@
 
 /* The board gets its own stacking layer, so high z-index tiles and overlays
    inside it can't paint over the dock. */
-.app-window .app-shell__workspace-layout #canvas-board {
+.app-window .app-shell__workspace-layout #canvas-board,
+.app-window .app-shell__workspace-layout .grid-workspace {
   z-index: 0;
+}
+
+/* Grid view: the grid comes after the dock in the DOM, so without its own
+   layer its raised cards (hovered, selected, nudged) painted over the dock. */
+.app-window .app-shell__workspace-layout .grid-workspace {
+  isolation: isolate;
 }
 
 .app-window .app-shell__workspace-layout .canvas-stage__fab {

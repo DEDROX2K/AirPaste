@@ -112,7 +112,23 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
   const type = options?.type === AMAZON_PRODUCT_CARD_TYPE
     ? AMAZON_PRODUCT_CARD_TYPE
     : isGitHubRepo ? GITHUB_REPO_CARD_TYPE : LINK_CARD_TYPE;
-  const position = getNextCardPosition(cards, viewport, type, preferredCenter);
+  const searched = getNextCardPosition(cards, viewport, type, preferredCenter);
+  // Paste puts the tile dead centre on the point given, on top of whatever
+  // is there, centred on its real size (an image's own size, not the default
+  // tile's). Other creates still step aside to a free spot.
+  const hasExactCenter = options?.exactCenter === true
+    && Number.isFinite(preferredCenter?.x)
+    && Number.isFinite(preferredCenter?.y);
+  const finalWidth = Number.isFinite(options?.width) ? options.width : searched.width;
+  const finalHeight = Number.isFinite(options?.height) ? options.height : searched.height;
+  const position = hasExactCenter
+    ? {
+      x: Math.round(preferredCenter.x - finalWidth / 2),
+      y: Math.round(preferredCenter.y - finalHeight / 2),
+      width: searched.width,
+      height: searched.height,
+    }
+    : searched;
   const timestamp = nowIso();
   const domain = getDomainLabel(url);
   const image = typeof options?.image === "string" ? options.image : "";

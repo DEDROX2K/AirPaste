@@ -18,6 +18,7 @@ const TILE_ACTION_ORDER = [
   "article",
   "copy-preview-diagnostics",
   "copy-codex-report",
+  "stack",
   "tether",
   "untether",
   "rack",
@@ -50,9 +51,21 @@ export function buildRadialMenuActions({
   showTether = false,
   tetherCount = 0,
   showUntether = false,
+  // "stacked": the tile sits in a stack (its menu is only Ungroup);
+  // "can-stack": two or more tiles are selected (offers Group).
+  stackState = null,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
+
+  if (menu?.kind === "tile" && stackState === "stacked") {
+    return [{
+      id: "unstack",
+      label: "Ungroup",
+      kind: "action",
+      onTrigger: handlers.onUnstack,
+    }];
+  }
   const actionOrder = menu?.kind === "canvas"
     ? CANVAS_ACTION_ORDER
     : menu?.kind === "group"
@@ -292,6 +305,20 @@ export function buildRadialMenuActions({
         label: "Cut tethers",
         kind: "action",
         onTrigger: handlers.onUntether,
+      };
+    }
+
+    if (id === "stack") {
+      if (stackState !== "can-stack") {
+        return null;
+      }
+
+      return {
+        id,
+        label: `Group ${selectionCount} tiles`,
+        kind: "action",
+        activeLabel: "G",
+        onTrigger: handlers.onStack,
       };
     }
 

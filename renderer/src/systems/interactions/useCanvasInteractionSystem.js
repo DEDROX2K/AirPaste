@@ -60,6 +60,10 @@ export function useCanvasInteractionSystem({
   resetKey,
   snapSettings,
   suppressHoverUpdates = false,
+  // Split screen: lets a tile drag be dropped into the other pane.
+  // { hitTest(clientX, clientY) -> target|null, preview(target|null),
+  //   drop(target, { tileIds, origins, pointerWorldStart, clientX, clientY }) -> bool }
+  externalDrop = null,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedTileIds, setSelectedTileIds] = useState([]);
@@ -87,6 +91,8 @@ export function useCanvasInteractionSystem({
   const tileByIdRef = useRef(getTileByIdMap(cards));
   const rackDropPreviewRef = useRef(rackDropPreview);
   const snapSettingsRef = useRef(snapSettings);
+  const externalDropRef = useRef(externalDrop);
+  externalDropRef.current = externalDrop;
   const pointerMoveMetricsRef = useRef({
     count: 0,
     totalMs: 0,
@@ -432,11 +438,18 @@ export function useCanvasInteractionSystem({
     event.preventDefault();
     event.stopPropagation();
 
-    const selectionIds = selectedTileIdSet.has(tile.id)
+    // A stacked tile is never selected (it's inert until ungrouped); its
+    // menu only offers Ungroup.
+    const isStacked = Boolean(tile.stack?.id);
+    const selectionIds = !isStacked && selectedTileIdSet.has(tile.id)
       ? selectedTileIds
       : [tile.id];
 
-    selectTile(tile.id);
+    if (isStacked) {
+      setSelectedTileIds((currentIds) => (currentIds.length === 0 ? currentIds : []));
+    } else {
+      selectTile(tile.id);
+    }
 
     const worldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
 
@@ -778,8 +791,9 @@ export function useCanvasInteractionSystem({
         endWorldPoint.x,
         endWorldPoint.y,
       );
+      // Stacked tiles can't be selected (they're inert until ungrouped).
       const rectTileIds = getSelectedTileIdsInRect(
-        cardsRef.current,
+        cardsRef.current.filter((card) => !card.stack?.id),
         selectionWorldRect,
         tileByIdRef.current,
       );
@@ -948,6 +962,61 @@ export function useCanvasInteractionSystem({
       }
     }
 
+    // Only plain canvas tiles can leave for the other pane: not groups,
+    // not tiles still being pulled out of a rack.
+    function canDropExternally(dragState) {
+      return Boolean(externalDropRef.current)
+        && dragState.kind !== "group"
+        && !dragState.startedFromRack
+        && dragState.tileIds.every((tileId) => dragState.origins[tileId]?.containerType === "canvas");
+    }
+
+    function updateExternalDropPreview(dragState, event) {
+      if (!canDropExternally(dragState)) {
+        return;
+      }
+      const target = externalDropRef.current.hitTest(event.clientX, event.clientY) ?? null;
+      if (!target && !dragState.externalTarget) {
+        return;
+      }
+      dragState.externalTarget = target;
+      if (target && !dragState.externalBounds) {
+        dragState.externalBounds = getDragBoundsFromPointer(dragState);
+      }
+      externalDropRef.current.preview(target, target ? {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        bounds: dragState.externalBounds,
+      } : null);
+    }
+
+    // The dragged tiles' world box, relative to where the pointer grabbed
+    // them, so the other pane can draw a drop outline under the pointer.
+    function getDragBoundsFromPointer(dragState) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const tileId of dragState.tileIds) {
+        const origin = dragState.origins[tileId];
+        const tile = tileByIdRef.current[tileId];
+        if (!origin) continue;
+        const width = origin.width ?? tile?.width ?? 0;
+        const height = origin.height ?? tile?.height ?? 0;
+        minX = Math.min(minX, origin.x);
+        minY = Math.min(minY, origin.y);
+        maxX = Math.max(maxX, origin.x + width);
+        maxY = Math.max(maxY, origin.y + height);
+      }
+      if (!Number.isFinite(minX)) return null;
+      return {
+        left: minX - dragState.pointerWorldStart.x,
+        top: minY - dragState.pointerWorldStart.y,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+    }
+
     function finishDrag(event = null) {
       if (moveRafId) {
         cancelAnimationFrame(moveRafId);
@@ -967,6 +1036,10 @@ export function useCanvasInteractionSystem({
 
       const dragState = dragStateRef.current;
 
+      if (dragState?.externalTarget) {
+        externalDropRef.current?.preview(null, null);
+      }
+
       if (!dragState) {
         clearRackDropPreview();
 
@@ -976,6 +1049,30 @@ export function useCanvasInteractionSystem({
         }
 
         return;
+      }
+
+      // Released over the other split pane: the tiles move there instead.
+      if (event && dragState.externalTarget && canDropExternally(dragState)) {
+        const target = externalDropRef.current.hitTest(event.clientX, event.clientY);
+        if (target) {
+          commands.cancelPendingWorkspaceChange();
+          const dropped = externalDropRef.current.drop(target, {
+            tileIds: dragState.tileIds,
+            origins: dragState.origins,
+            pointerWorldStart: dragState.pointerWorldStart,
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+          if (dropped) {
+            setDragVisualDelta(null);
+            setDragGrabPoint(null);
+            dragStateRef.current = null;
+            setDraggingTileIds([]);
+            clearRackDropPreview();
+            setSelectedTileIds([]);
+            return;
+          }
+        }
       }
 
       if (event && dragState.kind !== "group" && !rackDropPreviewRef.current?.rackId) {
@@ -1082,6 +1179,7 @@ export function useCanvasInteractionSystem({
         return;
       }
 
+      updateExternalDropPreview(dragState, event);
       const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
       const rawWorldDelta = {
         x: currentWorldPoint.x - dragState.pointerWorldStart.x,

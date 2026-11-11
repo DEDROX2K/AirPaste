@@ -4,6 +4,17 @@ function preventNativeDrag(event) {
   event.preventDefault();
 }
 
+// A stacked tile (systems/stack/tileStack.js) is inert: a left press, click
+// or double-click is swallowed here, before the tile's own handlers or the
+// canvas see it, so nothing selects, drags, edits or opens. Right-click still
+// goes through (its menu offers Ungroup), and so does a middle-button pan.
+function swallowPrimary(event) {
+  if (event.button === 0) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+
 function TileShell({
   card,
   tileMeta,
@@ -19,9 +30,11 @@ function TileShell({
   onFocusIn,
   onFocusOut,
 }) {
+  const isStacked = Boolean(card.stack?.id);
   const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,
+    isStacked ? "card--stacked" : "",
     tileMeta?.isSelected ? "card--selected" : "",
     tileMeta?.isHovered ? "card--hovered" : "",
     tileMeta?.isFocused ? "card--focused" : "",
@@ -35,14 +48,15 @@ function TileShell({
     className,
   ]
     .filter(Boolean)
-    .join(" "), [card.type, className, renderHint?.previewTier, renderHint?.simplify, tileMeta]);
+    .join(" "), [card.type, className, isStacked, renderHint?.previewTier, renderHint?.simplify, tileMeta]);
 
   const style = useMemo(() => ({
     ...(tileMeta?.styleVars ?? {}),
     "--tile-drag-x": dragVisualDelta ? `${dragVisualDelta.x}px` : "0px",
     "--tile-drag-y": dragVisualDelta ? `${dragVisualDelta.y}px` : "0px",
     "--tile-clipboard-opacity": tileMeta?.styleVars?.["--tile-clipboard-opacity"] ?? "1",
-  }), [dragVisualDelta, tileMeta]);
+    ...(card.stack ? { "--stack-tilt": `${card.stack.tilt ?? 0}deg` } : null),
+  }), [card.stack, dragVisualDelta, tileMeta]);
   const resolvedTileState = tileState || (
     tileMeta?.isDragging ? "dragging" : tileMeta?.isFocused ? "focused" : tileMeta?.isSelected ? "selected" : tileMeta?.isHovered ? "hovered" : "passive"
   );
@@ -57,8 +71,11 @@ function TileShell({
       data-preview-tier={renderHint?.previewTier ?? "original"}
       style={style}
       onContextMenu={(event) => onContextMenu(card, event)}
-      onPointerEnter={() => onHoverChange(card.id, true)}
-      onPointerLeave={() => onHoverChange(card.id, false)}
+      onPointerDownCapture={isStacked ? swallowPrimary : undefined}
+      onClickCapture={isStacked ? swallowPrimary : undefined}
+      onDoubleClickCapture={isStacked ? swallowPrimary : undefined}
+      onPointerEnter={isStacked ? undefined : () => onHoverChange(card.id, true)}
+      onPointerLeave={isStacked ? undefined : () => onHoverChange(card.id, false)}
       onFocusCapture={(event) => onFocusIn(card.id, event)}
       onBlurCapture={(event) => onFocusOut(card.id, event)}
       onDragStart={preventNativeDrag}

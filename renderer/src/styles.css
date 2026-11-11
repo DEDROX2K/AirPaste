@@ -1,3 +1,19 @@
+/* Per-frame motion vars, written on .card while a tile is dragged, floats
+   on a tether or settles. Registered as non-inheriting so changing them
+   only restyles the .card itself, not every element inside the tile (an
+   unregistered custom property is inherited by the whole subtree, so each
+   frame of a 10-tile drag used to restyle all ten tiles' contents). */
+@property --tile-drag-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tile-drag-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tether-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tether-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tether-rise { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tether-rot { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --tether-scale { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --feel-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --feel-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --feel-transform { syntax: "*"; inherits: false; }
+
 :root[data-theme="dark"],
 .dark {
   color-scheme: dark;
@@ -452,16 +468,17 @@ option {
   margin-top: 4px;
   padding: 7px 14px;
   border-radius: 8px;
-  border: 1px solid var(--ap-status-danger-border);
-  background: var(--bg-surface);
-  color: var(--ap-status-danger-text);
+  border: 2px solid var(--ap-btn-edge, rgba(0, 0, 0, 0.14));
+  background: var(--ap-btn-red, #ef5350);
+  color: var(--ap-btn-ink, #161616);
   font-size: 13px;
   font-weight: 600;
   cursor: var(--ap-cursor-pointer);
 }
 
 .error-boundary__retry:hover {
-  background: var(--ap-status-danger-bg);
+  border-color: #ffffff;
+  background: var(--ap-btn-red-hover, #f36a67);
 }
 
 .home-search {
@@ -1669,7 +1686,7 @@ option {
 
 .canvas__grid {
   pointer-events: none;
-  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px));
+  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) var(--canvas-grid-dot, 1.7px), transparent var(--canvas-grid-dot, 1.7px)));
   background-size: var(--canvas-grid-background-size, var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px));
   background-repeat: repeat;
   background-position: var(--canvas-grid-offset-x, 0) var(--canvas-grid-offset-y, 0);
@@ -3509,10 +3526,10 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-color: rgba(255, 255, 255, 0.32);
 }
 
-/* Promoted from the press (pressing selects the tile) and kept through the
-   drop, so neither picking a tile up nor letting it go creates or tears
-   down a compositor layer mid-motion. */
-.card--selected,
+/* Only tiles actually in motion get their own compositor layer. Promoting
+   every selected tile too blew up the layer count on a big marquee
+   selection, which on weaker GPUs ran out of memory and made the whole
+   window flash (tiles vanishing, the top bar and dock blinking). */
 .card--dragging {
   will-change: transform;
 }
@@ -12730,7 +12747,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 }
 
 .canvas__grid {
-  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) 1.7px, transparent 1.7px)) !important;
+  background-image: var(--canvas-grid-background-image, radial-gradient(circle, var(--grid-line) var(--canvas-grid-dot, 1.7px), transparent var(--canvas-grid-dot, 1.7px))) !important;
   background-size: var(--canvas-grid-background-size, var(--canvas-grid-size, 28px) var(--canvas-grid-size, 28px)) !important;
   background-repeat: repeat !important;
   background-position: var(--canvas-grid-offset-x, 0) var(--canvas-grid-offset-y, 0) !important;
@@ -12740,4 +12757,16 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
 
 .canvas__background-plane {
   display: none !important;
+}
+
+/* Lite graphics (data-graphics="lite" on <html>, set from main/graphics.js
+   when Chromium is compositing in software or the GPU process crashed).
+   Backdrop blur is the costliest effect here: each blurred bar re-renders
+   whatever moves underneath it every frame. Without it the bars keep their
+   translucent fill. */
+:root[data-graphics="lite"] *,
+:root[data-graphics="lite"] *::before,
+:root[data-graphics="lite"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

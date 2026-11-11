@@ -1,0 +1,486 @@
+/* Constellation: full-window, dark, quiet. The 3D sphere is the stage; an
+   opened tile sits over it with the stage blurred behind. */
+
+.ap-const {
+  --const-bg: #04050b;
+  --const-ink: #f1eee8;
+  --const-ink-soft: rgba(241, 238, 232, 0.62);
+  --const-glass: rgba(255, 255, 255, 0.07);
+  --const-glass-hover: rgba(255, 255, 255, 0.14);
+  --const-line: rgba(255, 255, 255, 0.12);
+
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  background: var(--const-bg);
+  color: var(--const-ink);
+  font-family: var(--ap-font-body);
+  color-scheme: dark;
+  outline: none;
+
+  /* The galaxy swoop: the dark sky wipes in from left to right, soft-edged. */
+  -webkit-mask-image: linear-gradient(90deg, #000 0 40%, transparent 56%);
+  mask-image: linear-gradient(90deg, #000 0 40%, transparent 56%);
+  -webkit-mask-size: 250% 100%;
+  mask-size: 250% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: ap-const-swoop 1000ms cubic-bezier(0.55, 0.05, 0.2, 1) both;
+}
+
+.ap-const.is-arrived {
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none;
+}
+
+@keyframes ap-const-swoop {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}
+
+/* The night sky: one canvas for the whole time the view is open. */
+.ap-const__sky {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ap-const__stage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 900ms ease, filter 700ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+.ap-const__stage.is-ready {
+  opacity: 1;
+}
+
+.ap-const__stage.is-focused {
+  filter: blur(10px);
+}
+
+/* A slight blur and darkening toward the edges, where the cloth stretches
+   away: a soft focus that keeps the middle crisp. */
+.ap-const__edge {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  backdrop-filter: blur(3.5px);
+  -webkit-backdrop-filter: blur(3.5px);
+  -webkit-mask-image: radial-gradient(ellipse 78% 74% at 50% 50%, transparent 52%, #000 100%);
+  mask-image: radial-gradient(ellipse 78% 74% at 50% 50%, transparent 52%, #000 100%);
+}
+
+.ap-const__edge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 76% at 50% 50%, transparent 55%, rgba(7, 7, 12, 0.5) 100%);
+}
+
+.ap-const__top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  pointer-events: none;
+}
+
+.ap-const__top > * {
+  pointer-events: auto;
+}
+
+.ap-const__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--const-ink-soft);
+}
+
+.ap-const__round {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--const-line);
+  border-radius: 50%;
+  background: var(--const-glass);
+  color: var(--const-ink);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background-color 160ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ap-const__round:hover {
+  background: var(--const-glass-hover);
+  transform: scale(1.06);
+}
+
+.ap-const__round--flip svg {
+  transform: rotate(180deg);
+}
+
+.ap-const__btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--const-line);
+  border-radius: 999px;
+  background: var(--const-glass);
+  color: var(--const-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.ap-const__btn:hover {
+  background: var(--const-glass-hover);
+}
+
+.ap-const__btn--danger {
+  color: #ff9a8a;
+}
+
+.ap-const__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--const-ink-soft);
+  pointer-events: none;
+  animation: ap-const-fade 1200ms ease 2200ms both;
+}
+
+@keyframes ap-const-fade {
+  from { opacity: 0; }
+  to { opacity: 0.8; }
+}
+
+.ap-const__message {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--const-ink-soft);
+  pointer-events: none;
+}
+
+.ap-const__message h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--const-ink);
+}
+
+.ap-const__message p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ─── Opened tile ──────────────────────────────────────────────────────── */
+
+.ap-const-focus {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+}
+
+.ap-const-focus.is-leaving .ap-const-focus__panel {
+  animation: ap-const-fade-out 240ms ease both;
+}
+
+.ap-const-focus__backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(7, 7, 12, 0.3), rgba(7, 7, 12, 0.78));
+  cursor: default;
+  animation: ap-const-fade-in 600ms ease both;
+}
+
+.ap-const-focus.is-leaving .ap-const-focus__backdrop {
+  animation: ap-const-fade-out 280ms ease both;
+}
+
+@keyframes ap-const-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ap-const-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.ap-const-focus__layout {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 4vw, 56px);
+  width: min(1040px, 92vw);
+  max-height: 86vh;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.ap-const-focus__layout > * {
+  pointer-events: auto;
+}
+
+.ap-const-focus__hero {
+  flex: 0 1 auto;
+  width: min(400px, 40vw);
+  max-height: 80vh;
+  display: flex;
+  justify-content: center;
+  /* The 3D tile glides to this spot first; the picture fades in over it. */
+  animation: ap-const-hero-in 520ms ease 560ms both;
+}
+
+.ap-const-focus.is-leaving .ap-const-focus__hero {
+  animation: ap-const-fade-out 260ms ease both;
+}
+
+@keyframes ap-const-hero-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ap-const-focus__hero--image {
+  width: auto;
+  max-width: min(620px, 50vw);
+}
+
+/* A picture is shown as only the picture. */
+.ap-const-focus__image {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 18px;
+  object-fit: contain;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.ap-const-focus__panel {
+  flex: 0 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--const-line);
+  border-radius: 22px;
+  background: rgba(20, 20, 28, 0.62);
+  backdrop-filter: blur(18px);
+  animation: ap-const-panel-in 700ms cubic-bezier(0.22, 0.9, 0.24, 1) 720ms both;
+}
+
+@keyframes ap-const-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ap-const-focus__meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--const-ink-soft);
+}
+
+.ap-const-focus__meta strong {
+  color: var(--const-ink);
+  font-weight: 600;
+}
+
+.ap-const-focus__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.ap-const-focus__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--const-ink-soft);
+}
+
+.ap-const-focus__notes textarea {
+  resize: vertical;
+  min-height: 90px;
+  max-height: 34vh;
+  padding: 10px 12px;
+  border: 1px solid var(--const-line);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--const-ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.ap-const-focus__notes textarea:focus {
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.ap-const-focus__quiet {
+  margin: 0;
+  font-size: 13px;
+  color: var(--const-ink-soft);
+}
+
+.ap-const-focus__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ap-const-focus__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--const-ink-soft);
+}
+
+.ap-const-focus__nav span {
+  margin-left: 6px;
+}
+
+.ap-const__undo {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border: 1px solid var(--const-line);
+  border-radius: 999px;
+  background: rgba(20, 20, 28, 0.85);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+}
+
+.ap-const__link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #9fc0ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 820px) {
+  .ap-const-focus__layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .ap-const-focus__hero,
+  .ap-const-focus__hero--image {
+    width: min(320px, 70vw);
+    max-width: none;
+  }
+
+  .ap-const-focus__panel {
+    flex: 0 0 auto;
+    width: min(420px, 90vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-const,
+  .ap-const-focus__backdrop,
+  .ap-const-focus__hero,
+  .ap-const-focus__panel,
+  .ap-const__hint {
+    animation: none;
+  }
+
+  .ap-const__stage,
+  .ap-const__sky {
+    transition: none;
+  }
+}
+
+/* While the tile glides back, the sky underneath is already usable. */
+.ap-const-focus.is-leaving {
+  pointer-events: none;
+}
+
+/* Leaving: the same wipe the other way round, so Home is uncovered from the
+   left as the sky rushes off to the right. */
+.ap-const.is-closing {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0 44%, #000 60%);
+  mask-image: linear-gradient(90deg, transparent 0 44%, #000 60%);
+  -webkit-mask-size: 250% 100%;
+  mask-size: 250% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: ap-const-swoop-out 700ms cubic-bezier(0.5, 0, 0.8, 0.4) both;
+  pointer-events: none;
+}
+
+@keyframes ap-const-swoop-out {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}

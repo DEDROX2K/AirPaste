@@ -23,7 +23,7 @@ function getPreviewCacheKey(folderPath, relativePath, previewTier, devicePixelRa
   ].join("|");
 }
 
-async function resolveAssetPreviewUrl({
+export async function resolveAssetPreviewUrl({
   folderPath,
   relativePath,
   previewTier,

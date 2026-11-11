@@ -239,6 +239,31 @@ function registerIpc() {
     }
   });
 
+  // Saves a thumbnail the renderer drew itself (renderer/src/lib/
+  // canvasThumbnailRender.js) as a JPEG data URL, at the same path the
+  // screen capture above uses.
+  ipcMain.handle("airpaste:saveCanvasThumbnail", async (_event, folderPath, canvasFilePath, dataUrl) => {
+    try {
+      const match = typeof dataUrl === "string" ? /^data:image\/jpeg;base64,(.+)$/.exec(dataUrl) : null;
+      if (!folderPath || !canvasFilePath || !match) {
+        return { thumbnailPath: "" };
+      }
+
+      const relativeCanvasPath = normalizeRel(path.relative(folderPath, canvasFilePath), "");
+      if (!relativeCanvasPath || relativeCanvasPath.startsWith("..")) {
+        return { thumbnailPath: "" };
+      }
+
+      const thumbDir = path.join(folderPath, ...CANVAS_THUMB_DIR_SEGMENTS);
+      await fs.mkdir(thumbDir, { recursive: true });
+      const outPath = path.join(thumbDir, `${canvasThumbIdFromRelativePath(relativeCanvasPath)}.jpg`);
+      await fs.writeFile(outPath, Buffer.from(match[1], "base64"));
+      return { thumbnailPath: normalizeRel(path.relative(folderPath, outPath), "") };
+    } catch {
+      return { thumbnailPath: "" };
+    }
+  });
+
   ipcMain.handle("airpaste:importFiles", async (_event, folderPath, sourcePaths, targetFolderPath = "") => (
     withWorkspaceQueue(folderPath, () => workspaceService.importFiles(folderPath, sourcePaths, targetFolderPath))
   ));

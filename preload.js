@@ -79,6 +79,8 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
   captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
     ipcRenderer.invoke("airpaste:captureCanvasThumbnail", folderPath, canvasFilePath, rect, devicePixelRatio),
+  saveCanvasThumbnail: (folderPath, canvasFilePath, dataUrl) =>
+    ipcRenderer.invoke("airpaste:saveCanvasThumbnail", folderPath, canvasFilePath, dataUrl),
   captureWebclip: (folderPath, url) =>
     ipcRenderer.invoke("airpaste:captureWebclip", folderPath, url),
   captureArticle: (folderPath, url) =>
@@ -99,10 +101,23 @@ contextBridge.exposeInMainWorld("airpaste", {
   },
 });
 
+// Graphics mode from main (main/graphics.js): "lite" on software
+// compositing or after a GPU crash. Set straight on <html> so CSS and any
+// component can read it without waiting for React to subscribe.
+ipcRenderer.on("graphics:mode", (_event, info) => {
+  const root = globalThis.document?.documentElement;
+
+  if (root && info?.mode) {
+    root.dataset.graphics = info.mode;
+  }
+});
+
 contextBridge.exposeInMainWorld("electronAPI", {
   minimize: () => ipcRenderer.send("window:minimize"),
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
+  enterImmersive: () => ipcRenderer.send("window:enterImmersive"),
+  exitImmersive: () => ipcRenderer.send("window:exitImmersive"),
   resizeStart: (direction) => ipcRenderer.send("window:resizeStart", { direction }),
   resizeMove: (deltaX, deltaY) => ipcRenderer.send("window:resizeMove", { deltaX, deltaY }),
   resizeEnd: () => ipcRenderer.send("window:resizeEnd"),

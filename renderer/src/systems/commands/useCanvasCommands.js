@@ -47,6 +47,7 @@ import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 import { getRenderableTileEntries } from "../layout/tileLayout";
+import { stackCards, unstackCards } from "../stack/tileStack";
 import { LINK_CARD_SIZE } from "../../tiles/link/model";
 import { getArticleModePatch, getStandardLinkTileSize } from "../../tiles/link/articleView";
 import { maybeRemark, NOTE_CREATE_QUIPS, TILE_CREATE_QUIPS, TILE_DELETE_QUIPS } from "../../lib/eyeCommentary";
@@ -1025,6 +1026,44 @@ export function useCanvasCommands({
     return createdGroup;
   }, [commitWorkspaceChange, createFolderTile, getViewportCenter, log, toast]);
 
+  // Stacks (systems/stack/tileStack.js): pile the selected tiles up, or take
+  // a pile apart again. Tiles inside a rack stay where they are.
+  const stackTiles = useCallback((tileIds) => {
+    let created = null;
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const ids = (Array.isArray(tileIds) ? tileIds : [])
+        .filter((tileId) => !getRackByTileId(page.cards, tileId));
+      const result = stackCards(page.cards, ids);
+
+      if (!result) {
+        return page;
+      }
+
+      created = result;
+      return { ...page, cards: result.cards };
+    }));
+
+    if (created) {
+      log("success", "Stacked tiles", { stackId: created.stackId, count: tileIds.length });
+    }
+
+    return created?.stackId ?? null;
+  }, [commitWorkspaceChange, log]);
+
+  const unstackTiles = useCallback((stackId) => {
+    if (!stackId) {
+      return false;
+    }
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const cards = unstackCards(page.cards, stackId);
+      return cards === page.cards ? page : { ...page, cards };
+    }));
+    log("info", "Ungrouped stack", { stackId });
+    return true;
+  }, [commitWorkspaceChange, log]);
+
   const moveGroups = useCallback((groupIds, delta) => {
     const normalizedGroupIds = Array.isArray(groupIds)
       ? [...new Set(groupIds.filter((groupId) => typeof groupId === "string" && groupId.trim().length > 0))]
@@ -1406,6 +1445,7 @@ export function useCanvasCommands({
           width: imageTileSize.width,
           height: imageTileSize.height,
           asset: null,
+          exactCenter: true,
         });
 
         log("success", "Pasted image into canvas center", {
@@ -1432,7 +1472,7 @@ export function useCanvasCommands({
 
     if (isUrl(text)) {
       log("info", "Pasted URL into canvas center", { url: text, centerPoint });
-      const tile = createNewLinkCard(text, centerPoint);
+      const tile = createNewLinkCard(text, centerPoint, { exactCenter: true });
       toast("info", "Ahh, what a boring link. Fine. I will stare into it for you.", {
         source: "eye",
         presentation: "oracle",
@@ -1700,6 +1740,8 @@ export function useCanvasCommands({
     createLinkFromClipboard,
     createFolderTile,
     createFolderFromSelection,
+    stackTiles,
+    unstackTiles,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
     removeTileFromRack: removeTileFromRackCommand,
@@ -1755,6 +1797,8 @@ export function useCanvasCommands({
     createLinkFromClipboard,
     createFolderTile,
     createFolderFromSelection,
+    stackTiles,
+    unstackTiles,
     deleteTile,
     deleteTiles,
     deleteGroups,

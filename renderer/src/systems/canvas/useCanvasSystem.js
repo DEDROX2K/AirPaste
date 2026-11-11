@@ -26,8 +26,26 @@ const ZOOM_SETTLE_DELAY_MS = 70;
 // delta is also capped before being applied: small (pinch) deltas now land
 // a clearly visible zoom step, while a single big notch is bounded to one
 // reasonable step instead of jumping wildly.
-const ZOOM_WHEEL_SENSITIVITY = 0.012;
+// 30% gentler than the original 0.012: one mouse-wheel notch zoomed too far.
+const ZOOM_WHEEL_SENSITIVITY = 0.0084;
 const ZOOM_WHEEL_MAX_DELTA = 40;
+
+// A notched mouse wheel, as opposed to a trackpad scroll. Mice report whole
+// lines (deltaMode 1, Firefox-style) or, in Chromium, vertical-only steps in
+// multiples of 120 on the legacy wheelDelta; a precision trackpad sends
+// small, uneven pixel deltas, usually with some horizontal component.
+export function isMouseWheelEvent(event) {
+  if (event.deltaMode === 1 || event.deltaMode === 2) {
+    return true;
+  }
+
+  if (event.deltaX !== 0) {
+    return false;
+  }
+
+  const legacy = Math.abs(event.wheelDeltaY ?? event.wheelDelta ?? 0);
+  return legacy >= 120 && legacy % 120 === 0;
+}
 
 export function useCanvasSystem({ viewport, onViewportChange }) {
   const [containerElement, setContainerElement] = useState(null);
@@ -383,10 +401,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     setZoom(nextZoom);
   }, [setZoom]);
 
-  const zoomToBounds = useCallback((worldBounds) => {
-    const rect = getClientRect(containerElement);
-    const nextViewport = getViewportForWorldBounds(rect, worldBounds);
-
+  // Jumps straight to a viewport (no easing) and commits it.
+  const setViewportImmediate = useCallback((nextViewport) => {
     if (!nextViewport) {
       return false;
     }
@@ -398,7 +414,12 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     targetViewportRef.current = nextViewport;
     onViewportChange(nextViewport);
     return true;
-  }, [applyRenderedViewport, containerElement, onViewportChange, stopZoomAnimation]);
+  }, [applyRenderedViewport, onViewportChange, stopZoomAnimation]);
+
+  const zoomToBounds = useCallback((worldBounds) => {
+    const rect = getClientRect(containerElement);
+    return setViewportImmediate(getViewportForWorldBounds(rect, worldBounds));
+  }, [containerElement, setViewportImmediate]);
 
   const beginCanvasPan = useCallback((event) => {
     if (event.button !== 0 && event.button !== 1) {
@@ -422,16 +443,21 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     function handleWheel(event) {
       event.preventDefault();
 
+      // While a drag-pan (middle button or hand tool) is under way the wheel
+      // does nothing: a wheel nudged by accident mid-pan used to jolt the
+      // view.
+      if (panStateRef.current) {
+        return;
+      }
+
       const vp = viewportRef.current;
       const rect = getClientRect(container);
 
-      // Figma convention: a pinch gesture on a trackpad (reported by the
-      // browser as a wheel event with ctrlKey set) or an explicit Ctrl/Cmd
-      // + wheel zooms around the pointer. Any other wheel input -- a plain
-      // two-finger trackpad scroll, or a mouse wheel -- pans the canvas
-      // instead, which is what every other wheel tick used to be
-      // misinterpreted as a zoom.
-      if (event.ctrlKey || event.metaKey) {
+      // Zoom around the pointer on: a mouse wheel (no modifier needed), a
+      // trackpad pinch (reported as a wheel event with ctrlKey set), or
+      // Ctrl/Cmd + any wheel. A two-finger trackpad scroll pans, and
+      // Shift + mouse wheel pans sideways.
+      if (event.ctrlKey || event.metaKey || (!event.shiftKey && isMouseWheelEvent(event))) {
         const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
         const worldPoint = {
           x: (canvasPoint.x - vp.x) / vp.zoom,
@@ -589,5 +615,6 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     zoomIn: () => zoomByStep(1),
     zoomOut: () => zoomByStep(-1),
     zoomToBounds,
+    setViewportImmediate,
   };
 }

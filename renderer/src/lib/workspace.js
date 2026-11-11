@@ -1,3 +1,4 @@
+import { normalizeTileStack } from "../systems/stack/tileStack";
 import TILE_TYPES from "../tiles/tileTypes";
 import workspaceSchema from "../../../shared/workspace-schema.json";
 import {
@@ -1128,6 +1129,8 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
     asset: type === TILE_TYPES.LINK ? linkAsset : null,
     // A link/image tile's note (see tiles/link/notedLink.js).
     note: type === TILE_TYPES.LINK ? normalizeLinkNote(card?.note) : null,
+    // Set while the tile sits in a stack (systems/stack/tileStack.js).
+    stack: normalizeTileStack(card?.stack),
     file: type === CANVAS_TEXT_CARD_TYPE ? canvasText.file : file,
     // A default-design file's background colour (null: the default green).
     fileColor: isDefaultFileCard ? normalizeFileColor(card?.fileColor) : null,

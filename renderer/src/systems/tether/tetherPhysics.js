@@ -14,16 +14,31 @@
 
 export const PHYS = Object.freeze({
   GAP: 90,
-  K: 22,
+  K: 14,
   C: 8,
+  // A link pushes apart (when shorter than its rest length) at this share of
+  // its pull. Full-strength pushing made a crowded group, where every link
+  // can't be at its rest length at once, shove itself around forever.
+  PUSH_SHARE: 0.25,
   PAD: 22,
-  REPULSE: 70,
-  REPEL: 36,
+  REPULSE: 25,
+  // Most a link pulls with (px of stretch it acts on): a tile linked to many
+  // others can't drag them all into a pile on top of itself.
+  MAX_PULL: 400,
+  // Share of the overlap corrected directly each step (on top of the push).
+  OVERLAP_CORRECT: 0.12,
+  REPEL: 24,
   REPEL_R: 300,
-  DAMP_AWAKE: 1.1,
+  DAMP_AWAKE: 2,
   DAMP_SETTLED: 12,
   SETTLE_DELAY: 0.9,
   SETTLE_TIME: 1.6,
+  // However crowded a group is, it is put to sleep this long after it has
+  // fully calmed (wherever it has got to), so it can't jostle forever.
+  SETTLE_GRACE: 1.5,
+  // A bump from another group wakes this one already this calm (0..1), so
+  // two groups touching don't keep restarting each other from scratch.
+  BUMP_CALM: 0.6,
   SLEEP_SPEED: 6,
   SLEEP_TIME: 0.35,
   DAMP_REST: 9,
@@ -120,6 +135,26 @@ export function disturb(world, node) {
     member.asleep = false;
     member.restT = 0;
     member.calm = 0;
+  });
+}
+
+// An awake tile ran into a sleeping one. In the same group the sleeper just
+// wakes, keeping the group's settle clock: resetting it here (as a full
+// disturb does) meant a crowded group, whose members fall asleep one by one
+// and get bumped by the ones still moving, restarted its settle forever.
+// Another group wakes part-calmed.
+function bump(world, sleeper, mover) {
+  if (getComponent(world, sleeper).includes(mover)) {
+    sleeper.asleep = false;
+    sleeper.restT = 0;
+    return;
+  }
+
+  const t0 = world.clock - PHYS.SETTLE_DELAY - PHYS.SETTLE_TIME * PHYS.BUMP_CALM;
+  getComponent(world, sleeper).forEach((member) => {
+    member.t0 = Math.max(Math.min(member.t0, world.clock), t0);
+    member.asleep = false;
+    member.restT = 0;
   });
 }
 
@@ -244,7 +279,7 @@ function collide(world, a, b) {
   }
 
   if (movableA && movableB && a.asleep !== b.asleep) {
-    disturb(world, a.asleep ? a : b);
+    bump(world, a.asleep ? a : b, a.asleep ? b : a);
   }
 
   let nx = 0;
@@ -261,20 +296,32 @@ function collide(world, a, b) {
 
   const shareA = movableA && movableB ? 0.5 : movableA ? 1 : 0;
   const shareB = movableA && movableB ? 0.5 : movableB ? 1 : 0;
+
+  // Contacts absorb the hit: the speed at which the two close along the
+  // contact normal is taken out (no bounce), so a crowded group packs
+  // together and stops instead of bashing back and forth.
+  const closing = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+
+  if (closing < 0) {
+    a.vx += nx * closing * shareA;
+    a.vy += ny * closing * shareA;
+    b.vx -= nx * closing * shareB;
+    b.vy -= ny * closing * shareB;
+  }
   const acceleration = PHYS.REPULSE * penetration;
 
   if (movableA) {
     a.ax -= nx * acceleration;
     a.ay -= ny * acceleration;
-    a.x -= nx * penetration * 0.25 * shareA;
-    a.y -= ny * penetration * 0.25 * shareA;
+    a.x -= nx * penetration * PHYS.OVERLAP_CORRECT * shareA;
+    a.y -= ny * penetration * PHYS.OVERLAP_CORRECT * shareA;
   }
 
   if (movableB) {
     b.ax += nx * acceleration;
     b.ay += ny * acceleration;
-    b.x += nx * penetration * 0.25 * shareB;
-    b.y += ny * penetration * 0.25 * shareB;
+    b.x += nx * penetration * PHYS.OVERLAP_CORRECT * shareB;
+    b.y += ny * penetration * PHYS.OVERLAP_CORRECT * shareB;
   }
 }
 
@@ -341,7 +388,9 @@ export function step(world, dt) {
     const uy = dy / distance;
     const rest = reach(a, ux, uy) + reach(b, ux, uy) + PHYS.GAP;
     const relativeSpeed = (b.vx - a.vx) * ux + (b.vy - a.vy) * uy;
-    const force = PHYS.K * (distance - rest) + PHYS.C * relativeSpeed;
+    const extension = distance - rest;
+    const pull = extension < 0 ? extension * PHYS.PUSH_SHARE : Math.min(extension, PHYS.MAX_PULL);
+    const force = PHYS.K * pull + PHYS.C * relativeSpeed;
     a.ax += force * ux;
     a.ay += force * uy;
     b.ax -= force * ux;
@@ -401,7 +450,15 @@ export function step(world, dt) {
     const speed = Math.hypot(node.vx, node.vy);
 
     if (node.mode === NODE_MODE_FLOAT) {
-      if (node.calm > 0.5 && speed < PHYS.SLEEP_SPEED) {
+      const overdue = time - node.t0 > PHYS.SETTLE_DELAY + PHYS.SETTLE_TIME + PHYS.SETTLE_GRACE;
+
+      if (overdue) {
+        node.asleep = true;
+        node.vx = 0;
+        node.vy = 0;
+        node.calm = 1;
+        node.restT = 0;
+      } else if (node.calm > 0.5 && speed < PHYS.SLEEP_SPEED) {
         node.restT += dt;
 
         if (node.restT > PHYS.SLEEP_TIME) {

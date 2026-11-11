@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
-import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
+import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, SplitColumns, Tether } from "./ui/icons";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
@@ -10,11 +10,14 @@ import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
+import { useCanvasPane } from "../context/CanvasPaneContext";
+import { moveTilesBetweenPages, movePageTilesBy } from "../systems/canvas/splitView";
 import { CanvasMotionContext } from "../context/CanvasMotionContext";
 import { useLog } from "../hooks/useLog";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useToast } from "../hooks/useToast";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
+import { getStackBands } from "../systems/stack/tileStack";
 import {
   CODE_CARD_TYPE,
   CANVAS_TEXT_CARD_TYPE,
@@ -97,6 +100,10 @@ const GridWorkspaceView = lazy(() => import("./GridWorkspaceView"));
 const QUICK_TEXT_PADDING_X = 6;
 const QUICK_TEXT_PADDING_Y = 4;
 const SHOW_ZOOM_MENU = false;
+// Unstacking: the gap between one tile leaving the pile and the next, and
+// how long a cut band takes to snap before the pile comes apart.
+const STACK_RELEASE_STEP_MS = 110;
+const STACK_BAND_SNAP_MS = 240;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -160,6 +167,28 @@ function WorkspaceViewToggle({ mode, onChange }) {
         aria-label="Tile view"
       >
         <Grid2X2 className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
+      </AppButton>
+    </div>
+  );
+}
+
+// Split screen on/off (Ctrl/Cmd+\ does the same, CanvasSplitLayout).
+function SplitScreenToggle({ enabled, onToggle }) {
+  if (!onToggle) {
+    return null;
+  }
+
+  return (
+    <div className="workspace-view-toggle workspace-split-toggle">
+      <AppButton tone="unstyled"
+        type="button"
+        className={`workspace-view-toggle__button${enabled ? " workspace-view-toggle__button--active" : ""}`}
+        onClick={onToggle}
+        aria-pressed={enabled}
+        aria-label={enabled ? "Close split screen" : "Split screen"}
+        title={enabled ? "Close split screen (Ctrl+\\)" : "Split screen (Ctrl+\\)"}
+      >
+        <SplitColumns className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
       </AppButton>
     </div>
   );
@@ -1155,12 +1184,32 @@ export default function CanvasWorkspaceView() {
   } = useAppContext();
   const { log } = useLog();
   const { toast } = useToast();
+  const pane = useCanvasPane();
+  const isActivePaneRef = useRef(pane.isActive);
+  isActivePaneRef.current = pane.isActive;
   const [cullingTick, setCullingTick] = useState(0);
   const [textBoxEditorState, setTextBoxEditorState] = useState(null);
   const [stickerDragState, setStickerDragState] = useState(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
   const [canvasEntrySequence, setCanvasEntrySequence] = useState(0);
+  // Switching pages plays the same staggered settle as leaving grid view.
+  // Decided during render (not in an effect) so the new page's tiles mount
+  // already hidden, instead of flashing in for a frame first; dropped again
+  // once the stagger is done, so tiles culled back in later don't replay it.
+  const [entryPageId, setEntryPageId] = useState(workspace.activePageId);
+  const [pageEntryId, setPageEntryId] = useState(0);
+  if (entryPageId !== workspace.activePageId) {
+    setEntryPageId(workspace.activePageId);
+    setPageEntryId((id) => id + 1);
+  }
+  useEffect(() => {
+    if (!pageEntryId) {
+      return undefined;
+    }
+    const timeoutId = window.setTimeout(() => setPageEntryId(0), 1100);
+    return () => window.clearTimeout(timeoutId);
+  }, [pageEntryId]);
   const showDeveloperQaActions = isPreviewDebugModeEnabled();
   const textBoxEditRequestIdRef = useRef(0);
   const stickerDragStateRef = useRef(null);
@@ -1370,6 +1419,47 @@ export default function CanvasWorkspaceView() {
     toast,
   });
 
+  // Split screen: this pane is a drop target for the other pane's tile
+  // drags, and its own drags can be dropped over there.
+  const paneWorkspaceRef = useRef(workspace);
+  paneWorkspaceRef.current = workspace;
+  const { registerPane, findDropPane, setDropTargetPane, paneId, splitEnabled } = pane;
+  useEffect(() => {
+    if (!registerPane) return undefined;
+    return registerPane(paneId, {
+      getPageId: () => paneWorkspaceRef.current.activePageId,
+      getElement: () => canvas.containerRef.current,
+      clientToWorldPoint: canvas.clientToWorldPoint,
+      getZoom: () => canvas.getViewportSnapshot?.()?.zoom ?? 1,
+    });
+  }, [canvas, canvas.clientToWorldPoint, canvas.containerRef, paneId, registerPane]);
+
+  const externalDrop = useMemo(() => {
+    if (!splitEnabled || !findDropPane) return null;
+    return {
+      hitTest: (clientX, clientY) => findDropPane(clientX, clientY, paneId),
+      preview: (target, info) => setDropTargetPane?.(target?.paneId ?? null, info),
+      drop: (target, { tileIds, pointerWorldStart, clientX, clientY }) => {
+        const dropWorld = target.clientToWorldPoint(clientX, clientY);
+        const delta = {
+          x: dropWorld.x - pointerWorldStart.x,
+          y: dropWorld.y - pointerWorldStart.y,
+        };
+        const sourcePageId = paneWorkspaceRef.current.activePageId;
+        const targetPageId = target.getPageId();
+        if (!targetPageId) return false;
+
+        commitWorkspaceChange((current) => moveTilesBetweenPages(
+          sourcePageId === targetPageId
+            ? movePageTilesBy(current, sourcePageId, tileIds, delta)
+            : current,
+          { sourcePageId, targetPageId, tileIds, delta },
+        ));
+        return true;
+      },
+    };
+  }, [commitWorkspaceChange, findDropPane, paneId, setDropTargetPane, splitEnabled]);
+
   const interactions = useCanvasInteractionSystem({
     cards: workspace.cards,
     groups: workspace.groups,
@@ -1379,6 +1469,7 @@ export default function CanvasWorkspaceView() {
     resetKey: folderPath,
     snapSettings,
     suppressHoverUpdates: cameraIsMoving || isLineToolActive,
+    externalDrop,
   });
   const resetTransientState = interactions.resetTransientState;
 
@@ -1676,6 +1767,10 @@ export default function CanvasWorkspaceView() {
   ]);
 
   const handleWorkspacePaste = useCallback(async (event) => {
+    if (!isActivePaneRef.current) {
+      return;
+    }
+
     if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) {
       return;
     }
@@ -1970,6 +2065,18 @@ export default function CanvasWorkspaceView() {
     return nextDraggingTileIdSet;
   }, [interactions.draggingTileIds]);
   const isCanvasMoving = cameraIsMoving || interactions.draggingTileIds.length > 0;
+  // Closed-hand cursor while tiles are dragged or the view is drag-panned
+  // (middle button or hand tool). On <body>, so it holds when the pointer
+  // crosses the dock or the pages panel mid-drag; `:active` alone missed the
+  // middle button and lost out to child elements' own cursors.
+  const isGrabbing = canvas.isPanning || interactions.draggingTileIds.length > 0;
+  useEffect(() => {
+    if (!isGrabbing) {
+      return undefined;
+    }
+    document.body.classList.add("ap-grabbing");
+    return () => document.body.classList.remove("ap-grabbing");
+  }, [isGrabbing]);
   const liveViewport = canvas.getViewportSnapshot();
 
   useEffect(() => {
@@ -2040,9 +2147,78 @@ export default function CanvasWorkspaceView() {
   const tetherSvgRef = useRef(null);
   const [isAltTetherHeld, setIsAltTetherHeld] = useState(false);
   const isTetherToolActive = canvasToolMode === DRAWING_TOOL_MODE_TETHER || isAltTetherHeld;
+  // Stacked tiles sit still in their pile: they (and their links) are left
+  // out of the tether simulation until ungrouped. The links aren't removed.
+  const stackedTileIdSet = useMemo(
+    () => new Set(workspace.cards.filter((card) => card.stack?.id).map((card) => card.id)),
+    [workspace.cards],
+  );
+  // Taking a pile apart: the tiles come out one by one, top first, each
+  // gliding back to where it was (a per-tile transition delay, see
+  // .canvas__entry-item[data-releasing] in TilePolish.css).
+  const [releaseDelays, setReleaseDelays] = useState({});
+  const [cuttingStackIds, setCuttingStackIds] = useState(() => new Set());
+  const releaseTimersRef = useRef([]);
+
+  useEffect(() => () => releaseTimersRef.current.forEach((timer) => window.clearTimeout(timer)), []);
+
+  const releaseStack = useCallback((stackId) => {
+    const members = workspace.cards
+      .filter((card) => card.stack?.id === stackId)
+      .sort((a, b) => b.stack.order - a.stack.order);
+
+    if (members.length === 0) {
+      return;
+    }
+
+    const delays = Object.fromEntries(members.map((card, index) => [card.id, index * STACK_RELEASE_STEP_MS]));
+    setReleaseDelays((current) => ({ ...current, ...delays }));
+    commands.unstackTiles(stackId);
+
+    const settle = window.setTimeout(() => {
+      setReleaseDelays((current) => {
+        const next = { ...current };
+        members.forEach((card) => delete next[card.id]);
+        return next;
+      });
+    }, members.length * STACK_RELEASE_STEP_MS + 700);
+    releaseTimersRef.current.push(settle);
+  }, [commands, workspace.cards]);
+
+  // Clicking the band cuts it: it snaps in two, then the pile comes apart.
+  const cutStackBand = useCallback((stackId) => {
+    setCuttingStackIds((current) => new Set(current).add(stackId));
+    const timer = window.setTimeout(() => {
+      releaseStack(stackId);
+      setCuttingStackIds((current) => {
+        const next = new Set(current);
+        next.delete(stackId);
+        return next;
+      });
+    }, STACK_BAND_SNAP_MS);
+    releaseTimersRef.current.push(timer);
+  }, [releaseStack]);
+
+  // A rubber band around each stacked pile.
+  const stackBands = useMemo(
+    () => (stackedTileIdSet.size === 0 ? [] : getStackBands(workspace.cards)),
+    [stackedTileIdSet, workspace.cards],
+  );
+  const tetherEntries = useMemo(
+    () => (stackedTileIdSet.size === 0
+      ? layout.canvasEntries
+      : layout.canvasEntries.filter((entry) => !stackedTileIdSet.has(entry.tile.id))),
+    [layout.canvasEntries, stackedTileIdSet],
+  );
+  const activeTethers = useMemo(
+    () => (stackedTileIdSet.size === 0 || !Array.isArray(workspace.tethers)
+      ? workspace.tethers
+      : workspace.tethers.filter((link) => !stackedTileIdSet.has(link.a) && !stackedTileIdSet.has(link.b))),
+    [stackedTileIdSet, workspace.tethers],
+  );
   const tether = useTetherSystem({
-    entries: layout.canvasEntries,
-    tethers: workspace.tethers,
+    entries: tetherEntries,
+    tethers: activeTethers,
     resetKey: `${folderPath}:${workspace.activePageId}`,
     draggingTileIds: interactions.draggingTileIds,
     dragDelta: interactions.dragVisualDelta,
@@ -2375,6 +2551,11 @@ export default function CanvasWorkspaceView() {
 
   useEffect(() => {
     function handleKeyDown(event) {
+      // Split screen: only the pane last pressed in takes shortcuts.
+      if (!isActivePaneRef.current) {
+        return;
+      }
+
       const activeElement = document.activeElement;
       const typingTarget = isTypingTarget(event.target) || isTypingTarget(activeElement);
       const activeElementIsEditable = typingTarget;
@@ -2447,6 +2628,16 @@ export default function CanvasWorkspaceView() {
         if (activeKey === "l") {
           event.preventDefault();
           setCanvasToolMode(canvasToolMode === DRAWING_TOOL_MODE_TETHER ? DRAWING_TOOL_MODE_SELECT : DRAWING_TOOL_MODE_TETHER);
+          return;
+        }
+
+        // G: pile the selected tiles into a stack (systems/stack/tileStack.js).
+        if (activeKey === "g" && interactions.selectedTileIds.length > 1) {
+          event.preventDefault();
+          if (commands.stackTiles(interactions.selectedTileIds)) {
+            interactions.replaceSelection([]);
+          }
+          interactions.closeContextMenu();
           return;
         }
 
@@ -2525,7 +2716,7 @@ export default function CanvasWorkspaceView() {
 
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
         event.preventDefault();
-        interactions.replaceSelection(layout.rootTiles.map((tile) => tile.id));
+        interactions.replaceSelection(layout.rootTiles.filter((tile) => !tile.stack?.id).map((tile) => tile.id));
         return;
       }
 
@@ -2963,6 +3154,30 @@ export default function CanvasWorkspaceView() {
     return true;
   }, [commands, radialMenu]);
 
+  const handleRadialStack = useCallback(() => {
+    const selectionIds = radialMenu?.selectionIds ?? [];
+
+    if (selectionIds.length < 2) {
+      return false;
+    }
+
+    if (commands.stackTiles(selectionIds)) {
+      interactions.replaceSelection([]);
+    }
+    return true;
+  }, [commands, interactions, radialMenu]);
+
+  const handleRadialUnstack = useCallback(() => {
+    const stackId = activeContextTile?.stack?.id;
+
+    if (!stackId) {
+      return false;
+    }
+
+    releaseStack(stackId);
+    return true;
+  }, [activeContextTile, releaseStack]);
+
   const handleRadialUntether = useCallback(() => {
     if (!activeContextTile?.id) {
       return false;
@@ -3102,6 +3317,13 @@ export default function CanvasWorkspaceView() {
     showTether: radialMenu?.kind === "tile" && showTetherAction,
     tetherCount: contextMenuSelectionCount,
     showUntether: radialMenu?.kind === "tile" && isActiveContextTileTethered,
+    stackState: radialMenu?.kind !== "tile"
+      ? null
+      : activeContextTile?.stack?.id
+        ? "stacked"
+        : contextMenuSelectionCount > 1
+          ? "can-stack"
+          : null,
     handlers: {
       onCopyCodexReport: handleCopyPreviewCodexReport,
       onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
@@ -3129,8 +3351,12 @@ export default function CanvasWorkspaceView() {
       onToggleLinkNote: handleRadialLinkNote,
       onTether: handleRadialTether,
       onUntether: handleRadialUntether,
+      onStack: handleRadialStack,
+      onUnstack: handleRadialUnstack,
     },
   }), [
+    handleRadialStack,
+    handleRadialUnstack,
     handleRadialDelete,
     handleRadialFolder,
     handleRadialLink,
@@ -3176,6 +3402,7 @@ export default function CanvasWorkspaceView() {
         <CanvasDockFrame>
           <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+          <SplitScreenToggle enabled={pane.splitEnabled} onToggle={pane.toggleSplit} />
         </CanvasDockFrame>
         <WorkspaceTopbarTrail />
         <Suspense fallback={null}>
@@ -3224,6 +3451,7 @@ export default function CanvasWorkspaceView() {
           iconOnly
           onToolChange={setCanvasToolMode}
         />
+        <SplitScreenToggle enabled={pane.splitEnabled} onToggle={pane.toggleSplit} />
       </CanvasDockFrame>
 
       {/* ── Top bar ── */}
@@ -3317,12 +3545,12 @@ export default function CanvasWorkspaceView() {
             <div
               key={canvasEntrySequence}
               ref={canvas.contentRef}
-              className={`canvas__content${canvasEntrySequence > 0 ? " canvas__content--entering" : ""}`}
+              className={`canvas__content${canvasEntrySequence > 0 || pageEntryId > 0 ? " canvas__content--entering" : ""}`}
             >
               <CanvasDensityZones tiles={filteredTiles} />
               <CanvasTetherLayer
                 svgRef={tetherSvgRef}
-                tethers={workspace.tethers}
+                tethers={activeTethers}
                 hotLinkId={tether.hotLinkId}
                 focusTileId={tetherFocusTileId}
                 gesture={tether.gesture}
@@ -3335,8 +3563,10 @@ export default function CanvasWorkspaceView() {
                   key={card.id}
                   className="canvas__entry-item"
                   data-tether-tile={card.id}
+                  data-releasing={releaseDelays[card.id] !== undefined ? "" : undefined}
                   style={{
                     "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
+                    ...(releaseDelays[card.id] !== undefined ? { "--release-delay": `${releaseDelays[card.id]}ms` } : null),
                   }}
                 >
                   <Card
@@ -3368,6 +3598,46 @@ export default function CanvasWorkspaceView() {
                 </div>
                 );
               })}
+              {stackBands.map((band) => (
+                // Not a <button>: the global button styles (SimpleUi.css) reset
+                // transform on hover, which made the band jump.
+                <div
+                  key={band.stackId}
+                  role="button"
+                  tabIndex={0}
+                  className={`canvas__stack-band${cuttingStackIds.has(band.stackId) ? " is-cut" : ""}`}
+                  aria-label="Cut the band to unstack"
+                  title="Cut to unstack"
+                  style={{
+                    left: `${band.x}px`,
+                    top: `${band.y}px`,
+                    width: `${band.width}px`,
+                    zIndex: band.layer,
+                    "--band-angle": `${band.angle}deg`,
+                  }}
+                  onPointerDown={(event) => {
+                    // Keep the press from starting a marquee or reaching the pile.
+                    if (event.button === 0) {
+                      event.stopPropagation();
+                    }
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!cuttingStackIds.has(band.stackId)) {
+                      cutStackBand(band.stackId);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.key === "Enter" || event.key === " ") && !cuttingStackIds.has(band.stackId)) {
+                      event.preventDefault();
+                      cutStackBand(band.stackId);
+                    }
+                  }}
+                >
+                  <span className="canvas__stack-band-half canvas__stack-band-half--l" />
+                  <span className="canvas__stack-band-half canvas__stack-band-half--r" />
+                </div>
+              ))}
               {quickTextDraft ? (
                 <div
                   className="quick-text-marquee"
@@ -3387,6 +3657,9 @@ export default function CanvasWorkspaceView() {
         {interactions.marqueeBox ? (
           <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
         ) : null}
+        {/* Developer tool: dev builds (npm run dev) or VITE_PREVIEW_DEBUG
+            only, never in the installed app. */}
+        {showDeveloperQaActions && !pane.isSecondary ? (
         <CanvasPerformanceOverlay
           visibleTileCount={visibleTileCount}
           renderedTileCount={renderedTileCount}
@@ -3398,8 +3671,9 @@ export default function CanvasWorkspaceView() {
           workspaceLodLevel={workspaceLodLevel}
           lodLevelCounts={lodLevelCounts}
           previewTierCounts={previewTierCounts}
-          onOpenTestingTilesCanvas={showDeveloperQaActions ? openTestingTilesCanvas : null}
+          onOpenTestingTilesCanvas={openTestingTilesCanvas}
         />
+        ) : null}
 
         {/* Empty states */}
         {!folderPath ? (

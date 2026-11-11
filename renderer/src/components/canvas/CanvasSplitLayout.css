@@ -1,0 +1,186 @@
+/* Split screen: one or two canvas panes inside the floating canvas card.
+   The divider is a strip of the window base grey; EdgeConnector fillets at
+   its ends round the card where it meets the top bar and the bottom edge,
+   so each pane reads as its own card. */
+
+.canvas-split {
+  --canvas-split-divider: 8px;
+  --edge-connector-size: 8px;
+
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.canvas-split__pane {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.canvas-split--on .canvas-split__pane--left {
+  flex: 0 0 calc((100% - var(--canvas-split-divider)) * var(--canvas-split-ratio, 0.5));
+}
+
+.canvas-split__divider {
+  position: relative;
+  z-index: 20;
+  flex: 0 0 var(--canvas-split-divider);
+  background: var(--ap-shell-base, #b0b0b0);
+  color: var(--ap-shell-base, #b0b0b0);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.canvas-split__divider:focus-visible {
+  outline: none;
+}
+
+.canvas-split__divider:focus-visible .canvas-split__grip,
+.canvas-split__divider:hover .canvas-split__grip,
+.canvas-split--resizing .canvas-split__grip {
+  opacity: 1;
+}
+
+.canvas-split__grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 36px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 140ms ease;
+}
+
+.canvas-split__fillet {
+  position: absolute;
+}
+
+.canvas-split__fillet--tl { right: 100%; top: 0; }
+.canvas-split__fillet--tr { left: 100%; top: 0; }
+.canvas-split__fillet--bl { right: 100%; bottom: 0; }
+.canvas-split__fillet--br { left: 100%; bottom: 0; }
+
+/* While dragging the divider: no text selection, no tile hover churn. */
+.canvas-split--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.canvas-split--resizing .canvas-split__pane {
+  pointer-events: none;
+}
+
+/* A tile dragged from the other pane is over this one: dropping moves it
+   here (onto this pane's page). */
+.canvas-split__pane[data-drop-target]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px rgba(20, 99, 255, 0.7);
+  background: rgba(20, 99, 255, 0.05);
+  pointer-events: none;
+}
+
+.canvas-split__pane {
+  overflow: hidden;
+}
+
+/* Outline of the dragged tiles where they'd land in this pane. */
+.canvas-split__drop-ghost {
+  position: absolute;
+  z-index: 16;
+  border: 2px dashed rgba(20, 99, 255, 0.85);
+  border-radius: 6px;
+  background: rgba(20, 99, 255, 0.08);
+  pointer-events: none;
+}
+
+/* Right pane: page picker + close, top-left (the pages panel's spot). */
+.canvas-split__pane-bar {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(20, 20, 18, 0.08);
+  border-radius: 5px;
+  background: #fff;
+  font-family: var(--ap-font-body, system-ui, sans-serif);
+  font-size: 12px;
+  color: #1f1f1d;
+}
+
+.canvas-split__page-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 6px 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.canvas-split__page-picker:hover,
+.canvas-split__close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.canvas-split__page-picker:focus-within {
+  outline: 2px solid rgba(20, 99, 255, 0.5);
+  outline-offset: -2px;
+}
+
+.canvas-split__page-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* The native select sits invisibly on top, so it opens the OS menu. */
+.canvas-split__page-picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.canvas-split__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.canvas-split__close:focus-visible {
+  outline: 2px solid rgba(20, 99, 255, 0.5);
+  outline-offset: -2px;
+}
+
+/* The workspace-split toggle sits in the dock beside the view toggle. */
+.workspace-split-toggle {
+  margin-left: 2px;
+}

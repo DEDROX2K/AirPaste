@@ -10,7 +10,7 @@
  */
 
 .ap-home {
-  /* Anchors the Serendipity overlay (SerendipityView.css). */
+  /* Anchors the Constellation overlay (constellation/ConstellationView.css). */
   position: relative;
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
@@ -422,7 +422,7 @@
   flex-direction: column;
   border-radius: var(--ap-radius-xl);
   background: var(--ap-surface-inset);
-  border: 1px solid var(--ap-border-subtle);
+  /* border: 1px solid var(--ap-border-subtle); */
   box-shadow: var(--ap-shadow-card);
   overflow: hidden;
   transition: transform var(--ap-transition-spring), box-shadow var(--ap-transition-normal), border-color var(--ap-transition-normal);
@@ -432,7 +432,7 @@
 .ap-home-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--ap-shadow-card-hover);
-  border-color: var(--ap-border-default);
+  /* border-color: var(--ap-border-default); */
 }
 
 .ap-home-card__toolbar {
@@ -1105,8 +1105,9 @@
 }
 
 .ap-home-icon-btn.is-danger:hover:not(:disabled) {
-  background: rgba(190, 38, 58, 0.1);
-  color: #b3202f;
+  border: 2px solid var(--ap-btn-edge, rgba(0, 0, 0, 0.14));
+  background: var(--ap-btn-red, #ef5350);
+  color: var(--ap-btn-ink, #161616);
 }
 
 .ap-home-icon-btn:active:not(:disabled) {
@@ -1138,4 +1139,272 @@
     width: 100%;
     order: 10;
   }
+}
+
+/* ---- Colour marks (right-click a card or row; see lib/cardColors.js).
+   Each mark is a soft tint; cards keep their border, so a marked card is
+   still clearly a card. Add a colour in cardColors.js and one line here. */
+[data-card-color="rose"] { --ap-card-tint: color-mix(in srgb, #f3a9a0 30%, var(--ap-surface-default, #fff)); }
+[data-card-color="amber"] { --ap-card-tint: color-mix(in srgb, #f1cf7a 34%, var(--ap-surface-default, #fff)); }
+[data-card-color="mint"] { --ap-card-tint: color-mix(in srgb, #9fd8b0 30%, var(--ap-surface-default, #fff)); }
+[data-card-color="sky"] { --ap-card-tint: color-mix(in srgb, #9cc4ee 30%, var(--ap-surface-default, #fff)); }
+
+.ap-home-card[data-card-color],
+.ap-home-row[data-card-color],
+.ap-home-dome-row[data-card-color] {
+  background: var(--ap-card-tint);
+}
+
+.ap-home-card[data-card-color] .ap-home-card__thumb {
+  background: color-mix(in srgb, var(--ap-card-tint) 70%, transparent);
+}
+
+.card-color-menu__row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px 8px;
+}
+
+.card-color-menu__swatch {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--swatch, transparent);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 160ms ease;
+}
+
+.card-color-menu__swatch--none {
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(0, 0, 0, 0.35) 47% 53%, transparent 54%),
+    var(--ap-surface-default, #fff);
+}
+
+.card-color-menu__swatch:hover,
+.card-color-menu__swatch[data-highlighted] {
+  transform: scale(1.14);
+}
+
+.card-color-menu__swatch.is-active {
+  box-shadow: 0 0 0 2px var(--ap-surface-default, #fff), 0 0 0 3.5px rgba(0, 0, 0, 0.45);
+}
+
+/* ─── 2026-11 refresh: floating sidebar, new UI colours, motion ──────────
+   Same family as the window controls and the filled buttons: 2px
+   translucent edges, a white edge on hover, grey for "selected". The few
+   !important rules below outrank the global button flattening in
+   SimpleUi.css, which would otherwise repaint these on hover. Entrance
+   animations use `backwards` fill so a finished one doesn't pin `transform`
+   and block the hover lift. */
+
+.ap-home {
+  --ap-home-edge: #7676764d;
+  --ap-home-row-bg: #ffffff;
+  --ap-home-row-hover: #ececea;
+  --ap-home-row-selected: #c9c9c9;
+  --ap-home-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ap-home-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Sidebar floats: inset from the card's edges, rounded, its own surface. */
+.ap-home-sidebar:not(.ap-home-sidebar--drawer) {
+  margin: 7px 0 7px 7px;
+  border: 2px solid var(--ap-home-edge);
+  border-radius: 5px;
+  background: #f4f4f2;
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: ap-home-slide-in 520ms var(--ap-home-ease) backwards;
+  transition: width 320ms var(--ap-home-ease);
+}
+
+.ap-home .ap-home-nav-link {
+  border: 2px solid transparent !important;
+  border-radius: 4px !important;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 260ms var(--ap-home-spring) !important;
+}
+
+.ap-home .ap-home-nav-link:hover:not(:disabled) {
+  background: var(--ap-home-row-bg) !important;
+  border-color: var(--ap-home-edge) !important;
+  color: var(--ap-text-primary);
+  transform: translateX(2px) !important;
+}
+
+.ap-home .ap-home-nav-link.is-active,
+.ap-home .ap-home-nav-link.is-active:hover:not(:disabled) {
+  background: var(--ap-home-row-selected) !important;
+  border-color: #ffffff !important;
+  color: var(--ap-text-primary);
+  transform: none !important;
+}
+
+.ap-home .ap-home-nav-link.is-active .ap-home-nav-link__badge {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ap-text-primary);
+}
+
+/* Toolbar: no hard rule underneath, eases in. */
+.ap-home-toolbar {
+  border-bottom: 0;
+  animation: ap-home-rise 460ms var(--ap-home-ease) backwards;
+}
+
+/* File list: one block with a 2px edge and thin dividers; rows take the
+   new hover / selected colours. */
+.ap-home-list {
+  border: 2px solid var(--ap-home-edge);
+  border-radius: 5px;
+  background: var(--ap-home-row-bg);
+}
+
+.ap-home-row {
+  border-bottom: 1px solid var(--ap-border-subtle);
+  animation: ap-home-rise 360ms var(--ap-home-ease) backwards;
+  animation-delay: calc(var(--ap-stagger, 0) * 22ms);
+  transition: background-color 140ms ease;
+}
+
+.ap-home-row:hover {
+  background: var(--ap-home-row-hover);
+}
+
+.ap-home-row.is-selected {
+  background: var(--ap-home-row-selected);
+}
+
+.ap-home .ap-home-row__button:hover:not(:disabled) {
+  background: transparent !important;
+}
+
+.ap-home .ap-home-row__icon-btn:hover:not(:disabled) {
+  background: #ffffff !important;
+}
+
+/* Canvas cards: same edge, white on hover, a springier lift. */
+.ap-home-card {
+  border: 2px solid var(--ap-home-edge);
+  border-radius: 6px;
+  background: var(--ap-home-row-bg);
+  box-shadow: none;
+  animation: ap-home-rise 460ms var(--ap-home-ease) backwards;
+  animation-delay: calc(var(--ap-stagger, 0) * 36ms);
+  transition:
+    transform 320ms var(--ap-home-spring),
+    box-shadow 240ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.ap-home-card:hover {
+  border-color: #ffffff;
+  background: var(--ap-home-row-hover);
+  box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+.ap-home-card.is-selected {
+  background: var(--ap-home-row-selected);
+  border-color: #ffffff;
+}
+
+.ap-home-card__thumb-image {
+  transition: transform 600ms var(--ap-home-ease);
+}
+
+/* View toggle: the active option is a white chip with an edge. */
+.ap-home .ap-home-view-toggle {
+  padding: 2px;
+  border: 2px solid var(--ap-home-edge);
+  border-radius: 6px;
+  background: #e6e6e4;
+}
+
+.ap-home .ap-home-view-toggle__btn {
+  border: 2px solid transparent !important;
+  border-radius: 4px !important;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease !important;
+}
+
+.ap-home .ap-home-view-toggle__btn.is-active,
+.ap-home .ap-home-view-toggle__btn.is-active:hover:not(:disabled) {
+  background: #ffffff !important;
+  border-color: var(--ap-home-edge) !important;
+}
+
+/* The reel's tiles are buttons: keep them out of the global button styling. */
+.ap-home .ap-home-reel .ap-home-tile {
+  border-radius: 4px !important;
+  background: #fffdfa !important;
+}
+
+.ap-home-panel {
+  animation: ap-home-rise 460ms var(--ap-home-ease) 80ms backwards;
+}
+
+@keyframes ap-home-slide-in {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-home-sidebar:not(.ap-home-sidebar--drawer),
+  .ap-home-toolbar,
+  .ap-home-row,
+  .ap-home-card,
+  .ap-home-panel {
+    animation: none;
+  }
+
+  .ap-home-row:hover,
+  .ap-home-card:hover,
+  .ap-home .ap-home-nav-link:hover:not(:disabled) {
+    transform: none !important;
+  }
+}
+
+.ap-home-grid {
+  gap: 14px;
+}
+
+/* Section heading at the top of the sidebar, beside the collapse button
+   (on a narrow window, with the sidebar in a drawer, it stays in the
+   toolbar instead). */
+.ap-home-sidebar__toggle-row:has(.ap-home-sidebar__heading) {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 4px 12px 8px;
+}
+
+.ap-home-sidebar__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ap-home-sidebar__title {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-xl);
+  font-weight: 800;
+  letter-spacing: var(--ap-tracking-tight);
+  color: var(--ap-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* With the heading gone from the toolbar, its controls sit at the left. */
+.ap-home-toolbar:not(:has(.ap-home-toolbar__heading)) .ap-home-toolbar__controls {
+  margin-right: auto;
 }

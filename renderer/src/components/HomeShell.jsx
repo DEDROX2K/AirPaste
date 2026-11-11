@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   buildHomeRouteState,
@@ -10,6 +10,7 @@ import {
   sortEntriesByPreference,
 } from "../lib/home";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { CardColorMenu } from "./ui/CardColorMenu";
 import { desktop } from "../lib/desktop";
 import {
   AppButton,
@@ -53,8 +54,14 @@ import {
   Warning,
   X,
 } from "./ui/icons";
-import SerendipityView from "./SerendipityView";
+const ConstellationView = lazy(() => import("./constellation/ConstellationView"));
 import "./HomeShell.css";
+import HomeCanvasPeek from "./home/HomeCanvasPeek";
+import { loadPeekEntries } from "../systems/home/homeTiles";
+import { getCanvasThumbnailVersion, useCanvasThumbnailRevision } from "../lib/canvasThumbnail";
+
+// Hovering a canvas this long pops some of its tiles in from the edges.
+const PEEK_DELAY_MS = 3000;
 
 const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
 
@@ -150,7 +157,7 @@ function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleS
   );
 }
 
-function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMenuToggle, onMenuClose, onOpen, onRename, onDelete, onToggleStar, onFocusPrev, onFocusNext, listButtonRef }) {
+function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMenuToggle, onMenuClose, onOpen, onRename, onDelete, onToggleStar, onFocusPrev, onFocusNext, listButtonRef, peekHandlers, style }) {
   const primaryMeta = item.type !== "folder"
     ? `Edited ${formatRelativeTime(item.updatedAt)}`
     : (item.path || "Workspace root");
@@ -161,7 +168,8 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
 
   if (viewMode === "list") {
     return (
-      <div className={`ap-home-row${isActive ? " is-selected" : ""}`}>
+      <CardColorMenu itemKey={itemKey(item)}>
+      <div className={`ap-home-row${isActive ? " is-selected" : ""}`} style={style} {...peekHandlers?.(item)}>
         <button
           ref={listButtonRef}
           type="button"
@@ -216,11 +224,13 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
           />
         </div>
       </div>
+      </CardColorMenu>
     );
   }
 
   return (
-    <article className={`ap-home-card${isActive ? " is-selected" : ""}${menuOpen ? " is-menu-open" : ""}`}>
+    <CardColorMenu itemKey={itemKey(item)}>
+    <article className={`ap-home-card${isActive ? " is-selected" : ""}${menuOpen ? " is-menu-open" : ""}`} style={style} {...peekHandlers?.(item)}>
       <div className="ap-home-card__toolbar">
         <HomeEntryMenu
           item={item}
@@ -243,6 +253,7 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
         </div>
       </button>
     </article>
+    </CardColorMenu>
   );
 }
 
@@ -345,6 +356,8 @@ function HomeCanvasCardItem({
   onToggleStar,
   onMenuToggle,
   onMenuClose,
+  peekHandlers,
+  style,
 }) {
   const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
   const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
@@ -352,7 +365,8 @@ function HomeCanvasCardItem({
   const summaryLabel = `${formatItemCount(tileCount, "tile")} · ${formatItemCount(pageCount, "page")}`;
 
   return (
-    <article className={`ap-home-card${item.starred ? " is-starred" : ""}${menuOpen ? " is-menu-open" : ""}`} role="listitem">
+    <CardColorMenu itemKey={itemKey(item)}>
+    <article className={`ap-home-card${item.starred ? " is-starred" : ""}${menuOpen ? " is-menu-open" : ""}`} role="listitem" style={style} {...peekHandlers?.(item)}>
       <div className="ap-home-card__toolbar">
         <AppButton
           type="button"
@@ -399,12 +413,14 @@ function HomeCanvasCardItem({
         </div>
       </button>
     </article>
+    </CardColorMenu>
   );
 }
 
-function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar }) {
+function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar, peekHandlers }) {
   const [thumbUrls, setThumbUrls] = useState(() => ({}));
   const [openMenuKey, setOpenMenuKey] = useState(null);
+  const thumbnailRevision = useCanvasThumbnailRevision();
 
   useEffect(() => {
     let cancelled = false;
@@ -420,7 +436,8 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
           return [itemKey(item), ""];
         }
         const resolved = await desktop.workspace.resolveAssetUrl(folderPath, item.thumbnailPath, { previewTier: "original" });
-        return [itemKey(item), resolved || ""];
+        const version = getCanvasThumbnailVersion(item.filePath);
+        return [itemKey(item), resolved ? (version ? `${resolved}?v=${version}` : resolved) : ""];
       }));
 
       if (cancelled) return;
@@ -432,7 +449,7 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
     return () => {
       cancelled = true;
     };
-  }, [canvases, folderPath]);
+  }, [canvases, folderPath, thumbnailRevision]);
 
   if (!Array.isArray(canvases) || canvases.length === 0) {
     return (
@@ -449,7 +466,7 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
 
   return (
     <div className="ap-home-grid" role="list">
-      {canvases.map((item) => {
+      {canvases.map((item, index) => {
         const key = itemKey(item);
         const thumbUrl = thumbUrls[itemKey(item)] || "";
         return (
@@ -464,6 +481,8 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
             onToggleStar={onToggleStar}
             onMenuToggle={() => setOpenMenuKey((current) => (current === key ? null : key))}
             onMenuClose={() => setOpenMenuKey(null)}
+            peekHandlers={peekHandlers}
+            style={{ "--ap-stagger": Math.min(index, 14) }}
           />
         );
       })}
@@ -482,11 +501,19 @@ function HomeSidebarContent({
   onToggleCollapsed,
   onManageWorkspaces,
   onOpenSerendipity,
+  sectionTitle = "",
 }) {
   return (
     <>
       {onToggleCollapsed ? (
         <div className="ap-home-sidebar__toggle-row">
+          {/* The section heading lives at the top of the panel. */}
+          {!collapsed && sectionTitle ? (
+            <div className="ap-home-sidebar__heading">
+              <span className="ap-home-toolbar__eyebrow">Workspace</span>
+              <h1 className="ap-home-sidebar__title">{sectionTitle}</h1>
+            </div>
+          ) : null}
           <AppButton
             type="button"
             tone="surface"
@@ -523,13 +550,13 @@ function HomeSidebarContent({
           type="button"
           tone="unstyled"
           className="ap-home-nav-link"
-          title="Serendipity: shuffle through old saves"
+          title="Constellation: drift through everything you saved"
           disabled={allCanvasItems.length === 0}
           onClick={onOpenSerendipity}
         >
           <span className="ap-home-nav-link__label">
             <Sparkles size={16} aria-hidden="true" />
-            <span className="ap-home-nav-link__text">Serendipity</span>
+            <span className="ap-home-nav-link__text">Constellation</span>
           </span>
         </AppButton>
       </nav>
@@ -629,7 +656,8 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
               const isActive = dome.id === activeDomeId;
               const isMissing = dome.exists === false;
               return (
-                <div key={dome.id} className={`ap-home-dome-row${isActive ? " is-active" : ""}${isMissing ? " is-missing" : ""}`}>
+                <CardColorMenu key={dome.id} itemKey={`dome:${dome.id}`}>
+                <div className={`ap-home-dome-row${isActive ? " is-active" : ""}${isMissing ? " is-missing" : ""}`}>
                   <span className="ap-home-dome-row__icon" aria-hidden="true">
                     {isMissing ? <Warning size={18} /> : <Folder size={18} />}
                   </span>
@@ -654,6 +682,7 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
                     </button>
                   </div>
                 </div>
+                </CardColorMenu>
               );
             })
           )}
@@ -823,6 +852,14 @@ export default function HomeShell() {
   }, [homePreferences, saveHomeUiState]);
 
   const handleBodyScroll = useCallback(() => {
+    // Scrolling the list ends any canvas peek (the refs and setter are
+    // declared further down; this only runs on scroll, after they exist).
+    if (peekTargetRef.current) {
+      window.clearTimeout(peekTimerRef.current);
+      peekTargetRef.current = null;
+      setPeek(null);
+    }
+
     if (openMenuKey) {
       setOpenMenuKey("");
     }
@@ -834,6 +871,43 @@ export default function HomeShell() {
     () => homeData.allFiles.filter((item) => item.type === "canvas"),
     [homeData.allFiles],
   );
+
+
+  // Canvas peek: hover a canvas row/card for PEEK_DELAY_MS and its tiles pop
+  // in from the edges. Its tiles start loading as soon as the hover begins.
+  const [peek, setPeek] = useState(null);
+  const peekTimerRef = useRef(0);
+  const peekTargetRef = useRef(null);
+
+  const endPeek = useCallback(() => {
+    window.clearTimeout(peekTimerRef.current);
+    peekTargetRef.current = null;
+    setPeek(null);
+  }, []);
+
+  const peekHandlers = useCallback((item) => {
+    if (item?.type !== "canvas") {
+      return undefined;
+    }
+
+    return {
+      onPointerEnter: () => {
+        window.clearTimeout(peekTimerRef.current);
+        peekTargetRef.current = item.filePath;
+        const entriesPromise = loadPeekEntries(item);
+        peekTimerRef.current = window.setTimeout(async () => {
+          const entries = await entriesPromise;
+          if (peekTargetRef.current === item.filePath && entries.length > 0) {
+            setPeek({ filePath: item.filePath, entries });
+          }
+        }, PEEK_DELAY_MS);
+      },
+      onPointerLeave: endPeek,
+      onPointerDown: endPeek,
+    };
+  }, [endPeek]);
+
+  useEffect(() => () => window.clearTimeout(peekTimerRef.current), []);
 
   const recentCanvasItems = useMemo(() => {
     const ordered = [];
@@ -984,6 +1058,7 @@ export default function HomeShell() {
             folderPath={folderPath}
             activeDome={activeDome}
             collapsed={homeSidebarCollapsed}
+            sectionTitle={sectionTitle}
             onSectionChange={handleSectionChange}
             onToggleCollapsed={() => setHomeSidebarCollapsed((current) => !current)}
             onManageWorkspaces={() => setManageDomesOpen(true)}
@@ -1001,10 +1076,12 @@ export default function HomeShell() {
                 Menu
               </AppButton>
             ) : null}
-            <div className="ap-home-toolbar__heading">
-              <span className="ap-home-toolbar__eyebrow">Workspace</span>
-              <h1 className="ap-home-toolbar__title">{sectionTitle}</h1>
-            </div>
+            {isNarrowDesktop ? (
+              <div className="ap-home-toolbar__heading">
+                <span className="ap-home-toolbar__eyebrow">Workspace</span>
+                <h1 className="ap-home-toolbar__title">{sectionTitle}</h1>
+              </div>
+            ) : null}
             <div className="ap-home-toolbar__controls">
               <div className="ap-home-search">
                 <Search size={14} aria-hidden="true" className="ap-home-search__icon" />
@@ -1116,6 +1193,7 @@ export default function HomeShell() {
               onImportFiles={() => void importFilesIntoFolder(navigation.currentFolderPath)}
             />
           ) : (
+            <>
             <section className="ap-home-panel">
               <div className="ap-home-panel-header">
                 <h3 className="ap-home-panel-header__title">{sectionTitle}</h3>
@@ -1132,6 +1210,7 @@ export default function HomeShell() {
                   onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
                   onDelete={(entry) => setConfirmDialog({ target: entry })}
                   onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                  peekHandlers={peekHandlers}
                 />
               ) : (
                 <div className="ap-home-list">
@@ -1153,14 +1232,19 @@ export default function HomeShell() {
                       listButtonRef={(node) => {
                         listButtonRefs.current[index] = node;
                       }}
+                      peekHandlers={peekHandlers}
+                      style={{ "--ap-stagger": Math.min(index, 14) }}
                     />
                   ))}
                 </div>
               )}
             </section>
+            </>
           )}
         </div>
       </section>
+
+      {hasWorkspace ? <HomeCanvasPeek peek={peek} folderPath={folderPath} /> : null}
 
       {isNarrowDesktop ? (
         <AppSheet open={sidebarDrawerOpen} onOpenChange={setSidebarDrawerOpen}>
@@ -1186,10 +1270,12 @@ export default function HomeShell() {
       ) : null}
 
       {serendipityOpen && hasWorkspace ? (
-        <SerendipityView
-          canvasItems={allCanvasItems}
-          onClose={() => setSerendipityOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ConstellationView
+            canvasItems={allCanvasItems}
+            onClose={() => setSerendipityOpen(false)}
+          />
+        </Suspense>
       ) : null}
 
       <TextPromptDialog

@@ -184,11 +184,40 @@ export function getViewportForWorldBounds(elementRect, worldRect, padding = DEFA
   };
 }
 
+// The dot grid keeps a steady look at any zoom, like other canvas apps: the
+// dots stay about the same size on screen and the spacing steps by powers of
+// two (every dot, every 2nd, every 4th ... of the 32px world grid) so the
+// on-screen gap stays between GRID_MIN_PX and twice that. Zoom out and you
+// see fewer dots, not bigger, denser ones; zoom in and the grid subdivides.
+// Dots are always on the world lattice, so they line up with snapping.
+const GRID_MIN_PX = 22;
+
+export function getCanvasGridSpacing(zoom) {
+  let spacing = CANVAS_GRID_SIZE * zoom;
+
+  if (!Number.isFinite(spacing) || spacing <= 0) {
+    return CANVAS_GRID_SIZE;
+  }
+
+  while (spacing < GRID_MIN_PX) {
+    spacing *= 2;
+  }
+
+  while (spacing >= GRID_MIN_PX * 2) {
+    spacing /= 2;
+  }
+
+  return spacing;
+}
+
 export function getCanvasGridStyleVars(viewport) {
   const transform = getWorldToScreenTransform(viewport);
+  // A whisper of size change with zoom (1.3px far out, 2px close in).
+  const dot = 1.3 + 0.7 * Math.min(1, Math.max(0, (transform.zoom - 0.3) / 1.7));
 
   return {
-    "--canvas-grid-size": `${CANVAS_GRID_SIZE * transform.zoom}px`,
+    "--canvas-grid-size": `${getCanvasGridSpacing(transform.zoom)}px`,
+    "--canvas-grid-dot": `${dot.toFixed(2)}px`,
     "--canvas-grid-offset-x": `${transform.x}px`,
     "--canvas-grid-offset-y": `${transform.y}px`,
   };

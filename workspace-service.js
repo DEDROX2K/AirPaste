@@ -453,7 +453,48 @@ function normalizeUiState(uiState) {
     currentFolderPath: normalizeFolder(safe.currentFolderPath),
     lastOpenedItemPath: typeof safe.lastOpenedItemPath === "string" ? normalizeRel(safe.lastOpenedItemPath, "") : null,
     lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
+    quickNote: normalizeQuickNoteState(safe.quickNote),
+    splitView: normalizeSplitViewState(safe.splitView),
   };
+}
+
+// Quick note (renderer/src/components/QuickNote.jsx): a checklist outside
+// the canvas. UI state only, never part of a canvas page.
+function normalizeQuickNoteState(value) {
+  const safe = isObject(value) ? value : {};
+  const items = Array.isArray(safe.items)
+    ? safe.items.slice(0, 200).filter(isObject).map((item, index) => ({
+      id: typeof item.id === "string" && item.id.trim() ? item.id : `qn-${index + 1}`,
+      text: typeof item.text === "string" ? item.text.slice(0, 500) : "",
+      checked: item.checked === true,
+    }))
+    : [];
+  return { open: safe.open !== false, items };
+}
+
+function normalizeSplitViewport(value) {
+  if (!isObject(value)) return null;
+  const { x, y, zoom } = value;
+  if (![x, y, zoom].every(Number.isFinite) || zoom <= 0) return null;
+  return { x, y, zoom };
+}
+
+// Split screen (renderer/src/systems/canvas/splitView.js). The right pane's
+// page + viewport are kept per canvas file, keyed by its workspace path.
+function normalizeSplitViewState(value) {
+  const safe = isObject(value) ? value : {};
+  const ratio = Number.isFinite(safe.ratio) ? Math.min(0.85, Math.max(0.15, safe.ratio)) : 0.5;
+  const panes = {};
+  if (isObject(safe.panes)) {
+    for (const [key, pane] of Object.entries(safe.panes).slice(0, 200)) {
+      if (!isObject(pane)) continue;
+      panes[key] = {
+        pageId: typeof pane.pageId === "string" ? pane.pageId : null,
+        viewport: normalizeSplitViewport(pane.viewport),
+      };
+    }
+  }
+  return { enabled: safe.enabled === true, ratio, panes };
 }
 
 function normalizeWorkspaceState(data) {

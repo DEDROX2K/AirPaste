@@ -209,3 +209,59 @@
   gap: 12px;
   padding-block: 0 20px;
 }
+
+/* ── Filled colour buttons ──
+   Solid fills with dark ink and a 2px edge, the same family as the window
+   controls (.titlebar-btn--win): colour lives in the fill, never only in the
+   border. The doubled class outranks the global flattening in SimpleUi.css /
+   MonochromeUi.css (including their hover, which would otherwise grey the
+   fill out). */
+:root {
+  --ap-btn-ink: #161616;
+  --ap-btn-edge: rgba(0, 0, 0, 0.14);
+  --ap-btn-green: #2fd38f;
+  --ap-btn-green-hover: #45dc9d;
+  --ap-btn-red: #ef5350;
+  --ap-btn-red-hover: #f36a67;
+  --ap-btn-purple: #9b6cf0;
+  --ap-btn-purple-hover: #aa82f3;
+}
+
+.ap-ui-button.ap-ui-button {
+  border-width: 2px !important;
+  border-style: solid !important;
+}
+
+.ap-ui-button.ap-ui-button--surface {
+  border-color: #7676764d !important;
+}
+
+.ap-ui-button.ap-ui-button--accent,
+.ap-ui-button.ap-ui-button--danger,
+.ap-ui-button.ap-ui-button--purple {
+  border-color: var(--ap-btn-edge) !important;
+  color: var(--ap-btn-ink) !important;
+  font-weight: 600;
+  box-shadow: none !important;
+}
+
+.ap-ui-button.ap-ui-button--accent { background: var(--ap-btn-green) !important; }
+.ap-ui-button.ap-ui-button--danger { background: var(--ap-btn-red) !important; }
+.ap-ui-button.ap-ui-button--purple { background: var(--ap-btn-purple) !important; }
+
+.ap-ui-button.ap-ui-button--accent:hover:not(:disabled) { background: var(--ap-btn-green-hover) !important; }
+.ap-ui-button.ap-ui-button--danger:hover:not(:disabled) { background: var(--ap-btn-red-hover) !important; }
+.ap-ui-button.ap-ui-button--purple:hover:not(:disabled) { background: var(--ap-btn-purple-hover) !important; }
+
+.ap-ui-button.ap-ui-button--accent:hover:not(:disabled),
+.ap-ui-button.ap-ui-button--danger:hover:not(:disabled),
+.ap-ui-button.ap-ui-button--purple:hover:not(:disabled) {
+  border-color: #ffffff !important;
+  color: var(--ap-btn-ink) !important;
+}
+
+.ap-ui-button.ap-ui-button--accent:active:not(:disabled),
+.ap-ui-button.ap-ui-button--danger:active:not(:disabled),
+.ap-ui-button.ap-ui-button--purple:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
