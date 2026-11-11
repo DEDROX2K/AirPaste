@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -214,8 +214,6 @@ function FileColorPanel({ color, onPreview, onCommit, onClose }) {
 function FileTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -225,7 +223,7 @@ function FileTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { folderPath, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const width = clampDefaultFileWidth(card.width);
   const k = width / DEFAULT_FILE_BASE_WIDTH;
   const fileName = card.file?.fileName || card.title || "Untitled file";
@@ -496,7 +494,6 @@ function FileTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--default-file"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

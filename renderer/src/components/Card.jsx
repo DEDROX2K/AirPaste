@@ -4,7 +4,6 @@ import { PREVIEW_TIER, TILE_RENDER_STATE, WORKSPACE_LOD_LEVEL } from "../systems
 import { getTileStyleVars } from "../systems/layout/tileLayout";
 import { getTileRegistration } from "../tiles/tileRegistry";
 
-const EMPTY_SET = new Set();
 const EMPTY_ARRAY = [];
 const noop = () => {};
 
@@ -45,8 +44,6 @@ function renderStaticTilePreview(tile) {
       card={tile}
       tileMeta={{ styleVars: getTileStyleVars(tile, 1, 0, 0) }}
       renderHint={STATIC_PREVIEW_RENDER_HINT}
-      dragVisualDelta={null}
-      dragVisualTileIdSet={EMPTY_SET}
       childTiles={EMPTY_ARRAY}
       rackState={null}
       performanceMode={false}
@@ -58,20 +55,12 @@ function renderStaticTilePreview(tile) {
   );
 }
 
+// No drag props: a drag reaches a tile through tileMeta.isDragging (start and
+// end only) and its live offset through the drag motion store, so dragging
+// one tile never re-renders another, nor the dragged one per frame.
 function areCardPropsEqual(previousProps, nextProps) {
-  const cardId = nextProps.card?.id ?? previousProps.card?.id ?? null;
-  const wasDragAffected = Boolean(cardId && previousProps.dragVisualTileIdSet?.has(cardId));
-  const isDragAffected = Boolean(cardId && nextProps.dragVisualTileIdSet?.has(cardId));
-  const dragVisualDeltaEqual = (!wasDragAffected && !isDragAffected)
-    || previousProps.dragVisualDelta === nextProps.dragVisualDelta;
-
-  // Tiles only ask the drag set whether they're in it, so compare that
-  // rather than the set: a drag starting or ending then re-renders the
-  // dragged tiles, not every tile on the canvas.
   return previousProps.card === nextProps.card
     && previousProps.tileMeta === nextProps.tileMeta
-    && dragVisualDeltaEqual
-    && wasDragAffected === isDragAffected
     && previousProps.childTiles === nextProps.childTiles
     && previousProps.rackState === nextProps.rackState
     && previousProps.renderHint === nextProps.renderHint

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   AppButton,
@@ -234,6 +234,10 @@ function PagesPanelContent({
   );
 }
 
+// The panel shows each page's id and name only, but workspace.pages is a
+// new array on every card edit (a drop, a resize): this keeps one list until
+// an id or a name changes, and the body is memoized on it, so editing the
+// canvas doesn't re-render the pages panel.
 export default function LeftPagesPanel({ isNarrowDesktop = false }) {
   const {
     workspace,
@@ -242,6 +246,35 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
     renameCanvasPage,
     setActiveCanvasPage,
   } = useAppContext();
+  const workspacePages = workspace?.pages;
+  const pageListKey = (workspacePages ?? []).map((page) => `${page.id}\u0000${page.name}`).join("\u0001");
+  const pages = useMemo(
+    () => (workspacePages ?? []).map((page) => ({ id: page.id, name: page.name })),
+    [pageListKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  return (
+    <LeftPagesPanelBody
+      isNarrowDesktop={isNarrowDesktop}
+      pages={pages}
+      activePageId={workspace?.activePageId ?? null}
+      createCanvasPage={createCanvasPage}
+      reorderCanvasPages={reorderCanvasPages}
+      renameCanvasPage={renameCanvasPage}
+      setActiveCanvasPage={setActiveCanvasPage}
+    />
+  );
+}
+
+const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
+  isNarrowDesktop,
+  pages,
+  activePageId,
+  createCanvasPage,
+  reorderCanvasPages,
+  renameCanvasPage,
+  setActiveCanvasPage,
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [editingPageId, setEditingPageId] = useState(null);
   const [draftName, setDraftName] = useState("");
@@ -277,8 +310,6 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
     }
   }, [collapsed, isNarrowDesktop]);
 
-  const pages = useMemo(() => workspace?.pages ?? [], [workspace?.pages]);
-  const activePageId = workspace?.activePageId ?? null;
   useEffect(() => {
     if (!editingPageId) {
       return;
@@ -517,4 +548,4 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
       </aside>
     </AppTooltipProvider>
   );
-}
+});

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -57,8 +57,6 @@ function PlusIcon() {
 function StickyTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -71,7 +69,7 @@ function StickyTile({
   onEndTextBoxEdit,
   onCreateAdjacentSticky,
 }) {
-  const { setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const style = normalizeStickyStyle(card.sticky);
   const size = Number.isFinite(card.width) ? card.width : STICKY_BASE_SIZE;
   const isEditing = textBoxEditorState?.tileId === card.id;
@@ -248,7 +246,6 @@ function StickyTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--figjam-sticky"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

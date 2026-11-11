@@ -1,5 +1,5 @@
-import { memo, useLayoutEffect, useRef } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { memo, useEffect, useLayoutEffect, useRef } from "react";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { CHECKLIST_CARD_SIZE, makeChecklistItem } from "../../tiles/checklist/model";
 import TileShell from "./TileShell";
@@ -58,8 +58,6 @@ function GripIcon() {
 function ChecklistTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -68,7 +66,7 @@ function ChecklistTile({
   onPressStart,
   renderHint,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const items = Array.isArray(card.items) ? card.items : EMPTY_ITEMS;
   const surfaceRef = useRef(null);
   const titleInputRef = useRef(null);
@@ -109,20 +107,48 @@ function ChecklistTile({
   // rendered height back. offsetHeight is layout size, unaffected by zoom.
   // A rack's static preview is a copy drawn at another size: it must never
   // write, or it and the live tile can fight over card.height.
-  useLayoutEffect(() => {
+  //
+  // Measured by a ResizeObserver, i.e. only when the rendered size really
+  // changes, not with a forced layout read after every render. The last
+  // measurement is kept, so a card.height changed from outside (undo) is
+  // put right without a read.
+  const cardRef = useRef(card);
+  cardRef.current = card;
+  const measuredHeightRef = useRef(null);
+  const isStaticPreview = renderHint?.isStaticPreview === true;
+
+  useEffect(() => {
     const surface = surfaceRef.current;
 
-    if (!surface || renderHint?.isStaticPreview === true) {
+    if (!surface || isStaticPreview || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => {
+      const current = cardRef.current;
+      const measuredHeight = Math.max(CHECKLIST_CARD_SIZE.height, Math.ceil(surface.offsetHeight));
+      const currentHeight = Number.isFinite(current.height) ? current.height : CHECKLIST_CARD_SIZE.height;
+      measuredHeightRef.current = measuredHeight;
+
+      if (Math.abs(measuredHeight - currentHeight) > 1) {
+        updateExistingCard(current.id, { height: measuredHeight });
+      }
+    });
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, [isStaticPreview, updateExistingCard]);
+
+  useEffect(() => {
+    const measuredHeight = measuredHeightRef.current;
+
+    if (isStaticPreview || !measuredHeight || !Number.isFinite(card.height)) {
       return;
     }
 
-    const measuredHeight = Math.max(CHECKLIST_CARD_SIZE.height, Math.ceil(surface.offsetHeight));
-    const currentHeight = Number.isFinite(card.height) ? card.height : CHECKLIST_CARD_SIZE.height;
-
-    if (Math.abs(measuredHeight - currentHeight) > 1) {
+    if (Math.abs(measuredHeight - card.height) > 1) {
       updateExistingCard(card.id, { height: measuredHeight });
     }
-  });
+  }, [card.height, card.id, isStaticPreview, updateExistingCard]);
 
   const updateCard = (updates) => updateExistingCard(card.id, updates);
 
@@ -224,7 +250,6 @@ function ChecklistTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--checklist"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

@@ -19,6 +19,7 @@ import {
   normalizeRect,
 } from "../layout/tileLayout";
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
+import { createDragMotionStore } from "./dragMotion";
 import {
   easeSnapOffset,
   getSnapRectsBounds,
@@ -72,7 +73,9 @@ export function useCanvasInteractionSystem({
   const [hoveredGroupId, setHoveredGroupId] = useState(null);
   const [focusedTileId, setFocusedTileId] = useState(null);
   const [draggingTileIds, setDraggingTileIds] = useState([]);
-  const [dragVisualDelta, setDragVisualDelta] = useState(null);
+  // The live drag offset: a store, not state, so a drag frame re-renders
+  // nothing (see dragMotion.js).
+  const [dragMotion] = useState(createDragMotionStore);
   // Where the tile was grabbed (world point), for the grab-corner tilt.
   const [dragGrabPoint, setDragGrabPoint] = useState(null);
   const [marqueeBox, setMarqueeBox] = useState(null);
@@ -136,15 +139,11 @@ export function useCanvasInteractionSystem({
   const magnetGlideRef = useRef({ rafId: 0, frameTime: null });
 
   const showDragDelta = useCallback((dragState) => {
-    const visualDelta = {
+    dragMotion.set(dragState.tileIds, {
       x: dragState.baseDelta.x + dragState.snapShown.x,
       y: dragState.baseDelta.y + dragState.snapShown.y,
-    };
-
-    setDragVisualDelta((currentDelta) => (
-      currentDelta?.x === visualDelta.x && currentDelta?.y === visualDelta.y ? currentDelta : visualDelta
-    ));
-  }, []);
+    });
+  }, [dragMotion]);
 
   const stopMagnetGlide = useCallback(() => {
     const glide = magnetGlideRef.current;
@@ -201,7 +200,7 @@ export function useCanvasInteractionSystem({
     setHoveredGroupId(null);
     setFocusedTileId(null);
     setDraggingTileIds([]);
-    setDragVisualDelta(null);
+    dragMotion.clear();
     setDragGrabPoint(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
@@ -209,6 +208,7 @@ export function useCanvasInteractionSystem({
   }, [
     clearRackDropPreview,
     closeContextMenu,
+    dragMotion,
   ]);
 
   useEffect(() => {
@@ -487,7 +487,11 @@ export function useCanvasInteractionSystem({
     });
   }, [canvas, selectGroup, selectedGroupIds]);
 
-  const handleTileHoverChange = useCallback((tileId, isHovered) => {
+  // Stable identities (useStableCallback), though they read
+  // suppressHoverUpdates: every tile gets these, and as plain callbacks
+  // keyed on it they changed whenever a pan or drag started or stopped,
+  // re-rendering every tile on the canvas twice per gesture.
+  const handleTileHoverChange = useStableCallback((tileId, isHovered) => {
     if (suppressHoverUpdates) {
       return;
     }
@@ -499,7 +503,7 @@ export function useCanvasInteractionSystem({
 
       return currentId === tileId ? null : currentId;
     });
-  }, [suppressHoverUpdates]);
+  });
 
   const handleGroupHoverChange = useCallback((groupId, isHovered) => {
     if (suppressHoverUpdates) {
@@ -515,21 +519,21 @@ export function useCanvasInteractionSystem({
     });
   }, [suppressHoverUpdates]);
 
-  const handleTileFocusIn = useCallback((tileId) => {
+  const handleTileFocusIn = useStableCallback((tileId) => {
     if (suppressHoverUpdates) {
       return;
     }
 
     setFocusedTileId(tileId);
-  }, [suppressHoverUpdates]);
+  });
 
-  const handleTileFocusOut = useCallback((tileId) => {
+  const handleTileFocusOut = useStableCallback((tileId) => {
     if (suppressHoverUpdates) {
       return;
     }
 
     setFocusedTileId((currentId) => (currentId === tileId ? null : currentId));
-  }, [suppressHoverUpdates]);
+  });
 
   const beginCanvasMarqueeSelection = useCallback((event, options = {}) => {
     const startCanvasPoint = canvas.clientToCanvasPoint(event.clientX, event.clientY);
@@ -706,7 +710,7 @@ export function useCanvasInteractionSystem({
       },
     };
     setDraggingTileIds(dragTileIds);
-    setDragVisualDelta(initialDelta);
+    dragMotion.set(dragTileIds, initialDelta);
     setDragGrabPoint(pointerWorldStart);
   });
 
@@ -765,8 +769,8 @@ export function useCanvasInteractionSystem({
     setSelectedGroupIds(activeGroups.map((entry) => entry.id));
     setSelectedTileIds([]);
     setDraggingTileIds(draggedTileIds);
-    setDragVisualDelta({ x: 0, y: 0 });
-  }, [canvas, clearRackDropPreview, closeContextMenu, groups, isSelectMode, selectedGroupIds]);
+    dragMotion.set(draggedTileIds, { x: 0, y: 0 });
+  }, [canvas, clearRackDropPreview, closeContextMenu, dragMotion, groups, isSelectMode, selectedGroupIds]);
 
   useEffect(() => {
     // Same coalescing technique as the tile-drag pointermove handler above:
@@ -1064,7 +1068,7 @@ export function useCanvasInteractionSystem({
             clientY: event.clientY,
           });
           if (dropped) {
-            setDragVisualDelta(null);
+            dragMotion.clear();
             setDragGrabPoint(null);
             dragStateRef.current = null;
             setDraggingTileIds([]);
@@ -1137,9 +1141,9 @@ export function useCanvasInteractionSystem({
         pointerMoveMetricsRef.current = { count: 0, totalMs: 0 };
       }
 
-      if (dragState.tileIds.length > 0) {
-        setDragVisualDelta(null);
-      }
+      // Tiles keep showing the last offset until the commit that moves them
+      // (TileShell drops it when its tile stops dragging), so nothing jumps.
+      dragMotion.clear();
       setDragGrabPoint(null);
 
       dragStateRef.current = null;
@@ -1168,13 +1172,7 @@ export function useCanvasInteractionSystem({
         };
 
         dragState.lastDelta = worldDelta;
-        setDragVisualDelta((currentDelta) => {
-          if (currentDelta?.x === worldDelta.x && currentDelta?.y === worldDelta.y) {
-            return currentDelta;
-          }
-
-          return worldDelta;
-        });
+        dragMotion.set(dragState.tileIds, worldDelta);
         recordPointerMoveSample((typeof performance !== "undefined" ? performance.now() : Date.now()) - moveStart);
         return;
       }
@@ -1317,7 +1315,7 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canvas, clearRackDropPreview, commands, showDragDelta, startMagnetGlide, stopMagnetGlide]);
+  }, [canvas, clearRackDropPreview, commands, dragMotion, showDragDelta, startMagnetGlide, stopMagnetGlide]);
 
   const handleCanvasPointerDown = useCallback((event) => {
     if (isHandMode && event.button !== 2) {
@@ -1409,7 +1407,7 @@ export function useCanvasInteractionSystem({
     hoveredGroupId,
     focusedTileId,
     draggingTileIds,
-    dragVisualDelta,
+    dragMotion,
     dragGrabPoint,
     rackDropPreview,
     marqueeBox,
@@ -1438,7 +1436,7 @@ export function useCanvasInteractionSystem({
     beginTileDrag,
     closeContextMenu,
     contextMenu,
-    dragVisualDelta,
+    dragMotion,
     dragGrabPoint,
     draggingTileIds,
     focusedTileId,

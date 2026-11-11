@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordInteractionCommit } from "../../lib/perf";
 import {
   areViewportTransformsClose,
@@ -17,7 +17,16 @@ import {
 } from "./canvasMath";
 
 const ZOOM_INTERPOLATION_RATE = 28;
-const ZOOM_SETTLE_DELAY_MS = 70;
+// How long the wheel must be still before a wheel zoom or pan counts as
+// over and the viewport is committed to React state (and so to the save).
+// Each commit re-renders the board, so mid-gesture pauses must not commit.
+const VIEWPORT_COMMIT_DELAY_MS = 200;
+// --canvas-zoom is inherited by every node under the canvas, so writing it
+// restyles the whole canvas (~9 ms for 14 tiles, measured). Mid zoom gesture
+// it's only rewritten once the zoom has moved this far from the written
+// value (screen-constant chrome is at most this far off for a moment); the
+// exact value is written as the zoom settles.
+const ZOOM_VAR_STEP = 0.04;
 // A real trackpad pinch (or Ctrl+trackpad-scroll, the common substitute on
 // laptops without pinch support) reports much smaller per-event deltas than
 // a two-finger pan does, so the previous sensitivity -- tuned for pan-sized
@@ -63,6 +72,9 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const zoomAnimationFrameRef = useRef(0);
   const zoomLastFrameTimeRef = useRef(0);
   const zoomCommitWhenSettledRef = useRef(false);
+  const zoomGestureActiveRef = useRef(false);
+  const writtenZoomRef = useRef(null);
+  const panFrameRef = useRef(0);
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
@@ -109,7 +121,18 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       contentElement.style.transform = getCanvasContentTransform(nextViewport);
       // For screen-constant tile chrome (e.g. a sticky's toolbar), which
       // divides by it in CSS instead of re-rendering on every zoom step.
-      contentElement.style.setProperty("--canvas-zoom", String(nextViewport.zoom));
+      const writtenZoom = writtenZoomRef.current;
+
+      if (
+        !zoomGestureActiveRef.current
+        || !writtenZoom
+        || Math.abs(nextViewport.zoom / writtenZoom - 1) >= ZOOM_VAR_STEP
+      ) {
+        if (writtenZoom !== nextViewport.zoom) {
+          contentElement.style.setProperty("--canvas-zoom", String(nextViewport.zoom));
+          writtenZoomRef.current = nextViewport.zoom;
+        }
+      }
     }
     notifyViewportListeners(nextViewport);
   }, [contentElement, gridElement, notifyViewportListeners]);
@@ -169,11 +192,22 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     zoomLastFrameTimeRef.current = 0;
   }, []);
 
+  const endZoomGesture = useCallback(() => {
+    zoomGestureActiveRef.current = false;
+
+    if (containerElement) {
+      delete containerElement.dataset.zooming;
+    }
+  }, [containerElement]);
+
   const finalizeAnimatedZoom = useCallback(() => {
     const pendingViewport = pendingViewportRef.current;
+    endZoomGesture();
 
     if (!pendingViewport) {
       zoomCommitWhenSettledRef.current = false;
+      // The gesture skipped small --canvas-zoom steps: land the exact one.
+      applyRenderedViewport(viewportRef.current);
       setIsZooming(false);
       return;
     }
@@ -182,7 +216,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     applyRenderedViewport(pendingViewport);
     commitPendingViewport();
     setIsZooming(false);
-  }, [applyRenderedViewport, commitPendingViewport, stopZoomAnimation]);
+  }, [applyRenderedViewport, commitPendingViewport, endZoomGesture, stopZoomAnimation]);
 
   const animateZoomFrame = useCallback((now) => {
     const targetViewport = targetViewportRef.current;
@@ -226,6 +260,13 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const markZoomActive = useCallback(() => {
     setIsZooming(true);
     zoomCommitWhenSettledRef.current = false;
+    zoomGestureActiveRef.current = true;
+
+    // A data attribute rather than a class: React owns the container's
+    // className and would drop a class added here on its next render.
+    if (containerElement) {
+      containerElement.dataset.zooming = "";
+    }
 
     if (wheelStopTimeoutRef.current) {
       window.clearTimeout(wheelStopTimeoutRef.current);
@@ -238,8 +279,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       if (!zoomAnimationFrameRef.current || areViewportTransformsClose(viewportRef.current, targetViewportRef.current)) {
         finalizeAnimatedZoom();
       }
-    }, ZOOM_SETTLE_DELAY_MS);
-  }, [finalizeAnimatedZoom]);
+    }, VIEWPORT_COMMIT_DELAY_MS);
+  }, [containerElement, finalizeAnimatedZoom]);
 
   useEffect(() => {
     const hasAnimatedViewportInFlight = Boolean(pendingViewportRef.current)
@@ -510,7 +551,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       wheelPanSettleTimeoutRef.current = window.setTimeout(() => {
         wheelPanSettleTimeoutRef.current = 0;
         commitPendingViewport();
-      }, ZOOM_SETTLE_DELAY_MS);
+      }, VIEWPORT_COMMIT_DELAY_MS);
     }
 
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -527,8 +568,16 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   ]);
 
   useEffect(() => {
-    function handlePointerMove(event) {
-      if (!panStateRef.current) {
+    // A pointer can report moves several times per frame: keep only the
+    // latest and apply it once per animation frame.
+    let pendingEvent = null;
+
+    function applyPendingPan() {
+      panFrameRef.current = 0;
+      const event = pendingEvent;
+      pendingEvent = null;
+
+      if (!event || !panStateRef.current) {
         return;
       }
 
@@ -546,9 +595,27 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       applyRenderedViewport(nextViewport);
     }
 
+    function handlePointerMove(event) {
+      if (!panStateRef.current) {
+        return;
+      }
+
+      pendingEvent = event;
+
+      if (!panFrameRef.current) {
+        panFrameRef.current = window.requestAnimationFrame(applyPendingPan);
+      }
+    }
+
     function stopPanning() {
       if (!panStateRef.current) {
         return;
+      }
+
+      // Land exactly where the pointer let go, not a frame behind it.
+      if (panFrameRef.current) {
+        window.cancelAnimationFrame(panFrameRef.current);
+        applyPendingPan();
       }
 
       const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -577,6 +644,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     window.addEventListener("blur", stopPanning);
 
     return () => {
+      window.cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = 0;
       window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", stopPanning, true);
       window.removeEventListener("pointercancel", stopPanning, true);
@@ -594,16 +663,22 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     stopZoomAnimation();
   }, [stopZoomAnimation]);
 
-  return {
+  const getViewportSnapshot = useCallback(() => viewportRef.current, []);
+  const zoomIn = useCallback(() => zoomByStep(1), [zoomByStep]);
+  const zoomOut = useCallback(() => zoomByStep(-1), [zoomByStep]);
+
+  // One object for as long as its parts are the same: many effects depend
+  // on `canvas`, and a fresh object each render re-ran (re-subscribed) all
+  // of them on every board render.
+  return useMemo(() => ({
     containerRef,
     gridRef,
     contentRef,
     isPanning,
     isZooming,
     viewport,
-    getViewportSnapshot: () => viewportRef.current,
+    getViewportSnapshot,
     getContainerRectSnapshot,
-    containerRect: containerRectRef.current,
     clientToCanvasPoint: toCanvasPoint,
     clientToWorldPoint: toWorldPoint,
     getViewportCenter,
@@ -612,9 +687,30 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     subscribeViewportTransform,
     centerOnWorldPoint,
     setZoom,
-    zoomIn: () => zoomByStep(1),
-    zoomOut: () => zoomByStep(-1),
+    zoomIn,
+    zoomOut,
     zoomToBounds,
     setViewportImmediate,
-  };
+  }), [
+    beginCanvasPan,
+    centerOnWorldPoint,
+    containerRef,
+    contentRef,
+    getContainerRectSnapshot,
+    getViewportCenter,
+    getViewportSnapshot,
+    getVisibleWorldRect,
+    gridRef,
+    isPanning,
+    isZooming,
+    setViewportImmediate,
+    setZoom,
+    subscribeViewportTransform,
+    toCanvasPoint,
+    toWorldPoint,
+    viewport,
+    zoomIn,
+    zoomOut,
+    zoomToBounds,
+  ]);
 }

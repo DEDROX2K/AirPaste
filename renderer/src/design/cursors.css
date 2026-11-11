@@ -31,10 +31,19 @@ select {
   cursor: var(--ap-cursor-pointer);
 }
 
-/* While tiles are dragged or the canvas is drag-panned (set by
-   CanvasWorkspaceView). Beats every other cursor rule, including the tether
-   tool's crosshair, for as long as the hand is closed. */
-body.ap-grabbing,
-body.ap-grabbing * {
+/* While the canvas is drag-panned: a full-window layer rendered by
+   CanvasWorkspaceView only for the length of the pan. Above everything, so
+   it beats every other cursor, including the tether tool's crosshair. */
+.canvas-pan-cursor-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  cursor: var(--ap-cursor-grabbing) !important;
+}
+
+/* A tile drag: on the dragged tile only (it stays under the pointer), not
+   on <body> -- a class there restyles every element on the page. */
+.card--dragging,
+.card--dragging * {
   cursor: var(--ap-cursor-grabbing) !important;
 }

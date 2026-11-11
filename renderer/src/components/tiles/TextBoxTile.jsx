@@ -1,6 +1,6 @@
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CanvasMotionContext } from "../../context/CanvasMotionContext";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { QUICK_TEXT_MIN_HEIGHT, QUICK_TEXT_MIN_WIDTH } from "../../lib/canvasText";
 import {
   TEXT_BOX_COLORS,
@@ -29,6 +29,10 @@ const RESIZE_HANDLES = [
   { key: "e", dirX: 1, dirY: 0 },
 ];
 const SIZE_EPSILON = 0.5;
+// Card id -> the last measure: what it was taken of (text, style, width)
+// and the size it settled on. Module-level so it outlives a tile being
+// culled out of view and mounted again.
+const measuredSizeByCardId = new Map();
 
 function clamp(value, minValue, maxValue) {
   return Math.max(minValue, Math.min(maxValue, value));
@@ -66,8 +70,6 @@ function getTextDecoration(style) {
 function TextBoxTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -80,7 +82,7 @@ function TextBoxTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { deleteExistingCard, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { deleteExistingCard, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const isMoving = useContext(CanvasMotionContext);
   const rootRef = useRef(null);
   const textRef = useRef(null);
@@ -149,6 +151,21 @@ function TextBoxTile({
       return;
     }
 
+    // Nothing that sizes the text changed since the last measure, and the
+    // card still has the size it gave: no layout read. Most renders are
+    // like that (selection, hover, a drop or a pan ending elsewhere).
+    const measureKey = `${displayText}\n${styleKey}\n${isAutoWidth ? "auto" : card.width}`;
+    const lastMeasure = measuredSizeByCardId.get(card.id);
+
+    if (
+      lastMeasure
+      && lastMeasure.key === measureKey
+      && lastMeasure.width === card.width
+      && lastMeasure.height === card.height
+    ) {
+      return;
+    }
+
     recordTextTileMeasurePass();
     const patch = {};
     // Same floors the card model enforces, or the two would fight forever.
@@ -164,6 +181,12 @@ function TextBoxTile({
         patch.width = measuredWidth;
       }
     }
+
+    measuredSizeByCardId.set(card.id, {
+      key: measureKey,
+      width: patch.width ?? card.width,
+      height: patch.height ?? card.height,
+    });
 
     if (Object.keys(patch).length > 0) {
       recordTextTileSizeWrite();
@@ -349,7 +372,6 @@ function TextBoxTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--text-box"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

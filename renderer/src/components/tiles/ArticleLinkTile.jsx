@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
@@ -27,8 +27,6 @@ function stopTilePointer(event) {
 function ArticleLinkTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -38,7 +36,7 @@ function ArticleLinkTile({
   renderHint,
   canvasToolMode,
 }) {
-  const { folderPath } = useAppContext();
+  const { folderPath } = useTileAppContext();
   const [isReaderOpen, setIsReaderOpen] = useState(false);
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const article = card.article ?? {};
@@ -76,7 +74,6 @@ function ArticleLinkTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--article"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

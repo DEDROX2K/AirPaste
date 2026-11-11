@@ -34,6 +34,21 @@ function escapeAttribute(value) {
     : String(value).replace(/["\\]/g, "\\$&");
 }
 
+// Picks a node up for a drag where it is on screen. The drag moves the saved
+// spot (restX/Y + the drag offset), so remember how far the tile is from the
+// saved spot itself (not from the already-dragged one).
+function holdNode(world, node) {
+  node.holdX = node.x - node.restX;
+  node.holdY = node.y - node.restY;
+  node.mode = NODE_MODE_HELD;
+  node.asleep = false;
+  node.vx = 0;
+  node.vy = 0;
+  node.samples = [];
+  node.dirty = true;
+  disturb(world, node);
+}
+
 function setLine(element, x1, y1, x2, y2) {
   element.setAttribute("x1", x1.toFixed(1));
   element.setAttribute("y1", y1.toFixed(1));
@@ -80,7 +95,9 @@ export function useTetherSystem({
   tethers,
   resetKey,
   draggingTileIds = EMPTY_LIST,
-  dragDelta = null,
+  // The drag motion store (systems/interactions/dragMotion.js): the live
+  // drag offset, read here rather than taken as a per-frame prop.
+  dragMotion = null,
   contentRef,
   svgRef,
   clientToWorldPoint,
@@ -411,6 +428,7 @@ export function useTetherSystem({
     const world = worldRef.current;
     const isInitialized = initializedRef.current;
     const isRunning = loopRef.current.running;
+    const dragDelta = dragMotion?.get()?.delta ?? null;
     const draggingSet = new Set(draggingTileIds);
     const hasDragDelta = Boolean(dragDelta && (dragDelta.x !== 0 || dragDelta.y !== 0));
     const seenIds = new Set();
@@ -433,21 +451,13 @@ export function useTetherSystem({
 
       node.w = entry.width;
       node.h = entry.height;
+      node.restX = entry.x + entry.width / 2;
+      node.restY = entry.y + entry.height / 2;
 
       if (isHeld) {
         if (node.mode !== NODE_MODE_HELD) {
-          // Picked up mid-flight: keep it where it is on screen. The drag
-          // moves the saved spot, so remember how far the tile is from the
-          // saved spot itself (not from the already-dragged one).
-          node.holdX = node.x - (baseX - dragDelta.x);
-          node.holdY = node.y - (baseY - dragDelta.y);
-          node.mode = NODE_MODE_HELD;
-          node.asleep = false;
-          node.vx = 0;
-          node.vy = 0;
-          node.samples = [];
-          node.dirty = true;
-          disturb(world, node);
+          // Picked up mid-flight: keep it where it is on screen.
+          holdNode(world, node);
         }
 
         node.x = baseX + node.holdX;
@@ -595,7 +605,51 @@ export function useTetherSystem({
     if (shouldWake || (isRunning && isActive())) {
       wake();
     }
-  }, [entries, tethers, heldKey, dragDelta, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [entries, tethers, heldKey, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Drag frames: only the held nodes follow the drag, straight from the
+  // store, without rerunning the sync above over every tile. An untethered
+  // tile needs nothing more (its own transform carries the drag); a
+  // tethered one wakes the loop, which redraws its group and links.
+  useEffect(() => {
+    if (!dragMotion) {
+      return undefined;
+    }
+
+    return dragMotion.subscribe((drag) => {
+      if (!drag || (drag.delta.x === 0 && drag.delta.y === 0)) {
+        return;
+      }
+
+      const world = worldRef.current;
+      let shouldWake = false;
+
+      drag.tileIds.forEach((tileId) => {
+        const node = world.nodeById.get(tileId);
+
+        if (!node || node.restX === undefined) {
+          return;
+        }
+
+        if (node.mode !== NODE_MODE_HELD) {
+          holdNode(world, node);
+        }
+
+        node.baseX = node.restX + drag.delta.x;
+        node.baseY = node.restY + drag.delta.y;
+        node.x = node.baseX + node.holdX;
+        node.y = node.baseY + node.holdY;
+
+        if (node.deg > 0) {
+          shouldWake = true;
+        }
+      });
+
+      if (shouldWake) {
+        wake();
+      }
+    });
+  }, [dragMotion, wake]);
 
   // ---- Hover slow-mo
   const setHotLinkId = useCallback((linkId) => {

@@ -1,5 +1,5 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useToast } from "../../hooks/useToast";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -135,8 +135,6 @@ function LanguageRibbon({ segments, emptyNote }) {
 function GitHubRepoTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -146,7 +144,7 @@ function GitHubRepoTile({
   onPressStart,
   renderHint,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const { toast } = useToast();
   const surfaceRef = useRef(null);
   const repo = useMemo(() => normalizeGitHubRepoData(card.repo, card.url), [card.repo, card.url]);
@@ -182,26 +180,53 @@ function GitHubRepoTile({
   // what selection, hit-testing and layout use, so write the rendered height
   // back. offsetHeight is layout size, unaffected by canvas zoom. Skipped
   // in a rack's static preview, which is drawn at another size.
-  useLayoutEffect(() => {
+  //
+  // Measured by a ResizeObserver, i.e. only when the rendered size really
+  // changes: it used to be read after every render, a forced layout on every
+  // frame the tile re-rendered. The last measurement is kept, so a
+  // card.height changed from outside (undo) is put right without a read.
+  const cardRef = useRef(card);
+  cardRef.current = card;
+  const measuredHeightRef = useRef(null);
+  const isStaticPreview = renderHint?.isStaticPreview === true;
+
+  useEffect(() => {
     const surface = surfaceRef.current;
 
-    if (!surface || renderHint?.isStaticPreview === true) {
+    if (!surface || isStaticPreview || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => {
+      const current = cardRef.current;
+      const measuredHeight = Math.ceil(surface.offsetHeight);
+      const currentHeight = Number.isFinite(current.height) ? current.height : GITHUB_REPO_CARD_SIZE.height;
+      measuredHeightRef.current = measuredHeight;
+
+      if (measuredHeight > 0 && Math.abs(measuredHeight - currentHeight) > 1) {
+        updateExistingCard(current.id, { height: measuredHeight });
+      }
+    });
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, [isStaticPreview, updateExistingCard]);
+
+  useEffect(() => {
+    const measuredHeight = measuredHeightRef.current;
+
+    if (isStaticPreview || !measuredHeight || !Number.isFinite(card.height)) {
       return;
     }
 
-    const measuredHeight = Math.ceil(surface.offsetHeight);
-    const currentHeight = Number.isFinite(card.height) ? card.height : GITHUB_REPO_CARD_SIZE.height;
-
-    if (measuredHeight > 0 && Math.abs(measuredHeight - currentHeight) > 1) {
+    if (Math.abs(measuredHeight - card.height) > 1) {
       updateExistingCard(card.id, { height: measuredHeight });
     }
-  });
+  }, [card.height, card.id, isStaticPreview, updateExistingCard]);
 
   return (
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--github-repo"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

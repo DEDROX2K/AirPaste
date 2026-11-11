@@ -34,8 +34,6 @@ function computeProgressPercent(value, max) {
 function ProgressTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -87,7 +85,6 @@ function ProgressTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--progress"
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}

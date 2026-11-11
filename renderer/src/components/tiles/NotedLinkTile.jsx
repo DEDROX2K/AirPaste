@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useToast } from "../../hooks/useToast";
 import { desktop } from "../../lib/desktop";
 import { LINK_CONTENT_KIND_IMAGE } from "../../lib/workspace";
@@ -37,8 +37,6 @@ function readBody(element) {
 function NotedLinkTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -49,7 +47,7 @@ function NotedLinkTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { folderPath, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const note = normalizeLinkNote(card.note) ?? { title: "", body: "", mediaWidth: card.width, mediaHeight: card.height };
   // The image's width inside the card: the card is the image plus padding
   // on three sides.
@@ -309,7 +307,6 @@ function NotedLinkTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--noted-link"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

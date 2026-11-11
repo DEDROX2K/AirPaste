@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { renderCodeSyntax } from "../../lib/renderCodeSyntax";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
@@ -51,8 +51,6 @@ async function copyTextToClipboard(text) {
 function CodeSnippetTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -61,7 +59,7 @@ function CodeSnippetTile({
   onPressStart,
   renderHint,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const [isEditing, setIsEditing] = useState(false);
   const surfaceGesture = useTileGesture({
     card,
@@ -111,7 +109,6 @@ function CodeSnippetTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--code"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

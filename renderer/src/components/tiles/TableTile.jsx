@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
 
@@ -49,8 +49,6 @@ function parseTsv(text) {
 function TableTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -59,7 +57,7 @@ function TableTile({
   onPressStart,
   renderHint,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const inputRefs = useRef(new Map());
   const pendingFocusRef = useRef(null);
   const titleInputRef = useRef(null);
@@ -279,7 +277,6 @@ function TableTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--table"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

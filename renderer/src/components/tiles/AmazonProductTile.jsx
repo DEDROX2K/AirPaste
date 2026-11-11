@@ -1,6 +1,6 @@
 import { memo, useEffect } from "react";
 import { useToast } from "../../hooks/useToast";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { recordPreviewTierSelection } from "../../lib/perf";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
@@ -76,8 +76,6 @@ function getDomainLabel(card) {
 function AmazonProductTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -88,7 +86,7 @@ function AmazonProductTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { folderPath } = useAppContext();
+  const { folderPath } = useTileAppContext();
   const hasLinkUrl = typeof card.url === "string" && card.url.trim().length > 0;
   const surfaceGesture = useTileGesture({
     card,
@@ -159,7 +157,6 @@ function AmazonProductTile({
       card={card}
       renderHint={renderHint}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--amazon-product"
       actionStrip={actionStrip}
       onContextMenu={onContextMenu}

@@ -12,7 +12,6 @@ const GRID_GAP = 16;
 const GRID_PADDING_X = 24;
 const GRID_PADDING_Y = 20;
 const GRID_CARD_HEIGHT_FALLBACK = 320;
-const EMPTY_SET = new Set();
 const EMPTY_ARRAY = [];
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;
@@ -503,8 +502,6 @@ function MasonryGrid({
             <Card
               card={tile}
               tileMeta={tileMeta}
-              dragVisualDelta={null}
-              dragVisualTileIdSet={EMPTY_SET}
               childTiles={EMPTY_ARRAY}
               rackState={null}
               performanceMode={false}

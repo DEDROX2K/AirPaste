@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
 
@@ -25,8 +25,6 @@ function normalizeNumericInput(value, fallback) {
 function CounterTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -34,7 +32,7 @@ function CounterTile({
   onFocusOut,
   onPressStart,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const surfaceGesture = useTileGesture({
     card,
     onDragStart: onBeginDrag,
@@ -63,7 +61,6 @@ function CounterTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--counter"
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}

@@ -1,5 +1,6 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { lazy, memo, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CanvasDragMotionContext } from "../../context/CanvasDragMotionContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
@@ -20,6 +21,8 @@ const PaperNoteFullscreenEditor = lazy(() => import("../PaperNoteFullscreenEdito
 const PAGE_CONTENT_CAPACITY_PX = 220;
 const MAX_STACK_PAGES = 3;
 const TRAIL_LAG_FACTORS = [0.22, 0.13];
+// A ghost this close to the front page (px) has caught up; the loop sleeps.
+const TRAIL_SETTLE_PX = 0.1;
 
 // Extra pages sit squarely behind the front one, each a little lower and
 // smaller, like stacked iOS notifications -- no scatter or rotation.
@@ -39,11 +42,20 @@ const GHOST_STYLES = [1, 2].map((depth) => ({
 // same amount at the same moment, so the *sum* never jumps), but a lagged
 // value chasing the offset in isolation would see that reset as a real,
 // sudden change and visibly snap.
-function useTrailingGhostRefs(frontX, frontY, pageCount) {
+//
+// The live offset comes from the drag motion store, not a prop, so a drag
+// doesn't re-render the tile. The loop only runs while a ghost is still
+// catching up: a drag frame or a committed move wakes it, and it sleeps
+// again once every ghost has settled (it used to write styles every frame,
+// forever, even with nothing moving).
+function useTrailingGhostRefs(card, pageCount) {
   const refs = useRef([null, null]).current;
-  const laggedRef = useRef([{ x: frontX, y: frontY }, { x: frontX, y: frontY }]);
-  const targetRef = useRef({ x: frontX, y: frontY });
-  targetRef.current = { x: frontX, y: frontY };
+  const dragMotion = useContext(CanvasDragMotionContext);
+  const baseRef = useRef({ x: card.x, y: card.y });
+  const dragDeltaRef = useRef(null);
+  const laggedRef = useRef(null);
+  const wakeRef = useRef(null);
+  baseRef.current = { x: card.x, y: card.y };
 
   useEffect(() => {
     if (pageCount < 2) {
@@ -51,15 +63,35 @@ function useTrailingGhostRefs(frontX, frontY, pageCount) {
     }
 
     let frameId = 0;
+    const getTarget = () => ({
+      x: baseRef.current.x + (dragDeltaRef.current?.x ?? 0),
+      y: baseRef.current.y + (dragDeltaRef.current?.y ?? 0),
+    });
+
+    dragDeltaRef.current = dragMotion?.getTileDelta(card.id) ?? null;
+
+    if (!laggedRef.current) {
+      const target = getTarget();
+      laggedRef.current = [{ ...target }, { ...target }];
+    }
 
     function tick() {
-      const target = targetRef.current;
+      frameId = 0;
+      const target = getTarget();
+      let settled = true;
 
       for (let index = 0; index < 2; index += 1) {
         const lagged = laggedRef.current[index];
         const factor = TRAIL_LAG_FACTORS[index];
         lagged.x += (target.x - lagged.x) * factor;
         lagged.y += (target.y - lagged.y) * factor;
+
+        if (Math.abs(target.x - lagged.x) < TRAIL_SETTLE_PX && Math.abs(target.y - lagged.y) < TRAIL_SETTLE_PX) {
+          lagged.x = target.x;
+          lagged.y = target.y;
+        } else {
+          settled = false;
+        }
 
         const node = refs[index];
         if (node) {
@@ -68,12 +100,35 @@ function useTrailingGhostRefs(frontX, frontY, pageCount) {
         }
       }
 
-      frameId = requestAnimationFrame(tick);
+      if (!settled) {
+        frameId = requestAnimationFrame(tick);
+      }
     }
 
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [pageCount, refs]);
+    function wake() {
+      if (!frameId) {
+        frameId = requestAnimationFrame(tick);
+      }
+    }
+
+    wakeRef.current = wake;
+    wake();
+    const unsubscribe = dragMotion?.subscribeTile(card.id, (delta) => {
+      dragDeltaRef.current = delta;
+      wake();
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      unsubscribe?.();
+      wakeRef.current = null;
+    };
+  }, [card.id, dragMotion, pageCount, refs]);
+
+  // A committed move (the drop, undo, a nudge) moves the target too.
+  useLayoutEffect(() => {
+    wakeRef.current?.();
+  }, [card.x, card.y]);
 
   return refs;
 }
@@ -81,8 +136,6 @@ function useTrailingGhostRefs(frontX, frontY, pageCount) {
 function PaperNoteTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -92,7 +145,7 @@ function PaperNoteTile({
   renderHint,
   canvasToolMode,
 }) {
-  const { updateExistingCard, setCanvasInteractionState } = useAppContext();
+  const { updateExistingCard, setCanvasInteractionState } = useTileAppContext();
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
   const [fullscreen, setFullscreen] = useState(null);
   const [pageCount, setPageCount] = useState(1);
@@ -151,16 +204,12 @@ function PaperNoteTile({
     onPressStart,
   });
 
-  const dragDelta = dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null;
-  const frontAbsoluteX = card.x + (dragDelta ? dragDelta.x : 0);
-  const frontAbsoluteY = card.y + (dragDelta ? dragDelta.y : 0);
-  const trailRefs = useTrailingGhostRefs(frontAbsoluteX, frontAbsoluteY, pageCount);
+  const trailRefs = useTrailingGhostRefs(card, pageCount);
 
   return (
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--paper-note"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

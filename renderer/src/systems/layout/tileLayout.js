@@ -289,13 +289,15 @@ export function getTileLayer(orderIndex, {
   return layer;
 }
 
+// zIndex null leaves --tile-z out: canvas tiles inherit it from their
+// wrapper instead (see useTileLayoutSystem's tileLayerById).
 export function getTileStyleVars(tile, zIndex, x = tile.x, y = tile.y, width = tile.width, height = tile.height, extraVars = null) {
   return {
     "--tile-width": `${width}px`,
     "--tile-height": `${height}px`,
     "--tile-x": `${x}px`,
     "--tile-y": `${y}px`,
-    "--tile-z": String(zIndex),
+    ...(zIndex === null ? null : { "--tile-z": String(zIndex) }),
     ...(extraVars ?? {}),
   };
 }

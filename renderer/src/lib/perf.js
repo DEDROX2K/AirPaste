@@ -49,6 +49,15 @@ function getPerfStore() {
         measurePassCount: 0,
         sizeWriteCount: 0,
       },
+      // Dev only (recordTileRender): every render of a tile, whatever caused
+      // it -- props, its own state or a context -- and how many of them
+      // happened while the canvas was moving.
+      tileRenders: {
+        count: 0,
+        movingCount: 0,
+        byCard: new Map(),
+      },
+      isMoving: false,
     };
   }
 
@@ -81,6 +90,38 @@ export function recordCardRender(cardId, cardType) {
 
   if (isPerfDebugLoggingEnabled() && (nextCount === 1 || nextCount % 25 === 0)) {
     console.debug(`[perf] Card render ${cardType}:${cardId} count=${nextCount}`);
+  }
+}
+
+// Whether the canvas is mid drag / pan / zoom, so tile renders can be
+// counted against it (the PERF panel's "Move tile renders").
+export function setPerfMotionActive(isMoving) {
+  const perfStore = getPerfStore();
+
+  if (perfStore) {
+    perfStore.isMoving = isMoving === true;
+  }
+}
+
+// Called from TileShell, which renders whenever its tile does. Dev builds
+// only: it runs on every tile render.
+export function recordTileRender(cardId) {
+  if (!import.meta.env?.DEV) {
+    return;
+  }
+
+  const perfStore = getPerfStore();
+
+  if (!perfStore || !cardId) {
+    return;
+  }
+
+  const tileRenders = perfStore.tileRenders;
+  tileRenders.count += 1;
+  tileRenders.byCard.set(cardId, (tileRenders.byCard.get(cardId) ?? 0) + 1);
+
+  if (perfStore.isMoving) {
+    tileRenders.movingCount += 1;
   }
 }
 

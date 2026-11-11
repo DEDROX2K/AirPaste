@@ -2046,6 +2046,18 @@ export function AppProvider({ children }) {
     return () => clearTimeout(saveTimeoutRef.current);
   }, [canvasInteractionVersion, flushCanvasSave, folderPath, workspaceHistory.present]);
 
+  // Leaving the window (another app, the OS) saves at once instead of
+  // waiting out the debounce. A drag or pan that the blur cuts short commits
+  // first and is saved by the next autosave as usual.
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      void flushAllPendingCanvasSaves().catch(() => {});
+    };
+
+    window.addEventListener("blur", handleWindowBlur);
+    return () => window.removeEventListener("blur", handleWindowBlur);
+  }, [flushAllPendingCanvasSaves]);
+
   const value = useMemo(() => ({
     runInPageScope,
     activeDome,

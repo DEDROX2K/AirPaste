@@ -51,7 +51,9 @@ function clearCard(card) {
 export function useTileFeel({
   entries,
   draggingTileIds = EMPTY_LIST,
-  dragDelta = null,
+  // The drag motion store (systems/interactions/dragMotion.js); the live
+  // offset is read from it, not passed in on every drag frame.
+  dragMotion = null,
   grabPoint = null,
   contentRef,
   getZoom,
@@ -69,11 +71,11 @@ export function useTileFeel({
   const loopRef = useRef({ running: false, rafId: 0, last: 0 });
   const velocityRef = useRef({ vx: 0, vy: 0, prev: null, t: 0 });
   const entryByIdRef = useRef(new Map());
-  const inputRef = useRef({ draggingTileIds, dragDelta, grabPoint });
+  const inputRef = useRef({ draggingTileIds, dragMotion, grabPoint });
   const reduceMotionRef = useRef(prefersReducedMotion());
   const getZoomRef = useRef(getZoom);
 
-  inputRef.current = { draggingTileIds, dragDelta, grabPoint };
+  inputRef.current = { draggingTileIds, dragMotion, grabPoint };
   getZoomRef.current = getZoom;
 
   const getCard = (feel) => {
@@ -92,7 +94,8 @@ export function useTileFeel({
     const dt = Math.min(MAX_FRAME_S, Math.max(0.001, (timestamp - loop.last) / 1000) || 0.016);
     loop.last = timestamp;
 
-    const { draggingTileIds: heldIds, dragDelta: delta, grabPoint: grab } = inputRef.current;
+    const { draggingTileIds: heldIds, dragMotion: motion, grabPoint: grab } = inputRef.current;
+    const delta = motion?.get()?.delta ?? null;
     const feels = feelsRef.current;
     const entryById = entryByIdRef.current;
     const zoom = getZoomRef.current?.() || 1;
@@ -325,41 +328,49 @@ export function useTileFeel({
     lifecycle.observer.observe(content, { childList: true, subtree: true });
   });
 
-  // Track the pointer's velocity from the drag delta, and wake the loop.
+  // Track the pointer's velocity from the drag delta, and wake the loop:
+  // when a drag starts or ends, then on every drag frame from the store.
   useLayoutEffect(() => {
     if (reduceMotionRef.current) {
-      return;
+      return undefined;
     }
 
-    const velocity = velocityRef.current;
-    const now = performance.now();
-    draggingTileIds.forEach((tileId) => lifecycleRef.current.recentlyHeld.set(tileId, now));
+    const track = () => {
+      const { draggingTileIds: heldIds } = inputRef.current;
+      const dragDelta = dragMotion?.get()?.delta ?? null;
+      const velocity = velocityRef.current;
+      const now = performance.now();
+      heldIds.forEach((tileId) => lifecycleRef.current.recentlyHeld.set(tileId, now));
 
-    if (!dragDelta || draggingTileIds.length === 0) {
-      velocity.vx = 0;
-      velocity.vy = 0;
-      velocity.prev = null;
-    } else {
-      if (velocity.prev) {
-        const seconds = Math.max(0.004, (now - velocity.prev.t) / 1000);
-        const rawX = (dragDelta.x - velocity.prev.x) / seconds;
-        const rawY = (dragDelta.y - velocity.prev.y) / seconds;
-        velocity.vx += (rawX - velocity.vx) * 0.45;
-        velocity.vy += (rawY - velocity.vy) * 0.45;
+      if (!dragDelta || heldIds.length === 0) {
+        velocity.vx = 0;
+        velocity.vy = 0;
+        velocity.prev = null;
+      } else {
+        if (velocity.prev) {
+          const seconds = Math.max(0.004, (now - velocity.prev.t) / 1000);
+          const rawX = (dragDelta.x - velocity.prev.x) / seconds;
+          const rawY = (dragDelta.y - velocity.prev.y) / seconds;
+          velocity.vx += (rawX - velocity.vx) * 0.45;
+          velocity.vy += (rawY - velocity.vy) * 0.45;
+        }
+
+        velocity.prev = { x: dragDelta.x, y: dragDelta.y, t: now };
+        velocity.t = now;
       }
 
-      velocity.prev = { x: dragDelta.x, y: dragDelta.y, t: now };
-      velocity.t = now;
-    }
+      const loop = loopRef.current;
 
-    const loop = loopRef.current;
+      if (!loop.running && heldIds.length > 0 && dragDelta) {
+        loop.running = true;
+        loop.last = now;
+        loop.rafId = requestAnimationFrame(frameRef.current);
+      }
+    };
 
-    if (!loop.running && draggingTileIds.length > 0 && dragDelta) {
-      loop.running = true;
-      loop.last = now;
-      loop.rafId = requestAnimationFrame(frameRef.current);
-    }
-  }, [dragDelta, draggingTileIds]);
+    track();
+    return dragMotion?.subscribe(track);
+  }, [dragMotion, draggingTileIds]);
 
   useEffect(() => () => {
     lifecycleRef.current.observer?.disconnect();

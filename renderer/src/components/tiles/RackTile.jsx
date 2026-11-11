@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { RACK_PREVIEW_HEIGHT, RACK_PREVIEW_WIDTH, getRackSize } from "../../lib/workspace";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -279,8 +279,6 @@ function RackTile({
   card,
   tileMeta,
   childTiles = EMPTY_CHILD_TILES,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -291,7 +289,7 @@ function RackTile({
   renderHint,
   renderTilePreview,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const [activeTileId, setActiveTileId] = useState(null);
   const leaveTimerRef = useRef(0);
   const plastic = RACK_PLASTICS[normalizeRackPlasticColor(card.plasticColor)];
@@ -337,7 +335,6 @@ function RackTile({
       card={card}
       renderHint={renderHint}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--rack"
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}

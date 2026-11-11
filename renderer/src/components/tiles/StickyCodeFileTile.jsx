@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
@@ -143,8 +143,6 @@ function getFileCardName(card) {
 function StickyCodeFileTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -156,7 +154,7 @@ function StickyCodeFileTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { folderPath, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const { toast } = useToast();
   const fileLanguageId = getFileCardCodeLanguageId(card);
   const isFileCard = fileLanguageId !== null;
@@ -426,7 +424,6 @@ function StickyCodeFileTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--code-file-sticky"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

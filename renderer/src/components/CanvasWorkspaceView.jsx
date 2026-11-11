@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
 import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, SplitColumns, Tether } from "./ui/icons";
@@ -12,7 +12,9 @@ import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
 import { useCanvasPane } from "../context/CanvasPaneContext";
 import { moveTilesBetweenPages, movePageTilesBy } from "../systems/canvas/splitView";
+import { CanvasDragMotionContext } from "../context/CanvasDragMotionContext";
 import { CanvasMotionContext } from "../context/CanvasMotionContext";
+import { TileAppContext } from "../context/TileAppContext";
 import { useLog } from "../hooks/useLog";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useToast } from "../hooks/useToast";
@@ -58,6 +60,7 @@ import { useCanvasInteractionSystem } from "../systems/interactions/useCanvasInt
 import { buildRadialMenuActions } from "../systems/interactions/radialMenuActions";
 import { useCanvasDropImport } from "../systems/import/useCanvasDropImport";
 import { useTileLayoutSystem } from "../systems/layout/useTileLayoutSystem";
+import { rectsIntersect } from "../systems/layout/tileLayout";
 import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
   DRAWING_TOOL_MODE_HAND,
@@ -81,6 +84,7 @@ import {
   readPointerMoveStats,
   recordBoardRender,
   recordDerivedMetric,
+  setPerfMotionActive,
   setPerfSummary,
 } from "../lib/perf";
 import { recordStickerDebug } from "../lib/stickerDebug";
@@ -288,6 +292,22 @@ const PERF_CLICK_SLOP_PX = 4;
 const PERF_WARP_MS = 180;
 const PERF_CHART_WIDTH = 176;
 const PERF_CHART_HEIGHT = 56;
+
+// World-space margin kept around the view when culling tiles, so tiles are
+// already there as they come into view. One margin, moving or not: it used
+// to widen while the canvas moved and narrow at rest, and that mounted a
+// whole ring of tiles as every gesture began and unmounted it as it ended
+// -- the slowest frames of a pan or zoom (and, before the drag stopped
+// counting as moving, of a drag and its drop).
+function getCullingOverscan(zoom) {
+  return Math.max(280, 440 / Math.max(0.2, zoom));
+}
+
+// The pan cursor layer is portalled, so React would bubble its events up to
+// the board's own handlers; it only exists to show the cursor.
+function stopPanCursorLayerEvent(event) {
+  event.stopPropagation();
+}
 
 function roundMetric(value, digits = 1) {
   if (!Number.isFinite(value)) {
@@ -739,6 +759,7 @@ function CanvasPerformanceOverlay({
     textTileMovingRenderCount: 0,
     textTileMeasurePassCount: 0,
     textTileSizeWriteCount: 0,
+    tileMovingRenderCount: 0,
     fpsHistory: [],
     frameMsHistory: [],
   });
@@ -786,6 +807,7 @@ function CanvasPerformanceOverlay({
           textTileMovingRenderCount: textTiles?.movingRenderCount ?? 0,
           textTileMeasurePassCount: textTiles?.measurePassCount ?? 0,
           textTileSizeWriteCount: textTiles?.sizeWriteCount ?? 0,
+          tileMovingRenderCount: perfStore?.tileRenders?.movingCount ?? 0,
           fpsHistory: [...currentSnapshot.fpsHistory, fps].slice(-PERF_HISTORY_LIMIT),
           frameMsHistory: [...currentSnapshot.frameMsHistory, averageFrameMs].slice(-PERF_HISTORY_LIMIT),
         }));
@@ -885,6 +907,7 @@ function CanvasPerformanceOverlay({
     `Pointer max: ${roundMetric(snapshot.pointerMaxMs)} ms`,
     `Renders: ${snapshot.boardRenderCount}`,
     `Move renders: ${snapshot.boardMovingRenderCount}`,
+    `Move tile renders: ${snapshot.tileMovingRenderCount}`,
     `Save: ${roundMetric(snapshot.latestSaveMs)} ms`,
     `Serialize: ${roundMetric(snapshot.latestSerializeMs)} ms`,
     `Commit: ${roundMetric(snapshot.latestCommitMs)} ms`,
@@ -911,6 +934,7 @@ function CanvasPerformanceOverlay({
     snapshot.textTileMovingRenderCount,
     snapshot.textTileRenderCount,
     snapshot.textTileSizeWriteCount,
+    snapshot.tileMovingRenderCount,
     snapshot.latestSaveMs,
     snapshot.latestSerializeMs,
     snapshot.pointerAvgMs,
@@ -1106,6 +1130,12 @@ function CanvasPerformanceOverlay({
           <span className="canvas-perf-overlay__label">Move renders</span>
           <span className="canvas-perf-overlay__value">{snapshot.boardMovingRenderCount}</span>
         </div>
+        {import.meta.env.DEV ? (
+          <div className="canvas-perf-overlay__row">
+            <span className="canvas-perf-overlay__label">Move tile renders</span>
+            <span className="canvas-perf-overlay__value">{snapshot.tileMovingRenderCount}</span>
+          </div>
+        ) : null}
         <div className="canvas-perf-overlay__row">
           <span className="canvas-perf-overlay__label">Text measures</span>
           <span className="canvas-perf-overlay__value">{snapshot.textTileMeasurePassCount}</span>
@@ -1182,6 +1212,13 @@ export default function CanvasWorkspaceView() {
     updateExistingCard,
     updateExistingCards,
   } = useAppContext();
+  const tileAppContext = useMemo(() => ({
+    currentEditor,
+    deleteExistingCard,
+    folderPath,
+    setCanvasInteractionState,
+    updateExistingCard,
+  }), [currentEditor, deleteExistingCard, folderPath, setCanvasInteractionState, updateExistingCard]);
   const { log } = useLog();
   const { toast } = useToast();
   const pane = useCanvasPane();
@@ -2055,29 +2092,10 @@ export default function CanvasWorkspaceView() {
       setTextBoxEditorState(null);
     }
   }, [textBoxEditorState, tileById]);
-  const draggingTileIdSet = useMemo(() => {
-    const start = typeof performance !== "undefined" ? performance.now() : Date.now();
-    const nextDraggingTileIdSet = new Set(interactions.draggingTileIds);
-    const end = typeof performance !== "undefined" ? performance.now() : Date.now();
-    recordDerivedMetric("board:draggingTileIdSet", end - start, {
-      draggingCount: interactions.draggingTileIds.length,
-    });
-    return nextDraggingTileIdSet;
-  }, [interactions.draggingTileIds]);
   const isCanvasMoving = cameraIsMoving || interactions.draggingTileIds.length > 0;
-  // Closed-hand cursor while tiles are dragged or the view is drag-panned
-  // (middle button or hand tool). On <body>, so it holds when the pointer
-  // crosses the dock or the pages panel mid-drag; `:active` alone missed the
-  // middle button and lost out to child elements' own cursors.
-  const isGrabbing = canvas.isPanning || interactions.draggingTileIds.length > 0;
-  useEffect(() => {
-    if (!isGrabbing) {
-      return undefined;
-    }
-    document.body.classList.add("ap-grabbing");
-    return () => document.body.classList.remove("ap-grabbing");
-  }, [isGrabbing]);
   const liveViewport = canvas.getViewportSnapshot();
+  // What the last render culled to, read by the motion tick below.
+  const culledTilesRef = useRef(null);
 
   useEffect(() => {
     if (isGridMode) {
@@ -2087,18 +2105,48 @@ export default function CanvasWorkspaceView() {
     let rafId = 0;
     let lastSampleTime = 0;
 
-    if (isCanvasMoving) {
+    // Whether culling at the current viewport would show a different set
+    // of tiles than the last render did. Only then is the board re-rendered:
+    // a pan that keeps the same tiles in view costs no React work at all.
+    const hasCulledSetChanged = () => {
+      const culled = culledTilesRef.current;
+      const rect = culled?.getVisibleWorldRect(getCullingOverscan(culled.getViewport().zoom));
+
+      if (!culled || !rect) {
+        return true;
+      }
+
+      let visibleCount = 0;
+
+      for (const entry of culled.entries) {
+        if (culled.draggingTileIdSet.has(entry.tile.id) || rectsIntersect(rect, entry.rect)) {
+          if (!culled.visibleTileIdSet.has(entry.tile.id)) {
+            return true;
+          }
+
+          visibleCount += 1;
+        }
+      }
+
+      return visibleCount !== culled.visibleTileIdSet.size;
+    };
+
+    if (cameraIsMoving) {
       const tick = (now) => {
         if (now - lastSampleTime >= 120) {
           lastSampleTime = now;
-          setCullingTick((currentTick) => currentTick + 1);
+
+          if (hasCulledSetChanged()) {
+            setCullingTick((currentTick) => currentTick + 1);
+          }
         }
 
         rafId = window.requestAnimationFrame(tick);
       };
 
       rafId = window.requestAnimationFrame(tick);
-    } else {
+    } else if (hasCulledSetChanged()) {
+      // The view stopped between two samples: catch the last stretch.
       setCullingTick((currentTick) => currentTick + 1);
     }
 
@@ -2107,7 +2155,11 @@ export default function CanvasWorkspaceView() {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [isCanvasMoving, isGridMode]);
+  }, [cameraIsMoving, isGridMode]);
+
+  useEffect(() => {
+    setPerfMotionActive(isCanvasMoving);
+  }, [isCanvasMoving]);
 
   useEffect(() => {
     setCanvasInteractionState?.(isCanvasMoving);
@@ -2121,14 +2173,11 @@ export default function CanvasWorkspaceView() {
       return null;
     }
 
-    const zoom = Math.max(0.2, liveViewport.zoom);
-    const overscan = isCanvasMoving
-      ? Math.max(280, 440 / zoom)
-      : Math.max(160, 220 / zoom);
+    const overscan = getCullingOverscan(liveViewport.zoom);
     const cullingSampleOffset = cullingTick < 0 ? 1 : 0;
 
     return canvas.getVisibleWorldRect(overscan + cullingSampleOffset);
-  }, [canvas, cullingTick, isCanvasMoving, isGridMode, liveViewport.zoom]);
+  }, [canvas, cullingTick, isGridMode, liveViewport.zoom]);
 
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
@@ -2139,9 +2188,18 @@ export default function CanvasWorkspaceView() {
     draggingTileIds: interactions.draggingTileIds,
     visibleWorldRect,
   });
-  // Only the tiles actually being dragged move: a rack's tiles live inside
-  // the rack, so dragging it never drags (or selects) any other tile.
-  const dragVisualTileIdSet = draggingTileIdSet;
+  const visibleTileIdSet = useMemo(() => new Set(layout.rootTiles.map((tile) => tile.id)), [layout.rootTiles]);
+  // Written after commit, not during render: a culling transition render
+  // can be thrown away, and the tick must compare against what is on screen.
+  useLayoutEffect(() => {
+    culledTilesRef.current = {
+      entries: layout.canvasEntries,
+      visibleTileIdSet,
+      draggingTileIdSet: layout.draggingTileIdSet,
+      getVisibleWorldRect: canvas.getVisibleWorldRect,
+      getViewport: canvas.getViewportSnapshot,
+    };
+  });
   // Tethers: tiles linked pair by pair float together on springs, then
   // settle; untethered tiles can be flicked (see useTetherSystem).
   const tetherSvgRef = useRef(null);
@@ -2221,7 +2279,7 @@ export default function CanvasWorkspaceView() {
     tethers: activeTethers,
     resetKey: `${folderPath}:${workspace.activePageId}`,
     draggingTileIds: interactions.draggingTileIds,
-    dragDelta: interactions.dragVisualDelta,
+    dragMotion: interactions.dragMotion,
     contentRef: canvas.contentRef,
     svgRef: tetherSvgRef,
     clientToWorldPoint: canvas.clientToWorldPoint,
@@ -2235,7 +2293,7 @@ export default function CanvasWorkspaceView() {
   useTileFeel({
     entries: layout.canvasEntries,
     draggingTileIds: interactions.draggingTileIds,
-    dragDelta: interactions.dragVisualDelta,
+    dragMotion: interactions.dragMotion,
     grabPoint: interactions.dragGrabPoint,
     resetKey: `${folderPath}:${workspace.activePageId}`,
     contentRef: canvas.contentRef,
@@ -2408,7 +2466,6 @@ export default function CanvasWorkspaceView() {
   const presentWorkspaceCardsById = useMemo(() => new Map(
     workspace.cards.map((card) => [card.id, card]),
   ), [workspace.cards]);
-  const layoutRootTileIdSet = useMemo(() => new Set(layout.rootTiles.map((tile) => tile.id)), [layout.rootTiles]);
   const decoratedTileMetaById = useMemo(() => {
     if (animatingStickerTileIdSet.size === 0) {
       return stableTileMetaById;
@@ -2440,11 +2497,11 @@ export default function CanvasWorkspaceView() {
         });
       }
 
-      if (layoutRootTileIdSet.has(entry.tileId) && entry.stages?.["in-layout"] !== true) {
+      if (visibleTileIdSet.has(entry.tileId) && entry.stages?.["in-layout"] !== true) {
         markStickerPlacementStage(entry.tileId, "in-layout");
       }
 
-      if (layoutRootTileIdSet.has(entry.tileId) && entry.stages?.["render-layer"] !== true) {
+      if (visibleTileIdSet.has(entry.tileId) && entry.stages?.["render-layer"] !== true) {
         const reachedRenderLayer = markStickerPlacementStage(entry.tileId, "render-layer", {
         });
 
@@ -2469,7 +2526,7 @@ export default function CanvasWorkspaceView() {
       }
     });
   }, [
-    layoutRootTileIdSet,
+    visibleTileIdSet,
     markStickerPlacementStage,
     presentWorkspaceCardsById,
     stickerPlacementStates,
@@ -2891,9 +2948,6 @@ export default function CanvasWorkspaceView() {
     draggingCount: interactions.draggingTileIds.length,
     promotedDomTileCount,
     activeEmbedTileCount,
-    dragVisualDelta: interactions.dragVisualDelta
-      ? `${Math.round(interactions.dragVisualDelta.x)}:${Math.round(interactions.dragVisualDelta.y)}`
-      : null,
     rackPreview: interactions.rackDropPreview?.rackId ?? null,
     marqueeActive: Boolean(interactions.marqueeBox),
     isPanning: canvas.isPanning,
@@ -2905,7 +2959,6 @@ export default function CanvasWorkspaceView() {
     filteredTiles.length,
     activeEmbedTileCount,
     interactions.draggingTileIds.length,
-    interactions.dragVisualDelta,
     interactions.focusedTileId,
     interactions.hoveredTileId,
     interactions.marqueeBox,
@@ -3405,23 +3458,27 @@ export default function CanvasWorkspaceView() {
           <SplitScreenToggle enabled={pane.splitEnabled} onToggle={pane.toggleSplit} />
         </CanvasDockFrame>
         <WorkspaceTopbarTrail />
-        <Suspense fallback={null}>
-          <GridWorkspaceView
-            dropImport={dropImport}
-            tileFilter="all"
-            isDropTarget={dropImport.isDropTarget}
-            openTileLink={commands.openTileLink}
-            updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
-            retryTilePreview={commands.retryTilePreview}
-            onPaste={handleWorkspacePaste}
-          />
-        </Suspense>
+        <TileAppContext.Provider value={tileAppContext}>
+          <Suspense fallback={null}>
+            <GridWorkspaceView
+              dropImport={dropImport}
+              tileFilter="all"
+              isDropTarget={dropImport.isDropTarget}
+              openTileLink={commands.openTileLink}
+              updateTileFromMediaLoad={commands.updateTileFromMediaLoad}
+              retryTilePreview={commands.retryTilePreview}
+              onPaste={handleWorkspacePaste}
+            />
+          </Suspense>
+        </TileAppContext.Provider>
       </main>
     );
   }
 
   return (
     <CanvasMotionContext.Provider value={isCanvasMoving}>
+    <CanvasDragMotionContext.Provider value={interactions.dragMotion}>
+    <TileAppContext.Provider value={tileAppContext}>
     <main className="canvas-stage">
 
       {/* ── Right Tools Portal (zoom menu: hidden for now; zoom still works
@@ -3565,6 +3622,7 @@ export default function CanvasWorkspaceView() {
                   data-tether-tile={card.id}
                   data-releasing={releaseDelays[card.id] !== undefined ? "" : undefined}
                   style={{
+                    "--tile-z": layout.tileLayerById[card.id] ?? 1,
                     "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
                     ...(releaseDelays[card.id] !== undefined ? { "--release-delay": `${releaseDelays[card.id]}ms` } : null),
                   }}
@@ -3574,8 +3632,6 @@ export default function CanvasWorkspaceView() {
                     tileMeta={decoratedTileMetaById[card.id]}
                     viewportZoom={viewportZoomForRender}
                     renderHint={tileRenderHintsById[card.id]}
-                    dragVisualDelta={interactions.dragVisualDelta}
-                    dragVisualTileIdSet={dragVisualTileIdSet}
                     childTiles={layout.rackTileChildrenByRackId[card.id] ?? EMPTY_CHILD_TILES}
                     rackState={layout.rackStateById[card.id] ?? null}
                     performanceMode={tilePerformanceMode}
@@ -3723,7 +3779,29 @@ export default function CanvasWorkspaceView() {
           />
         </div>
       ) : null}
+      {/* Closed-hand cursor while the view is drag-panned (middle button or
+          hand tool): a full-window layer over everything, so it holds when
+          the pointer crosses the dock or the pages panel, and beats every
+          element's own cursor. It used to be a class on <body>, but cursor
+          is inherited, so toggling it restyled the whole document (~16 ms at
+          the start and end of every pan and drag, measured); this styles
+          one node. The wheel is ignored mid-pan anyway, and the pan's own
+          listeners are on window. A tile drag needs no layer: the dragged
+          tile is under the pointer and carries the cursor itself
+          (.card--dragging, cursors.css). */}
+      {canvas.isPanning ? createPortal(
+        <div
+          className="canvas-pan-cursor-layer"
+          aria-hidden="true"
+          onPointerUp={stopPanCursorLayerEvent}
+          onClick={stopPanCursorLayerEvent}
+          onContextMenu={stopPanCursorLayerEvent}
+        />,
+        document.body,
+      ) : null}
     </main>
+    </TileAppContext.Provider>
+    </CanvasDragMotionContext.Provider>
     </CanvasMotionContext.Provider>
   );
 }

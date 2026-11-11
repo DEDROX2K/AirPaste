@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import {
   CANVAS_TEXT_FORMAT_MARKDOWN,
   CANVAS_TEXT_MIN_HEIGHT,
@@ -53,8 +53,6 @@ function buildStickyPreviewSections(lines) {
 function CanvasTextTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -68,7 +66,7 @@ function CanvasTextTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { folderPath, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const source = card.source === CANVAS_TEXT_SOURCE_FILE ? CANVAS_TEXT_SOURCE_FILE : CANVAS_TEXT_SOURCE_LOCAL;
   const variant = card.variant === CANVAS_TEXT_VARIANT_STICKY ? CANVAS_TEXT_VARIANT_STICKY : "default";
   const isSticky = variant === CANVAS_TEXT_VARIANT_STICKY;
@@ -473,7 +471,6 @@ function CanvasTextTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--canvas-text"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

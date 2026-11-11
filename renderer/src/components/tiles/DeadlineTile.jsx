@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
 
@@ -78,8 +78,6 @@ function buildQuickDeadline(kind) {
 function DeadlineTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -87,7 +85,7 @@ function DeadlineTile({
   onFocusOut,
   onPressStart,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const [now, setNow] = useState(() => Date.now());
   const surfaceGesture = useTileGesture({
     card,
@@ -153,7 +151,6 @@ function DeadlineTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--deadline"
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}

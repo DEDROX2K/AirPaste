@@ -4,7 +4,7 @@ import {
   LINK_CONTENT_KIND_IMAGE,
   shouldRecoverLinkPreviewCard,
 } from "../../lib/workspace";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
 import { recordImageSample, recordPreviewTierSelection } from "../../lib/perf";
@@ -273,8 +273,6 @@ async function openTileLink({ card, onOpenLink, toast, fallbackMessage }) {
 function LinkTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -287,7 +285,7 @@ function LinkTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { currentEditor, folderPath } = useAppContext();
+  const { currentEditor, folderPath } = useTileAppContext();
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
@@ -701,7 +699,6 @@ function LinkTile({
       card={card}
       renderHint={renderHint}
       tileMeta={{ ...tileMeta, isMusic: isMusicCard }}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className={`${isMusicCard ? "card--music " : ""}${isStickerTile ? "card--sticker" : ""}`.trim()}
       actionStrip={actionStrip}
       toolbar={renderHint?.showToolbar === false || isStickerTile || previewDiagnosticBadges.length === 0 ? null : (

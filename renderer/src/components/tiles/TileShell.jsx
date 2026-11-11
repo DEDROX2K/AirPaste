@@ -1,4 +1,6 @@
-import { memo, useMemo } from "react";
+import { memo, useContext, useLayoutEffect, useMemo, useRef } from "react";
+import { CanvasDragMotionContext } from "../../context/CanvasDragMotionContext";
+import { recordTileRender } from "../../lib/perf";
 
 function preventNativeDrag(event) {
   event.preventDefault();
@@ -15,11 +17,43 @@ function swallowPrimary(event) {
   }
 }
 
+// The tile's live drag offset, written straight to its node once per drag
+// frame (no re-render). --tile-drag-x/y are only ever set here; the drop's
+// commit moves card.x/y and, in the same commit, the cleanup puts the offset
+// back to 0, so the tile never shows both or neither for a frame.
+function useLiveDragOffset(nodeRef, tileId, isDragging) {
+  const dragMotion = useContext(CanvasDragMotionContext);
+
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+
+    if (!node || !dragMotion || !isDragging) {
+      return undefined;
+    }
+
+    const write = (delta) => {
+      // null is the drag ending: keep the last offset until the commit.
+      if (delta) {
+        node.style.setProperty("--tile-drag-x", `${delta.x}px`);
+        node.style.setProperty("--tile-drag-y", `${delta.y}px`);
+      }
+    };
+
+    write(dragMotion.getTileDelta(tileId));
+    const unsubscribe = dragMotion.subscribeTile(tileId, write);
+
+    return () => {
+      unsubscribe();
+      node.style.removeProperty("--tile-drag-x");
+      node.style.removeProperty("--tile-drag-y");
+    };
+  }, [dragMotion, isDragging, nodeRef, tileId]);
+}
+
 function TileShell({
   card,
   tileMeta,
   renderHint = null,
-  dragVisualDelta = null,
   className = "",
   toolbar = null,
   actionStrip = null,
@@ -30,7 +64,10 @@ function TileShell({
   onFocusIn,
   onFocusOut,
 }) {
+  recordTileRender(card.id);
   const isStacked = Boolean(card.stack?.id);
+  const articleRef = useRef(null);
+  useLiveDragOffset(articleRef, card.id, Boolean(tileMeta?.isDragging));
   const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,
@@ -52,11 +89,9 @@ function TileShell({
 
   const style = useMemo(() => ({
     ...(tileMeta?.styleVars ?? {}),
-    "--tile-drag-x": dragVisualDelta ? `${dragVisualDelta.x}px` : "0px",
-    "--tile-drag-y": dragVisualDelta ? `${dragVisualDelta.y}px` : "0px",
     "--tile-clipboard-opacity": tileMeta?.styleVars?.["--tile-clipboard-opacity"] ?? "1",
     ...(card.stack ? { "--stack-tilt": `${card.stack.tilt ?? 0}deg` } : null),
-  }), [card.stack, dragVisualDelta, tileMeta]);
+  }), [card.stack, tileMeta]);
   const resolvedTileState = tileState || (
     tileMeta?.isDragging ? "dragging" : tileMeta?.isFocused ? "focused" : tileMeta?.isSelected ? "selected" : tileMeta?.isHovered ? "hovered" : "passive"
   );
@@ -64,6 +99,7 @@ function TileShell({
 
   return (
     <article
+      ref={articleRef}
       className={classNames}
       data-interaction-state={tileMeta?.interactionState ?? "idle"}
       data-tile-state={resolvedTileState}

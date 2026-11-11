@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { WEATHER_CARD_SIZE } from "../../tiles/weather/model";
 import {
@@ -267,8 +267,6 @@ function SunPanel({ sunEvent }) {
 function WeatherTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -277,7 +275,7 @@ function WeatherTile({
   onPressStart,
   renderHint,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   // loading (black, nothing on it) -> live -> offline (the offline image).
   const [status, setStatus] = useState("loading");
   const [weather, setWeather] = useState(null);
@@ -512,7 +510,6 @@ function WeatherTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--weather"
       renderHint={renderHint}
       onContextMenu={onContextMenu}

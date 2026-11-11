@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import {
   CANVAS_TEXT_SOURCE_FILE,
   CANVAS_TEXT_SOURCE_LOCAL,
@@ -56,8 +56,6 @@ function buildStickySurfaceStyle(layoutMetrics) {
 function StickyNoteTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -70,7 +68,7 @@ function StickyNoteTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { folderPath, setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const source = card.source === CANVAS_TEXT_SOURCE_FILE ? CANVAS_TEXT_SOURCE_FILE : CANVAS_TEXT_SOURCE_LOCAL;
   const isEditing = textBoxEditorState?.tileId === card.id;
   const isSelectToolActive = canvasToolMode === DRAWING_TOOL_MODE_SELECT;
@@ -431,7 +429,6 @@ function StickyNoteTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--sticky-note"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

@@ -1618,6 +1618,19 @@ option {
   opacity: 0 !important;
 }
 
+/* Mid zoom gesture (data-zooming is set by useCanvasSystem straight on the
+   canvas, no re-render): every zoom frame re-rasterizes the tiles at the new
+   scale, and filters / backdrop blurs are the expensive part of that. They
+   come back as the zoom settles. A pan only translates the composited
+   content layer, so it repaints nothing and keeps them. */
+.canvas[data-zooming] .card,
+.canvas[data-zooming] .card * {
+  transition: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .canvas__grid,
 .canvas__content {
   position: absolute;

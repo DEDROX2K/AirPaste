@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -65,8 +65,6 @@ function formatDate(iso) {
 function StickyFolderTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -78,7 +76,7 @@ function StickyFolderTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
-  const { setCanvasInteractionState, updateExistingCard } = useAppContext();
+  const { setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const style = normalizeStickyStyle(card.sticky);
   const width = clampFolderStickyWidth(card.width);
   const isEditing = textBoxEditorState?.tileId === card.id;
@@ -322,7 +320,6 @@ function StickyFolderTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--folder-sticky"
       renderHint={renderHint}
       tileState={isEditing ? "editing" : ""}

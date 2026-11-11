@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { useAppContext } from "../../context/useAppContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
 
@@ -134,8 +134,6 @@ function getTheme(themeId) {
 function CalendarTile({
   card,
   tileMeta,
-  dragVisualDelta,
-  dragVisualTileIdSet,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -143,7 +141,7 @@ function CalendarTile({
   onFocusOut,
   onPressStart,
 }) {
-  const { updateExistingCard } = useAppContext();
+  const { updateExistingCard } = useTileAppContext();
   const month = Number.isFinite(card.month) ? card.month : new Date().getMonth();
   const year = Number.isFinite(card.year) ? card.year : new Date().getFullYear();
   const isTall = card.heightPreset === "tall";
@@ -221,7 +219,6 @@ function CalendarTile({
     <TileShell
       card={card}
       tileMeta={tileMeta}
-      dragVisualDelta={dragVisualTileIdSet?.has(card.id) ? dragVisualDelta : null}
       className="card--calendar"
       onContextMenu={onContextMenu}
       onHoverChange={onHoverChange}

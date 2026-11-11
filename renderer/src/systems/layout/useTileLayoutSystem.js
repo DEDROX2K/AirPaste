@@ -15,8 +15,35 @@ import {
   getTileStyleVars,
 } from "./tileLayout";
 
-function getCanvasEntryStyleVars(tile, entry, zIndex) {
-  return getTileStyleVars(tile, zIndex, entry.x, entry.y, entry.width, entry.height);
+function getCanvasEntryStyleVars(tile, entry) {
+  return getTileStyleVars(tile, null, entry.x, entry.y, entry.width, entry.height);
+}
+
+// Each tile's base stacking layer, kept from render to render: a tile keeps
+// its layer for as long as it still sits above the tile before it in the
+// page order, and only a tile that no longer does gets a new one. Bringing
+// a tile to the front (every drop) then changes that one tile's layer
+// instead of shifting every tile above its old place -- --tile-z is
+// inherited, and rewriting it on N wrappers restyled N whole tiles.
+// Layers only grow, so they are renumbered from scratch once they run far
+// past the tile count (the selected / dragged offsets in getTileLayer
+// assume layers in the low hundreds).
+export function getStableBaseLayers(entries, previousLayers) {
+  const layers = new Map();
+  let floor = 0;
+
+  for (const entry of entries) {
+    const previous = previousLayers.get(entry.tile.id);
+    const layer = previous !== undefined && previous > floor ? previous : floor + 1;
+    layers.set(entry.tile.id, layer);
+    floor = layer;
+  }
+
+  if (floor > entries.length * 2 + 100) {
+    return new Map(entries.map((entry, index) => [entry.tile.id, index + 1]));
+  }
+
+  return layers;
 }
 
 function areArraysShallowEqual(left, right) {
@@ -115,10 +142,32 @@ export function useTileLayoutSystem({
       })),
   ), [canvasEntries, selectedTileIdSet]);
 
+  // Stacking order, kept out of tileMeta (a layer change there re-rendered
+  // the tile): the board writes it on each tile's wrapper, which the card
+  // inherits. It follows the whole page's order, not the culled one, so
+  // panning tiles in and out of view changes nothing, and it is stable
+  // (getStableBaseLayers), so a reorder restyles only the tiles it moved.
+  const baseLayersRef = useRef(new Map());
+  const baseLayerById = useMemo(() => {
+    const layers = getStableBaseLayers(canvasEntries, baseLayersRef.current);
+    baseLayersRef.current = layers;
+    return layers;
+  }, [canvasEntries]);
+  const tileLayerById = useMemo(() => {
+    return Object.fromEntries(visibleCanvasEntries.map((entry) => [
+      entry.tile.id,
+      getTileLayer((baseLayerById.get(entry.tile.id) ?? 1) - 1, {
+        isDragging: draggingTileIdSet.has(entry.tile.id),
+        isSelected: selectedTileIdSet.has(entry.tile.id),
+        isFocused: focusedTileId === entry.tile.id,
+      }),
+    ]));
+  }, [baseLayerById, draggingTileIdSet, focusedTileId, selectedTileIdSet, visibleCanvasEntries]);
+
   const tileMetaById = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
     const nextTileMetaById = Object.fromEntries(
-      visibleCanvasEntries.map((entry, index) => {
+      visibleCanvasEntries.map((entry) => {
         const tile = entry.tile;
         const isRackDropTarget = rackDropPreview?.rackId === tile.id;
         const flags = {
@@ -136,7 +185,6 @@ export function useTileLayoutSystem({
           isMergeTarget: false,
         };
         const interactionState = getTileInteractionState(flags);
-        const zIndex = getTileLayer(index, flags);
 
         return [
           tile.id,
@@ -149,7 +197,7 @@ export function useTileLayoutSystem({
             renderWidth: entry.width,
             renderHeight: entry.height,
             interactionState,
-            styleVars: getCanvasEntryStyleVars(tile, entry, zIndex),
+            styleVars: getCanvasEntryStyleVars(tile, entry),
           },
         ];
       }),
@@ -216,6 +264,7 @@ export function useTileLayoutSystem({
     selectedTileIdSet,
     selectedTilesBounds,
     draggingTileIdSet,
+    tileLayerById,
     tileMetaById,
     visibleTileCount: visibleCanvasEntries.length,
   };
