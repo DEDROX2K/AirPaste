@@ -6,7 +6,7 @@ import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Timer, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Share, Timer, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import "./TopTabBar.css";
 
@@ -435,6 +435,7 @@ function TabItem({
   onCloseTabsToRight,
   onReopenClosedTab,
   onShowHistory,
+  onShare,
   onRename,
   onDragStart,
   onDragOver,
@@ -615,6 +616,12 @@ function TabItem({
             Version History
           </AppContextMenuItem>
         ) : null}
+        {tab.type === "canvas" && typeof onShare === "function" ? (
+          <AppContextMenuItem onSelect={onShare}>
+            <Share size={15} aria-hidden="true" />
+            Share as File…
+          </AppContextMenuItem>
+        ) : null}
         <AppContextMenuItem disabled={!tab.closable} onSelect={onClose}>
           <X size={15} aria-hidden="true" />
           Close Tab
@@ -671,7 +678,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     closeTabsToRight,
     canReopenClosedTab,
   } = useTabs();
-  const { showHome, currentEditor, renameItemEntry } = useAppContext();
+  const { showHome, currentEditor, renameItemEntry, exportCanvasShare } = useAppContext();
   const { toast } = useToast();
   const tabRefs = useRef(new Map());
   const previousRectsRef = useRef(new Map());
@@ -827,6 +834,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
               onCloseTabsToRight={() => closeTabsToRight(tab.id)}
               onReopenClosedTab={reopenClosedTab}
               onShowHistory={() => setHistoryDialogTab(tab)}
+              onShare={() => void exportCanvasShare?.({ type: "canvas", filePath: tab.entityId, name: tab.title })}
               onRename={async (name) => {
                 try {
                   await renameItemEntry?.({ type: tab.type, filePath: tab.entityId, name: tab.title }, name);

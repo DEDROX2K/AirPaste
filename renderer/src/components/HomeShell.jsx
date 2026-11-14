@@ -30,8 +30,10 @@ import {
   AppSheetContent,
 } from "./ui/app";
 import {
+  Canvas,
   Check,
   ChevronRight,
+  Clock,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -46,10 +48,12 @@ import {
   RefreshCw,
   Search,
   Settings2,
+  Share,
   SidebarClose,
   SidebarOpen,
   Sparkles,
   Star,
+  TileCard,
   Trash2,
   Warning,
   X,
@@ -87,6 +91,22 @@ function formatItemCount(count, singular, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+// "now", "5m", "3h", "2d", "4w", "6mo", "1y" — compact age for the card meta.
+function formatShortAge(value) {
+  const time = value ? new Date(value).getTime() : NaN;
+  if (Number.isNaN(time)) return "now";
+  const minutes = Math.max(0, (Date.now() - time) / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${Math.floor(minutes)}m`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h`;
+  const days = hours / 24;
+  if (days < 7) return `${Math.floor(days)}d`;
+  if (days < 30) return `${Math.floor(days / 7)}w`;
+  if (days < 365) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
+}
+
 function SectionIcon({ section }) {
   if (section === "starred") return <Star size={16} aria-hidden="true" />;
   return <Home size={16} aria-hidden="true" />;
@@ -121,6 +141,7 @@ function itemKey(item) {
 }
 
 function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleStar, triggerClassName, triggerLabel }) {
+  const { exportCanvasShare } = useAppContext();
   return (
     <AppDropdownMenu open={open} onOpenChange={onOpenChange}>
       <AppDropdownMenuTrigger asChild>
@@ -144,6 +165,12 @@ function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleS
           <Pencil size={14} aria-hidden="true" />
           Rename
         </AppDropdownMenuItem>
+        {item.type === "canvas" ? (
+          <AppDropdownMenuItem onSelect={() => void exportCanvasShare(item)}>
+            <Share size={14} aria-hidden="true" />
+            Share as file…
+          </AppDropdownMenuItem>
+        ) : null}
         <AppDropdownMenuSeparator />
         <AppDropdownMenuItem
           className="text-[#ff3b30] focus:bg-[rgba(255,59,48,0.12)] focus:text-[#ff3b30]"
@@ -361,8 +388,11 @@ function HomeCanvasCardItem({
 }) {
   const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
   const pageCount = Number.isFinite(item.pageCount) ? item.pageCount : 0;
-  const editedLabel = `Edited ${formatRelativeTime(item.updatedAt)}`;
-  const summaryLabel = `${formatItemCount(tileCount, "tile")} · ${formatItemCount(pageCount, "page")}`;
+  const meta = [
+    { key: "age", Icon: Clock, value: formatShortAge(item.updatedAt), label: `Edited ${formatRelativeTime(item.updatedAt)}` },
+    { key: "tiles", Icon: TileCard, value: tileCount, label: formatItemCount(tileCount, "tile") },
+    pageCount > 0 ? { key: "pages", Icon: Canvas, value: pageCount, label: formatItemCount(pageCount, "page") } : null,
+  ].filter(Boolean);
 
   return (
     <CardColorMenu itemKey={itemKey(item)}>
@@ -405,11 +435,15 @@ function HomeCanvasCardItem({
           )}
         </div>
         <div className="ap-home-card__body">
-          <div className="ap-home-card__heading">
-            <div className="ap-home-card__title">{item.name}</div>
-            <div className="ap-home-card__subtitle">{editedLabel}</div>
+          <div className="ap-home-card__title">{item.name}</div>
+          <div className="ap-home-card__meta">
+            {meta.map(({ key, Icon, value, label }) => (
+              <span key={key} className="ap-home-card__meta-item" title={label} aria-label={label}>
+                <Icon size={12} aria-hidden="true" />
+                <span aria-hidden="true">{value}</span>
+              </span>
+            ))}
           </div>
-          <div className="ap-home-card__summary">{summaryLabel}</div>
         </div>
       </button>
     </article>
@@ -417,7 +451,67 @@ function HomeCanvasCardItem({
   );
 }
 
+// When the grid's width changes (the sidebar collapsing, the window
+// resizing), cards that jump to another column or row glide there instead
+// of snapping (FLIP). Small per-frame drift while the width animates is left
+// alone; only real jumps (half a card or more, i.e. another column or row)
+// are animated. Positions are offsets within the grid (position: relative).
+const REFLOW_MS = 420;
+const REFLOW_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+function useGridReflowAnimation(gridRef, itemCount) {
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") return undefined;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+
+    const last = new Map();
+    const measure = () => {
+      const next = new Map();
+      for (const node of grid.children) {
+        next.set(node, { x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight });
+      }
+      return next;
+    };
+
+    for (const [node, rect] of measure()) last.set(node, rect);
+
+    const observer = new ResizeObserver(() => {
+      const next = measure();
+      for (const [node, rect] of next) {
+        const prev = last.get(node);
+        if (!prev || !rect.w) continue;
+        const dx = prev.x - rect.x;
+        const dy = prev.y - rect.y;
+        const jumped = Math.abs(dy) > rect.h / 2 || Math.abs(dx) > rect.w / 2;
+        if (!jumped) continue;
+        node.getAnimations?.().forEach((animation) => {
+          if (animation.id === "ap-home-reflow") animation.cancel();
+        });
+        const animation = node.animate(
+          [
+            {
+              transformOrigin: "0 0",
+              transform: `translate(${dx}px, ${dy}px) scale(${prev.w / rect.w}, ${prev.h / rect.h})`,
+            },
+            { transformOrigin: "0 0", transform: "none" },
+          ],
+          { duration: REFLOW_MS, easing: REFLOW_EASE },
+        );
+        animation.id = "ap-home-reflow";
+      }
+      last.clear();
+      for (const [node, rect] of next) last.set(node, rect);
+    });
+
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [gridRef, itemCount]);
+}
+
 function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar, peekHandlers }) {
+  const gridRef = useRef(null);
+  useGridReflowAnimation(gridRef, Array.isArray(canvases) ? canvases.length : 0);
   const [thumbUrls, setThumbUrls] = useState(() => ({}));
   const [openMenuKey, setOpenMenuKey] = useState(null);
   const thumbnailRevision = useCanvasThumbnailRevision();
@@ -465,7 +559,7 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
   }
 
   return (
-    <div className="ap-home-grid" role="list">
+    <div ref={gridRef} className="ap-home-grid" role="list">
       {canvases.map((item, index) => {
         const key = itemKey(item);
         const thumbUrl = thumbUrls[itemKey(item)] || "";
@@ -508,7 +602,7 @@ function HomeSidebarContent({
       {onToggleCollapsed ? (
         <div className="ap-home-sidebar__toggle-row">
           {/* The section heading lives at the top of the panel. */}
-          {!collapsed && sectionTitle ? (
+          {sectionTitle ? (
             <div className="ap-home-sidebar__heading">
               <span className="ap-home-toolbar__eyebrow">Workspace</span>
               <h1 className="ap-home-sidebar__title">{sectionTitle}</h1>
@@ -577,6 +671,40 @@ function HomeSidebarContent({
         </AppButton>
       </div>
     </>
+  );
+}
+
+function readSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+// The docked sidebar owns its collapsed state, so collapsing re-renders only
+// the sidebar, never the card grid beside it (that re-render was a 100ms+
+// hitch right as the animation started). The grid column follows through
+// `.ap-home:has(> .ap-home-sidebar--collapsed)` in HomeShell.css.
+function HomeSidebar(props) {
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // Ignore persistence failures.
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <aside className={`ap-home-sidebar${collapsed ? " ap-home-sidebar--collapsed" : ""}`}>
+      <HomeSidebarContent {...props} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+    </aside>
   );
 }
 
@@ -742,7 +870,6 @@ export default function HomeShell() {
   const [openMenuKey, setOpenMenuKey] = useState("");
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [serendipityOpen, setSerendipityOpen] = useState(false);
-  const [homeSidebarCollapsed, setHomeSidebarCollapsed] = useState(false);
   const [homeViewMode, setHomeViewMode] = useState(() => getResolvedHomeViewMode(homeData.uiState));
   const listButtonRefs = useRef([]);
   const browserViewMode = homeViewMode;
@@ -755,18 +882,6 @@ export default function HomeShell() {
     setHomeViewMode(getResolvedHomeViewMode(homeData.uiState));
   }, [homeData.uiState]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      setHomeSidebarCollapsed(window.localStorage.getItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true");
-    } catch {
-      // Ignore persistence failures and keep the default expanded state.
-    }
-  }, []);
-
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
 
   useEffect(() => {
@@ -774,18 +889,6 @@ export default function HomeShell() {
       setSidebarDrawerOpen(false);
     }
   }, [isNarrowDesktop]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || isNarrowDesktop) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(HOME_SIDEBAR_COLLAPSED_STORAGE_KEY, String(homeSidebarCollapsed));
-    } catch {
-      // Ignore persistence failures.
-    }
-  }, [homeSidebarCollapsed, isNarrowDesktop]);
 
   useEffect(() => {
     if (!bodyRef.current) return;
@@ -1047,24 +1150,20 @@ export default function HomeShell() {
   return (
     <main
       ref={shellRef}
-      className={`ap-home${!hasWorkspace ? " ap-home--launch" : ""}${homeSidebarCollapsed && hasWorkspace && !isNarrowDesktop ? " ap-home--sidebar-collapsed" : ""}${isNarrowDesktop && hasWorkspace ? " ap-home--no-sidebar" : ""}`}
+      className={`ap-home${!hasWorkspace ? " ap-home--launch" : ""}${isNarrowDesktop && hasWorkspace ? " ap-home--no-sidebar" : ""}`}
     >
       {!isNarrowDesktop && hasWorkspace ? (
-        <aside className={`ap-home-sidebar${homeSidebarCollapsed ? " ap-home-sidebar--collapsed" : ""}`}>
-          <HomeSidebarContent
-            navigation={navigation}
-            allCanvasItems={allCanvasItems}
-            homeData={homeData}
-            folderPath={folderPath}
-            activeDome={activeDome}
-            collapsed={homeSidebarCollapsed}
-            sectionTitle={sectionTitle}
-            onSectionChange={handleSectionChange}
-            onToggleCollapsed={() => setHomeSidebarCollapsed((current) => !current)}
-            onManageWorkspaces={() => setManageDomesOpen(true)}
-            onOpenSerendipity={() => setSerendipityOpen(true)}
-          />
-        </aside>
+        <HomeSidebar
+          navigation={navigation}
+          allCanvasItems={allCanvasItems}
+          homeData={homeData}
+          folderPath={folderPath}
+          activeDome={activeDome}
+          sectionTitle={sectionTitle}
+          onSectionChange={handleSectionChange}
+          onManageWorkspaces={() => setManageDomesOpen(true)}
+          onOpenSerendipity={() => setSerendipityOpen(true)}
+        />
       ) : null}
 
       <section className="ap-home-main">
@@ -1162,7 +1261,7 @@ export default function HomeShell() {
               </AppButton>
             </div>
             <div className="ap-home-toolbar__actions">
-              <AppButton type="button" tone="surface" disabled={folderLoading} onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
+              <AppButton type="button" tone="surface" disabled={folderLoading} title="Import files, or a canvas someone shared with you (.airpaste-share)" onClick={() => void importFilesIntoFolder(navigation.currentFolderPath)}>
                 <Import size={16} aria-hidden="true" />
                 Import
               </AppButton>

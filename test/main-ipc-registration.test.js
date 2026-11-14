@@ -27,7 +27,7 @@ function buildElectronMock() {
   return {
     app: { getPath: vi.fn(() => "/tmp"), isPackaged: false, whenReady: vi.fn(() => new Promise(() => {})) },
     BrowserWindow: vi.fn(),
-    dialog: { showOpenDialog: vi.fn() },
+    dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
     ipcMain: {
       handle: vi.fn((channel) => handledChannels.push(channel)),
       on: vi.fn((channel) => onChannels.push(channel)),
@@ -64,6 +64,8 @@ const EXPECTED_HANDLE_CHANNELS = [
   "airpaste:watchMarkdownFile", "airpaste:unwatchMarkdownFile", "airpaste:getUserName", "airpaste:openExternal", "airpaste:openFile", "airpaste:revealPath",
   // main/ipc/linkPreview.js
   "airpaste:getPreviewCapabilities", "airpaste:fetchLinkPreview", "airpaste:cancelLinkPreview",
+  // main/ipc/share.js
+  "airpaste:exportCanvasShare", "airpaste:importCanvasShare", "airpaste:takePendingShareFiles",
 ];
 
 const EXPECTED_ON_CHANNELS = [
@@ -80,6 +82,9 @@ const MAIN_MODULE_PATHS = [
   "../main/ipc/assets.js",
   "../main/ipc/files.js",
   "../main/ipc/linkPreview.js",
+  "../main/ipc/share.js",
+  "../main/share/canvasShare.js",
+  "../main/share/zip.js",
   "../main/windows.js",
   "../main/context.js",
   "../main/fsUtils.js",
@@ -118,6 +123,7 @@ describe("main-process IPC registration", () => {
     const assetsIpc = require("../main/ipc/assets.js");
     const filesIpc = require("../main/ipc/files.js");
     const linkPreviewIpc = require("../main/ipc/linkPreview.js");
+    const shareIpc = require("../main/ipc/share.js");
     const windows = require("../main/windows.js");
 
     domeIpc.registerIpc();
@@ -125,6 +131,7 @@ describe("main-process IPC registration", () => {
     assetsIpc.registerIpc();
     filesIpc.registerIpc();
     linkPreviewIpc.registerIpc();
+    shareIpc.registerIpc();
     windows.registerIpc();
 
     expect(new Set(handledChannels).size).toBe(handledChannels.length);

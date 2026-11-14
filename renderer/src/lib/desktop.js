@@ -128,6 +128,14 @@ export const desktop = {
       airpasteBridge.captureArticle?.(folderPath, url) ?? Promise.resolve({ articlePath: "" }),
     readArticle: (folderPath, articlePath) =>
       airpasteBridge.readArticle?.(folderPath, articlePath) ?? Promise.resolve(null),
+    // Canvas sharing (main/ipc/share.js): one ".airpaste-share" file per
+    // canvas, carrying its tiles, pages and local files.
+    exportCanvasShare: (folderPath, canvasFilePath, suggestedName = "") =>
+      airpasteBridge.exportCanvasShare?.(folderPath, canvasFilePath, suggestedName) ?? Promise.resolve({ canceled: true }),
+    importCanvasShare: (folderPath, bundlePath = null, targetFolderPath = "") =>
+      airpasteBridge.importCanvasShare?.(folderPath, bundlePath, targetFolderPath) ?? Promise.resolve({ canceled: true }),
+    takePendingShareFiles: () => airpasteBridge.takePendingShareFiles?.() ?? Promise.resolve([]),
+    onShareFilesOpened: (listener) => airpasteBridge.onShareFilesOpened?.(listener) ?? (() => { }),
     getPreviewCapabilities: (...args) =>
       airpasteBridge.getPreviewCapabilities?.(...args) ?? Promise.resolve({ enabled: true }),
     openFile: (...args) => airpasteBridge.openFile?.(...args) ?? Promise.resolve({ opened: false }),

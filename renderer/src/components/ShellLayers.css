@@ -46,6 +46,26 @@
   overflow: hidden;
 }
 
+/* On Home the sidebar sits on the grey base, outside the card: .ap-home is
+   only the layout, and its main column is the floating card. */
+.app-window .app-shell__view-container > .ap-home {
+  margin-left: 0;
+  border-radius: 0;
+  background: transparent !important;
+  overflow: visible;
+}
+
+.app-window .app-shell__view-container > .ap-home > .ap-home-main {
+  position: relative;
+  border-radius: var(--ap-shell-card-radius);
+  background: var(--ap-bg-page);
+  overflow: hidden;
+}
+
+.app-window .app-shell__view-container > :is(.ap-home--launch, .ap-home--no-sidebar) {
+  margin-left: var(--ap-shell-gap-x);
+}
+
 /* The stage fills the whole card; the pages panel no longer takes a column. */
 .app-window .app-shell__workspace-layout .canvas-stage {
   position: relative;

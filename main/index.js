@@ -6,7 +6,15 @@ const assetsIpc = require("./ipc/assets");
 const domeIpc = require("./ipc/dome");
 const filesIpc = require("./ipc/files");
 const linkPreviewIpc = require("./ipc/linkPreview");
+const shareIpc = require("./ipc/share");
 const workspaceIpc = require("./ipc/workspace");
+
+// Single-instance lock (packaged app only) + routing of double-clicked
+// .airpaste-share files: a second launch hands its files to this process.
+const isPrimaryInstance = shareIpc.setupOpenFileHandling();
+if (!isPrimaryInstance) {
+  app.exit(0);
+}
 
 // Must run before app is ready, same as the original main.js top level.
 assetsIpc.registerProtocolScheme();
@@ -17,8 +25,12 @@ workspaceIpc.registerIpc();
 assetsIpc.registerIpc();
 filesIpc.registerIpc();
 linkPreviewIpc.registerIpc();
+shareIpc.registerIpc();
 
 app.whenReady().then(async () => {
+  if (!isPrimaryInstance) {
+    return;
+  }
   assetsIpc.registerProtocolHandler();
   graphics.watchGpu(() => context.mainWindow);
 

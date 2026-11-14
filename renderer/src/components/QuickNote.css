@@ -32,42 +32,49 @@
   display: none;
 }
 
-/* ── Collapsed: checklist icon, always bottom-left ── */
+/* ── Collapsed: a tab of the window frame in the bottom-right corner ──
+   Same grey as the frame, joined to the window's right and bottom edges by
+   the same fillets as the open panel, so opening reads as this tab growing
+   into the checklist. */
 .quick-note-launcher {
   position: fixed;
-  left: 12px;
-  bottom: 12px;
+  right: 0;
+  bottom: 0;
   z-index: var(--quick-note-z);
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px 0 0 0;
   background: var(--quick-note-frame);
   color: #fff;
   cursor: pointer;
-  transition: transform 140ms ease, background-color 140ms ease;
+  transition: color 140ms ease;
 }
 
-.quick-note-launcher:hover {
-  transform: translateY(-1px);
+.quick-note-launcher > svg:not(.quick-note__fillet) {
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.quick-note-launcher:active {
-  transform: translateY(0) scale(0.96);
+.quick-note-launcher:hover > svg:not(.quick-note__fillet) {
+  transform: scale(1.12);
+}
+
+.quick-note-launcher:active > svg:not(.quick-note__fillet) {
+  transform: scale(0.92);
 }
 
 .quick-note-launcher:focus-visible {
   outline: 2px solid var(--quick-note-ink);
-  outline-offset: 2px;
+  outline-offset: -4px;
 }
 
 .quick-note-launcher__count {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  left: -6px;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
@@ -82,6 +89,10 @@
 
 /* ── Open: panel in the bottom-right corner ── */
 .quick-note {
+  /* The launcher's box, which the panel grows out of and shrinks back into. */
+  --quick-note-from: inset(calc(100% - 44px) 0 0 calc(100% - 44px) round 14px 0 0 0);
+  /* Past the box on the top and left, so the fillets outside it show. */
+  --quick-note-to: inset(-20px 0 0 -20px round 0 0 0 0);
   position: fixed;
   right: 0;
   bottom: 0;
@@ -92,14 +103,39 @@
   width: 300px;
   max-width: calc(100vw - 24px);
   color: var(--quick-note-frame);
-  animation: quick-note-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: quick-note-grow 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-@keyframes quick-note-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
+.quick-note--closing {
+  animation: quick-note-shrink 260ms cubic-bezier(0.55, 0, 0.75, 0.2) forwards;
+}
+
+@keyframes quick-note-grow {
+  from { clip-path: var(--quick-note-from); }
+  to { clip-path: var(--quick-note-to); }
+}
+
+@keyframes quick-note-shrink {
+  from { clip-path: var(--quick-note-to); }
+  to { clip-path: var(--quick-note-from); }
+}
+
+/* The checklist fades in once the frame has mostly opened, and out first
+   when it closes. */
+.quick-note__sheet {
+  animation: quick-note-content-in 240ms ease 150ms backwards;
+}
+
+.quick-note--closing .quick-note__sheet {
+  animation: quick-note-content-out 120ms ease forwards;
+}
+
+@keyframes quick-note-content-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+@keyframes quick-note-content-out {
+  to { opacity: 0; }
 }
 
 .quick-note__fillet {
@@ -111,19 +147,20 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 40px;
+  width: 44px;
   height: 32px;
-  border-top-left-radius: 12px;
+  border-top-left-radius: 14px;
   background: var(--quick-note-frame);
 }
 
-/* Joins the tab to the window's right edge above it. */
+/* Joins the tab (or launcher) to the window's right edge above it. */
 .quick-note__fillet--above-tab {
   right: 0;
   bottom: 100%;
 }
 
-/* Joins the tab to the top of the frame, on its left. */
+/* Joins the tab to the top of the frame (the launcher to the window's
+   bottom edge), on its left. */
 .quick-note__fillet--beside-tab {
   right: 100%;
   bottom: 0;
@@ -285,40 +322,46 @@
 
 .quick-note__scribble {
   position: absolute;
+  top: 0;
   left: 0;
-  width: 100%;
-  height: var(--quick-note-line, 21px);
   overflow: visible;
   pointer-events: none;
 }
 
+/* Hidden copy of the task text, laid out exactly like the textarea, so
+   each wrapped line's width can be measured for the scribble. */
+.quick-note__measure {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* One continuous stroke for the whole task, drawn left to right and line
+   by line; longer tasks take longer to cross out
+   (--quick-note-scribble-ms, set per task). */
 .quick-note__scribble path {
   fill: none;
   stroke: var(--quick-note-ink);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-/* Drawn left to right. A clip, not a stroke dash: dash lengths break once
-   the stroke is non-scaling and the scribble is stretched across a line. */
-.quick-note__scribble {
-  animation: quick-note-scribble 360ms cubic-bezier(0.4, 0, 0.2, 1);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: quick-note-scribble var(--quick-note-scribble-ms, 360ms) cubic-bezier(0.45, 0.05, 0.35, 1) backwards;
 }
 
 @keyframes quick-note-scribble {
   from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
+    stroke-dashoffset: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .quick-note,
-  .quick-note__scribble {
+  .quick-note__sheet,
+  .quick-note__scribble path {
     animation: none;
   }
 }

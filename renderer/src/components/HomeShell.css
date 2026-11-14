@@ -25,8 +25,11 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.ap-home--sidebar-collapsed {
-  grid-template-columns: 76px minmax(0, 1fr);
+/* 62px keeps every sidebar icon exactly where it sits when expanded
+   (centred 30px from the left), so collapsing moves no icon; only the
+   labels fade out. */
+.ap-home:has(> .ap-home-sidebar--collapsed) {
+  grid-template-columns: 62px minmax(0, 1fr);
 }
 
 /* ─── Sidebar ───────────────────────────────────────────────────────────── */
@@ -49,8 +52,11 @@
   padding: 2px 4px 10px;
 }
 
-.ap-home-sidebar--collapsed .ap-home-sidebar__toggle-row {
-  justify-content: center;
+/* Stays on the right edge, so it slides with the edge as the column
+   narrows, and doesn't jump once the heading beside it is gone. */
+.ap-home-sidebar__toggle-row > button {
+  flex: none;
+  margin-left: auto;
 }
 
 .ap-home-sidebar__nav {
@@ -123,16 +129,6 @@
   color: var(--ap-text-inverse);
 }
 
-.ap-home-sidebar--collapsed .ap-home-nav-link {
-  justify-content: center;
-  padding: 7px;
-}
-
-.ap-home-sidebar--collapsed .ap-home-nav-link__text,
-.ap-home-sidebar--collapsed .ap-home-nav-link__badge {
-  display: none;
-}
-
 .ap-home-sidebar__spacer {
   flex: 1;
 }
@@ -183,26 +179,59 @@
   font-weight: 300;
 }
 
-.ap-home-sidebar--collapsed .ap-home-workspace-card {
-  align-items: center;
-  padding: 10px 4px;
-}
-
-.ap-home-sidebar--collapsed .ap-home-workspace-card__label,
-.ap-home-sidebar--collapsed .ap-home-workspace-card__name,
-.ap-home-sidebar--collapsed .ap-home-workspace-card__path,
-.ap-home-sidebar--collapsed .ap-home-sidebar-action__label {
-  display: none;
-}
-
 .ap-home-sidebar-action {
   justify-content: flex-start;
   width: 100%;
 }
 
-.ap-home-sidebar--collapsed .ap-home-sidebar-action {
-  justify-content: center;
-  padding-inline: 0;
+/* Collapse / expand: labels ease out to the left with a blur, then leave
+   the layout (display is transitioned discretely, so it flips only once
+   the fade has finished). Expanding brings them back the same way, a beat
+   after the column starts opening. */
+.ap-home-sidebar :is(
+  .ap-home-sidebar__heading,
+  .ap-home-nav-link__text,
+  .ap-home-nav-link__badge,
+  .ap-home-workspace-card,
+  .ap-home-sidebar-action__label
+) {
+  transition:
+    opacity 240ms var(--ap-home-ease, ease) 120ms,
+    filter 240ms var(--ap-home-ease, ease) 120ms,
+    transform 300ms var(--ap-home-ease, ease) 120ms,
+    display 240ms allow-discrete 120ms;
+}
+
+.ap-home-sidebar--collapsed :is(
+  .ap-home-sidebar__heading,
+  .ap-home-nav-link__text,
+  .ap-home-nav-link__badge,
+  .ap-home-workspace-card,
+  .ap-home-sidebar-action__label
+) {
+  display: none;
+  opacity: 0;
+  filter: blur(5px);
+  transform: translateX(-14px);
+  transition:
+    opacity 200ms cubic-bezier(0.4, 0, 1, 1),
+    filter 200ms cubic-bezier(0.4, 0, 1, 1),
+    transform 240ms cubic-bezier(0.4, 0, 1, 1),
+    display 200ms allow-discrete;
+}
+
+@starting-style {
+  .ap-home-sidebar:not(.ap-home-sidebar--collapsed) :is(
+    .ap-home-sidebar__heading,
+    .ap-home-nav-link__text,
+    .ap-home-nav-link__badge,
+    .ap-home-workspace-card,
+    .ap-home-sidebar-action__label
+  ) {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateX(-14px);
+  }
 }
 
 /* ─── Toolbar ───────────────────────────────────────────────────────────── */
@@ -528,12 +557,6 @@
   padding: 13px 14px 14px;
 }
 
-.ap-home-card__heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .ap-home-card__title {
   font-size: var(--ap-text-base);
   font-weight: 600;
@@ -549,10 +572,19 @@
   font-weight: 400;
 }
 
-.ap-home-card__summary {
-  font-size: 13px;
-  color: var(--ap-text-secondary);
-  font-weight: 300;
+.ap-home-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ap-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-home-card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ─── List view ─────────────────────────────────────────────────────────── */
@@ -1209,21 +1241,52 @@
   --ap-home-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Sidebar floats: inset from the card's edges, rounded, its own surface. */
+/* Sidebar sits on the window's grey base, outside the white card (see
+   ShellLayers.css): no surface, no edges. Collapsing animates the grid
+   column, so the card beside it slides and resizes with it. */
+.ap-home {
+  transition: grid-template-columns 420ms var(--ap-home-ease);
+}
+
 .ap-home-sidebar:not(.ap-home-sidebar--drawer) {
-  margin: 7px 0 7px 7px;
-  border: 2px solid var(--ap-home-edge);
-  border-radius: 5px;
-  background: #f4f4f2;
-  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.35);
+  margin: 0;
+  padding: 4px 10px 8px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  overflow: hidden;
   animation: ap-home-slide-in 520ms var(--ap-home-ease) backwards;
-  transition: width 320ms var(--ap-home-ease);
+}
+
+.ap-home-sidebar:not(.ap-home-sidebar--drawer) .ap-home-nav-link__text,
+.ap-home-sidebar:not(.ap-home-sidebar--drawer) .ap-home-sidebar-action__label {
+  white-space: nowrap;
+}
+
+.ap-home-sidebar:not(.ap-home-sidebar--drawer) .ap-home-sidebar__footer {
+  border-top: 0;
+}
+
+.ap-home-sidebar:not(.ap-home-sidebar--drawer) .ap-home-workspace-card {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Toggle and Manage Workspaces: soft fills on the grey, no edges. */
+.ap-home .ap-home-sidebar:not(.ap-home-sidebar--drawer) :is(.ap-home-sidebar__toggle-row, .ap-home-sidebar__footer) button {
+  border: 0 !important;
+  background: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: none !important;
+}
+
+.ap-home .ap-home-sidebar:not(.ap-home-sidebar--drawer) :is(.ap-home-sidebar__toggle-row, .ap-home-sidebar__footer) button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6) !important;
 }
 
 .ap-home .ap-home-nav-link {
-  border: 2px solid transparent !important;
+  border: 0 !important;
   border-radius: 4px !important;
   transition:
     background-color 160ms ease,
@@ -1233,16 +1296,14 @@
 }
 
 .ap-home .ap-home-nav-link:hover:not(:disabled) {
-  background: var(--ap-home-row-bg) !important;
-  border-color: var(--ap-home-edge) !important;
+  background: rgba(255, 255, 255, 0.35) !important;
   color: var(--ap-text-primary);
   transform: translateX(2px) !important;
 }
 
 .ap-home .ap-home-nav-link.is-active,
 .ap-home .ap-home-nav-link.is-active:hover:not(:disabled) {
-  background: var(--ap-home-row-selected) !important;
-  border-color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.7) !important;
   color: var(--ap-text-primary);
   transform: none !important;
 }
@@ -1291,10 +1352,10 @@
 
 /* Canvas cards: same edge, white on hover, a springier lift. */
 .ap-home-card {
-  border: 2px solid var(--ap-home-edge);
-  border-radius: 6px;
+  border: none;
+  border-radius: 10px;
   background: var(--ap-home-row-bg);
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   animation: ap-home-rise 460ms var(--ap-home-ease) backwards;
   animation-delay: calc(var(--ap-stagger, 0) * 36ms);
   transition:
@@ -1305,15 +1366,13 @@
 }
 
 .ap-home-card:hover {
-  border-color: #ffffff;
   background: var(--ap-home-row-hover);
-  box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 24px -14px rgba(0, 0, 0, 0.35);
   transform: translateY(-2px);
 }
 
 .ap-home-card.is-selected {
   background: var(--ap-home-row-selected);
-  border-color: #ffffff;
 }
 
 .ap-home-card__thumb-image {
@@ -1356,6 +1415,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ap-home,
+  .ap-home-sidebar :is(
+    .ap-home-sidebar__heading,
+    .ap-home-nav-link__text,
+    .ap-home-nav-link__badge,
+    .ap-home-workspace-card,
+    .ap-home-sidebar-action__label
+  ) {
+    transition: none !important;
+  }
+
   .ap-home-sidebar:not(.ap-home-sidebar--drawer),
   .ap-home-toolbar,
   .ap-home-row,
@@ -1372,6 +1442,7 @@
 }
 
 .ap-home-grid {
+  position: relative;
   gap: 14px;
 }
 

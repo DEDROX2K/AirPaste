@@ -132,6 +132,14 @@
       "preload.js",
       "package.json"
     ],
+    "fileAssociations": [
+      {
+        "ext": "airpaste-share",
+        "name": "AirPaste Shared Canvas",
+        "description": "AirPaste shared canvas",
+        "role": "Editor"
+      }
+    ],
     "win": {
       "target": [
         "nsis"

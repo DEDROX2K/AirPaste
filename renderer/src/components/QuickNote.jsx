@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { desktop } from "../lib/desktop";
@@ -17,47 +17,147 @@ import "./QuickNote.css";
 // marquee or a tile drag underneath it.
 const stop = (event) => event.stopPropagation();
 
-const LINE_HEIGHT = 21;
-const TEXT_PAD_Y = 10;
+// Same seed, same scribble: a task keeps its own hand-drawn line across
+// re-renders, but no two tasks (or lines) share one.
+function seededRandom(seedText) {
+  let seed = 2166136261;
+  for (let index = 0; index < seedText.length; index += 1) {
+    seed = Math.imul(seed ^ seedText.charCodeAt(index), 16777619);
+  }
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-function Scribble({ top }) {
+const round = (value) => Math.round(value * 10) / 10;
+
+// One continuous pen stroke over every wrapped line: loopy curls across a
+// line (only as far as its words go), then a long diagonal return sweep down
+// to the start of the next line, like crossing out a paragraph by hand.
+function buildScribblePath(lines, seedText) {
+  const rand = seededRandom(seedText);
+  const jitter = (amount) => (rand() - 0.5) * 2 * amount;
+  const parts = [];
+  let pen = null;
+
+  lines.forEach((line, lineIndex) => {
+    const amp = line.height * 0.28;
+    const y = line.top + line.height * 0.55 + jitter(1.2);
+    const startX = line.left - 1 + jitter(1.5);
+    const endX = line.left + line.width + 1 + jitter(1.5);
+
+    if (lineIndex === 0 || !pen) {
+      parts.push(`M${round(startX)} ${round(y + jitter(2))}`);
+    } else {
+      // Return sweep: from the end of the line above back to this line's start.
+      parts.push(
+        `C${round(pen.x + 6)} ${round(pen.y + line.height * 0.45)},`
+        + ` ${round(startX + 18 + jitter(4))} ${round(y - line.height * 0.55)},`
+        + ` ${round(startX)} ${round(y)}`,
+      );
+    }
+
+    const span = Math.max(8, endX - startX);
+    const loops = Math.max(1, Math.round(span / (24 + jitter(4))));
+    const step = span / loops;
+    let x = startX;
+    for (let loop = 0; loop < loops; loop += 1) {
+      const s = step * (1 + jitter(0.12));
+      const lift = amp * (1 + jitter(0.25));
+      const sink = amp * (1 + jitter(0.25));
+      const nextX = Math.min(endX, x + s);
+      // Up and forward, then curl back down and on: one loop of the pen.
+      parts.push(
+        `C${round(x + s * 0.45)} ${round(y - lift)}, ${round(x + s * 0.95)} ${round(y - lift * 1.05)}, ${round(x + s * 0.72)} ${round(y)}`,
+        `C${round(x + s * 0.5)} ${round(y + sink)}, ${round(nextX - s * 0.2)} ${round(y + sink * 0.9)}, ${round(nextX)} ${round(y + jitter(1.5))}`,
+      );
+      x = nextX;
+    }
+    pen = { x, y };
+  });
+
+  return parts.join(" ");
+}
+
+// The text box and each wrapped line's box (left, top, width, height),
+// read from a hidden copy of the text laid out exactly like the textarea.
+function useWrappedLines(wrapRef, measureRef, text, enabled) {
+  const [layout, setLayout] = useState(null);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const mirror = measureRef.current;
+    if (!enabled || !wrap || !mirror) {
+      setLayout(null);
+      return undefined;
+    }
+
+    const measure = () => {
+      const textNode = mirror.firstChild;
+      const box = wrap.getBoundingClientRect();
+      if (!textNode || !box.width) return;
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      const byTop = new Map();
+      for (const rect of range.getClientRects()) {
+        if (rect.width < 1) continue;
+        const key = Math.round(rect.top);
+        const existing = byTop.get(key);
+        if (existing) {
+          existing.left = Math.min(existing.left, rect.left);
+          existing.right = Math.max(existing.right, rect.right);
+        } else {
+          byTop.set(key, { left: rect.left, right: rect.right, top: rect.top, height: rect.height });
+        }
+      }
+      const lines = [...byTop.values()]
+        .sort((a, b) => a.top - b.top)
+        .map((rect) => ({
+          left: rect.left - box.left,
+          top: rect.top - box.top,
+          width: rect.right - rect.left,
+          height: rect.height,
+        }));
+      setLayout({ width: box.width, height: box.height, lines });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [enabled, measureRef, text, wrapRef]);
+
+  return layout;
+}
+
+function Scribble({ layout, seed }) {
+  const d = useMemo(
+    () => (layout?.lines.length ? buildScribblePath(layout.lines, `${seed}:${layout.lines.length}`) : ""),
+    [layout, seed],
+  );
+  if (!d) return null;
+  const lineCount = layout.lines.length;
   return (
-    <svg className="quick-note__scribble" style={{ top }} viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true">
-      <path
-        pathLength="1"
-        d="M1 10 C 14 2, 26 1, 22 9 S 10 17, 30 12 S 52 1, 48 9 S 36 17, 58 12 S 80 1, 76 9 S 64 17, 86 11 S 96 8, 99 9"
-      />
+    <svg
+      className="quick-note__scribble"
+      width={layout.width}
+      height={layout.height}
+      style={{ "--quick-note-scribble-ms": `${320 + 240 * (lineCount - 1)}ms` }}
+      aria-hidden="true"
+    >
+      <path pathLength="1" d={d} />
     </svg>
   );
 }
 
-// How many lines a wrapped task takes, so the done-scribble crosses out
-// every line.
-function useLineCount(ref, enabled) {
-  const [lines, setLines] = useState(1);
-  useEffect(() => {
-    const node = ref.current;
-    if (!enabled || !node) return undefined;
-    const measure = () => {
-      const height = node.getBoundingClientRect().height - TEXT_PAD_Y * 2;
-      setLines(Math.max(1, Math.round(height / LINE_HEIGHT)));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [enabled, ref]);
-  return lines;
-}
-
 function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
-  const textRef = useRef(null);
+  const wrapRef = useRef(null);
+  const measureRef = useRef(null);
   const showScribble = item.checked && Boolean(item.text);
-  const lines = useLineCount(textRef, showScribble);
-  const setRefs = useCallback((node) => {
-    textRef.current = node;
-    inputRef(node);
-  }, [inputRef]);
+  const layout = useWrappedLines(wrapRef, measureRef, item.text, showScribble);
 
   return (
     <li className="quick-note__row" data-checked={item.checked ? "true" : undefined}>
@@ -71,9 +171,9 @@ function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
       >
         {item.checked ? <Check size={14} /> : null}
       </button>
-      <span className="quick-note__text">
+      <span ref={wrapRef} className="quick-note__text">
         <textarea
-          ref={setRefs}
+          ref={inputRef}
           className="quick-note__input"
           value={item.text}
           rows={1}
@@ -82,11 +182,12 @@ function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
           onChange={(event) => onChange(item.id, event.target.value.replace(/\n/g, " "))}
           onKeyDown={(event) => onKeyDown(event, item)}
         />
-        {showScribble
-          ? Array.from({ length: lines }, (_, index) => (
-            <Scribble key={index} top={TEXT_PAD_Y + index * LINE_HEIGHT} />
-          ))
-          : null}
+        {showScribble ? (
+          <>
+            <span ref={measureRef} className="quick-note__input quick-note__measure" aria-hidden="true">{item.text}</span>
+            <Scribble layout={layout} seed={item.id} />
+          </>
+        ) : null}
       </span>
     </li>
   );
@@ -99,6 +200,9 @@ export default function QuickNote() {
   const [loadedFor, setLoadedFor] = useState(null);
   const [draft, setDraft] = useState("");
   const [focusRequest, setFocusRequest] = useState(null);
+  // True while the panel shrinks back into the launcher; the note is marked
+  // closed once that animation ends.
+  const [closing, setClosing] = useState(false);
   const inputRefs = useRef(new Map());
   const draftRef = useRef(null);
   const saveTimeoutRef = useRef(0);
@@ -264,6 +368,11 @@ export default function QuickNote() {
   }
 
   const isOpen = note.open && !isTooNarrow;
+  const collapse = () => {
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) setOpen(false);
+    else setClosing(true);
+  };
   const openCount = note.items.filter((item) => !item.checked && item.text.trim()).length;
   const eventGuards = {
     onPointerDown: stop,
@@ -289,13 +398,25 @@ export default function QuickNote() {
           onClick={() => setOpen(true)}
           {...eventGuards}
         >
+          <EdgeConnector className="quick-note__fillet quick-note__fillet--above-tab" />
+          <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-tab" />
           <ListChecks size={20} />
           {openCount ? <span className="quick-note-launcher__count">{openCount}</span> : null}
         </button>
       ) : null}
 
       {isOpen ? (
-        <section className="quick-note" aria-label="Quick note" {...eventGuards}>
+        <section
+          className={`quick-note${closing ? " quick-note--closing" : ""}`}
+          aria-label="Quick note"
+          onAnimationEnd={(event) => {
+            if (closing && event.target === event.currentTarget) {
+              setClosing(false);
+              setOpen(false);
+            }
+          }}
+          {...eventGuards}
+        >
           <div className="quick-note__tab">
             <EdgeConnector className="quick-note__fillet quick-note__fillet--above-tab" />
             <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-tab" />
@@ -304,7 +425,7 @@ export default function QuickNote() {
               className="quick-note__close"
               aria-label="Collapse quick note"
               title="Collapse"
-              onClick={() => setOpen(false)}
+              onClick={collapse}
             >
               <X size={14} />
             </button>

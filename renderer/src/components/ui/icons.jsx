@@ -18,6 +18,8 @@ import {
   Calculator as PixelCalculator,
   Calendar,
   Cancel,
+  Card as PixelCard,
+  Clock as PixelClock,
   Check as PixelCheck,
   CheckboxOn,
   ChevronDown as PixelChevronDown,
@@ -57,6 +59,7 @@ import {
   Plus as PixelPlus,
   Reload,
   Search as PixelSearch,
+  Share as PixelShare,
   SlidersHorizontal,
   Sparkles as PixelSparkles,
   SpeedFast,
@@ -194,6 +197,7 @@ export const RefreshCw = pixelIcon(Reload, "RefreshCw");
 export const Search = pixelIcon(PixelSearch, "Search");
 export const Settings = pixelIcon(Gear, "Settings");
 export const Settings2 = pixelIcon(SlidersHorizontal, "Settings2");
+export const Share = pixelIcon(PixelShare, "Share");
 export const Sparkles = pixelIcon(PixelSparkles, "Sparkles");
 export const Table2 = pixelIcon(Grid3x3, "Table2");
 export const Target = pixelIcon(PixelTarget, "Target");
@@ -214,6 +218,8 @@ export const SidebarOpen = pixelIcon(ArrowBarRight, "SidebarOpen");
 export const SidebarClose = pixelIcon(ArrowBarLeft, "SidebarClose");
 export const Bookmark = pixelIcon(PixelBookmark, "Bookmark");
 export const Canvas = pixelIcon(PixelFrame, "Canvas");
+export const Clock = pixelIcon(PixelClock, "Clock");
+export const TileCard = pixelIcon(PixelCard, "TileCard");
 export const Notes = pixelIcon(PixelNotes, "Notes");
 export const Sticker = pixelIcon(PixelSticker, "Sticker");
 export const StickyNote = pixelIcon(PixelStickyNote, "StickyNote");

@@ -84,6 +84,11 @@ function isSameOrDescendantPath(targetPath, basePath) {
   return normalizedTarget === normalizedBase || normalizedTarget.startsWith(`${normalizedBase}/`);
 }
 
+// Mirrors main/share/canvasShare.js SHARE_FILE_EXTENSION.
+function isShareBundlePath(value) {
+  return typeof value === "string" && value.toLowerCase().endsWith(".airpaste-share");
+}
+
 function areSamePath(leftPath, rightPath) {
   const left = normalizeFsPath(leftPath).toLowerCase();
   const right = normalizeFsPath(rightPath).toLowerCase();
@@ -1295,16 +1300,107 @@ export function AppProvider({ children }) {
     }, "Creating folder");
   }, [folderPath, homeData.currentFolderPath, refreshHomeData, trackLoading]);
 
+  // Canvas sharing (main/share/canvasShare.js). Writes one .airpaste-share
+  // file with the canvas, its pages and the local files its tiles use.
+  const exportCanvasShare = useCallback(async (item) => {
+    const canvasPath = item?.filePath;
+    if (!folderPath || !canvasPath) return null;
+    try {
+      // The open copy may have edits still in the autosave debounce.
+      await flushCanvasSave(canvasPath).catch(() => {});
+      const result = await desktop.workspace.exportCanvasShare(folderPath, canvasPath, item?.name ?? "");
+      if (!result || result.canceled) return null;
+      const fileName = String(result.outPath ?? "").split(/[\\/]/).pop();
+      const skipped = Array.isArray(result.skippedAssets) ? result.skippedAssets.length : 0;
+      toast(
+        skipped > 0 ? "warning" : "success",
+        skipped > 0
+          ? `Saved "${fileName}". ${skipped} file${skipped === 1 ? "" : "s"} couldn't be included (missing or not shareable).`
+          : `Saved "${fileName}". Send it to anyone with AirPaste to open it.`,
+      );
+      return result;
+    } catch (shareError) {
+      toast("error", `Couldn't share this canvas: ${shareError?.message ?? "unknown error"}`);
+      return null;
+    }
+  }, [flushCanvasSave, folderPath, toast]);
+
+  // bundlePaths: files to import; none = ask with a file picker. Opens the
+  // canvas when exactly one was imported.
+  const importCanvasShares = useCallback(async (bundlePaths = [null], targetFolderPath = homeData.currentFolderPath) => {
+    if (!folderPath) {
+      toast("warning", "Open a workspace first, then import the shared canvas.");
+      return [];
+    }
+    const imported = [];
+    await trackLoading(async () => {
+      for (const bundlePath of bundlePaths) {
+        try {
+          const result = await desktop.workspace.importCanvasShare(folderPath, bundlePath, targetFolderPath ?? "");
+          if (!result || result.canceled) continue;
+          imported.push(result);
+          const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+          toast(
+            warnings.length > 0 ? "warning" : "success",
+            warnings.length > 0 ? `Imported "${result.name}". ${warnings.join(" ")}` : `Imported "${result.name}".`,
+          );
+        } catch (shareError) {
+          const fileName = typeof bundlePath === "string" ? `"${bundlePath.split(/[\\/]/).pop()}"` : "that canvas";
+          toast("error", `Couldn't import ${fileName}: ${shareError?.message ?? "unknown error"}`);
+        }
+      }
+      if (imported.length > 0) {
+        await refreshHomeData(folderPath, targetFolderPath);
+      }
+    }, "Importing canvas");
+    if (imported.length === 1) {
+      await openCanvasFile(imported[0].filePath).catch(() => {});
+    }
+    return imported;
+  }, [folderPath, homeData.currentFolderPath, openCanvasFile, refreshHomeData, toast, trackLoading]);
+
   const importFilesIntoFolder = useCallback(async (targetFolderPath = homeData.currentFolderPath) => {
     if (!folderPath) return [];
     const sourcePaths = await desktop.workspace.openFiles();
     if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) return [];
-    return trackLoading(async () => {
-      const imported = await desktop.workspace.importFiles(folderPath, sourcePaths, targetFolderPath);
-      await refreshHomeData(folderPath, targetFolderPath);
-      return imported;
-    }, "Importing files");
-  }, [folderPath, homeData.currentFolderPath, refreshHomeData, trackLoading]);
+    // Shared canvases picked here are unpacked as canvases, not copied in as
+    // opaque files.
+    const sharePaths = sourcePaths.filter((sourcePath) => isShareBundlePath(sourcePath));
+    const plainPaths = sourcePaths.filter((sourcePath) => !isShareBundlePath(sourcePath));
+    let imported = [];
+    if (plainPaths.length > 0) {
+      imported = await trackLoading(async () => {
+        const result = await desktop.workspace.importFiles(folderPath, plainPaths, targetFolderPath);
+        await refreshHomeData(folderPath, targetFolderPath);
+        return result;
+      }, "Importing files");
+    }
+    if (sharePaths.length > 0) {
+      await importCanvasShares(sharePaths, targetFolderPath);
+    }
+    return imported;
+  }, [folderPath, homeData.currentFolderPath, importCanvasShares, refreshHomeData, trackLoading]);
+
+  // .airpaste-share files the OS asked us to open (double-click / Open
+  // with), at launch or while running: import them into the active Dome.
+  const importCanvasSharesRef = useRef(importCanvasShares);
+  importCanvasSharesRef.current = importCanvasShares;
+  useEffect(() => {
+    if (!folderPath) return undefined;
+    let cancelled = false;
+    const drain = async () => {
+      const pending = await desktop.workspace.takePendingShareFiles().catch(() => []);
+      if (!cancelled && Array.isArray(pending) && pending.length > 0) {
+        await importCanvasSharesRef.current(pending, "");
+      }
+    };
+    void drain();
+    const unsubscribe = desktop.workspace.onShareFilesOpened(() => void drain());
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [folderPath]);
 
   const renameItemEntry = useCallback(async (item, name) => {
     if (!folderPath || !item?.filePath) return null;
@@ -2106,6 +2202,8 @@ export function AppProvider({ children }) {
     homeData,
     isLoading,
     importFilesIntoFolder,
+    exportCanvasShare,
+    importCanvasShares,
     loadingLabel,
     navigateHomeFolder,
     openExistingWorkspace,
@@ -2183,6 +2281,8 @@ export function AppProvider({ children }) {
     homeData,
     isLoading,
     importFilesIntoFolder,
+    exportCanvasShare,
+    importCanvasShares,
     loadingLabel,
     navigateHomeFolder,
     openExistingWorkspace,

@@ -1865,6 +1865,15 @@ async function createMarkdownFile(root, name, content = "", targetFolderPath = "
 }
 
 module.exports = {
+  // Path helpers reused by canvas sharing (main/share/canvasShare.js), so an
+  // imported bundle lands with the same naming/containment rules as
+  // everything else written into a Dome.
+  ensureInside,
+  ensureWorkspaceScaffold,
+  sanitizeName,
+  toWorkspaceRel,
+  uniquePath,
+  workspaceRootFromFile,
   atomicWriteJson,
   atomicWriteText,
   createCanvas,

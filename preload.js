@@ -87,6 +87,16 @@ contextBridge.exposeInMainWorld("airpaste", {
     ipcRenderer.invoke("airpaste:captureArticle", folderPath, url),
   readArticle: (folderPath, articlePath) =>
     ipcRenderer.invoke("airpaste:readArticle", folderPath, articlePath),
+  exportCanvasShare: (folderPath, canvasFilePath, suggestedName = "") =>
+    ipcRenderer.invoke("airpaste:exportCanvasShare", folderPath, canvasFilePath, suggestedName),
+  importCanvasShare: (folderPath, bundlePath = null, targetFolderPath = "") =>
+    ipcRenderer.invoke("airpaste:importCanvasShare", folderPath, bundlePath, targetFolderPath),
+  takePendingShareFiles: () => ipcRenderer.invoke("airpaste:takePendingShareFiles"),
+  onShareFilesOpened: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on("airpaste:shareFilesOpened", handler);
+    return () => ipcRenderer.removeListener("airpaste:shareFilesOpened", handler);
+  },
   getPreviewCapabilities: () => ipcRenderer.invoke("airpaste:getPreviewCapabilities"),
   getLastFolder: () => ipcRenderer.invoke("airpaste:getLastFolder"),
   onPreviewUpdated: (listener) => {
