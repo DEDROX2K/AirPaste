@@ -3582,7 +3582,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-radius: 999px;
   background: rgba(255, 252, 247, 0.96);
   box-shadow: 0 10px 20px rgba(37, 31, 22, 0.12);
-  backdrop-filter: blur(10px);
   pointer-events: auto;
 }
 

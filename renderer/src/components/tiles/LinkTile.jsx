@@ -662,7 +662,15 @@ function LinkTile({
       )}
     </>
   );
-  const showActionRow = tileMeta?.isSelected;
+  const canRetryPreview = !isImageTile && shouldRecoverLinkPreviewCard(card);
+  // Only for one selected tile that has something to offer: in a
+  // multi-selection every selected link tile used to render the bar (an
+  // image tile's was empty), and the bars' blurs made Chrome rebuild huge
+  // layers on every frame of a group drag, blanking parts of the window.
+  const showActionRow = tileMeta?.isSelected
+    && tileMeta?.isMultiSelect !== true
+    && !tileMeta?.isDragging
+    && (hasLinkUrl || canRetryPreview);
   const actionStrip = showActionRow ? (
     <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopTileActionPointerEvent}>
       {hasLinkUrl ? (
@@ -681,7 +689,7 @@ function LinkTile({
           </button>
         </>
       ) : null}
-      {!isImageTile && shouldRecoverLinkPreviewCard(card) ? (
+      {canRetryPreview ? (
         <button
           type="button"
           className="card__quick-action"

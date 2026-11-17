@@ -873,7 +873,6 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
       } catch {
         // The pointer is already gone; the window listeners still end it.
       }
-      document.body.classList.add("ap-grabbing");
       setDraggedTabId(tabId);
       return true;
     }
@@ -929,7 +928,6 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         return;
       }
 
-      document.body.classList.remove("ap-grabbing");
       setDraggedTabId(null);
       // The click that follows this release isn't a tab click.
       suppressClickRef.current = true;

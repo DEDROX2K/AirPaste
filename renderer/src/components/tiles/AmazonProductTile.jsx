@@ -125,7 +125,8 @@ function AmazonProductTile({
   useEffect(() => {
     recordPreviewTierSelection(card.id, previewTier);
   }, [card.id, previewTier]);
-  const actionStrip = tileMeta?.isSelected ? (
+  // One selected tile with a link only (see LinkTile's action row).
+  const actionStrip = tileMeta?.isSelected && tileMeta?.isMultiSelect !== true && !tileMeta?.isDragging && hasLinkUrl ? (
     <div className="card__quick-actions" data-canvas-text-action-root="true" onPointerDown={stopTileActionPointerEvent}>
       {hasLinkUrl ? (
         <>

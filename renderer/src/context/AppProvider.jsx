@@ -460,6 +460,11 @@ export function AppProvider({ children }) {
   const workspacesRef = useRef(workspacesByPath);
   const activeCanvasPathRef = useRef(null);
   const pageScopeRef = useRef(null);
+  // Split screen / floating view: canvas a call should act on instead of the
+  // active tab's (see runInCanvasScope).
+  const fileScopeRef = useRef(null);
+  const auxSaveTimeoutsRef = useRef({});
+  const [auxCanvasPaths, setAuxCanvasPathsState] = useState([]);
   const canvasClipboardRef = useRef(null);
   // The on-disk updatedAt this session last synced its in-memory copy of a
   // canvas with -- from loadCanvas, or from that canvas's own previous
@@ -1581,7 +1586,7 @@ export function AppProvider({ children }) {
   }, [folderPath, refreshHomeData]);
 
   const setCanvasInteractionState = useCallback((isInteracting, options = {}) => {
-    const targetPath = options?.targetPath ?? activeCanvasPathRef.current;
+    const targetPath = options?.targetPath ?? fileScopeRef.current ?? activeCanvasPathRef.current;
 
     if (!targetPath) {
       return;
@@ -1613,7 +1618,7 @@ export function AppProvider({ children }) {
   const getCanvasClipboard = useCallback(() => canvasClipboardRef.current, []);
 
   const updateWorkspaceState = useCallback((updater, options = {}) => {
-    const activePath = options.targetPath ?? activeCanvasPathRef.current;
+    const activePath = options.targetPath ?? fileScopeRef.current ?? activeCanvasPathRef.current;
     if (!activePath) return;
     // Split screen: a call made inside runInPageScope(pageId) edits that
     // page as if it were the active one. Captured now, because React may
@@ -1695,6 +1700,43 @@ export function AppProvider({ children }) {
       pageScopeRef.current = previous;
     }
   }, []);
+  // Runs `fn` with workspace edits, undo/redo and the interaction flag
+  // redirected to another open canvas file (and optionally one of its
+  // pages). Used by a split pane or floating view showing a second file.
+  const runInCanvasScope = useCallback(({ filePath = null, pageId = null } = {}, fn) => {
+    const previousFile = fileScopeRef.current;
+    const previousPage = pageScopeRef.current;
+    fileScopeRef.current = filePath || null;
+    pageScopeRef.current = pageId || null;
+    try {
+      return fn();
+    } finally {
+      fileScopeRef.current = previousFile;
+      pageScopeRef.current = previousPage;
+    }
+  }, []);
+
+  // Loads a canvas into memory without opening or activating its tab, for a
+  // split pane / floating view. No-op when it's already loaded.
+  const ensureCanvasLoaded = useCallback(async (filePath) => {
+    if (!filePath || workspacesRef.current[filePath]) return;
+    const doc = await desktop.workspace.loadCanvas(filePath);
+    const sanitizedWorkspace = sanitizeWorkspaceForPreviewAvailability(doc.workspace, previewEnabled);
+    setWorkspacesByPath((prev) => (
+      prev[doc.filePath] ? prev : { ...prev, [doc.filePath]: createWorkspaceHistory(sanitizedWorkspace) }
+    ));
+    skipCanvasSaveRef.current[doc.filePath] = true;
+    canvasDiskUpdatedAtRef.current[doc.filePath] = doc.updatedAt;
+  }, [previewEnabled]);
+
+  // Canvases on screen besides the active tab (split pane, floating view),
+  // so they autosave too.
+  const setAuxCanvasPaths = useCallback((paths) => {
+    const next = [...new Set((paths ?? []).filter(Boolean))].sort();
+    setAuxCanvasPathsState((current) => (
+      current.length === next.length && current.every((path, index) => path === next[index]) ? current : next
+    ));
+  }, []);
   const commitWorkspaceChangeForPath = useCallback((targetPath, nextWorkspace) => {
     if (!targetPath) {
       return;
@@ -1704,7 +1746,7 @@ export function AppProvider({ children }) {
   }, [updateWorkspaceState]);
 
   const undoWorkspaceChange = useCallback(() => {
-    const activePath = activeCanvasPathRef.current;
+    const activePath = fileScopeRef.current ?? activeCanvasPathRef.current;
     if (!activePath) return;
 
     setWorkspacesByPath((current) => {
@@ -1729,7 +1771,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const redoWorkspaceChange = useCallback(() => {
-    const activePath = activeCanvasPathRef.current;
+    const activePath = fileScopeRef.current ?? activeCanvasPathRef.current;
     if (!activePath) return;
 
     setWorkspacesByPath((current) => {
@@ -1754,7 +1796,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const discardWorkspaceDraft = useCallback(() => {
-    const activePath = activeCanvasPathRef.current;
+    const activePath = fileScopeRef.current ?? activeCanvasPathRef.current;
     if (!activePath) return;
 
     setWorkspacesByPath((current) => {
@@ -2078,69 +2120,103 @@ export function AppProvider({ children }) {
     return unsubscribe;
   }, [folderPath, updateWorkspaceState]);
 
-  useEffect(() => {
-    const activeCanvasPath = activeCanvasPathRef.current;
-    if (!folderPath || !activeCanvasPath) return undefined;
-    const canvasEntry = workspacesRef.current[activeCanvasPath];
+  // The autosave check for one open canvas: records what changed since it
+  // was last looked at, then (re)arms its debounced save. `timers` owns the
+  // canvas's pending save timeout ({ clear, set }).
+  const runCanvasAutosaveCheck = useCallback((canvasPath, timers) => {
+    const canvasEntry = workspacesRef.current[canvasPath];
     const workspaceToEvaluate = normalizeWorkspaceHistory(canvasEntry).present;
-    const previousWorkspace = lastObservedCanvasWorkspaceRef.current[activeCanvasPath] ?? null;
+    const previousWorkspace = lastObservedCanvasWorkspaceRef.current[canvasPath] ?? null;
     const hasWorkspaceChanged = previousWorkspace !== workspaceToEvaluate;
 
     if (hasWorkspaceChanged) {
-      pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = mergeCanvasDirtyFields(
-        pendingCanvasDirtyFieldsRef.current[activeCanvasPath],
+      pendingCanvasDirtyFieldsRef.current[canvasPath] = mergeCanvasDirtyFields(
+        pendingCanvasDirtyFieldsRef.current[canvasPath],
         getCanvasDirtyFields(previousWorkspace, workspaceToEvaluate),
       );
-      lastObservedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
-      pendingCanvasSaveRef.current[activeCanvasPath] = true;
+      lastObservedCanvasWorkspaceRef.current[canvasPath] = workspaceToEvaluate;
+      pendingCanvasSaveRef.current[canvasPath] = true;
     }
 
-    if (skipCanvasSaveRef.current[activeCanvasPath]) {
-      skipCanvasSaveRef.current[activeCanvasPath] = false;
-      pendingCanvasSaveRef.current[activeCanvasPath] = false;
-      pendingCanvasDirtyFieldsRef.current[activeCanvasPath] = {
+    if (skipCanvasSaveRef.current[canvasPath]) {
+      skipCanvasSaveRef.current[canvasPath] = false;
+      pendingCanvasSaveRef.current[canvasPath] = false;
+      pendingCanvasDirtyFieldsRef.current[canvasPath] = {
         pages: false,
         activePageId: false,
         name: false,
         airpaste: false,
       };
-      lastSavedCanvasWorkspaceRef.current[activeCanvasPath] = workspaceToEvaluate;
+      lastSavedCanvasWorkspaceRef.current[canvasPath] = workspaceToEvaluate;
 
       return undefined;
     }
 
-    if (workspaceDraftBaseRef.current[activeCanvasPath]) {
+    if (workspaceDraftBaseRef.current[canvasPath]) {
       return undefined;
     }
 
-    if (!pendingCanvasSaveRef.current[activeCanvasPath]) {
+    if (!pendingCanvasSaveRef.current[canvasPath]) {
       return undefined;
     }
 
-    if (canvasInteractionStateRef.current[activeCanvasPath]) {
+    if (canvasInteractionStateRef.current[canvasPath]) {
       return undefined;
     }
 
-    const pendingDirtyFields = pendingCanvasDirtyFieldsRef.current[activeCanvasPath];
+    const pendingDirtyFields = pendingCanvasDirtyFieldsRef.current[canvasPath];
     const isViewportOnlyChange = !pendingDirtyFields?.activePageId
       && !pendingDirtyFields?.name
       && !pendingDirtyFields?.airpaste
       && Boolean(getViewportOnlyPageChanges(
-        lastSavedCanvasWorkspaceRef.current[activeCanvasPath]?.pages,
+        lastSavedCanvasWorkspaceRef.current[canvasPath]?.pages,
         workspaceToEvaluate?.pages,
       ));
 
-    clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      if (canvasInteractionStateRef.current[activeCanvasPath]) {
-        pendingCanvasSaveRef.current[activeCanvasPath] = true;
+    timers.clear();
+    timers.set(setTimeout(() => {
+      if (canvasInteractionStateRef.current[canvasPath]) {
+        pendingCanvasSaveRef.current[canvasPath] = true;
         return;
       }
 
-      void flushCanvasSave(activeCanvasPath);
-    }, isViewportOnlyChange ? CANVAS_VIEWPORT_SAVE_DELAY_MS : CANVAS_SAVE_DELAY_MS);
+      void flushCanvasSave(canvasPath);
+    }, isViewportOnlyChange ? CANVAS_VIEWPORT_SAVE_DELAY_MS : CANVAS_SAVE_DELAY_MS));
+    return undefined;
+  }, [flushCanvasSave]);
+
+  useEffect(() => {
+    const activeCanvasPath = activeCanvasPathRef.current;
+    if (!folderPath || !activeCanvasPath) return undefined;
+    runCanvasAutosaveCheck(activeCanvasPath, {
+      clear: () => clearTimeout(saveTimeoutRef.current),
+      set: (timeoutId) => { saveTimeoutRef.current = timeoutId; },
+    });
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [canvasInteractionVersion, flushCanvasSave, folderPath, workspaceHistory.present]);
+  }, [canvasInteractionVersion, folderPath, runCanvasAutosaveCheck, workspaceHistory.present]);
+
+  // Canvases open in a split pane or floating view (not the active tab) get
+  // the same autosave, each with its own timer.
+  const auxCanvasPresents = useMemo(
+    () => auxCanvasPaths.map((path) => workspacesByPath[path]?.present ?? null),
+    [auxCanvasPaths, workspacesByPath],
+  );
+  useEffect(() => {
+    if (!folderPath) return undefined;
+    const activeCanvasPath = activeCanvasPathRef.current;
+    const timeouts = auxSaveTimeoutsRef.current;
+    auxCanvasPaths.forEach((path) => {
+      if (!path || path === activeCanvasPath || !workspacesRef.current[path]) return;
+      runCanvasAutosaveCheck(path, {
+        clear: () => clearTimeout(timeouts[path]),
+        set: (timeoutId) => { timeouts[path] = timeoutId; },
+      });
+    });
+    return () => {
+      auxCanvasPaths.forEach((path) => clearTimeout(timeouts[path]));
+    };
+    // auxCanvasPresents stands in for "one of those canvases changed".
+  }, [auxCanvasPaths, auxCanvasPresents, canvasInteractionVersion, folderPath, runCanvasAutosaveCheck]);
 
   // Leaving the window (another app, the OS) saves at once instead of
   // waiting out the debounce. A drag or pan that the blur cuts short commits
@@ -2156,6 +2232,10 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     runInPageScope,
+    runInCanvasScope,
+    ensureCanvasLoaded,
+    setAuxCanvasPaths,
+    canvasWorkspaces: workspacesByPath,
     activeDome,
     booting,
     bootSyncPending,
@@ -2296,6 +2376,10 @@ export function AppProvider({ children }) {
     replaceWorkspaceCards,
     rewriteCanvasFile,
     runInPageScope,
+    runInCanvasScope,
+    ensureCanvasLoaded,
+    setAuxCanvasPaths,
+    workspacesByPath,
     saveHomeUiState,
     revealDome,
     setError,

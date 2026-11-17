@@ -717,10 +717,18 @@
   border-radius: var(--ap-tile-radius-inner) !important;
   background: rgba(255, 255, 255, 0.9) !important;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05) !important;
-  backdrop-filter: blur(18px) saturate(1.12) !important;
+  /* No backdrop blur: the bar is all but opaque, so it never showed, and a
+     blur inside a tile makes Chrome rebuild big layers on every frame of a
+     drag (the window blanked out while many tiles moved). */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   transition:
     box-shadow var(--ap-transition-normal),
     transform var(--ap-transition-spring) !important;
+}
+
+.card__quick-actions:empty {
+  display: none !important;
 }
 
 .canvas__content .card__quick-action,
@@ -1038,4 +1046,16 @@
   .canvas__content .canvas__entry-item[data-releasing] > .card {
     transition: none !important;
   }
+}
+
+/* While any tile is being dragged, no blur inside tiles (rack sheets, music
+   titles, link title chips): a backdrop blur inside a tile makes Chrome merge
+   the tiles drawn above it into board-sized layers that are redrawn on every
+   frame of the drag, and with a big multi-selection that starved the GPU and
+   blanked parts of the window (title bar, dock, tiles). The blurs come back
+   on drop. Measured: 46,500 -> 145 megapixels repainted per group drag. */
+.canvas__content:has(.card--dragging) .card *,
+.grid-workspace:has(.card--dragging) .card * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
