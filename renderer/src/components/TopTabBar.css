@@ -697,8 +697,10 @@
   position: relative;
 }
 
-.titlebar-tab-shell--dragging {
-  opacity: 0.68;
+/* The tab being dragged (TopTabBar's pointer drag): fully visible, lifted
+   a touch above its neighbours as they slide aside. */
+.titlebar-tab-shell--dragging .titlebar-tab__body {
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.35);
 }
 
 /* Open: fade and grow in (neighbours slide via the FLIP in TopTabBar.jsx).
@@ -994,8 +996,8 @@
   position: relative;
   display: grid !important;
   place-items: center !important;
-  width: 36px !important;
-  height: 36px !important;
+  width: 30px !important;
+  height: 30px !important;
   padding: 0 !important;
   margin: 0 !important;
   border: 2px solid #7676767f !important;
@@ -1013,7 +1015,7 @@
 .titlebar-btn--win::after {
   content: "";
   position: absolute;
-  inset: -9px -2px;
+  inset: -12px -2px;
 }
 
 .titlebar-btn--win.is-close::after {
@@ -1053,8 +1055,8 @@
 }
 
 .titlebar-btn--win svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   color: inherit;
 }
 

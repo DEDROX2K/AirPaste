@@ -1,7 +1,7 @@
-import { lazy, memo, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CanvasDragMotionContext } from "../../context/CanvasDragMotionContext";
 import { useTileAppContext } from "../../context/TileAppContext";
-import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
+import { NoteTextView } from "../noteText/NoteText";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { formatPaperNoteShortDate } from "../../tiles/paperNote/model";
@@ -158,7 +158,6 @@ function PaperNoteTile({
   const hasTitle = title.trim().length > 0;
   const hasSubtitle = subtitle.trim().length > 0;
   const hasBody = text.trim().length > 0;
-  const bodyPreview = useMemo(() => renderSimpleMarkdown(text), [text]);
   const dateLabel = formatPaperNoteShortDate(card.updatedAt || card.createdAt);
 
   useLayoutEffect(() => {
@@ -168,7 +167,7 @@ function PaperNoteTile({
       Math.min(MAX_STACK_PAGES, Math.ceil(measuredHeight / PAGE_CONTENT_CAPACITY_PX)),
     );
     setPageCount((current) => (current === nextPageCount ? current : nextPageCount));
-  }, [text, card.width, bodyPreview]);
+  }, [text, card.width]);
 
   const openFullscreen = useCallback(() => {
     const rect = pageRef.current?.getBoundingClientRect?.();
@@ -250,13 +249,13 @@ function PaperNoteTile({
               {hasSubtitle ? <div className="paper-note__subtitle">{subtitle}</div> : null}
             </header>
             <div className="paper-note__body">
-              {hasBody ? bodyPreview : <p className="paper-note__empty">Double-click to start writing</p>}
+              {hasBody ? <NoteTextView text={text} /> : <p className="paper-note__empty">Double-click to start writing</p>}
             </div>
             {hasBody ? <div className="paper-note__fade" aria-hidden="true" /> : null}
           </section>
 
           <div ref={measureRef} className="paper-note__measure" aria-hidden="true">
-            {hasBody ? bodyPreview : null}
+            {hasBody ? <NoteTextView text={text} /> : null}
           </div>
         </div>
       </div>

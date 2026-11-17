@@ -5,7 +5,10 @@
    flat 14px-radius tile with !important, which would fight the sheet's own
    radius and shadow here. */
 
-.paper-note {
+/* Tokens are shared with the fullscreen portal (rendered into document.body,
+   outside .paper-note) so both renders paint markdown identically. */
+.paper-note,
+.paper-note-fullscreen {
   --pn-sheet: #ffffff;
   --pn-sheet-under: #f7f7f8;
   --pn-label: #1d1d1f;
@@ -18,6 +21,21 @@
   --pn-hairline: 0 0 0 0.5px rgba(0, 0, 0, 0.07);
   --pn-radius: 22px;
 
+
+  /* The shared note text palette (NoteText.css), tuned to this paper. */
+  --nt-muted: var(--pn-secondary);
+  --nt-faint: var(--pn-tertiary);
+  --nt-rule: var(--pn-separator);
+  --nt-fill: var(--pn-fill);
+  --nt-bullet: #c9ced4;
+  --nt-check-fill: #ebecee;
+  --nt-check-edge: #d2d5d9;
+  --nt-check-on: var(--pn-label);
+  --nt-link: var(--pn-link);
+  --pn-mono: var(--ap-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+.paper-note {
   position: relative;
   width: 100%;
   height: var(--tile-height);
@@ -169,86 +187,7 @@
   overflow-wrap: anywhere;
 }
 
-/* styles.css gives the shared .card__markdown-* blocks roomier margins and
-   a tinted quote box; the class-qualified selectors below out-rank those. */
-.paper-note__body > *,
-.paper-note__body .card__markdown-paragraph,
-.paper-note__body .card__markdown-list,
-.paper-note__body .card__markdown-blockquote,
-.paper-note__body .card__markdown-code-block {
-  margin: 0 0 8px;
-}
-
-.paper-note__body .card__markdown-heading {
-  margin: 12px 0 4px;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.35;
-  letter-spacing: -0.012em;
-  color: var(--pn-label);
-}
-
-.paper-note__body .card__markdown-heading:first-child {
-  margin-top: 0;
-}
-
-.paper-note__body .card__markdown-heading--h1 {
-  font-size: 15px;
-}
-
-.paper-note__body .card__markdown-list {
-  padding-left: 18px;
-  list-style: disc;
-}
-
-.paper-note__body .card__markdown-list--ordered {
-  list-style: decimal;
-}
-
-.paper-note__body .card__markdown-list li {
-  display: list-item;
-  padding-left: 2px;
-  list-style: inherit;
-}
-
-.paper-note__body .card__markdown-list li + li {
-  margin-top: 2px;
-}
-
-.paper-note__body .card__markdown-list li::marker {
-  color: var(--pn-tertiary);
-}
-
-.paper-note__body .card__markdown-blockquote {
-  padding: 0 0 0 10px;
-  border: 0;
-  border-left: 2px solid var(--pn-separator);
-  border-radius: 0;
-  background: transparent;
-  color: var(--pn-secondary);
-}
-
-.paper-note__body .card__markdown-inline-code,
-.paper-note__body .card__markdown-code-block {
-  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-  font-size: 11.5px;
-  background: var(--pn-fill);
-  border-radius: 6px;
-}
-
-.paper-note__body .card__markdown-inline-code {
-  padding: 1px 5px;
-}
-
-.paper-note__body .card__markdown-code-block {
-  padding: 8px 10px;
-  white-space: pre-wrap;
-}
-
-.paper-note__body .card__markdown-link {
-  color: var(--pn-link);
-  text-decoration: none;
-}
+/* Markdown styling is the shared note text styling (noteText/NoteText.css). */
 
 .paper-note__empty {
   color: var(--pn-tertiary);
@@ -364,10 +303,18 @@
   transition: opacity 220ms ease 230ms;
 }
 
+/* A column at least as tall as the sheet, with the editor filling whatever
+   the title block leaves: a click or drag anywhere in the empty space under
+   a short note then lands in CodeMirror's content element (the only place
+   it listens for mouse selection) instead of dead space. */
 .paper-note-fullscreen__scroll {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
   max-width: 680px;
   margin: 0 auto;
-  padding: 72px 48px 140px;
+  padding: 72px 48px 0;
 }
 
 .paper-note-fullscreen__date {
@@ -423,82 +370,71 @@
 }
 
 .paper-note-fullscreen__editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
   font-size: 17px;
   line-height: 1.6;
   letter-spacing: -0.012em;
   color: #1d1d1f;
+}
+
+/* The editor fills the rest of the sheet, so a click or drag anywhere in
+   the empty space under a short note lands in CodeMirror's content element
+   (the only place it listens for mouse selection). */
+.paper-note-fullscreen__editor > .note-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+}
+
+.paper-note-fullscreen__editor .note-text-editor.cm-editor,
+.paper-note-fullscreen__editor .note-text-editor .cm-scroller {
+  flex: 1 0 auto;
+}
+
+/* Stretch to the scroller's full height (base theme pins items to the top),
+   and keep generous room to click/scroll past the last line. */
+.paper-note-fullscreen__editor .note-text-editor .cm-content {
+  align-self: stretch;
   padding-bottom: 40vh;
 }
 
-.paper-note-editor.cm-editor {
-  outline: none;
-  background: transparent;
+/* final-overrides.css forces the arrow on every input with !important. */
+.paper-note-fullscreen .paper-note-fullscreen__title-input,
+.paper-note-fullscreen .paper-note-fullscreen__subtitle-input {
+  cursor: text !important;
 }
 
-.paper-note-editor .cm-content {
-  padding: 0;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  caret-color: #0071e3;
+/* The slash menu dims the page behind it. */
+.paper-note-fullscreen__scroll {
+  transition: opacity 180ms ease;
 }
 
-.paper-note-editor .cm-line {
-  padding: 0;
+.paper-note-fullscreen__sheet--menu-open .paper-note-fullscreen__scroll {
+  opacity: 0.45;
 }
 
-.paper-note-editor .cm-scroller {
-  font-family: inherit;
-  overflow: visible;
+.paper-note-fullscreen__mode {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--pn-fill);
+  font-family: var(--pn-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pn-secondary);
 }
 
-.cm-live-heading {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #1d1d1f;
+/* ---------- Canvas body (rendered by NoteTextView) ---------- */
+
+.paper-note__body,
+.paper-note__measure {
+  line-height: 1.6;
 }
 
-.cm-live-heading-1 {
-  font-size: 1.5em;
-}
-
-.cm-live-heading-2 {
-  font-size: 1.3em;
-}
-
-.cm-live-heading-3 {
-  font-size: 1.15em;
-}
-
-.cm-live-heading-4,
-.cm-live-heading-5,
-.cm-live-heading-6 {
-  font-size: 1.05em;
-}
-
-.cm-live-quote {
-  border-left: 3px solid rgba(60, 60, 67, 0.18);
-  padding-left: 14px;
-  color: #6e6e73;
-}
-
-.cm-live-bold {
-  font-weight: 700;
-}
-
-.cm-live-italic {
-  font-style: italic;
-}
-
-.cm-live-code {
-  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-  font-size: 0.86em;
-  background: rgba(118, 118, 128, 0.12);
-  border-radius: 5px;
-  padding: 1px 5px;
-}
-
-.cm-live-link {
-  color: #0071e3;
-  text-decoration: none;
+.paper-note .nt-h,
+.paper-note-fullscreen .nt-line-heading {
+  color: var(--pn-label);
 }

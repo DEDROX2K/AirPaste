@@ -9,12 +9,11 @@ import {
   CANVAS_TEXT_VARIANT_STICKY,
   deriveCanvasTextDisplayModel,
 } from "../../lib/canvasText";
-import { buildCanvasTextEditorExtensions, loadCanvasTextEditorModules } from "../../lib/canvasTextEditor";
 import { desktop } from "../../lib/desktop";
-import { renderSimpleMarkdown } from "../../lib/renderSimpleMarkdown";
 import { getTextBoxFontFamily, normalizeTextBoxStyle } from "../../lib/textBoxStyle";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
+import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
 import TileShell from "./TileShell";
 
 function clamp(value, minValue, maxValue) {
@@ -105,8 +104,6 @@ function CanvasTextTile({
   const isEditing = textBoxEditorState?.tileId === card.id;
   const [draftText, setDraftText] = useState(card.text ?? "");
   const [sourceStatus, setSourceStatus] = useState(defaultSourceStatus(source));
-  const editorHostRef = useRef(null);
-  const editorViewRef = useRef(null);
   const measureRef = useRef(null);
   const resizeStateRef = useRef(null);
   const actionInFlightRef = useRef(false);
@@ -125,7 +122,7 @@ function CanvasTextTile({
   const isCompactSticky = isSticky && renderState === "compact";
   const hasTitle = title.trim().length > 0;
   const hasBodyContent = bodyMarkdown.trim().length > 0;
-  const markdownPreview = useMemo(() => renderSimpleMarkdown(bodyMarkdown), [bodyMarkdown]);
+  const markdownPreview = useMemo(() => <NoteTextView text={bodyMarkdown} />, [bodyMarkdown]);
   const footerLabel = useMemo(() => {
     if (!hasBodyContent) {
       return "TYPE HERE...";
@@ -288,102 +285,47 @@ function CanvasTextTile({
     }
   }, [applySourcePayload, card.file?.filePath, card.file?.relativePath, card.id, card.text, draftText, folderPath, onEndTextBoxEdit, source, updateExistingCard]);
 
+  // Each edit session starts from the saved text (or the key that started it).
   useEffect(() => {
-    if (!isEditing || !editorHostRef.current) {
-      editorViewRef.current?.destroy?.();
-      editorViewRef.current = null;
-      return undefined;
+    if (isEditing) {
+      setDraftText(typeof textBoxEditorState?.replacementText === "string"
+        ? textBoxEditorState.replacementText
+        : (card.text ?? ""));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, textBoxEditorState?.requestId]);
 
-    const initialText = typeof textBoxEditorState?.replacementText === "string"
-      ? textBoxEditorState.replacementText
-      : (card.text ?? "");
-    setDraftText(initialText);
+  const editorInitialSelection = (() => {
+    if (textBoxEditorState?.selectAll === true) {
+      return "all";
+    }
+    const { anchor, head } = lastEditorSelectionRef.current;
+    return Number.isInteger(anchor) && Number.isInteger(head) ? { anchor, head } : "end";
+  })();
 
-    // CodeMirror is loaded on demand here (see canvasTextEditor.js) rather
-    // than imported statically, so a canvas with no text tile being edited
-    // never pays to parse it. `cancelled` guards against the host unmounting
-    // or edit mode ending before the (normally near-instant, since it's a
-    // local file in Electron) load resolves.
-    let cancelled = false;
-    let view = null;
-    let focusTimer = 0;
-    let handleFocusOut = null;
-
-    loadCanvasTextEditorModules().then((cm) => {
-      if (cancelled || !editorHostRef.current) {
-        return;
-      }
-
-      view = new cm.EditorView({
-        state: cm.EditorState.create({
-          doc: initialText,
-          extensions: buildCanvasTextEditorExtensions(cm, {
-            onDocChange: (nextText, contentHeight) => {
-              setDraftText(nextText);
-              window.requestAnimationFrame(() => {
-                refreshCardHeight(contentHeight);
-              });
-            },
-            onExit: () => {
-              void exitEditMode({ restoreCanvasFocus: true });
-            },
-          }),
-        }),
-        parent: editorHostRef.current,
-      });
-
-      focusTimer = window.requestAnimationFrame(() => {
-        view.focus();
-        const selectionRange = textBoxEditorState?.selectAll === true
-          ? { anchor: 0, head: view.state.doc.length }
-          : typeof textBoxEditorState?.replacementText === "string"
-            ? { anchor: view.state.doc.length, head: view.state.doc.length }
-            : Number.isInteger(lastEditorSelectionRef.current.anchor) && Number.isInteger(lastEditorSelectionRef.current.head)
-              ? {
-                anchor: clamp(lastEditorSelectionRef.current.anchor, 0, view.state.doc.length),
-                head: clamp(lastEditorSelectionRef.current.head, 0, view.state.doc.length),
-              }
-              : { anchor: 0, head: 0 };
-        view.dispatch({ selection: selectionRange });
-        view.scrollDOM.scrollTop = Number.isFinite(lastEditorSelectionRef.current.scrollTop)
-          ? lastEditorSelectionRef.current.scrollTop
-          : 0;
-        refreshCardHeight(view.contentHeight);
-      });
-
-      handleFocusOut = (event) => {
-        const selection = view.state.selection.main;
-        lastEditorSelectionRef.current = {
-          anchor: selection.anchor,
-          head: selection.head,
-          scrollTop: view.scrollDOM.scrollTop,
-        };
-
-        const nextFocusTarget = event.relatedTarget;
-        if (nextFocusTarget instanceof Element && nextFocusTarget.closest("[data-canvas-text-action-root='true']")) {
-          return;
-        }
-
-        void exitEditMode();
-      };
-
-      view.dom.addEventListener("focusout", handleFocusOut);
-      editorViewRef.current = view;
+  const handleEditorChange = useCallback((nextText, view) => {
+    setDraftText(nextText);
+    window.requestAnimationFrame(() => {
+      refreshCardHeight(view?.contentHeight ?? 0);
     });
+  }, [refreshCardHeight]);
 
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(focusTimer);
-      if (view) {
-        if (handleFocusOut) {
-          view.dom.removeEventListener("focusout", handleFocusOut);
-        }
-        view.destroy();
-      }
-      editorViewRef.current = null;
-    };
-  }, [card.text, exitEditMode, isEditing, refreshCardHeight, textBoxEditorState?.replacementText, textBoxEditorState?.selectAll]);
+  const handleEditorReady = useCallback((view) => {
+    window.requestAnimationFrame(() => refreshCardHeight(view.contentHeight));
+  }, [refreshCardHeight]);
+
+  // Esc / Mod+Enter, or focus leaving the editor (except to this tile's own
+  // action buttons): save and leave edit mode.
+  const handleEditorExit = ({ reason, relatedTarget }) => {
+    if (reason === "escape") {
+      void exitEditMode({ restoreCanvasFocus: true });
+      return;
+    }
+    if (relatedTarget instanceof Element && relatedTarget.closest("[data-canvas-text-action-root='true']")) {
+      return;
+    }
+    void exitEditMode();
+  };
 
   const handleResizePointerDown = (side, event) => {
     if (!tileMeta?.isSelected || isEditing) {
@@ -497,7 +439,23 @@ function CanvasTextTile({
 
             <div className="card__canvas-text-body-shell" onPointerDown={stopInteractivePointer}>
               {isEditing ? (
-                <div ref={editorHostRef} className="card__canvas-text-editor" style={plainTextCssVars} />
+                <div className="card__canvas-text-editor" style={plainTextCssVars}>
+                  <NoteTextEditor
+                    key={textBoxEditorState?.requestId ?? "edit"}
+                    initialText={card.text ?? ""}
+                    replacementText={textBoxEditorState?.replacementText}
+                    initialSelection={editorInitialSelection}
+                    onChange={(nextText, view) => {
+                      if (view) {
+                        const { anchor, head } = view.state.selection.main;
+                        lastEditorSelectionRef.current = { anchor, head, scrollTop: 0 };
+                      }
+                      handleEditorChange(nextText, view);
+                    }}
+                    onReady={handleEditorReady}
+                    onExit={handleEditorExit}
+                  />
+                </div>
               ) : sourceStatus.status === "error" ? (
                 <div className="card__canvas-text-error">
                   <p>{sourceStatus.error}</p>

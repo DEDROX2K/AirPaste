@@ -11,6 +11,7 @@ import {
   getFolderStickyMinHeight,
   normalizeStickyStyle,
 } from "../../tiles/sticky/model";
+import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
 import FloatingFormatToolbar from "./FloatingFormatToolbar";
 import TileShell from "./TileShell";
 import "./StickyFolderTile.css";
@@ -40,8 +41,8 @@ function placeCaret(element, selectAll) {
   selection.addRange(range);
 }
 
-function readText(element) {
-  return (element?.innerText ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
+function normalizeBody(text) {
+  return (text ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
 }
 
 function countWrittenLines(text) {
@@ -88,6 +89,10 @@ function StickyFolderTile({
   const rootRef = useRef(null);
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
+  const bodyEditorRef = useRef(null);
+  // The body editor is uncontrolled; this holds what's typed this session.
+  const bodyDraftRef = useRef(null);
+  const exitedRef = useRef(false);
   const wasSelectedAtPressRef = useRef(false);
   const cardRef = useRef(card);
   cardRef.current = card;
@@ -97,6 +102,8 @@ function StickyFolderTile({
   const showToolbar = showChrome && tileMeta?.isMultiSelect !== true;
   const editedAt = draft?.editedAt ?? style.editedAt;
   const lineCount = draft?.lineCount ?? countWrittenLines(body);
+  // An empty note starts editing on its title, otherwise in the body.
+  const startsOnTitle = !title && !body;
 
   const startEditing = useCallback(() => {
     onRequestTextBoxEdit?.(card.id, { selectAll: false });
@@ -118,25 +125,30 @@ function StickyFolderTile({
     onDoubleActivate: startEditing,
   });
 
-  // Title and body are uncontrolled: React never writes them while typing.
+  // The title is uncontrolled: React never writes it while typing.
   useLayoutEffect(() => {
-    if (isEditing) {
-      return;
-    }
-    if (titleRef.current && titleRef.current.textContent !== title) {
+    if (!isEditing && titleRef.current && titleRef.current.textContent !== title) {
       titleRef.current.textContent = title;
     }
-    if (bodyRef.current && bodyRef.current.innerText !== body) {
-      bodyRef.current.textContent = body;
+  }, [isEditing, title]);
+
+  // Each edit session starts from the saved text.
+  useLayoutEffect(() => {
+    if (isEditing) {
+      bodyDraftRef.current = !startsOnTitle && typeof textBoxEditorState?.replacementText === "string"
+        ? textBoxEditorState.replacementText
+        : body;
+      exitedRef.current = false;
     }
-  }, [body, isEditing, title]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, textBoxEditorState?.requestId]);
 
-  // Entering edit mode: an empty note starts on its title, otherwise at the
-  // end of the body. A key that started editing replaces that field.
+  // Entering edit mode on an empty note: focus the title (a key that
+  // started editing replaces it). The body editor focuses itself otherwise.
   useEffect(() => {
-    const target = !title && !body ? titleRef.current : bodyRef.current;
+    const target = titleRef.current;
 
-    if (!isEditing || !target) {
+    if (!isEditing || !startsOnTitle || !target) {
       return undefined;
     }
 
@@ -193,7 +205,7 @@ function StickyFolderTile({
   const commitText = () => {
     // textContent, not innerText: the title is shown uppercase by CSS only.
     const nextTitle = (titleRef.current?.textContent ?? "").replace(/\s*\n\s*/g, " ");
-    const nextBody = readText(bodyRef.current);
+    const nextBody = normalizeBody(bodyDraftRef.current ?? body);
 
     if (nextTitle !== title || nextBody !== body) {
       updateExistingCard(card.id, {
@@ -206,7 +218,7 @@ function StickyFolderTile({
   };
 
   // Typing counts as an edit; formatting doesn't.
-  const handleInput = (event) => {
+  const handleTitleInput = (event) => {
     const element = event.currentTarget;
 
     // A cleared field can keep a stray <br>; empty it so the placeholder shows.
@@ -214,37 +226,51 @@ function StickyFolderTile({
       element.textContent = "";
     }
 
-    setDraft({ editedAt: new Date().toISOString(), lineCount: countWrittenLines(readText(bodyRef.current)) });
+    setDraft({ editedAt: new Date().toISOString(), lineCount: countWrittenLines(bodyDraftRef.current ?? body) });
+  };
+
+  const handleBodyChange = (nextText) => {
+    bodyDraftRef.current = nextText;
+    setDraft({ editedAt: new Date().toISOString(), lineCount: countWrittenLines(nextText) });
+  };
+
+  const finishEditing = ({ restoreCanvasFocus }) => {
+    if (exitedRef.current) {
+      return;
+    }
+    exitedRef.current = true;
+    commitText();
+    window.getSelection()?.removeAllRanges();
+    onEndTextBoxEdit?.(card.id, { restoreCanvasFocus });
+  };
+
+  // Esc / Mod+Enter in the body, or focus leaving the note entirely.
+  const handleBodyExit = ({ reason, relatedTarget }) => {
+    if (reason === "blur" && relatedTarget instanceof Node && rootRef.current?.contains(relatedTarget)) {
+      return;
+    }
+    finishEditing({ restoreCanvasFocus: reason === "escape" });
   };
 
   // Moving between title and body stays in edit mode.
-  const handleBlur = (event) => {
+  const handleTitleBlur = (event) => {
     if (rootRef.current?.contains(event.relatedTarget)) {
       return;
     }
 
-    commitText();
-    window.getSelection()?.removeAllRanges();
-    onEndTextBoxEdit?.(card.id, { restoreCanvasFocus: false });
+    finishEditing({ restoreCanvasFocus: false });
   };
 
-  const handleKeyDown = (event) => {
+  const handleTitleKeyDown = (event) => {
     const isModifier = event.metaKey || event.ctrlKey;
 
-    if (event.key === "Escape") {
+    if (event.key === "Escape" || (isModifier && event.key === "Enter")) {
       event.preventDefault();
-      event.currentTarget.blur();
-      onEndTextBoxEdit?.(card.id, { restoreCanvasFocus: true });
-    } else if (event.key === "Enter" && event.currentTarget === titleRef.current) {
+      finishEditing({ restoreCanvasFocus: true });
+    } else if (event.key === "Enter") {
+      // Titles are one line: Enter moves on to the body.
       event.preventDefault();
-      bodyRef.current?.focus({ preventScroll: true });
-      placeCaret(bodyRef.current, false);
-    } else if (isModifier && event.key.toLowerCase() === "b") {
-      event.preventDefault();
-      updateStyle({ bold: !style.bold });
-    } else if (isModifier && event.key.toLowerCase() === "i") {
-      event.preventDefault();
-      updateStyle({ italic: !style.italic });
+      bodyEditorRef.current?.focus("start");
     }
   };
 
@@ -304,17 +330,18 @@ function StickyFolderTile({
     window.addEventListener("blur", finish);
   };
 
-  const editableProps = (label, placeholder) => ({
+  const titleProps = {
     role: "textbox",
-    "aria-label": label,
-    "data-placeholder": placeholder,
-    spellCheck: false,
+    "aria-label": "Note title",
+    "data-placeholder": "Title",
+    // Squiggles only while the note is being written in.
+    spellCheck: isEditing,
     contentEditable: isEditing ? "plaintext-only" : "false",
     suppressContentEditableWarning: true,
-    onInput: isEditing ? handleInput : undefined,
-    onKeyDown: isEditing ? handleKeyDown : undefined,
-    onBlur: isEditing ? handleBlur : undefined,
-  });
+    onInput: isEditing ? handleTitleInput : undefined,
+    onKeyDown: isEditing ? handleTitleKeyDown : undefined,
+    onBlur: isEditing ? handleTitleBlur : undefined,
+  };
 
   return (
     <TileShell
@@ -362,13 +389,24 @@ function StickyFolderTile({
         </div>
 
         <div className="folder-note__sheet">
-          <div ref={titleRef} className="folder-note__title" {...editableProps("Note title", "Title")} />
-          <div
-            ref={bodyRef}
-            className="folder-note__body"
-            aria-multiline="true"
-            {...editableProps("Note text", "Start typing...")}
-          />
+          <div ref={titleRef} className="folder-note__title" {...titleProps} />
+          <div ref={bodyRef} className="folder-note__body" aria-label="Note text">
+            {isEditing ? (
+              <NoteTextEditor
+                ref={bodyEditorRef}
+                key={textBoxEditorState?.requestId ?? "edit"}
+                initialText={body}
+                replacementText={startsOnTitle ? undefined : textBoxEditorState?.replacementText}
+                initialSelection={textBoxEditorState?.selectAll === true ? "all" : "end"}
+                autoFocus={!startsOnTitle}
+                placeholder="Start typing..."
+                onChange={handleBodyChange}
+                onExit={handleBodyExit}
+              />
+            ) : (
+              <NoteTextView text={body} placeholder="Start typing..." />
+            )}
+          </div>
         </div>
 
         {showChrome ? RESIZE_HANDLES.map((handle) => (

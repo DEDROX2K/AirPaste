@@ -1,0 +1,519 @@
+/* Shared note text styling -- the editor (NoteTextEditor), the read-only
+   render (NoteTextView) and their floating menus. Rules: see
+   docs/rules/text-editing-rules.md.
+
+   Everything is em-based (scales with the host's font-size) and every
+   colour derives from the host's text colour unless the host overrides a
+   --nt-* token, so the same rules read on white paper, a yellow sticky or a
+   dark folder sheet. The `nt-*` inline/marker classes are emitted by BOTH
+   renderers; block styles are mirrored rule-for-rule (.nt-x for the view,
+   .nt-line-x for the editor's line decorations). */
+
+.note-text,
+.note-text-menu {
+  --nt-ink: currentColor;
+  --nt-muted: color-mix(in srgb, currentColor 55%, transparent);
+  --nt-faint: color-mix(in srgb, currentColor 32%, transparent);
+  --nt-rule: color-mix(in srgb, currentColor 14%, transparent);
+  --nt-fill: color-mix(in srgb, currentColor 8%, transparent);
+  --nt-bullet: color-mix(in srgb, currentColor 30%, transparent);
+  --nt-check-fill: color-mix(in srgb, currentColor 8%, transparent);
+  --nt-check-edge: color-mix(in srgb, currentColor 22%, transparent);
+  --nt-check-on: currentColor;
+  --nt-link: #0071e3;
+  --nt-highlight: #ebff00;
+  --nt-highlight-ink: #1d1d1f;
+  --nt-code-ink: #d6336c;
+  --nt-code-fill: rgba(214, 51, 108, 0.08);
+  --nt-caret: #0071e3;
+  --nt-mono: var(--ap-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  --nt-li-step: 2.1em;
+  --nt-li-nest: 1.5em;
+}
+
+.note-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Editor chrome: CodeMirror blends into the host ---------- */
+
+.note-text-editor.cm-editor {
+  outline: none;
+  background: transparent;
+  color: inherit;
+}
+
+.note-text-editor .cm-scroller {
+  font-family: inherit;
+  line-height: inherit;
+  overflow: visible;
+}
+
+.note-text-editor .cm-content {
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  caret-color: var(--nt-caret);
+}
+
+.note-text-editor .cm-line {
+  padding: 0;
+}
+
+.note-text-editor .cm-placeholder {
+  color: var(--nt-faint);
+}
+
+/* final-overrides.css forces the arrow cursor app-wide with !important;
+   writing surfaces get the native I-beam. */
+.note-text .note-text-editor .cm-content {
+  cursor: text !important;
+}
+
+.note-text .note-text-editor .nt-marker--task {
+  cursor: var(--ap-cursor-pointer, pointer) !important;
+}
+
+/* ---------- Inline (both renderers) ---------- */
+
+.note-text .nt-bold {
+  font-weight: 700;
+}
+
+.note-text .nt-italic {
+  font-style: italic;
+}
+
+.note-text .nt-strike {
+  text-decoration: line-through;
+  text-decoration-color: var(--nt-muted);
+}
+
+.note-text .nt-underline {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.note-text .nt-strike.nt-underline,
+.note-text .nt-strike .nt-underline,
+.note-text .nt-underline .nt-strike {
+  text-decoration: underline line-through;
+}
+
+.note-text .nt-highlight {
+  background: var(--nt-highlight);
+  color: var(--nt-highlight-ink);
+  border-radius: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.note-text .nt-code {
+  font-family: var(--nt-mono);
+  font-size: 0.88em;
+  color: var(--nt-code-ink);
+  background: var(--nt-code-fill);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.note-text .nt-link {
+  color: var(--nt-link);
+  text-decoration: none;
+}
+
+/* Raw markup revealed on the active line/span reads as secondary. */
+.note-text .nt-markup {
+  color: var(--nt-faint);
+  font-weight: 400;
+  font-style: normal;
+  text-decoration: none;
+  background: none;
+}
+
+/* ---------- List markers (both renderers) ----------
+   An inline-block as wide as the item's hanging indent, so wrapped lines
+   align under the text, with the glyph at the indent start. */
+
+.note-text .nt-marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: calc(var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest));
+  padding-left: calc((var(--nt-li-depth, 1) - 1) * var(--nt-li-nest));
+  text-indent: 0;
+  text-align: left;
+  text-decoration: none;
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.note-text .nt-bullet {
+  display: inline-block;
+  width: 0.36em;
+  height: 0.36em;
+  margin-left: 0.32em;
+  border-radius: 50%;
+  background: var(--nt-bullet);
+  vertical-align: 0.2em;
+}
+
+.note-text .nt-ordinal {
+  color: var(--nt-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.note-text .nt-checkbox {
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 1.1em;
+  height: 1.1em;
+  border: 1px solid var(--nt-check-edge);
+  border-radius: 0.3em;
+  background: var(--nt-check-fill);
+  vertical-align: -0.18em;
+}
+
+/* The tick is pixelarticons' own `check` glyph, used as a mask. */
+.note-text .nt-checkbox--checked {
+  border-color: var(--nt-check-on);
+  background: var(--nt-check-on);
+}
+
+.note-text .nt-checkbox--checked::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  background: #ffffff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 18H8v-2h2v2Zm-2-2H6v-2h2v2Zm4-2v2h-2v-2h2Zm-6 0H4v-2h2v2Zm8 0h-2v-2h2v2Zm2-2h-2v-2h2v2Zm2-2h-2V8h2v2Zm2-2h-2V6h2v2Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 18H8v-2h2v2Zm-2-2H6v-2h2v2Zm4-2v2h-2v-2h2Zm-6 0H4v-2h2v2Zm8 0h-2v-2h2v2Zm2-2h-2v-2h2v2Zm2-2h-2V8h2v2Zm2-2h-2V6h2v2Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---------- Read-only render blocks ---------- */
+
+.note-text--view > * {
+  margin: 0;
+}
+
+.note-text .nt-placeholder {
+  color: var(--nt-faint);
+}
+
+.note-text .nt-p {
+  white-space: pre-line;
+}
+
+.note-text .nt-gap {
+  height: 1lh;
+}
+
+.note-text .nt-h {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.note-text .nt-h1 { font-size: 1.5em; }
+.note-text .nt-h2 { font-size: 1.3em; }
+.note-text .nt-h3 { font-size: 1.15em; }
+.note-text .nt-h4 { font-size: 1.05em; }
+
+.note-text .nt-li {
+  padding-left: calc(var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest));
+  text-indent: calc(-1 * (var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest)));
+  text-align: left;
+}
+
+.note-text .nt-li-continuation {
+  padding-left: calc(var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest));
+}
+
+.note-text .nt-task-done {
+  color: var(--nt-faint);
+  text-decoration: line-through;
+}
+
+.note-text .nt-quote {
+  border-left: 3px solid var(--nt-rule);
+  padding-left: 0.85em;
+  color: var(--nt-muted);
+  text-align: left;
+}
+
+.note-text .nt-codeblock,
+.note-text .nt-table {
+  margin: 0;
+  padding: 0.6em 0.85em;
+  border-radius: 8px;
+  background: var(--nt-fill);
+  font-family: var(--nt-mono);
+  font-size: 0.86em;
+  line-height: 1.55;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-text .nt-table {
+  background: transparent;
+  padding: 0;
+}
+
+.note-text .nt-hr {
+  height: 1lh;
+  background: linear-gradient(var(--nt-rule), var(--nt-rule)) center / 100% 1px no-repeat;
+}
+
+/* ---------- Editor line decorations (mirror the blocks above) ---------- */
+
+.note-text-editor .cm-line.nt-line-heading {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.note-text-editor .cm-line.nt-line-heading-1 { font-size: 1.5em; }
+.note-text-editor .cm-line.nt-line-heading-2 { font-size: 1.3em; }
+.note-text-editor .cm-line.nt-line-heading-3 { font-size: 1.15em; }
+.note-text-editor .cm-line:is(.nt-line-heading-4, .nt-line-heading-5, .nt-line-heading-6) { font-size: 1.05em; }
+
+.note-text-editor .cm-line.nt-line-setext-underline {
+  line-height: 0.4;
+}
+
+.note-text-editor .cm-line.nt-line-li {
+  padding-left: calc(var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest));
+  text-indent: calc(-1 * (var(--nt-li-step) + (var(--nt-li-depth, 1) - 1) * var(--nt-li-nest)));
+  text-align: left;
+}
+
+.note-text-editor .cm-line.nt-line-task-done {
+  color: var(--nt-faint);
+  text-decoration: line-through;
+}
+
+.note-text-editor .cm-line.nt-line-quote {
+  border-left: 3px solid var(--nt-rule);
+  padding-left: 0.85em;
+  color: var(--nt-muted);
+  text-align: left;
+}
+
+.note-text-editor .cm-line.nt-line-codeblock {
+  padding: 0 0.85em;
+  background: var(--nt-fill);
+  font-family: var(--nt-mono);
+  font-size: 0.86em;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.note-text-editor .cm-line.nt-line-codeblock-start {
+  border-radius: 8px 8px 0 0;
+}
+
+.note-text-editor .cm-line.nt-line-codeblock-end {
+  border-radius: 0 0 8px 8px;
+}
+
+.note-text-editor .cm-line.nt-line-codeblock-fence {
+  line-height: 0.6;
+}
+
+.note-text-editor .cm-line.nt-line-table {
+  font-family: var(--nt-mono);
+  font-size: 0.86em;
+  text-align: left;
+}
+
+.note-text-editor .cm-line.nt-line-hr {
+  background: linear-gradient(var(--nt-rule), var(--nt-rule)) center / 100% 1px no-repeat;
+}
+
+/* ---------- Floating menus (portaled to <body>) ----------
+   Selectors start with .note-text-menu to out-rank SimpleUi.css's global
+   !important button rules. Menus are always light, whatever the note. */
+
+.note-text-menu {
+  color: #1d1d1f;
+  font-family: var(--ap-font-body, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.note-text-menu.nt-slash {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 272px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 18px;
+  background: #f5f5f7;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 12px 32px -8px rgba(0, 0, 0, 0.22),
+    0 30px 60px -20px rgba(0, 0, 0, 0.18);
+  animation: nt-pop-in 140ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.note-text-menu .nt-slash__separator {
+  height: 1px;
+  margin: 6px 10px;
+  background: rgba(60, 60, 67, 0.12);
+}
+
+.note-text-menu .nt-slash__item {
+  display: grid !important;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px !important;
+  border: none !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #1d1d1f !important;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: var(--ap-cursor-pointer, pointer) !important;
+}
+
+.note-text-menu .nt-slash__item--selected,
+.note-text-menu .nt-slash__item:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.055) !important;
+}
+
+.note-text-menu .nt-slash__item--current {
+  color: #aeaeb2 !important;
+}
+
+.note-text-menu .nt-slash__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-text-menu .nt-slash__lead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.note-text-menu .nt-slash__index,
+.note-text-menu .nt-slash__glyph {
+  font-family: var(--nt-mono);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.note-text-menu .nt-slash__hint {
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  color: #86868b;
+  white-space: nowrap;
+}
+
+.note-text-menu .nt-slash__item--current .nt-slash__hint {
+  color: #aeaeb2;
+}
+
+.note-text-menu.nt-toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #1d1d1f;
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -100%);
+  animation: nt-pop-in 120ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.note-text-menu.nt-toolbar--below {
+  transform: translate(-50%, 0);
+}
+
+.note-text-menu .nt-toolbar__button {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.86) !important;
+  cursor: var(--ap-cursor-pointer, pointer) !important;
+}
+
+.note-text-menu .nt-toolbar__button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.note-text-menu .nt-toolbar__button--active,
+.note-text-menu .nt-toolbar__button--active:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+.note-text-menu .nt-toolbar__glyph {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.note-text-menu .nt-toolbar__glyph--bold { font-weight: 800; }
+.note-text-menu .nt-toolbar__glyph--italic { font-style: italic; font-family: Georgia, "Times New Roman", serif; }
+.note-text-menu .nt-toolbar__glyph--underline { text-decoration: underline; text-underline-offset: 3px; }
+.note-text-menu .nt-toolbar__glyph--strike { text-decoration: line-through; }
+
+.note-text-menu .nt-toolbar__tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f5f5f7;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  color: #1d1d1f;
+  font-family: var(--nt-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease 250ms;
+}
+
+.note-text-menu .nt-toolbar__tip-key {
+  color: #aeaeb2;
+  text-transform: none;
+}
+
+.note-text-menu .nt-toolbar__button:hover .nt-toolbar__tip {
+  opacity: 1;
+}
+
+@keyframes nt-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isEditableElement } from "../lib/workspace";
 import { TabContext } from "./TabContext";
+import { clampInsertIndex, reorderTabs } from "./tabOrder";
 
 const HOME_TAB_ID = "home";
 const TABS_STORAGE_KEY = "airpaste_tabs";
@@ -108,73 +109,6 @@ function normalizeClosedTabs(rawClosedTabs) {
     .map(sanitizeClosedTabEntry)
     .filter(Boolean)
     .slice(0, MAX_RECENTLY_CLOSED_TABS);
-}
-
-function pinnedTabCount(tabs) {
-  return tabs.filter((tab) => tab.pinned).length;
-}
-
-function clampMoveIndex(tabs, tab, targetIndex) {
-  if (!tab) {
-    return 0;
-  }
-
-  if (!Number.isFinite(targetIndex)) {
-    return tabs.findIndex((entry) => entry.id === tab.id);
-  }
-
-  const currentIndex = tabs.findIndex((entry) => entry.id === tab.id);
-  const normalizedTarget = Math.max(0, Math.min(tabs.length - 1, targetIndex));
-  const pinnedCount = pinnedTabCount(tabs);
-
-  if (tab.id === HOME_TAB_ID) {
-    return 0;
-  }
-
-  if (tab.pinned) {
-    return Math.max(1, Math.min(pinnedCount - 1, normalizedTarget));
-  }
-
-  const maxTarget = tabs.length - 1;
-  const minTarget = Math.max(1, pinnedCount);
-  const adjustedTarget = Math.max(minTarget, Math.min(maxTarget, normalizedTarget));
-
-  if (currentIndex === -1) {
-    return adjustedTarget;
-  }
-
-  return adjustedTarget;
-}
-
-function clampInsertIndex(tabs, tab, targetIndex) {
-  const normalizedTarget = Math.max(0, Math.min(tabs.length, targetIndex));
-  const pinnedCount = pinnedTabCount(tabs);
-
-  if (tab?.pinned) {
-    return Math.max(1, Math.min(pinnedCount, normalizedTarget));
-  }
-
-  return Math.max(Math.max(1, pinnedCount), Math.min(tabs.length, normalizedTarget));
-}
-
-function reorderTabs(tabs, tabId, targetIndex) {
-  const currentIndex = tabs.findIndex((tab) => tab.id === tabId);
-  if (currentIndex === -1) {
-    return tabs;
-  }
-
-  const tab = tabs[currentIndex];
-  const nextIndex = clampMoveIndex(tabs, tab, targetIndex);
-
-  if (currentIndex === nextIndex) {
-    return tabs;
-  }
-
-  const nextTabs = [...tabs];
-  nextTabs.splice(currentIndex, 1);
-  const insertIndex = currentIndex < nextIndex ? nextIndex - 1 : nextIndex;
-  nextTabs.splice(insertIndex, 0, tab);
-  return nextTabs;
 }
 
 function getNextActiveAfterClose(tabs, closingIds, activeTabId) {

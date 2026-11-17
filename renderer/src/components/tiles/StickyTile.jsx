@@ -13,6 +13,7 @@ import {
   normalizeStickyStyle,
   rememberStickyColor,
 } from "../../tiles/sticky/model";
+import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
 import FloatingFormatToolbar from "./FloatingFormatToolbar";
 import TileShell from "./TileShell";
 import { Plus } from "../ui/icons";
@@ -37,17 +38,6 @@ const ADD_BUTTONS = [
 
 function stopPointer(event) {
   event.stopPropagation();
-}
-
-function placeCaret(element, selectAll) {
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  if (!selectAll) {
-    range.collapse(false);
-  }
-  const selection = window.getSelection();
-  selection.removeAllRanges();
-  selection.addRange(range);
 }
 
 function PlusIcon() {
@@ -77,6 +67,9 @@ function StickyTile({
   const [resizeLabel, setResizeLabel] = useState("");
   const isResizing = resizeLabel !== "";
   const textRef = useRef(null);
+  // The editor is uncontrolled; this holds what's been typed this session.
+  const draftRef = useRef(null);
+  const exitedRef = useRef(false);
   const wasSelectedAtPressRef = useRef(false);
   const displayText = getStickyDisplayText(card);
   const showChrome = tileMeta?.isSelected === true && !tileMeta?.isDragging && !isResizing && !isStaticPreview;
@@ -104,33 +97,16 @@ function StickyTile({
     onDoubleActivate: startEditing,
   });
 
-  // The text is uncontrolled: React never writes it while the user types.
+  // Each edit session starts from the saved text (or the key that started it).
   useLayoutEffect(() => {
-    if (!isEditing && textRef.current && textRef.current.innerText !== displayText) {
-      textRef.current.textContent = displayText;
+    if (isEditing) {
+      draftRef.current = typeof textBoxEditorState?.replacementText === "string"
+        ? textBoxEditorState.replacementText
+        : displayText;
+      exitedRef.current = false;
     }
-  }, [displayText, isEditing]);
-
-  // Entering edit mode: optionally replace the text with the key that
-  // started it, then put the caret at the end (or select everything).
-  useEffect(() => {
-    const element = textRef.current;
-
-    if (!isEditing || !element) {
-      return undefined;
-    }
-
-    if (typeof textBoxEditorState?.replacementText === "string") {
-      element.textContent = textBoxEditorState.replacementText;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      element.focus({ preventScroll: true });
-      placeCaret(element, textBoxEditorState?.selectAll === true);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [isEditing, textBoxEditorState?.replacementText, textBoxEditorState?.requestId, textBoxEditorState?.selectAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, textBoxEditorState?.requestId]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -149,8 +125,7 @@ function StickyTile({
   }, [card.id, card.sticky, updateExistingCard]);
 
   const commitText = () => {
-    const element = textRef.current;
-    const nextText = (element?.innerText ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
+    const nextText = (draftRef.current ?? displayText).replace(/\r\n/g, "\n").replace(/\n$/, "");
 
     // A title from the older sticky design folds into the text for good.
     if (nextText !== displayText || card.title) {
@@ -158,26 +133,14 @@ function StickyTile({
     }
   };
 
-  const finishEditing = ({ restoreCanvasFocus = false } = {}) => {
-    commitText();
-    window.getSelection()?.removeAllRanges();
-    onEndTextBoxEdit?.(card.id, { restoreCanvasFocus });
-  };
-
-  const handleTextKeyDown = (event) => {
-    const isModifier = event.metaKey || event.ctrlKey;
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.currentTarget.blur();
-      onEndTextBoxEdit?.(card.id, { restoreCanvasFocus: true });
-    } else if (isModifier && event.key.toLowerCase() === "b") {
-      event.preventDefault();
-      updateStyle({ bold: !style.bold });
-    } else if (isModifier && event.key.toLowerCase() === "i") {
-      event.preventDefault();
-      updateStyle({ italic: !style.italic });
+  // Esc / Mod+Enter or clicking away: save and leave edit mode (once).
+  const handleEditorExit = ({ reason }) => {
+    if (exitedRef.current) {
+      return;
     }
+    exitedRef.current = true;
+    commitText();
+    onEndTextBoxEdit?.(card.id, { restoreCanvasFocus: reason === "escape" });
   };
 
   // While typing, a press in the text moves the caret instead of dragging.
@@ -273,20 +236,20 @@ function StickyTile({
         {...gesture}
         onPointerDown={handlePointerDown}
       >
-        <div
-          ref={textRef}
-          className="sticky__text"
-          role="textbox"
-          aria-multiline="true"
-          aria-label="Sticky note text"
-          spellCheck={false}
-          // Editable only while editing, so a click never drops a caret
-          // by accident and text isn't selectable while dragging.
-          contentEditable={isEditing ? "plaintext-only" : "false"}
-          suppressContentEditableWarning
-          onKeyDown={isEditing ? handleTextKeyDown : undefined}
-          onBlur={isEditing ? () => finishEditing() : undefined}
-        />
+        <div ref={textRef} className="sticky__text" aria-label="Sticky note text">
+          {isEditing ? (
+            <NoteTextEditor
+              key={textBoxEditorState?.requestId ?? "edit"}
+              initialText={displayText}
+              replacementText={textBoxEditorState?.replacementText}
+              initialSelection={textBoxEditorState?.selectAll === true ? "all" : "end"}
+              onChange={(nextText) => { draftRef.current = nextText; }}
+              onExit={handleEditorExit}
+            />
+          ) : (
+            <NoteTextView text={displayText} />
+          )}
+        </div>
         {style.author ? <span className="sticky__author">{style.author}</span> : null}
 
         {showChrome ? (

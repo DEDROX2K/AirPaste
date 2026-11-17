@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTabs } from "../context/useTabs";
+import { getDragSlot } from "../context/tabOrder";
 import { useAppContext } from "../context/useAppContext";
 import { useToast } from "../hooks/useToast";
 import { desktop } from "../lib/desktop";
@@ -437,9 +438,8 @@ function TabItem({
   onShowHistory,
   onShare,
   onRename,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
+  onDragPointerDown,
+  shouldIgnoreClick,
 }) {
   const isHome = tab.id === "home";
   const canRename = !isHome && Boolean(tab.entityId) && typeof onRename === "function";
@@ -486,9 +486,14 @@ function TabItem({
         <div
           data-tab-id={tab.id}
           className={tabClassName}
-          draggable={tab.closable && !isRenaming}
+          onPointerDown={(event) => {
+            if (!isRenaming && tab.closable) {
+              onDragPointerDown?.(event, tab.id);
+            }
+          }}
           onClick={() => {
-            if (isRenaming) {
+            // A release that ended a drag isn't a click.
+            if (isRenaming || shouldIgnoreClick?.()) {
               return;
             }
             // Home logo clicked while already on Home: show the splash.
@@ -504,9 +509,6 @@ function TabItem({
               onClose();
             }
           }}
-          onDragStart={(event) => onDragStart(event, tab.id)}
-          onDragOver={(event) => onDragOver(event, tab.id)}
-          onDragEnd={onDragEnd}
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
@@ -644,6 +646,12 @@ function TabItem({
 }
 
 const TAB_EXIT_MS = 200;
+// Tab reordering (TopTabBar's pointer drag): how far the pointer moves before
+// a press becomes a drag, how fast neighbours slide aside, and how the dropped
+// tab settles into place.
+const TAB_DRAG_THRESHOLD = 4;
+const TAB_SHIFT_MS = 180;
+const TAB_SETTLE_MS = 200;
 
 // Tabs to draw: the open ones (new ones flagged `entering`) plus closed ones
 // kept for TAB_EXIT_MS (`exiting`, at their old spot) so they can shrink away.
@@ -712,7 +720,50 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     return () => window.clearTimeout(timerId);
   }, [tabEntries]);
 
+  // Set when a drag drops a tab in a new place: the next reorder must not
+  // slide the tabs from their old spots (they're already shown in the new
+  // ones), only settle the dropped tab from where it was let go.
+  const dragDropRef = useRef(null);
+  const dragRef = useRef(null);
+  const suppressClickRef = useRef(false);
+
   useLayoutEffect(() => {
+    const drop = dragDropRef.current;
+
+    if (drop) {
+      dragDropRef.current = null;
+      const nextRects = new Map();
+
+      orderedTabIds.forEach((tabId) => {
+        const node = tabRefs.current.get(tabId);
+        if (!node) {
+          return;
+        }
+
+        node.style.transition = "none";
+        node.style.transform = "";
+        node.style.zIndex = "";
+
+        if (tabId === drop.tabId) {
+          const settledLeft = node.getBoundingClientRect().left;
+          const deltaX = drop.visualLeft - settledLeft;
+
+          if (Math.abs(deltaX) >= 1) {
+            node.style.transform = `translateX(${deltaX}px)`;
+            requestAnimationFrame(() => {
+              node.style.transition = `transform ${TAB_SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+              node.style.transform = "";
+            });
+          }
+        }
+
+        nextRects.set(tabId, node.getBoundingClientRect());
+      });
+
+      previousRectsRef.current = nextRects;
+      return;
+    }
+
     const nextRects = new Map();
 
     orderedTabIds.forEach((tabId) => {
@@ -759,35 +810,156 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     tabRefs.current.set(tabId, node);
   }
 
-  function handleDragStart(event, tabId) {
-    if (tabId === "home") {
-      event.preventDefault();
-      return;
-    }
-
-    setDraggedTabId(tabId);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", tabId);
+  // Dragging a tab to reorder: pointer-driven, not HTML drag-and-drop. The
+  // dragged tab follows the pointer 1:1; the others slide aside to show where
+  // it will land, based on where everything was when the drag began (so a
+  // tab sliding under the pointer can't flip the order back and forth). The
+  // new order is committed once, on release.
+  function measureStrip() {
+    return stripTabs
+      .map((tab) => {
+        const node = tabRefs.current.get(tab.id);
+        return node ? { id: tab.id, node, rect: node.getBoundingClientRect() } : null;
+      })
+      .filter(Boolean);
   }
 
-  function handleDragOver(event, targetTabId) {
-    if (!draggedTabId || draggedTabId === targetTabId) {
-      return;
-    }
-
-    event.preventDefault();
-    const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId);
-    if (targetIndex === -1) {
-      return;
-    }
-
-    const targetRect = event.currentTarget.getBoundingClientRect();
-    const insertAfter = event.clientX > targetRect.left + (targetRect.width / 2);
-    moveTab(draggedTabId, targetIndex + (insertAfter ? 1 : 0));
+  function getDragOrder(drag, deltaX) {
+    const dragged = drag.items.find((item) => item.id === drag.tabId);
+    const others = drag.items.filter((item) => item.id !== drag.tabId);
+    const slot = getDragSlot(
+      others.map((item) => item.rect),
+      dragged.rect.left + deltaX,
+      dragged.rect.right + deltaX,
+      deltaX > 0,
+    );
+    const order = others.map((item) => item.id);
+    order.splice(slot, 0, drag.tabId);
+    return order;
   }
 
-  function handleDragEnd() {
-    setDraggedTabId(null);
+  function handleDragPointerDown(event, tabId) {
+    if (event.button !== 0 || tabId === "home") {
+      return;
+    }
+
+    // Keep the press from starting a window move.
+    event.stopPropagation();
+    const target = event.currentTarget;
+    const drag = { tabId, pointerId: event.pointerId, startX: event.clientX, active: false, items: [], deltaX: 0 };
+    dragRef.current = drag;
+
+    function activate() {
+      drag.items = measureStrip();
+      const dragged = drag.items.find((item) => item.id === tabId);
+
+      if (!dragged || drag.items.length < 2) {
+        return false;
+      }
+
+      drag.active = true;
+      drag.gap = drag.items.length > 1 ? Math.max(0, drag.items[1].rect.left - drag.items[0].rect.right) : 0;
+      drag.minDelta = drag.items[0].rect.left - dragged.rect.left;
+      drag.maxDelta = drag.items[drag.items.length - 1].rect.right - dragged.rect.right;
+      drag.items.forEach((item) => {
+        item.node.style.transition = item.id === tabId ? "none" : `transform ${TAB_SHIFT_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+      });
+      dragged.node.style.zIndex = "5";
+      // Every move and the release come to this tab wherever the pointer
+      // goes (off the strip, over the canvas or an embedded page), so the
+      // drag never loses track of it.
+      try {
+        target.setPointerCapture?.(drag.pointerId);
+      } catch {
+        // The pointer is already gone; the window listeners still end it.
+      }
+      document.body.classList.add("ap-grabbing");
+      setDraggedTabId(tabId);
+      return true;
+    }
+
+    function handleMove(moveEvent) {
+      if (moveEvent.pointerId !== drag.pointerId) {
+        return;
+      }
+
+      const rawDelta = moveEvent.clientX - drag.startX;
+
+      if (!drag.active) {
+        if (Math.abs(rawDelta) < TAB_DRAG_THRESHOLD || !activate()) {
+          return;
+        }
+      }
+
+      drag.deltaX = Math.max(drag.minDelta, Math.min(drag.maxDelta, rawDelta));
+      const dragged = drag.items.find((item) => item.id === tabId);
+      dragged.node.style.transform = `translateX(${drag.deltaX}px)`;
+
+      const order = getDragOrder(drag, drag.deltaX);
+      const shift = dragged.rect.width + drag.gap;
+      drag.items.forEach((item, index) => {
+        if (item.id === tabId) {
+          return;
+        }
+        const nextIndex = order.indexOf(item.id);
+        // Each tab the dragged one has passed slides one place the other way.
+        const offset = nextIndex > index ? shift : nextIndex < index ? -shift : 0;
+        item.node.style.transform = offset ? `translateX(${offset}px)` : "";
+      });
+    }
+
+    function finish(endEvent) {
+      if (endEvent && endEvent.pointerId !== drag.pointerId) {
+        return;
+      }
+
+      window.removeEventListener("pointermove", handleMove, true);
+      window.removeEventListener("pointerup", finish, true);
+      window.removeEventListener("pointercancel", finish, true);
+      target.removeEventListener("lostpointercapture", finish);
+      dragRef.current = null;
+
+      try {
+        target.releasePointerCapture?.(drag.pointerId);
+      } catch {
+        // Already released.
+      }
+
+      if (!drag.active) {
+        return;
+      }
+
+      document.body.classList.remove("ap-grabbing");
+      setDraggedTabId(null);
+      // The click that follows this release isn't a tab click.
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+
+      const dragged = drag.items.find((item) => item.id === tabId);
+      const order = getDragOrder(drag, drag.deltaX);
+      const unchanged = order.every((id, index) => drag.items[index].id === id);
+
+      if (unchanged) {
+        drag.items.forEach((item) => {
+          item.node.style.transition = `transform ${TAB_SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+          item.node.style.transform = "";
+          item.node.style.zIndex = "";
+        });
+        return;
+      }
+
+      dragDropRef.current = { tabId, visualLeft: dragged.rect.left + drag.deltaX };
+      const nextId = order[order.indexOf(tabId) + 1];
+      const targetIndex = nextId ? tabs.findIndex((tab) => tab.id === nextId) : tabs.length;
+      moveTab(tabId, targetIndex);
+    }
+
+    window.addEventListener("pointermove", handleMove, true);
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", finish, true);
+    target.addEventListener("lostpointercapture", finish);
   }
 
   const isMac = typeof window !== "undefined" && navigator.userAgent.includes("Mac");
@@ -842,9 +1014,8 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
                   toast?.("error", `Couldn't rename: ${error?.message ?? "unknown error"}`);
                 }
               }}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
+              onDragPointerDown={handleDragPointerDown}
+              shouldIgnoreClick={() => suppressClickRef.current}
             />
           </div>
         ))}

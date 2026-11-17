@@ -45,7 +45,7 @@ A tile feature is not complete until:
 | Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Rewritten with a cleaner dashboard-style layout. |
 | Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
 | Implemented | Layout & Containment | Rack Tile | `rack` | Container tile for mounted/slotted child tiles. | `renderer/src/components/tiles/RackTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable container tile. |
-| Implemented | Notes & Writing | Paper Note Tile | `paper-note` | Vertical notebook-paper note with an immersive fullscreen write mode and Obsidian-style markdown live preview. | `renderer/src/components/tiles/PaperNoteTile.jsx` | `renderer/src/lib/workspace.js`, `renderer/src/tiles/paperNote/model.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Canvas preview is read-only; all editing happens in the fullscreen overlay. Extra stacked pages are a decorative pagination cue, not separate tiles. |
+| Implemented | Notes & Writing | Paper Note Tile | `paper-note` | Vertical notebook-paper note with an immersive fullscreen write mode, Obsidian-style live preview (lists, tasks, code, highlight), slash menu and selection toolbar. | `renderer/src/components/tiles/PaperNoteTile.jsx` | `renderer/src/lib/workspace.js`, `renderer/src/tiles/paperNote/model.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Canvas preview is read-only and renders the same markdown tree as the editor; all editing happens in the fullscreen overlay. Extra stacked pages are a decorative pagination cue, not separate tiles. |
 | Planned | Structure & Systems | Node Group Tile | `node-group` | Future grouping/system wrapper for related tiles. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | Interactive | Game Tile | `game` | Future embedded interactive/game surface. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | 3D & Media | 3D Model Tile | `3d-model` | Future 3D viewport/content tile. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
@@ -610,9 +610,14 @@ A tile feature is not complete until:
   - As the body grows past roughly one page's worth of text, one or two more pages visually peek out, stacked imperfectly behind the front page
   - Dragging the note drags the whole stack together; the back pages lag slightly behind the front page while moving, then settle, like a loose stack of paper being dragged
   - Double-click expands the note into an exclusive fullscreen write mode: the page itself grows from its on-canvas position/size up to fill the screen (not a fade/cross-dissolve to a new screen)
-  - Fullscreen write mode has a minimal close button (top-left), an editable title and subtitle, and an infinitely scrollable body editor
-  - The body editor is a markdown live preview (Obsidian-style): `**bold**`, `*italic*`, `` `code` ``, `#` headings, `>` quotes, and `[text](url)` links render styled with their markup hidden, except on the line the cursor is currently on, where the raw markdown is revealed for editing
-  - Escape or the close button collapses the sheet back down to its place on the canvas
+  - Fullscreen write mode has a back button (top-left), the note's date/time centred above an editable title and subtitle (Enter moves title -> subtitle -> body), and an infinitely scrollable body editor
+  - The body editor is an Obsidian-style markdown live preview driven by the Lezer markdown syntax tree. Block markup (`#`/`##`/`###` headings, `>` quotes, `-`/`*`/`+`/`1.` list markers, `- [ ]` task boxes, `---` rules, ``` fences) hides unless the caret is on that line (fences: that block); inline markup (`**bold**`, `*italic*`, `~~strike~~`, `==highlight==`, `<u>underline</u>`, `` `code` ``, `[text](url)`) hides unless the caret touches that span. Nested emphasis works.
+  - Lists render with bullets / numbers and a hanging indent per depth; tasks render as checkboxes -- clicking a box toggles `[ ]`/`[x]` in the source (undoable) without moving the caret. Enter continues a list, Enter on an empty item leaves it, Tab / Shift+Tab nest / un-nest to the parent item's content column.
+  - Typing `/` at the start of a line opens the block menu (Display, Headline, Subheader, Body, Task, List, Number list, Code block, Divider); it filters as you type, arrows + Enter pick, Esc closes. The current line's type is dimmed.
+  - Selecting text shows a floating toolbar above the selection (highlight, bold, italic, underline, strikethrough, code span, code block, link) with active states; it hides on blur or scroll.
+  - Shortcuts (Mod = Cmd on macOS, Ctrl elsewhere): Mod+B / I / U, Shift+Mod+X strike, Shift+Mod+H highlight, Mod+Alt+C code span, Shift+Mod+C code block, Mod+K link, Mod+T task, Mod+L list, Shift+Mod+L numbered list, Mod+4 body, Mod+E toggles raw source mode (debugging).
+  - The canvas preview renders the same tree with the same `pn-md-*` classes (read-only: checkboxes show state but don't toggle), keeping one blank line of space per blank source line so it lines up with the editor.
+  - Escape or the back button collapses the sheet back down to its place on the canvas
 - Data model:
 ```js
 {
@@ -625,7 +630,8 @@ A tile feature is not complete until:
 - Main files:
   - `renderer/src/components/tiles/PaperNoteTile.jsx` (canvas preview + page-stack visuals)
   - `renderer/src/components/PaperNoteFullscreenEditor.jsx` (fullscreen FLIP expand/collapse + title/subtitle/body editing)
-  - `renderer/src/lib/paperNoteLivePreview.js` (CodeMirror 6 live-preview decorations)
+  - `renderer/src/components/noteText/` + `renderer/src/lib/noteText/` (the shared note editor and read-only render every note tile uses -- see `docs/rules/text-editing-rules.md`)
+  - `test/note-text.test.js` (markdown -> decoration mapping, commands, slash menu, read-only render)
   - `renderer/src/tiles/paperNote/model.js`
   - `renderer/src/lib/workspace.js`
   - `renderer/src/components/CanvasAddMenu.jsx`
@@ -643,10 +649,12 @@ A tile feature is not complete until:
   - No dedicated diagnostics/report flow yet. State is normalized and serializable.
 - Known limitations:
   - Page count is a decorative measurement of the rendered preview, not a real paginated document -- the fullscreen editor is always one continuous scrollable document.
-  - Live preview covers the common inline markdown forms (bold, italic, code, links) plus headings and blockquotes; it does not yet cover lists, tables, or nested emphasis edge cases.
+  - Tables are recognised but shown as raw monospace text (editor and canvas alike), not as a rendered grid.
+  - A list item's continuation lines (a second paragraph inside an item) keep their raw indentation in the editor.
+  - Underline has no markdown syntax, so it is stored as `<u>...</u>`.
   - Canvas-state preview is read-only; all edits happen in the fullscreen overlay.
 - Future improvements:
-  - Extend live-preview decorations to list markers and task checkboxes.
+  - Render tables as a grid widget.
   - Consider letting the stacked pages be scrubbed through directly from the canvas.
 
 ## Planned Tiles

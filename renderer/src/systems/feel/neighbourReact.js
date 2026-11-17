@@ -148,7 +148,12 @@ export function installNeighbourReact(root = document) {
   }
 
   function handleOver(event) {
-    if (event.pointerType === "touch" || event.buttons !== 0 || reduceMotion?.matches) {
+    if (
+      event.pointerType === "touch"
+      || event.buttons !== 0
+      || reduceMotion?.matches
+      || document.documentElement.dataset.graphics === "lite"
+    ) {
       return;
     }
 

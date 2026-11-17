@@ -13,6 +13,15 @@ const MAX_FRAME_S = 1 / 30;
 const POP_IN_MS = 380;
 const EXIT_MS = 230;
 const MAX_ANIMATED = 12;
+// The drag weight is for moving a few tiles. Moving many at once (a big
+// marquee selection) skips it: dozens of tiles each rewriting a transform and
+// pushing their neighbours every frame is what makes a weak GPU flash.
+const MAX_FEEL_HELD = 4;
+const MAX_NEIGHBOURS = 10;
+
+function isLiteGraphics() {
+  return typeof document !== "undefined" && document.documentElement.dataset.graphics === "lite";
+}
 // A tile that was just dragged and then leaves the canvas went into a rack
 // (or similar), not to the bin: no shrink-away for it.
 const RECENT_DRAG_MS = 600;
@@ -99,7 +108,7 @@ export function useTileFeel({
     const feels = feelsRef.current;
     const entryById = entryByIdRef.current;
     const zoom = getZoomRef.current?.() || 1;
-    const heldSet = new Set(delta ? heldIds : EMPTY_LIST);
+    const heldSet = new Set(delta && heldIds.length <= MAX_FEEL_HELD && !isLiteGraphics() ? heldIds : EMPTY_LIST);
 
     // Pointer velocity in screen px/s. The drag delta only changes when the
     // drag does, so a pointer that stops reads as a velocity that dies off.
@@ -175,10 +184,21 @@ export function useTileFeel({
 
         if (push.x !== 0 || push.y !== 0) {
           pushes.set(tileId, push);
+        }
+      });
 
-          if (!feels.has(tileId)) {
-            feels.set(tileId, createFeel(tileId));
-          }
+      // Only the few strongest pushes are drawn.
+      if (pushes.size > MAX_NEIGHBOURS) {
+        const strongest = [...pushes.entries()]
+          .sort((a, b) => Math.hypot(b[1].x, b[1].y) - Math.hypot(a[1].x, a[1].y))
+          .slice(0, MAX_NEIGHBOURS);
+        pushes.clear();
+        strongest.forEach(([tileId, push]) => pushes.set(tileId, push));
+      }
+
+      pushes.forEach((_push, tileId) => {
+        if (!feels.has(tileId)) {
+          feels.set(tileId, createFeel(tileId));
         }
       });
     }
@@ -224,8 +244,12 @@ export function useTileFeel({
         return;
       }
 
-      const style = getFeelStyle(feel);
-      card.dataset.feel = "1";
+      const style = getFeelStyle(feel, { flat: heldSet.size > 1 });
+
+      if (card.dataset.feel !== "1") {
+        card.dataset.feel = "1";
+      }
+
       card.style.setProperty("--feel-x", style.x);
       card.style.setProperty("--feel-y", style.y);
       card.style.setProperty("--feel-transform", style.transform);

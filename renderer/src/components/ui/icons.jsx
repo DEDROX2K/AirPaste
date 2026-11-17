@@ -6,6 +6,10 @@ import { forwardRef } from "react";
 import {
   Archive as PixelArchive,
   ArrowBarLeft,
+  ArrowLeft as PixelArrowLeft,
+  Brush as PixelBrush,
+  Checkbox as PixelCheckbox,
+  Terminal as PixelTerminal,
   ArrowBarRight,
   BatteryMedium,
   BookOpen,
@@ -233,6 +237,10 @@ export const PanHand = pixelIcon(Hand, "PanHand");
 export const Tether = pixelIcon(PixelLink, "Tether");
 export const Bolt = pixelIcon(Zap, "Bolt");
 export const Code = pixelIcon(PixelCode, "Code");
+export const ArrowLeft = pixelIcon(PixelArrowLeft, "ArrowLeft");
+export const Highlighter = pixelIcon(PixelBrush, "Highlighter");
+export const CheckboxEmpty = pixelIcon(PixelCheckbox, "CheckboxEmpty");
+export const CodeBlock = pixelIcon(PixelTerminal, "CodeBlock");
 export const Gauge = pixelIcon(SpeedFast, "Gauge");
 export const Image = pixelIcon(PixelImage, "Image");
 export const Progress = pixelIcon(BatteryMedium, "Progress");

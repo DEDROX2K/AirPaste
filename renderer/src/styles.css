@@ -8876,23 +8876,19 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   color: rgba(28, 22, 6, 0.5);
 }
 
-.card__sticky-note-editor {
-  width: 100%;
+/* Body text, read-only and editing alike (the shared NoteTextView /
+   NoteTextEditor -- see docs/rules/text-editing-rules.md). */
+.card__sticky-note-text {
   height: 100%;
-  min-height: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  background: transparent;
-  color: rgba(28, 22, 6, 0.9);
+  overflow: hidden;
+  color: rgba(28, 22, 6, 0.88);
   font-family: var(--ap-font-body);
   font-size: 13.5px;
   line-height: 1.4;
-  padding: 0;
 }
 
-.card__sticky-note-editor::placeholder {
-  color: rgba(28, 22, 6, 0.5);
+.card__sticky-note-text .note-text {
+  height: 100%;
 }
 
 .card__sticky-note-footer {

@@ -158,15 +158,21 @@ export function isFeelAtRest(feel) {
 // The CSS the card consumes: --feel-x / --feel-y (px offset, in the card's
 // own translate) and --feel-transform (perspective tilt, stretch along the
 // drag direction, lift scale and roll).
-export function getFeelStyle(feel) {
+export function getFeelStyle(feel, { flat = false } = {}) {
   const lift = feel.lift.x;
   const scale = 1 + lift * FEEL.LIFT_SCALE;
   const stretch = feel.stretch.x;
   const angleDeg = (feel.angle * 180) / Math.PI;
-  const parts = [`perspective(${FEEL.PERSPECTIVE}px)`];
+  const parts = [];
 
-  if (Math.abs(feel.rx.x) > 0.001 || Math.abs(feel.ry.x) > 0.001) {
-    parts.push(`rotateX(${feel.rx.x.toFixed(3)}deg)`, `rotateY(${feel.ry.x.toFixed(3)}deg)`);
+  // The perspective tilt is a 3D transform, the heaviest thing here for a GPU:
+  // only a lone tile gets it. Several tiles moving together stay flat (2D).
+  if (!flat) {
+    parts.push(`perspective(${FEEL.PERSPECTIVE}px)`);
+
+    if (Math.abs(feel.rx.x) > 0.001 || Math.abs(feel.ry.x) > 0.001) {
+      parts.push(`rotateX(${feel.rx.x.toFixed(3)}deg)`, `rotateY(${feel.ry.x.toFixed(3)}deg)`);
+    }
   }
 
   if (Math.abs(feel.rot.x) > 0.001) {

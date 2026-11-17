@@ -16,6 +16,7 @@ import {
 import { desktop } from "../../lib/desktop";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { DRAWING_TOOL_MODE_SELECT } from "../../systems/drawing/drawingTypes";
+import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
 import TileShell from "./TileShell";
 
 function defaultSourceStatus(source) {
@@ -82,7 +83,9 @@ function StickyNoteTile({
   const [draftBody, setDraftBody] = useState(() => normalizedStickyDocument.bodyText);
   const [sourceStatus, setSourceStatus] = useState(defaultSourceStatus(source));
   const titleInputRef = useRef(null);
-  const bodyTextareaRef = useRef(null);
+  const bodyEditorRef = useRef(null);
+  // Spellcheck squiggles only while the title is being written in.
+  const [isTitleFocused, setTitleFocused] = useState(false);
   const saveInFlightRef = useRef(false);
   const lastEditorSelectionRef = useRef({
     target: "body",
@@ -251,23 +254,31 @@ function StickyNoteTile({
     };
   }, [isEditing, setCanvasInteractionState]);
 
-  // Restore selection only when an edit session starts or the caller issues a new edit request.
+  // Where an edit session starts: the title when the note is empty (or the
+  // title was being edited last time), otherwise the body.
+  const startsOnTitle = isEditing && typeof textBoxEditorState?.replacementText !== "string" && (
+    lastEditorSelectionRef.current.target === "title"
+    || (normalizedStickyDocument.title.trim().length === 0 && normalizedStickyDocument.bodyText.trim().length === 0)
+  );
+  const bodyInitialSelection = (() => {
+    if (textBoxEditorState?.selectAll === true) {
+      return "all";
+    }
+    const { bodyStart, bodyEnd } = lastEditorSelectionRef.current;
+    return Number.isInteger(bodyStart) && Number.isInteger(bodyEnd)
+      ? { anchor: bodyStart, head: bodyEnd }
+      : "end";
+  })();
+
+  // Restore the title's selection when a session starts there. (The body
+  // editor restores its own on mount.)
   useEffect(() => {
-    if (!isEditing) {
+    if (!isEditing || !startsOnTitle) {
       return undefined;
     }
 
     const focusFrame = window.requestAnimationFrame(() => {
-      const shouldFocusTitle = typeof textBoxEditorState?.replacementText !== "string"
-        ? (
-          lastEditorSelectionRef.current.target === "title"
-          || (
-            normalizedStickyDocument.title.trim().length === 0
-            && normalizedStickyDocument.bodyText.trim().length === 0
-          )
-        )
-        : false;
-      const target = shouldFocusTitle ? titleInputRef.current : bodyTextareaRef.current;
+      const target = titleInputRef.current;
       target?.focus?.({ preventScroll: true });
 
       if (typeof target?.setSelectionRange !== "function") {
@@ -279,45 +290,24 @@ function StickyNoteTile({
         return;
       }
 
-      if (typeof textBoxEditorState?.replacementText === "string") {
-        const caret = target.value.length;
-        target.setSelectionRange(caret, caret);
+      const start = lastEditorSelectionRef.current.titleStart;
+      const end = lastEditorSelectionRef.current.titleEnd;
+      if (Number.isInteger(start) && Number.isInteger(end)) {
+        target.setSelectionRange(
+          Math.max(0, Math.min(start, target.value.length)),
+          Math.max(0, Math.min(end, target.value.length)),
+        );
         return;
       }
 
-      if (target === titleInputRef.current) {
-        const start = lastEditorSelectionRef.current.titleStart;
-        const end = lastEditorSelectionRef.current.titleEnd;
-        if (Number.isInteger(start) && Number.isInteger(end)) {
-          target.setSelectionRange(
-            Math.max(0, Math.min(start, target.value.length)),
-            Math.max(0, Math.min(end, target.value.length)),
-          );
-          return;
-        }
-      } else {
-        const start = lastEditorSelectionRef.current.bodyStart;
-        const end = lastEditorSelectionRef.current.bodyEnd;
-        if (Number.isInteger(start) && Number.isInteger(end)) {
-          target.setSelectionRange(
-            Math.max(0, Math.min(start, target.value.length)),
-            Math.max(0, Math.min(end, target.value.length)),
-          );
-          target.scrollTop = Number.isFinite(lastEditorSelectionRef.current.bodyScrollTop)
-            ? lastEditorSelectionRef.current.bodyScrollTop
-            : 0;
-          return;
-        }
-      }
-
-      target.setSelectionRange(0, 0);
+      target.setSelectionRange(target.value.length, target.value.length);
     });
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.id, isEditing, textBoxEditorState?.replacementText, textBoxEditorState?.requestId, textBoxEditorState?.selectAll]);
+  }, [card.id, isEditing, textBoxEditorState?.requestId, textBoxEditorState?.selectAll]);
 
   const exitEditMode = useCallback(async ({ restoreCanvasFocus = false } = {}) => {
     if (saveInFlightRef.current) {
@@ -367,24 +357,42 @@ function StickyNoteTile({
     }
   }, [applySourcePayload, card.file?.filePath, card.file?.relativePath, card.id, card.text, card.title, card.titleMode, draftBody, draftTitle, folderPath, onEndTextBoxEdit, source, updateExistingCard]);
 
-  const handleEditorBlur = (event) => {
-    const target = event.currentTarget;
-    if (target instanceof HTMLInputElement) {
-      lastEditorSelectionRef.current = {
-        ...lastEditorSelectionRef.current,
-        target: "title",
-        titleStart: target.selectionStart,
-        titleEnd: target.selectionEnd,
-      };
-    } else if (target instanceof HTMLTextAreaElement) {
+  const focusLeavesNote = (nextFocusTarget) => !(
+    nextFocusTarget instanceof Element
+    && (
+      nextFocusTarget.closest("[data-sticky-note-editor-root='true']")
+      || nextFocusTarget.closest("[data-sticky-note-action-root='true']")
+    )
+  );
+
+  // Esc / Mod+Enter in the body, or focus leaving the note.
+  const handleBodyExit = ({ reason, relatedTarget }) => {
+    const selection = bodyEditorRef.current?.view?.state.selection.main;
+    if (selection) {
       lastEditorSelectionRef.current = {
         ...lastEditorSelectionRef.current,
         target: "body",
-        bodyStart: target.selectionStart,
-        bodyEnd: target.selectionEnd,
-        bodyScrollTop: target.scrollTop,
+        bodyStart: selection.anchor,
+        bodyEnd: selection.head,
       };
     }
+
+    if (reason === "escape") {
+      void exitEditMode({ restoreCanvasFocus: true });
+    } else if (focusLeavesNote(relatedTarget)) {
+      void exitEditMode();
+    }
+  };
+
+  const handleEditorBlur = (event) => {
+    setTitleFocused(false);
+    const target = event.currentTarget;
+    lastEditorSelectionRef.current = {
+      ...lastEditorSelectionRef.current,
+      target: "title",
+      titleStart: target.selectionStart,
+      titleEnd: target.selectionEnd,
+    };
 
     const nextFocusTarget = event.relatedTarget;
 
@@ -405,6 +413,13 @@ function StickyNoteTile({
     if (event.key === "Escape") {
       event.preventDefault();
       void exitEditMode({ restoreCanvasFocus: true });
+      return;
+    }
+
+    // Titles are one line: Enter moves on to the body.
+    if (event.key === "Enter" && !(event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      bodyEditorRef.current?.focus("start");
       return;
     }
 
@@ -457,7 +472,8 @@ function StickyNoteTile({
                   placeholder={STICKY_NOTE_TITLE_PLACEHOLDER}
                   aria-label="Sticky note title"
                   autoComplete="off"
-                  spellCheck={false}
+                  spellCheck={isTitleFocused}
+                  onFocus={() => setTitleFocused(true)}
                   onPointerDown={stopInteractivePointer}
                   onClick={stopInteractivePointer}
                   onDoubleClick={stopInteractivePointer}
@@ -474,20 +490,23 @@ function StickyNoteTile({
 
             <div className="card__sticky-note-body">
               {isEditing ? (
-                <textarea
-                  ref={bodyTextareaRef}
-                  className="card__sticky-note-editor"
-                  value={draftBody}
-                  aria-label="Sticky note body"
-                  placeholder={STICKY_NOTE_BODY_PLACEHOLDER}
-                  spellCheck={false}
+                <div
+                  className="card__sticky-note-text"
                   onPointerDown={stopInteractivePointer}
                   onClick={stopInteractivePointer}
                   onDoubleClick={stopInteractivePointer}
-                  onBlur={handleEditorBlur}
-                  onKeyDown={handleEditorKeyDown}
-                  onChange={(event) => setDraftBody(event.target.value)}
-                />
+                >
+                  <NoteTextEditor
+                    ref={bodyEditorRef}
+                    key={textBoxEditorState?.requestId ?? "edit"}
+                    initialText={draftBody}
+                    initialSelection={bodyInitialSelection}
+                    autoFocus={!startsOnTitle}
+                    placeholder={STICKY_NOTE_BODY_PLACEHOLDER}
+                    onChange={(nextText) => setDraftBody(nextText)}
+                    onExit={handleBodyExit}
+                  />
+                </div>
               ) : sourceStatus.status === "error" ? (
                 <div className="card__sticky-note-error">
                   <p>{sourceStatus.error}</p>
@@ -513,17 +532,11 @@ function StickyNoteTile({
                   ))}
                 </div>
               ) : (
-                <div className="card__sticky-note-detail-lines">
-                  {viewModel.detailBodyLines.length > 0 ? (
-                    viewModel.detailBodyLines.map((line, index) => (
-                      <p key={`detail-line-${index}`} className="card__sticky-note-line">
-                        {line}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="card__sticky-note-line card__sticky-note-line--placeholder">{STICKY_NOTE_BODY_PLACEHOLDER}</p>
-                  )}
-                </div>
+                <NoteTextView
+                  className="card__sticky-note-text"
+                  text={viewModel.bodyText}
+                  placeholder={STICKY_NOTE_BODY_PLACEHOLDER}
+                />
               )}
             </div>
 

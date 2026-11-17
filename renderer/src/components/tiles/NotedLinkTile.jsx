@@ -10,6 +10,7 @@ import {
   LINK_NOTE_CARD_PADDING,
   normalizeLinkNote,
 } from "../../tiles/link/notedLink";
+import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
 import { NotebookText } from "../ui/icons";
 import TileShell from "./TileShell";
 import "./NotedLinkTile.css";
@@ -30,8 +31,8 @@ function placeCaretAtEnd(element) {
   selection.addRange(range);
 }
 
-function readBody(element) {
-  return (element?.innerText ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
+function normalizeBody(text) {
+  return (text ?? "").replace(/\r\n/g, "\n").replace(/\n$/, "");
 }
 
 function NotedLinkTile({
@@ -60,6 +61,9 @@ function NotedLinkTile({
   const rootRef = useRef(null);
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
+  const bodyEditorRef = useRef(null);
+  // The body editor is uncontrolled; this holds what's typed this session.
+  const bodyDraftRef = useRef(null);
   const cardRef = useRef(card);
   cardRef.current = card;
   const wasSelectedAtPressRef = useRef(false);
@@ -153,22 +157,24 @@ function NotedLinkTile({
     return () => observer.disconnect();
   }, [isStaticPreview, updateExistingCard]);
 
-  // Title and body are uncontrolled: React never writes them while typing.
+  // The title is uncontrolled: React never writes it while typing.
   useLayoutEffect(() => {
-    if (isEditing) {
-      return;
-    }
-    if (titleRef.current && titleRef.current.textContent !== title) {
+    if (!isEditing && titleRef.current && titleRef.current.textContent !== title) {
       titleRef.current.textContent = title;
     }
-    if (bodyRef.current && readBody(bodyRef.current) !== body) {
-      bodyRef.current.textContent = body;
-    }
-  }, [body, isEditing, title]);
+  }, [isEditing, title]);
 
-  // Entering edit mode: caret at the end of the field that was pressed.
+  // Each writing session starts from the saved body.
+  useLayoutEffect(() => {
+    if (isEditing) {
+      bodyDraftRef.current = body;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
+
+  // Writing in the title: caret at its end. (The body editor focuses itself.)
   useEffect(() => {
-    const element = editingField === "title" ? titleRef.current : editingField === "body" ? bodyRef.current : null;
+    const element = editingField === "title" ? titleRef.current : null;
 
     if (!element) {
       return undefined;
@@ -253,55 +259,68 @@ function NotedLinkTile({
   const commitNote = () => {
     // textContent, not innerText: the title is shown uppercase by CSS only.
     const nextTitle = (titleRef.current?.textContent ?? "").replace(/\s*\n\s*/g, " ");
-    const nextBody = readBody(bodyRef.current);
+    const nextBody = normalizeBody(bodyDraftRef.current ?? body);
 
     if (nextTitle !== title || nextBody !== body) {
       updateExistingCard(card.id, { note: { ...note, title: nextTitle, body: nextBody } });
     }
   };
 
-  // Moving between title and body stays in edit mode.
-  const handleBlur = (event) => {
-    if (rootRef.current?.contains(event.relatedTarget)) {
-      return;
-    }
-
+  const finishWriting = () => {
     commitNote();
     window.getSelection()?.removeAllRanges();
     setEditingField(null);
   };
 
-  const handleInput = (event) => {
+  // Moving between title and body stays in edit mode.
+  const handleTitleBlur = (event) => {
+    if (rootRef.current?.contains(event.relatedTarget)) {
+      return;
+    }
+
+    finishWriting();
+  };
+
+  // Esc / Mod+Enter in the body, or focus leaving the note entirely.
+  const handleBodyExit = ({ reason, relatedTarget }) => {
+    if (reason === "blur" && relatedTarget instanceof Node && rootRef.current?.contains(relatedTarget)) {
+      return;
+    }
+    finishWriting();
+  };
+
+  const handleTitleInput = (event) => {
     // A cleared field can keep a stray <br>; empty it so the placeholder shows.
     if (event.currentTarget.innerText === "\n") {
       event.currentTarget.textContent = "";
     }
   };
 
-  const handleKeyDown = (event) => {
+  const handleTitleKeyDown = (event) => {
     event.stopPropagation();
 
-    if (event.key === "Escape") {
+    if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
       event.preventDefault();
-      event.currentTarget.blur();
-    } else if (event.key === "Enter" && event.currentTarget === titleRef.current) {
+      finishWriting();
+    } else if (event.key === "Enter") {
+      // Titles are one line: Enter moves on to the body.
       event.preventDefault();
-      bodyRef.current?.focus({ preventScroll: true });
-      placeCaretAtEnd(bodyRef.current);
+      bodyEditorRef.current?.focus("end");
     }
   };
 
-  const editableProps = (label, placeholder) => ({
+  const titleProps = {
     role: "textbox",
-    "aria-label": label,
-    "data-placeholder": placeholder,
-    spellCheck: false,
+    "aria-label": "Note title",
+    "data-placeholder": "Note title here",
+    // Squiggles only while the note is being written in.
+    spellCheck: isEditing,
     contentEditable: isEditing ? "plaintext-only" : "false",
     suppressContentEditableWarning: true,
-    onInput: isEditing ? handleInput : undefined,
-    onKeyDown: isEditing ? handleKeyDown : undefined,
-    onBlur: isEditing ? handleBlur : undefined,
-  });
+    onInput: isEditing ? handleTitleInput : undefined,
+    onKeyDown: isEditing ? handleTitleKeyDown : undefined,
+    onBlur: isEditing ? handleTitleBlur : undefined,
+  };
 
   return (
     <TileShell
@@ -353,13 +372,22 @@ function NotedLinkTile({
           <div className="noted-link__note">
             <div className="noted-link__note-inner">
               <div className="noted-link__text">
-                <div ref={titleRef} className="noted-link__title" {...editableProps("Note title", "Note title here")} />
-                <div
-                  ref={bodyRef}
-                  className="noted-link__body"
-                  aria-multiline="true"
-                  {...editableProps("Note", "Start writing…")}
-                />
+                <div ref={titleRef} className="noted-link__title" {...titleProps} />
+                <div ref={bodyRef} className="noted-link__body" aria-label="Note">
+                  {isEditing ? (
+                    <NoteTextEditor
+                      ref={bodyEditorRef}
+                      initialText={body}
+                      initialSelection="end"
+                      autoFocus={editingField === "body"}
+                      placeholder="Start writing…"
+                      onChange={(nextText) => { bodyDraftRef.current = nextText; }}
+                      onExit={handleBodyExit}
+                    />
+                  ) : (
+                    <NoteTextView text={body} placeholder="Start writing…" />
+                  )}
+                </div>
               </div>
             </div>
           </div>

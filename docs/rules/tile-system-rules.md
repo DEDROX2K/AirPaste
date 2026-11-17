@@ -19,6 +19,9 @@
 - Persist only durable tile state.
 - Keep runtime-only state separate from saved state, especially for physics, live sims, and temporary UI.
 
+## Text
+- Any free-form note text (a tile's body) uses the shared note editor: `NoteTextEditor` / `NoteTextView`. Follow `docs/rules/text-editing-rules.md`. No per-tile textareas or contentEditables for note text.
+
 ## Interaction
 - All tiles support drag and select by default.
 - Hover, focus, press, and selection states should feel consistent across tiles.

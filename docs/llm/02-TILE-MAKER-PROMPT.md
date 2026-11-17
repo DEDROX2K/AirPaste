@@ -49,6 +49,11 @@ Follow the patterns here exactly — the app silently deletes tiles that are wir
   Open-Meteo this way). No API keys. Always handle offline/failure with a clear fallback
   state — never a permanent spinner.
 - Never call Electron, `require`, `fs`, or `window.airpaste` from the tile.
+- **Note text**: if the tile has a free-form text body someone writes in, do NOT build
+  a textarea or contentEditable. Use the shared editor
+  (`import { NoteTextEditor, NoteTextView } from "../noteText/NoteText"`), store
+  the body as one markdown string, and follow `docs/rules/text-editing-rules.md`.
+  Single-line fields (titles, names) stay plain inputs.
 - Keep **runtime data** (fetched results, timers, animation state) in React state.
   Save on the card **only durable data** the user chose (settings, text, values).
 - Animations: stop them when `renderHint?.renderState === "compact"`,
