@@ -24,7 +24,8 @@
 }
 
 .canvas-split--on .canvas-split__pane--left {
-  flex: 0 0 calc((100% - var(--canvas-split-divider)) * var(--canvas-split-ratio, 0.5));
+  /* Width set inline from the ratio (CanvasSplitLayout.jsx leftPaneBasis). */
+  flex: 0 0 50%;
 }
 
 .canvas-split__divider {
@@ -106,81 +107,37 @@
   pointer-events: none;
 }
 
-/* Right pane: page picker + close, top-left (the pages panel's spot). */
-.canvas-split__pane-bar {
+/* Right pane: its own pages panel, the same floating card as the main
+   one (ShellLayers.css), in the same top-left spot of its pane. */
+.app-window .canvas-split__pane > .left-pages-panel--pane {
   position: absolute;
-  top: 7px;
-  left: 7px;
+  top: var(--ap-shell-float-inset);
+  left: var(--ap-shell-float-inset);
+  max-height: calc(100% - var(--ap-shell-float-inset) * 2);
   z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid rgba(20, 20, 18, 0.08);
-  border-radius: 5px;
-  background: #fff;
-  font-family: var(--ap-font-body, system-ui, sans-serif);
-  font-size: 12px;
-  color: #1f1f1d;
+  border: 1px solid rgba(20, 20, 18, 0.08) !important;
+  border-radius: var(--ap-shell-float-radius) !important;
+  box-shadow: none !important;
 }
 
-.canvas-split__page-picker {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  padding: 4px 6px 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.canvas-split__page-picker:hover,
-.canvas-split__close:hover {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.canvas-split__page-picker:focus-within {
-  outline: 2px solid rgba(20, 99, 255, 0.5);
-  outline-offset: -2px;
-}
-
-.canvas-split__page-name {
+/* Another file's name as the panel title. */
+.left-pages-panel--pane .left-pages-panel__title {
   overflow: hidden;
+  min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
 }
 
-/* The native select sits invisibly on top, so it opens the OS menu. */
-.canvas-split__page-picker select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font: inherit;
+/* While the divider moves, each pane keeps its painting to itself. */
+.canvas-split--resizing .canvas-split__pane {
+  contain: layout paint;
 }
 
-.canvas-split__close {
+.canvas-split__pane-loading {
   display: grid;
+  flex: 1 1 auto;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.canvas-split__close:focus-visible {
-  outline: 2px solid rgba(20, 99, 255, 0.5);
-  outline-offset: -2px;
-}
-
-/* The workspace-split toggle sits in the dock beside the view toggle. */
-.workspace-split-toggle {
-  margin-left: 2px;
+  color: rgba(31, 31, 29, 0.55);
+  font-family: var(--ap-font-body, system-ui, sans-serif);
+  font-size: 12px;
 }

@@ -1,0 +1,462 @@
+/* Home file groups (HomeGroupCard.jsx) and drag-reorder states for the
+   Home card grid (useHomeCardDrag.js). A group looks like a canvas card
+   (same surface, hover and colour marks) but spans two grid rows and shows
+   a mosaic of its canvases. */
+
+.ap-home-group {
+  --ap-group-tile: #ecebe8;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-row: span 2;
+  min-width: 0;
+  padding: 10px 10px 12px;
+  border-radius: 10px;
+  background: var(--ap-home-row-bg, #ffffff);
+  color: var(--ap-text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  animation: ap-home-rise 460ms var(--ap-home-ease, ease) backwards;
+  animation-delay: calc(var(--ap-stagger, 0) * 36ms);
+  transition:
+    transform 320ms var(--ap-home-spring, ease),
+    box-shadow 240ms ease,
+    background-color 160ms ease;
+  user-select: none;
+}
+
+.ap-home-group:hover {
+  background: var(--ap-home-row-hover, #ececea);
+  box-shadow: 0 12px 24px -14px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
+}
+
+/* Colour marks: same tint as a marked canvas card, deeper on hover. */
+.ap-home-group[data-card-color] {
+  --ap-group-tile: color-mix(in srgb, var(--ap-card-tint) 55%, #ffffff);
+  background: var(--ap-card-tint);
+}
+
+.ap-home-group[data-card-color]:hover {
+  background: var(--ap-card-tint-hover);
+}
+
+.ap-home-group__hit {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: var(--ap-cursor-pointer, pointer);
+}
+
+.ap-home .ap-home-group__hit:hover:not(:disabled) {
+  background: transparent !important;
+}
+
+/* Mosaic: one large thumbnail on top, two below. */
+.ap-home-group__thumbs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 8px;
+  height: 100%;
+  min-height: 180px;
+}
+
+.ap-home-group__thumbs > :first-child {
+  grid-column: 1 / -1;
+}
+
+.ap-home-group__thumbs[data-count="1"] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.ap-home-group__thumbs[data-count="2"] > :last-child {
+  grid-column: 1 / -1;
+}
+
+.ap-home-group__thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--ap-group-tile);
+}
+
+.ap-home-group__thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms var(--ap-home-ease, ease);
+}
+
+.ap-home-group:hover .ap-home-group__thumb img {
+  transform: scale(1.04);
+}
+
+.ap-home-group__thumb-placeholder {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(0, 0, 0, 0.05), transparent 60%),
+    repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 14px);
+}
+
+/* The canvas name shows on a thumbnail only on hover, like Figma. */
+.ap-home-group__thumb-name {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 18px 8px 6px;
+  overflow: hidden;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ap-home-group__thumb:hover .ap-home-group__thumb-name {
+  opacity: 1;
+}
+
+.ap-home-group__more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ap-home-group__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.ap-home-group__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--ap-text-secondary);
+}
+
+.ap-home-group__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ap-home-group__name {
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--ap-text-primary);
+  font: inherit;
+  font-size: var(--ap-text-base, 14px);
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: var(--ap-cursor-pointer, pointer);
+}
+
+.ap-home .ap-home-group__name:hover:not(:disabled) {
+  background: transparent !important;
+}
+
+.ap-home-group__name-input {
+  width: 100%;
+  min-width: 0;
+  margin: -3px -6px;
+  padding: 2px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+  color: var(--ap-text-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ap-home-group__name-input:focus {
+  border-color: #4a7dff;
+  box-shadow: 0 0 0 2px rgba(74, 125, 255, 0.25);
+}
+
+.ap-home-group__meta {
+  overflow: hidden;
+  color: var(--ap-text-tertiary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-home-group[data-card-color] .ap-home-group__meta,
+.ap-home-group[data-card-color] .ap-home-group__icon {
+  color: rgba(0, 0, 0, 0.58);
+}
+
+.ap-home-group__actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.ap-home .ap-home-group__btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  color: var(--ap-text-secondary);
+  cursor: var(--ap-cursor-pointer, pointer);
+  transition: background-color 140ms ease, color 140ms ease, opacity 160ms ease;
+}
+
+.ap-home .ap-home-group__btn:hover:not(:disabled) {
+  background: #ffffff !important;
+  color: var(--ap-text-primary);
+}
+
+.ap-home .ap-home-group__btn.is-active {
+  color: #ff9f0a;
+}
+
+.ap-home-group__btn--menu {
+  opacity: 0;
+}
+
+.ap-home-group:hover .ap-home-group__btn--menu,
+.ap-home-group.is-menu-open .ap-home-group__btn--menu,
+.ap-home-group__btn--menu:focus-visible {
+  opacity: 1;
+}
+
+/* ─── Opening and leaving a group ───────────────────────────────────────
+   The group's canvases grow out of the group card; going back, Home
+   settles in from slightly larger, centred on where the group sits. */
+
+.ap-home-groupview {
+  transform-origin: var(--ap-group-ox, 50%) var(--ap-group-oy, 0);
+}
+
+.ap-home-groupview.is-entering {
+  animation: ap-home-group-enter 380ms var(--ap-home-ease, ease) backwards;
+}
+
+.ap-home-groupview.is-leaving {
+  animation: ap-home-group-leave 340ms var(--ap-home-ease, ease) backwards;
+}
+
+@keyframes ap-home-group-enter {
+  from { opacity: 0; transform: scale(0.86); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ap-home-group-leave {
+  from { opacity: 0; transform: scale(1.08); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ─── Drag-reorder ──────────────────────────────────────────────────────── */
+
+.ap-home-grid [data-drag-key] {
+  touch-action: none;
+}
+
+.ap-home-grid.is-dragging {
+  cursor: grabbing;
+}
+
+.ap-home-grid.is-dragging [data-drag-key] {
+  pointer-events: none;
+}
+
+.ap-home-grid.is-dragging [data-drag-key].is-drag-source {
+  pointer-events: auto;
+}
+
+.ap-home-grid [data-drag-key].is-drag-source {
+  animation: none;
+  box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.5);
+  cursor: grabbing;
+  opacity: 0.96;
+}
+
+.ap-home-grid [data-drag-key].is-drag-source.is-merging {
+  opacity: 0.82;
+}
+
+/* Drop target for "group these": an outline and a soft scale. */
+.ap-home-grid [data-drag-key].is-merge-target {
+  outline: 3px solid #4a7dff;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 9px rgba(74, 125, 255, 0.14);
+}
+
+.ap-home-grid [data-drag-key].is-merge-target:not(.ap-home-group) .ap-home-card__thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 125, 255, 0.16);
+}
+
+/* ─── Open group header ─────────────────────────────────────────────────── */
+
+.ap-home-groupbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  animation: ap-home-rise 320ms var(--ap-home-ease, ease) backwards;
+}
+
+.ap-home-groupbar__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ap-text-tertiary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: var(--ap-cursor-pointer, pointer);
+}
+
+.ap-home-groupbar__crumb:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ap-text-primary);
+}
+
+.ap-home-groupbar__sep {
+  color: var(--ap-text-tertiary);
+}
+
+.ap-home-groupbar__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ap-text-primary);
+  font-family: var(--ap-font-display);
+  font-size: var(--ap-text-lg);
+  font-weight: 700;
+  cursor: text;
+}
+
+.ap-home-groupbar__name:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.ap-home-groupbar .ap-home-group__name-input {
+  margin: 0;
+  max-width: 320px;
+  border-color: rgba(0, 0, 0, 0.2);
+  background: #ffffff;
+  color: var(--ap-text-primary);
+  font-size: var(--ap-text-lg);
+}
+
+.ap-home-groupbar__spacer {
+  flex: 1;
+}
+
+/* ─── Workspace switch transition ───────────────────────────────────────── */
+
+.ap-home-switching {
+  animation: ap-home-switch-in 220ms var(--ap-home-ease, ease) both;
+}
+
+.ap-home-switching__label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--ap-text-secondary);
+  font-size: var(--ap-text-lg);
+  font-weight: 700;
+}
+
+.ap-home-switching__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-top-color: var(--ap-text-primary);
+  border-radius: 50%;
+  animation: ap-home-spin 720ms linear infinite;
+}
+
+.ap-home-switching__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
+  gap: 14px;
+}
+
+.ap-home-switching__card {
+  aspect-ratio: 236 / 218;
+  border-radius: 10px;
+  background:
+    linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%) 0 0 / 220% 100%,
+    #ececea;
+  animation: ap-home-shimmer 1.3s ease-in-out infinite;
+  animation-delay: calc(var(--ap-stagger, 0) * 60ms);
+}
+
+@keyframes ap-home-switch-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ap-home-shimmer {
+  from { background-position: 120% 0, 0 0; }
+  to { background-position: -120% 0, 0 0; }
+}
+
+@keyframes ap-home-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-home-group,
+  .ap-home-switching,
+  .ap-home-switching__card,
+  .ap-home-groupbar,
+  .ap-home-groupview.is-entering,
+  .ap-home-groupview.is-leaving {
+    animation: none;
+  }
+
+  .ap-home-group:hover {
+    transform: none;
+  }
+}

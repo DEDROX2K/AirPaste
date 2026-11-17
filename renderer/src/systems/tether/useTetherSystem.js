@@ -736,10 +736,38 @@ export function useTetherSystem({
     const pointerId = event.pointerId;
     const point = clientToWorldPoint(event.clientX, event.clientY);
 
+    // Once per frame: the hit test (elementsFromPoint) forces a layout, so
+    // a fast mouse no longer runs several of them between two paints.
+    let pendingMove = null;
+    let moveFrame = 0;
+    const flushMove = () => {
+      if (moveFrame) {
+        cancelAnimationFrame(moveFrame);
+        moveFrame = 0;
+      }
+      const moveEvent = pendingMove;
+      pendingMove = null;
+      if (moveEvent) {
+        processMove(moveEvent);
+      }
+    };
     const handleMove = (moveEvent) => {
+      if (!gestureRef.current || moveEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      pendingMove = moveEvent;
+      if (!moveFrame) {
+        moveFrame = requestAnimationFrame(() => {
+          moveFrame = 0;
+          flushMove();
+        });
+      }
+    };
+    const processMove = (moveEvent) => {
       const currentGesture = gestureRef.current;
 
-      if (!currentGesture || moveEvent.pointerId !== pointerId) {
+      if (!currentGesture) {
         return;
       }
 
@@ -762,6 +790,8 @@ export function useTetherSystem({
         return;
       }
 
+      // Land the last move first, so the release uses its target.
+      flushMove();
       const { fromId, targetId } = currentGesture;
       cancelGesture();
 
@@ -790,6 +820,11 @@ export function useTetherSystem({
       x: point.x,
       y: point.y,
       detach: () => {
+        if (moveFrame) {
+          cancelAnimationFrame(moveFrame);
+          moveFrame = 0;
+        }
+        pendingMove = null;
         window.removeEventListener("pointermove", handleMove, true);
         window.removeEventListener("pointerup", handleUp, true);
         window.removeEventListener("pointercancel", handleCancel, true);

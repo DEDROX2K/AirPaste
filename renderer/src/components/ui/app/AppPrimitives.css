@@ -227,19 +227,14 @@
   --ap-btn-purple-hover: #aa82f3;
 }
 
+/* Buttons have no border (2026-11): fill and hover colour carry them. */
 .ap-ui-button.ap-ui-button {
-  border-width: 2px !important;
-  border-style: solid !important;
-}
-
-.ap-ui-button.ap-ui-button--surface {
-  border-color: #7676764d !important;
+  border: 0 !important;
 }
 
 .ap-ui-button.ap-ui-button--accent,
 .ap-ui-button.ap-ui-button--danger,
 .ap-ui-button.ap-ui-button--purple {
-  border-color: var(--ap-btn-edge) !important;
   color: var(--ap-btn-ink) !important;
   font-weight: 600;
   box-shadow: none !important;
@@ -256,7 +251,6 @@
 .ap-ui-button.ap-ui-button--accent:hover:not(:disabled),
 .ap-ui-button.ap-ui-button--danger:hover:not(:disabled),
 .ap-ui-button.ap-ui-button--purple:hover:not(:disabled) {
-  border-color: #ffffff !important;
   color: var(--ap-btn-ink) !important;
 }
 

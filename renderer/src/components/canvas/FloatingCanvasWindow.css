@@ -1,0 +1,190 @@
+/* The floating view: a canvas in a small phone-shaped card over the app.
+   A dark bezel holds the header (drag handle) and the rounded "screen". */
+
+.floating-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 0 6px 6px;
+  border-radius: 26px;
+  background: #1c1c1e;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-family: var(--ap-font-body, system-ui, sans-serif);
+  will-change: transform;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.floating-canvas--landscape {
+  border-radius: 22px;
+}
+
+.floating-canvas--dragging {
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.34),
+    0 6px 18px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.floating-canvas--focused {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 0 2px rgba(20, 99, 255, 0.55);
+}
+
+.floating-canvas__header {
+  display: flex;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px 0 12px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.floating-canvas--dragging .floating-canvas__header {
+  cursor: grabbing;
+}
+
+.floating-canvas__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.floating-canvas__name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-canvas__page {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+}
+
+.floating-canvas__page span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-canvas__page:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.floating-canvas__page select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.floating-canvas__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  cursor: default;
+}
+
+.floating-canvas__button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.floating-canvas__button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.floating-canvas__button:focus-visible {
+  outline: 2px solid rgba(120, 165, 255, 0.9);
+  outline-offset: -2px;
+}
+
+/* The "screen": the canvas itself. */
+.floating-canvas__screen {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--ap-canvas-bg, #fbfbfa);
+}
+
+.floating-canvas--landscape .floating-canvas__screen {
+  border-radius: 16px;
+}
+
+.floating-canvas__screen > .canvas-stage {
+  --canvas-board-inset: 0px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A tile dragged from another pane is over this one. */
+.floating-canvas__screen[data-drop-target]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px rgba(20, 99, 255, 0.7);
+  background: rgba(20, 99, 255, 0.05);
+  pointer-events: none;
+}
+
+.floating-canvas__loading {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  border-radius: 20px;
+  background: var(--ap-canvas-bg, #fbfbfa);
+  color: rgba(31, 31, 29, 0.55);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-canvas {
+    transition: none !important;
+  }
+}

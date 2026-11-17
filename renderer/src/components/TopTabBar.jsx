@@ -7,8 +7,10 @@ import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
 import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Share, Timer, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Share, SplitColumns, Timer, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
+import { useSplitView } from "../context/SplitViewContext";
+import TabDetachOverlay from "./canvas/TabDetachOverlay";
 import "./TopTabBar.css";
 
 const HOME_COOLDOWN_MS = 90000;
@@ -440,6 +442,7 @@ function TabItem({
   onRename,
   onDragPointerDown,
   shouldIgnoreClick,
+  onSeparate,
 }) {
   const isHome = tab.id === "home";
   const canRename = !isHome && Boolean(tab.entityId) && typeof onRename === "function";
@@ -624,6 +627,12 @@ function TabItem({
             Share as File…
           </AppContextMenuItem>
         ) : null}
+        {onSeparate ? (
+          <AppContextMenuItem onSelect={onSeparate}>
+            <SplitColumns size={15} aria-hidden="true" />
+            Separate Tabs
+          </AppContextMenuItem>
+        ) : null}
         <AppContextMenuItem disabled={!tab.closable} onSelect={onClose}>
           <X size={15} aria-hidden="true" />
           Close Tab
@@ -652,6 +661,9 @@ const TAB_EXIT_MS = 200;
 const TAB_DRAG_THRESHOLD = 4;
 const TAB_SHIFT_MS = 180;
 const TAB_SETTLE_MS = 200;
+// How far below the tab bar a dragged canvas tab goes before it detaches
+// into the split screen / floating view drop boxes.
+const TAB_DETACH_DISTANCE = 28;
 
 // Tabs to draw: the open ones (new ones flagged `entering`) plus closed ones
 // kept for TAB_EXIT_MS (`exiting`, at their old spot) so they can shrink away.
@@ -692,6 +704,12 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const previousRectsRef = useRef(new Map());
   const [draggedTabId, setDraggedTabId] = useState(null);
   const [historyDialogTab, setHistoryDialogTab] = useState(null);
+  const { getSplitPartner, splitWithTab, floatTab, pairedPaths, activeTabPath, separatePair } = useSplitView();
+  const [detachState, setDetachState] = useState(null);
+  const detachOverlayRef = useRef(null);
+  const rootRef = useRef(null);
+  // The linked split pair on screen (both its tabs read as active).
+  const shownPair = activeTabPath ? pairedPaths.get(activeTabPath) ?? null : null;
 
   const orderedTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
   const stripTabs = useMemo(() => tabs.filter((tab) => tab.id !== "home"), [tabs]);
@@ -846,11 +864,33 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
     // Keep the press from starting a window move.
     event.stopPropagation();
     const target = event.currentTarget;
-    const drag = { tabId, pointerId: event.pointerId, startX: event.clientX, active: false, items: [], deltaX: 0 };
+    const tab = tabs.find((entry) => entry.id === tabId) ?? null;
+    // Canvas tabs can also be pulled down out of the bar, onto the split
+    // screen / floating view drop boxes (TabDetachOverlay).
+    const canDetach = tab?.type === "canvas" && Boolean(tab.entityId);
+    const drag = {
+      tabId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      started: false,
+      active: false,
+      detached: false,
+      items: [],
+      deltaX: 0,
+    };
     dragRef.current = drag;
 
-    function activate() {
-      drag.items = measureStrip();
+    function settleStrip() {
+      drag.items.forEach((item) => {
+        item.node.style.transition = `transform ${TAB_SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        item.node.style.transform = "";
+        item.node.style.zIndex = "";
+      });
+    }
+
+    // Reordering needs two tabs; detaching works with one.
+    function activateReorder() {
       const dragged = drag.items.find((item) => item.id === tabId);
 
       if (!dragged || drag.items.length < 2) {
@@ -865,6 +905,13 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         item.node.style.transition = item.id === tabId ? "none" : `transform ${TAB_SHIFT_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
       });
       dragged.node.style.zIndex = "5";
+      return true;
+    }
+
+    function start() {
+      drag.started = true;
+      drag.items = measureStrip();
+      drag.stripBottom = rootRef.current?.getBoundingClientRect().bottom ?? 44;
       // Every move and the release come to this tab wherever the pointer
       // goes (off the strip, over the canvas or an embedded page), so the
       // drag never loses track of it.
@@ -874,7 +921,28 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         // The pointer is already gone; the window listeners still end it.
       }
       setDraggedTabId(tabId);
-      return true;
+      activateReorder();
+    }
+
+    function enterDetach() {
+      drag.detached = true;
+      settleStrip();
+      const partner = getSplitPartner(tab);
+      setDetachState({
+        tab,
+        isCurrent: tab.id === activeTabId,
+        partnerName: partner?.title ?? "",
+      });
+    }
+
+    function leaveDetach() {
+      drag.detached = false;
+      setDetachState(null);
+      // Pick the reorder up again from a fresh measurement.
+      drag.items = measureStrip();
+      drag.startX = drag.lastX;
+      drag.deltaX = 0;
+      activateReorder();
     }
 
     function handleMove(moveEvent) {
@@ -883,14 +951,37 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
       }
 
       const rawDelta = moveEvent.clientX - drag.startX;
+      const rawDeltaY = moveEvent.clientY - drag.startY;
+      drag.lastX = moveEvent.clientX;
 
-      if (!drag.active) {
-        if (Math.abs(rawDelta) < TAB_DRAG_THRESHOLD || !activate()) {
+      if (!drag.started) {
+        if (Math.hypot(rawDelta, rawDeltaY) < TAB_DRAG_THRESHOLD) {
           return;
+        }
+        start();
+      }
+
+      if (canDetach) {
+        const below = moveEvent.clientY - drag.stripBottom;
+        if (!drag.detached && below > TAB_DETACH_DISTANCE) {
+          enterDetach();
+        } else if (drag.detached && below < TAB_DETACH_DISTANCE / 2) {
+          leaveDetach();
         }
       }
 
-      drag.deltaX = Math.max(drag.minDelta, Math.min(drag.maxDelta, rawDelta));
+      if (drag.detached) {
+        detachOverlayRef.current?.move(moveEvent.clientX, moveEvent.clientY);
+        drag.lastClientX = moveEvent.clientX;
+        drag.lastClientY = moveEvent.clientY;
+        return;
+      }
+
+      if (!drag.active) {
+        return;
+      }
+
+      drag.deltaX = Math.max(drag.minDelta, Math.min(drag.maxDelta, moveEvent.clientX - drag.startX));
       const dragged = drag.items.find((item) => item.id === tabId);
       dragged.node.style.transform = `translateX(${drag.deltaX}px)`;
 
@@ -924,7 +1015,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         // Already released.
       }
 
-      if (!drag.active) {
+      if (!drag.started) {
         return;
       }
 
@@ -935,22 +1026,34 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
         suppressClickRef.current = false;
       }, 0);
 
+      if (drag.detached) {
+        const isRelease = endEvent?.type === "pointerup";
+        const zone = isRelease ? detachOverlayRef.current?.move(endEvent.clientX, endEvent.clientY) : null;
+        setDetachState(null);
+        if (zone === "left" || zone === "right") {
+          splitWithTab(tab, zone);
+        } else if (zone === "float") {
+          floatTab(tab);
+        }
+        return;
+      }
+
+      if (!drag.active) {
+        return;
+      }
+
       const dragged = drag.items.find((item) => item.id === tabId);
       const order = getDragOrder(drag, drag.deltaX);
       const unchanged = order.every((id, index) => drag.items[index].id === id);
 
       if (unchanged) {
-        drag.items.forEach((item) => {
-          item.node.style.transition = `transform ${TAB_SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
-          item.node.style.transform = "";
-          item.node.style.zIndex = "";
-        });
+        settleStrip();
         return;
       }
 
       dragDropRef.current = { tabId, visualLeft: dragged.rect.left + drag.deltaX };
       const nextId = order[order.indexOf(tabId) + 1];
-      const targetIndex = nextId ? tabs.findIndex((tab) => tab.id === nextId) : tabs.length;
+      const targetIndex = nextId ? tabs.findIndex((entry) => entry.id === nextId) : tabs.length;
       moveTab(tabId, targetIndex);
     }
 
@@ -964,6 +1067,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
 
   return (
     <div
+      ref={rootRef}
       className={`titlebar-root${desktop.window.usesCustomWindowMove ? "" : " titlebar-root--native-drag"}`}
       onPointerDown={desktop.window.usesCustomWindowMove ? handleTitlebarPointerDown : undefined}
       onDoubleClick={(event) => {
@@ -979,18 +1083,25 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
 
       {/* Centred on the whole bar, independent of the left/right groups. */}
       <div className="titlebar-tabs">
-        {tabEntries.map(({ tab, entering, exiting, width }) => (
+        {tabEntries.map(({ tab, entering, exiting, width }) => {
+          const pairSide = !exiting && tab.type === "canvas" ? pairedPaths.get(tab.entityId)?.side ?? null : null;
+          const isShownInPair = Boolean(
+            shownPair && tab.type === "canvas"
+              && (tab.entityId === shownPair.leftPath || tab.entityId === shownPair.rightPath),
+          );
+          return (
           <div
             key={tab.id}
             ref={exiting ? undefined : (node) => registerTabRef(tab.id, node)}
-            className={`titlebar-tab-shell${draggedTabId === tab.id ? " titlebar-tab-shell--dragging" : ""}${entering ? " titlebar-tab-shell--entering" : ""}${exiting ? " titlebar-tab-shell--exiting" : ""}`}
+            className={`titlebar-tab-shell${draggedTabId === tab.id ? " titlebar-tab-shell--dragging" : ""}${detachState?.tab.id === tab.id ? " titlebar-tab-shell--detached" : ""}${entering ? " titlebar-tab-shell--entering" : ""}${exiting ? " titlebar-tab-shell--exiting" : ""}${pairSide ? ` titlebar-tab-shell--paired titlebar-tab-shell--paired-${pairSide}` : ""}`}
             style={exiting ? { "--tab-exit-w": `${width}px` } : undefined}
             inert={exiting ? true : undefined}
             aria-hidden={exiting ? true : undefined}
+            title={pairSide ? "Split screen pair" : undefined}
           >
             <TabItem
               tab={tab}
-              isActive={tab.id === activeTabId}
+              isActive={tab.id === activeTabId || isShownInPair}
               canReopenClosedTab={canReopenClosedTab}
               onActivate={() => {
                 if (tab.id === "home") {
@@ -1014,10 +1125,21 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
               }}
               onDragPointerDown={handleDragPointerDown}
               shouldIgnoreClick={() => suppressClickRef.current}
+              onSeparate={pairSide ? () => separatePair(tab.entityId) : undefined}
             />
           </div>
-        ))}
+          );
+        })}
       </div>
+
+      {detachState ? (
+        <TabDetachOverlay
+          ref={detachOverlayRef}
+          tab={detachState.tab}
+          isCurrent={detachState.isCurrent}
+          partnerName={detachState.partnerName}
+        />
+      ) : null}
 
       <div className="titlebar-right">
         {SHOW_TITLEBAR_EYE ? <TitlebarEye currentEditorKind={currentEditor?.kind ?? "home"} /> : null}

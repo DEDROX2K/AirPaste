@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
-import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, SplitColumns, Tether } from "./ui/icons";
+import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
@@ -11,7 +11,7 @@ import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
 import { useCanvasPane } from "../context/CanvasPaneContext";
-import { moveTilesBetweenPages, movePageTilesBy } from "../systems/canvas/splitView";
+import { moveTilesBetweenFiles, moveTilesBetweenPages, movePageTilesBy } from "../systems/canvas/splitView";
 import { CanvasDragMotionContext } from "../context/CanvasDragMotionContext";
 import { CanvasMotionContext } from "../context/CanvasMotionContext";
 import { TileAppContext } from "../context/TileAppContext";
@@ -37,6 +37,7 @@ import {
   removeStructuredEntriesForTileIds,
   shouldRecoverLinkPreviewCard,
 } from "../lib/workspace";
+import { ChecklistCardsContext, useStableChecklistCards } from "../context/ChecklistCardsContext";
 import { TEXT_BOX_LABEL_STYLE, getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
 import { getAdjacentStickyPosition, getFileCardCodeLanguageId, normalizeStickyStyle } from "../tiles/sticky/model";
@@ -176,28 +177,6 @@ function WorkspaceViewToggle({ mode, onChange }) {
   );
 }
 
-// Split screen on/off (Ctrl/Cmd+\ does the same, CanvasSplitLayout).
-function SplitScreenToggle({ enabled, onToggle }) {
-  if (!onToggle) {
-    return null;
-  }
-
-  return (
-    <div className="workspace-view-toggle workspace-split-toggle">
-      <AppButton tone="unstyled"
-        type="button"
-        className={`workspace-view-toggle__button${enabled ? " workspace-view-toggle__button--active" : ""}`}
-        onClick={onToggle}
-        aria-pressed={enabled}
-        aria-label={enabled ? "Close split screen" : "Split screen"}
-        title={enabled ? "Close split screen (Ctrl+\\)" : "Split screen (Ctrl+\\)"}
-      >
-        <SplitColumns className="workspace-view-toggle__icon" size={16} aria-hidden="true" />
-      </AppButton>
-    </div>
-  );
-}
-
 // Concave fillet that blends the dock's grey base into the canvas bottom edge.
 function CanvasDockFlare({ mirrored = false }) {
   return (
@@ -213,6 +192,15 @@ function CanvasDockFlare({ mirrored = false }) {
 }
 
 // Dock on the canvas bottom edge: flare, dock over a grey base, flare.
+// The text tool's drag-out box, in world coordinates on the canvas content.
+function writeQuickTextDraft(node, draft) {
+  if (!node || !draft) return;
+  node.style.left = `${Math.min(draft.start.x, draft.end.x)}px`;
+  node.style.top = `${Math.min(draft.start.y, draft.end.y)}px`;
+  node.style.width = `${Math.abs(draft.end.x - draft.start.x)}px`;
+  node.style.height = `${Math.abs(draft.end.y - draft.start.y)}px`;
+}
+
 function CanvasDockFrame({ children }) {
   return (
     <div className="canvas-stage__fab">
@@ -1188,6 +1176,7 @@ export default function CanvasWorkspaceView() {
     setViewport,
     setWorkspaceView,
     canvasClipboard,
+    canvasWorkspaces,
     redoWorkspaceChange,
     undoWorkspaceChange,
     workspace,
@@ -1219,6 +1208,7 @@ export default function CanvasWorkspaceView() {
     setCanvasInteractionState,
     updateExistingCard,
   }), [currentEditor, deleteExistingCard, folderPath, setCanvasInteractionState, updateExistingCard]);
+  const checklistCards = useStableChecklistCards(workspace.cards);
   const { log } = useLog();
   const { toast } = useToast();
   const pane = useCanvasPane();
@@ -1227,6 +1217,7 @@ export default function CanvasWorkspaceView() {
   const [cullingTick, setCullingTick] = useState(0);
   const [textBoxEditorState, setTextBoxEditorState] = useState(null);
   const [stickerDragState, setStickerDragState] = useState(null);
+  const stickerPreviewRef = useRef(null);
   const [stickerPlacementStates, setStickerPlacementStates] = useState([]);
   const [animatingStickerTileIds, setAnimatingStickerTileIds] = useState([]);
   const [canvasEntrySequence, setCanvasEntrySequence] = useState(0);
@@ -1460,19 +1451,27 @@ export default function CanvasWorkspaceView() {
   // drags, and its own drags can be dropped over there.
   const paneWorkspaceRef = useRef(workspace);
   paneWorkspaceRef.current = workspace;
-  const { registerPane, findDropPane, setDropTargetPane, paneId, splitEnabled } = pane;
+  const paneFilePathRef = useRef(currentEditor.filePath);
+  paneFilePathRef.current = currentEditor.filePath;
+  const canvasWorkspacesRef = useRef(canvasWorkspaces);
+  canvasWorkspacesRef.current = canvasWorkspaces;
+  const { registerPane, findDropPane, setDropTargetPane, paneId } = pane;
   useEffect(() => {
     if (!registerPane) return undefined;
     return registerPane(paneId, {
       getPageId: () => paneWorkspaceRef.current.activePageId,
+      getFilePath: () => paneFilePathRef.current,
       getElement: () => canvas.containerRef.current,
       clientToWorldPoint: canvas.clientToWorldPoint,
       getZoom: () => canvas.getViewportSnapshot?.()?.zoom ?? 1,
     });
   }, [canvas, canvas.clientToWorldPoint, canvas.containerRef, paneId, registerPane]);
 
+  // Tiles dragged out of this pane can land in any other pane on screen
+  // (split screen's other half, the floating view): same page, another
+  // page of this file, or another file.
   const externalDrop = useMemo(() => {
-    if (!splitEnabled || !findDropPane) return null;
+    if (!findDropPane) return null;
     return {
       hitTest: (clientX, clientY) => findDropPane(clientX, clientY, paneId),
       preview: (target, info) => setDropTargetPane?.(target?.paneId ?? null, info),
@@ -1486,6 +1485,23 @@ export default function CanvasWorkspaceView() {
         const targetPageId = target.getPageId();
         if (!targetPageId) return false;
 
+        const sourcePath = paneFilePathRef.current;
+        const targetPath = target.getFilePath?.() ?? sourcePath;
+        if (sourcePath && targetPath && targetPath !== sourcePath) {
+          const sourceWorkspace = canvasWorkspacesRef.current?.[sourcePath]?.present;
+          const targetWorkspace = canvasWorkspacesRef.current?.[targetPath]?.present;
+          const result = moveTilesBetweenFiles(sourceWorkspace, targetWorkspace, {
+            sourcePageId,
+            targetPageId,
+            tileIds,
+            delta,
+          });
+          if (!result) return false;
+          commitWorkspaceChangeForPath(targetPath, result.target);
+          commitWorkspaceChangeForPath(sourcePath, result.source);
+          return true;
+        }
+
         commitWorkspaceChange((current) => moveTilesBetweenPages(
           sourcePageId === targetPageId
             ? movePageTilesBy(current, sourcePageId, tileIds, delta)
@@ -1495,7 +1511,7 @@ export default function CanvasWorkspaceView() {
         return true;
       },
     };
-  }, [commitWorkspaceChange, findDropPane, paneId, setDropTargetPane, splitEnabled]);
+  }, [commitWorkspaceChange, commitWorkspaceChangeForPath, findDropPane, paneId, setDropTargetPane]);
 
   const interactions = useCanvasInteractionSystem({
     cards: workspace.cards,
@@ -1527,8 +1543,16 @@ export default function CanvasWorkspaceView() {
         event.clientY,
       );
 
+      // The preview follows the pointer through its own style; the canvas
+      // re-renders only when it crosses the canvas edge.
+      const preview = stickerPreviewRef.current;
+      if (preview) {
+        preview.style.left = `${event.clientX}px`;
+        preview.style.top = `${event.clientY}px`;
+      }
+
       setStickerDragState((currentState) => (
-        currentState
+        currentState && currentState.isOverCanvas !== isOverCanvas
           ? {
             ...currentState,
             pointerX: event.clientX,
@@ -1997,6 +2021,8 @@ export default function CanvasWorkspaceView() {
     const start = canvas.clientToWorldPoint(event.clientX, event.clientY);
     let isDragging = false;
 
+    // The box follows the pointer through direct style writes; state only
+    // mounts and unmounts it, so the canvas renders twice per gesture.
     const handleMove = (moveEvent) => {
       if (moveEvent.pointerId !== pointerId) {
         return;
@@ -2004,13 +2030,16 @@ export default function CanvasWorkspaceView() {
 
       if (!isDragging && Math.hypot(moveEvent.clientX - startClient.x, moveEvent.clientY - startClient.y) > 4) {
         isDragging = true;
+        setQuickTextDraft(true);
       }
 
       if (isDragging) {
-        setQuickTextDraft({ start, end: canvas.clientToWorldPoint(moveEvent.clientX, moveEvent.clientY) });
+        quickTextDraftRef.current = { start, end: canvas.clientToWorldPoint(moveEvent.clientX, moveEvent.clientY) };
+        writeQuickTextDraft(quickTextDraftNodeRef.current, quickTextDraftRef.current);
       }
     };
     const cleanUp = () => {
+      quickTextDraftRef.current = null;
       setQuickTextDraft(null);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", handleUp, true);
@@ -2046,6 +2075,12 @@ export default function CanvasWorkspaceView() {
   });
   // A new sticky starts selected and ready to type into, like FigJam.
   const [quickTextDraft, setQuickTextDraft] = useState(null);
+  const quickTextDraftRef = useRef(null);
+  const quickTextDraftNodeRef = useRef(null);
+  const setQuickTextDraftNode = useCallback((node) => {
+    quickTextDraftNodeRef.current = node;
+    writeQuickTextDraft(node, quickTextDraftRef.current);
+  }, []);
   const beginStickyCreation = useStableCallback((worldPoint, options = {}) => {
     const sticky = commands.createSticky(worldPoint, options);
 
@@ -3452,13 +3487,17 @@ export default function CanvasWorkspaceView() {
     return (
       <main className="canvas-stage canvas-stage--grid" data-airpaste-canvas-capture-root>
 
-        <CanvasDockFrame>
-          <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
-          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-          <SplitScreenToggle enabled={pane.splitEnabled} onToggle={pane.toggleSplit} />
-        </CanvasDockFrame>
-        <WorkspaceTopbarTrail />
+        {pane.compact ? null : (
+          <>
+            <CanvasDockFrame>
+              <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
+              <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+            </CanvasDockFrame>
+            <WorkspaceTopbarTrail />
+          </>
+        )}
         <TileAppContext.Provider value={tileAppContext}>
+    <ChecklistCardsContext.Provider value={checklistCards}>
           <Suspense fallback={null}>
             <GridWorkspaceView
               dropImport={dropImport}
@@ -3470,7 +3509,8 @@ export default function CanvasWorkspaceView() {
               onPaste={handleWorkspacePaste}
             />
           </Suspense>
-        </TileAppContext.Provider>
+            </ChecklistCardsContext.Provider>
+    </TileAppContext.Provider>
       </main>
     );
   }
@@ -3479,6 +3519,7 @@ export default function CanvasWorkspaceView() {
     <CanvasMotionContext.Provider value={isCanvasMoving}>
     <CanvasDragMotionContext.Provider value={interactions.dragMotion}>
     <TileAppContext.Provider value={tileAppContext}>
+    <ChecklistCardsContext.Provider value={checklistCards}>
     <main className="canvas-stage">
 
       {/* ── Right Tools Portal (zoom menu: hidden for now; zoom still works
@@ -3500,19 +3541,20 @@ export default function CanvasWorkspaceView() {
       ) : null}
 
       {/* Dock: on the canvas bottom edge, centred (ShellLayers.css). */}
-      <CanvasDockFrame>
-        <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
-        <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
-        <DrawingToolControls
-          activeTool={selectedCanvasToolMode}
-          iconOnly
-          onToolChange={setCanvasToolMode}
-        />
-        <SplitScreenToggle enabled={pane.splitEnabled} onToggle={pane.toggleSplit} />
-      </CanvasDockFrame>
+      {pane.compact ? null : (
+        <CanvasDockFrame>
+          <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
+          <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
+          <DrawingToolControls
+            activeTool={selectedCanvasToolMode}
+            iconOnly
+            onToolChange={setCanvasToolMode}
+          />
+        </CanvasDockFrame>
+      )}
 
       {/* ── Top bar ── */}
-      <WorkspaceTopbarTrail />
+      {pane.compact ? null : <WorkspaceTopbarTrail />}
 
       {/* ── Canvas board ── */}
       <div
@@ -3585,6 +3627,8 @@ export default function CanvasWorkspaceView() {
                 <DrawingLayer
                   drawings={drawingTool.drawings}
                   draftLine={drawingTool.draftLine}
+                  getDraftLine={drawingTool.getDraftLine}
+                  subscribeDraftLine={drawingTool.subscribeDraftLine}
                   selectedObjectId={drawingTool.selectedObjectId}
                   activeTool={drawingTool.activeTool}
                   isSpacePanning={drawingTool.isSpacePanning}
@@ -3695,15 +3739,7 @@ export default function CanvasWorkspaceView() {
                 </div>
               ))}
               {quickTextDraft ? (
-                <div
-                  className="quick-text-marquee"
-                  style={{
-                    left: `${Math.min(quickTextDraft.start.x, quickTextDraft.end.x)}px`,
-                    top: `${Math.min(quickTextDraft.start.y, quickTextDraft.end.y)}px`,
-                    width: `${Math.abs(quickTextDraft.end.x - quickTextDraft.start.x)}px`,
-                    height: `${Math.abs(quickTextDraft.end.y - quickTextDraft.start.y)}px`,
-                  }}
-                />
+                <div className="quick-text-marquee" ref={setQuickTextDraftNode} />
               ) : null}
             </div>
           </>
@@ -3711,7 +3747,7 @@ export default function CanvasWorkspaceView() {
         
 
         {interactions.marqueeBox ? (
-          <div className="canvas__marquee" style={interactions.marqueeStyleVars} />
+          <div className="canvas__marquee" ref={interactions.marqueeRef} />
         ) : null}
         {/* Developer tool: dev builds (npm run dev) or VITE_PREVIEW_DEBUG
             only, never in the installed app. */}
@@ -3761,6 +3797,7 @@ export default function CanvasWorkspaceView() {
       />
       {stickerDragState ? (
         <div
+          ref={stickerPreviewRef}
           className={`sticker-drag-preview${stickerDragState.isOverCanvas ? " sticker-drag-preview--over-canvas" : ""}`}
           style={{
             left: `${stickerDragState.pointerX}px`,
@@ -3800,6 +3837,7 @@ export default function CanvasWorkspaceView() {
         document.body,
       ) : null}
     </main>
+        </ChecklistCardsContext.Provider>
     </TileAppContext.Provider>
     </CanvasDragMotionContext.Provider>
     </CanvasMotionContext.Provider>

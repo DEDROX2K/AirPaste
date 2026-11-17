@@ -1171,3 +1171,52 @@
   border-color: rgba(124, 92, 255, 0.7);
   box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.18);
 }
+
+/* Split screen: two tabs linked as a pair (always side by side) sit
+   together in one green rounded box; each tab inside is a full pill. The
+   box is drawn as two halves (one per tab) meeting across the gap. */
+.titlebar-tabs {
+  --tab-pair-pad: 4px;
+  --tab-pair-bg: #6cbb5c;
+}
+
+.titlebar-tab-shell--paired-left {
+  margin-left: var(--tab-pair-pad);
+  margin-right: 3px;
+}
+
+.titlebar-tab-shell--paired-right {
+  margin-right: var(--tab-pair-pad);
+}
+
+.titlebar-tab-shell--paired > .titlebar-tab::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--tab-sel-top) - var(--tab-pair-pad));
+  height: calc(var(--tab-h) + var(--tab-pair-pad) * 2);
+  z-index: 0;
+  background: var(--tab-pair-bg);
+  pointer-events: none;
+}
+
+.titlebar-tab-shell--paired-left > .titlebar-tab::before {
+  left: calc(var(--tab-pair-pad) * -1);
+  /* Across the flex gap (5px) plus this tab's extra margin. */
+  right: -8px;
+  border-radius: calc(var(--tab-h) / 2 + var(--tab-pair-pad)) 0 0 calc(var(--tab-h) / 2 + var(--tab-pair-pad));
+}
+
+.titlebar-tab-shell--paired-right > .titlebar-tab::before {
+  left: 0;
+  right: calc(var(--tab-pair-pad) * -1);
+  border-radius: 0 calc(var(--tab-h) / 2 + var(--tab-pair-pad)) calc(var(--tab-h) / 2 + var(--tab-pair-pad)) 0;
+}
+
+.titlebar-tab-shell--paired .titlebar-tab__body {
+  border-radius: calc(var(--tab-h) / 2) !important;
+}
+
+/* A tab pulled down onto the split / float drop boxes. */
+.titlebar-tab-shell--detached {
+  opacity: 0.45;
+}

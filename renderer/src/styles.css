@@ -468,7 +468,7 @@ option {
   margin-top: 4px;
   padding: 7px 14px;
   border-radius: 8px;
-  border: 2px solid var(--ap-btn-edge, rgba(0, 0, 0, 0.14));
+  border: 0;
   background: var(--ap-btn-red, #ef5350);
   color: var(--ap-btn-ink, #161616);
   font-size: 13px;
@@ -477,7 +477,6 @@ option {
 }
 
 .error-boundary__retry:hover {
-  border-color: #ffffff;
   background: var(--ap-btn-red-hover, #f36a67);
 }
 
@@ -843,6 +842,8 @@ option {
   display: none;
 }
 
+/* A page being reordered: set on the panel (not <body>), so starting and
+   ending the drag restyles the panel, not the whole app. */
 .left-pages-panel--dragging,
 .left-pages-panel--dragging * {
   cursor: var(--ap-cursor-grabbing) !important;

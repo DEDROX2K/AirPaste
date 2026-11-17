@@ -15,6 +15,8 @@ const DEFAULT_STAGE_SIZE = Object.freeze({
 export default function DrawingLayer({
   drawings,
   draftLine,
+  getDraftLine,
+  subscribeDraftLine,
   selectedObjectId,
   activeTool,
   isSpacePanning = false,
@@ -31,6 +33,22 @@ export default function DrawingLayer({
   const worldGroupRef = useRef(null);
   const transformRef = useRef(getWorldToScreenTransform(getViewportSnapshot?.()));
   const [stageSize, setStageSize] = useState(DEFAULT_STAGE_SIZE);
+  const draftNodeRef = useRef(null);
+  const hasDraft = Boolean(draftLine);
+
+  // The draft line's end follows the pointer through the Konva node.
+  useLayoutEffect(() => {
+    if (!hasDraft || !subscribeDraftLine) {
+      return undefined;
+    }
+
+    return subscribeDraftLine((nextDraftLine) => {
+      const node = draftNodeRef.current;
+      if (!node || !nextDraftLine) return;
+      node.points(nextDraftLine.points);
+      node.getLayer()?.batchDraw();
+    });
+  }, [hasDraft, subscribeDraftLine]);
   const isInteractive = activeTool === DRAWING_TOOL_MODE_LINE;
 
   const applyWorldTransform = useCallback((nextViewport) => {
@@ -82,10 +100,12 @@ export default function DrawingLayer({
 
     const updateStageSize = () => {
       const rect = shellElement.getBoundingClientRect();
-      setStageSize({
-        width: Math.max(1, Math.round(rect.width)),
-        height: Math.max(1, Math.round(rect.height)),
-      });
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
+      // Same size: keep the object, so the Konva stage doesn't re-render.
+      setStageSize((current) => (
+        current.width === width && current.height === height ? current : { width, height }
+      ));
     };
 
     updateStageSize();
@@ -182,7 +202,8 @@ export default function DrawingLayer({
             })}
             {draftLine ? (
               <Line
-                points={draftLine.points}
+                ref={draftNodeRef}
+                points={(getDraftLine?.() ?? draftLine).points}
                 stroke={normalizeDrawingStyle(draftLine.style).stroke}
                 strokeWidth={normalizeDrawingStyle(draftLine.style).strokeWidth}
                 opacity={0.82}

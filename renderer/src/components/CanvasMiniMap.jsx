@@ -55,9 +55,18 @@ export default function CanvasMiniMap({ canvas, tiles, hidden = false }) {
   const [viewport, setViewport] = useState(() => canvas.getViewportSnapshot());
   const [containerRect, setContainerRect] = useState(() => canvas.getContainerRectSnapshot());
 
-  useEffect(() => canvas.subscribeViewportTransform((nextViewport) => {
-    setViewport(nextViewport);
-  }), [canvas]);
+  // Follow the camera only while the map is open: closed, every pan or
+  // zoom frame re-rendered it and re-projected every tile for nothing.
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    setViewport(canvas.getViewportSnapshot());
+    return canvas.subscribeViewportTransform((nextViewport) => {
+      setViewport(nextViewport);
+    });
+  }, [canvas, isOpen]);
 
   useEffect(() => {
     const nextRect = canvas.getContainerRectSnapshot();
@@ -82,13 +91,17 @@ export default function CanvasMiniMap({ canvas, tiles, hidden = false }) {
 
     updateContainerRect();
     window.addEventListener("resize", updateContainerRect);
-    window.addEventListener("scroll", updateContainerRect, true);
+    // Any scroll anywhere (inside a tile too) re-measured: only needed
+    // while the map is showing.
+    if (isOpen) {
+      window.addEventListener("scroll", updateContainerRect, true);
+    }
 
     return () => {
       window.removeEventListener("resize", updateContainerRect);
       window.removeEventListener("scroll", updateContainerRect, true);
     };
-  }, [canvas]);
+  }, [canvas, isOpen]);
 
   const tileRects = useMemo(() => tiles.filter(isFiniteRectTile), [tiles]);
   const worldBounds = useMemo(() => buildWorldBounds(tileRects), [tileRects]);

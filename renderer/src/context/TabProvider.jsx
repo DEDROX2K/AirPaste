@@ -180,6 +180,11 @@ export function TabProvider({ children }) {
   const [activeTabId, setActiveTabId] = useState(HOME_TAB_ID);
   const [closedTabs, setClosedTabs] = useState([]);
   const beforeCloseTabHandlerRef = useRef(null);
+  // Tab ids, most recently active first (split screen pairs a dragged
+  // current tab with the one used before it).
+  const recentTabIdsRef = useRef([]);
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
 
   useEffect(() => {
     try {
@@ -214,6 +219,22 @@ export function TabProvider({ children }) {
       setActiveTabId(HOME_TAB_ID);
     }
   }, [activeTabId, tabs]);
+
+  useEffect(() => {
+    recentTabIdsRef.current = [activeTabId, ...recentTabIdsRef.current.filter((id) => id !== activeTabId)].slice(0, 30);
+  }, [activeTabId]);
+
+  // The most recently active open tab that isn't excluded and passes
+  // `accept` (if given), or null.
+  const getRecentTab = useCallback((excludeIds = [], accept = null) => {
+    const excluded = new Set(excludeIds);
+    for (const id of recentTabIdsRef.current) {
+      if (excluded.has(id)) continue;
+      const tab = tabsRef.current.find((entry) => entry.id === id);
+      if (tab && (!accept || accept(tab))) return tab;
+    }
+    return null;
+  }, []);
 
   const openTab = useCallback((item) => {
     let nextActiveId = item.id || null;
@@ -538,7 +559,9 @@ export function TabProvider({ children }) {
     closeTabsForEntity,
     showHomeTab,
     canReopenClosedTab: closedTabs.length > 0,
+    getRecentTab,
   }), [
+    getRecentTab,
     tabs,
     activeTabId,
     openTab,

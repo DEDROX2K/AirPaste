@@ -9,7 +9,6 @@ import {
 } from "../../lib/perf";
 import {
   findRackDropTarget,
-  getBoxStyleVars,
   getRenderableTileEntries,
   getRenderableTileEntryById,
   getTileByIdMap,
@@ -52,6 +51,26 @@ function keepIfUnchanged(currentIds, filteredIds) {
   return filteredIds.length === currentIds.length ? currentIds : filteredIds;
 }
 
+// The same ids in the same order: keep the current array, so a marquee frame
+// that selects nothing new doesn't re-render the canvas.
+function keepIfSameIds(currentIds, nextIds) {
+  if (currentIds.length !== nextIds.length) return nextIds;
+  for (let index = 0; index < nextIds.length; index += 1) {
+    if (currentIds[index] !== nextIds[index]) return nextIds;
+  }
+  return currentIds;
+}
+
+// The marquee box, written straight to its element each frame (its
+// --box-* vars, on a childless div) rather than through React state.
+function writeMarqueeBox(node, box) {
+  if (!node || !box) return;
+  node.style.setProperty("--box-x", `${box.x}px`);
+  node.style.setProperty("--box-y", `${box.y}px`);
+  node.style.setProperty("--box-width", `${box.width}px`);
+  node.style.setProperty("--box-height", `${box.height}px`);
+}
+
 export function useCanvasInteractionSystem({
   cards,
   groups = [],
@@ -78,7 +97,15 @@ export function useCanvasInteractionSystem({
   const [dragMotion] = useState(createDragMotionStore);
   // Where the tile was grabbed (world point), for the grab-corner tilt.
   const [dragGrabPoint, setDragGrabPoint] = useState(null);
+  // Set when a marquee starts and cleared when it ends; the box's live
+  // geometry goes to marqueeGeometryRef and the element (marqueeRef).
   const [marqueeBox, setMarqueeBox] = useState(null);
+  const marqueeNodeRef = useRef(null);
+  const marqueeGeometryRef = useRef(null);
+  const marqueeRef = useCallback((node) => {
+    marqueeNodeRef.current = node;
+    writeMarqueeBox(node, marqueeGeometryRef.current);
+  }, []);
   const [rackDropPreview, setRackDropPreview] = useState(null);
 
   const dragStateRef = useRef(null);
@@ -550,12 +577,13 @@ export function useCanvasInteractionSystem({
       baseSelectedTileIds: additive ? [...selectedTileIds] : [],
     };
 
-    setMarqueeBox({
+    marqueeGeometryRef.current = {
       x: startCanvasPoint.x,
       y: startCanvasPoint.y,
       width: 0,
       height: 0,
-    });
+    };
+    setMarqueeBox(marqueeGeometryRef.current);
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [canvas, selectedTileIds]);
@@ -802,9 +830,10 @@ export function useCanvasInteractionSystem({
         tileByIdRef.current,
       );
 
-      setSelectedTileIds(marqueeState.additive
+      const nextIds = marqueeState.additive
         ? [...new Set([...marqueeState.baseSelectedTileIds, ...rectTileIds])]
-        : rectTileIds);
+        : rectTileIds;
+      setSelectedTileIds((currentIds) => keepIfSameIds(currentIds, nextIds));
     }
 
     function processMarqueeMove(event) {
@@ -829,12 +858,13 @@ export function useCanvasInteractionSystem({
         currentCanvasPoint.y,
       );
 
-      setMarqueeBox({
+      marqueeGeometryRef.current = {
         x: canvasRect.left,
         y: canvasRect.top,
         width: canvasRect.width,
         height: canvasRect.height,
-      });
+      };
+      writeMarqueeBox(marqueeNodeRef.current, marqueeGeometryRef.current);
 
       const dragDistanceX = Math.abs(marqueeState.currentClientX - marqueeState.startClientX);
       const dragDistanceY = Math.abs(marqueeState.currentClientY - marqueeState.startClientY);
@@ -1396,7 +1426,6 @@ export function useCanvasInteractionSystem({
     });
   }, [canvas, selectedTileIds]);
 
-  const marqueeStyleVars = useMemo(() => getBoxStyleVars(marqueeBox), [marqueeBox]);
 
   return useMemo(() => ({
     contextMenu,
@@ -1411,7 +1440,7 @@ export function useCanvasInteractionSystem({
     dragGrabPoint,
     rackDropPreview,
     marqueeBox,
-    marqueeStyleVars,
+    marqueeRef,
     beginGroupDrag,
     beginTileDrag,
     closeContextMenu,
@@ -1454,7 +1483,7 @@ export function useCanvasInteractionSystem({
     hoveredGroupId,
     hoveredTileId,
     marqueeBox,
-    marqueeStyleVars,
+    marqueeRef,
     nudgeSelection,
     pullTileFromRack,
     replaceSelection,

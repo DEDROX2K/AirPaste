@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import {
   CANVAS_TEXT_FORMAT_MARKDOWN,
   CANVAS_TEXT_MIN_HEIGHT,
@@ -50,8 +51,8 @@ function buildStickyPreviewSections(lines) {
 }
 
 function CanvasTextTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -65,6 +66,8 @@ function CanvasTextTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive, liveRef } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const source = card.source === CANVAS_TEXT_SOURCE_FILE ? CANVAS_TEXT_SOURCE_FILE : CANVAS_TEXT_SOURCE_LOCAL;
   const variant = card.variant === CANVAS_TEXT_VARIANT_STICKY ? CANVAS_TEXT_VARIANT_STICKY : "default";
@@ -155,9 +158,14 @@ function CanvasTextTile({
     );
 
     if (Math.abs(nextHeight - (card.height ?? CANVAS_TEXT_MIN_HEIGHT)) > 1) {
-      updateExistingCard(card.id, { height: nextHeight });
+      // Mid-resize the height follows locally and is committed with the width.
+      if (liveRef.current) {
+        updateLive({ height: nextHeight });
+      } else {
+        updateExistingCard(card.id, { height: nextHeight });
+      }
     }
-  }, [card.height, card.id, updateExistingCard]);
+  }, [card.height, card.id, liveRef, updateExistingCard, updateLive]);
 
   const applySourcePayload = useCallback((fileRecord) => {
     if (!fileRecord) {
@@ -360,7 +368,7 @@ function CanvasTextTile({
         ? Math.round(resizeState.startX + (resizeState.startWidth - nextWidth))
         : resizeState.startX;
 
-      updateExistingCard(card.id, resizeState.side === "left"
+      updateLive(resizeState.side === "left"
         ? { x: nextX, width: nextWidth }
         : { width: nextWidth });
     };
@@ -373,6 +381,7 @@ function CanvasTextTile({
       }
 
       resizeStateRef.current = null;
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", finishResize, true);

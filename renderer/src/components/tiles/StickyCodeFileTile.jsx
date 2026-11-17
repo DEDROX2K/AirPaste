@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
@@ -141,8 +142,8 @@ function getFileCardName(card) {
 }
 
 function StickyCodeFileTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -154,6 +155,8 @@ function StickyCodeFileTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const { toast } = useToast();
   const fileLanguageId = getFileCardCodeLanguageId(card);
@@ -392,7 +395,7 @@ function StickyCodeFileTile({
       const dy = (moveEvent.clientY - start.clientY) / zoom;
       const nextWidth = clampCodeFileWidth(start.width + ((handle.dirX * dx) + (handle.dirY * dy / ratio)) / 2);
       const nextHeight = getCodeFileHeight(nextWidth);
-      updateExistingCard(card.id, {
+      updateLive({
         width: nextWidth,
         height: nextHeight,
         x: handle.dirX < 0 ? start.x - (nextWidth - start.width) : start.x,
@@ -407,6 +410,7 @@ function StickyCodeFileTile({
       }
 
       setResizeLabel("");
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", finish, true);

@@ -86,6 +86,7 @@ function RackCard({
 }) {
   const cardRef = useRef(null);
   const tiltRef = useRef(null);
+  const glareRef = useRef(null);
   const tileWidth = Math.max(1, tile.width || RACK_PREVIEW_WIDTH);
   const tileHeight = Math.max(1, tile.height || RACK_PREVIEW_HEIGHT);
   const previewScale = RACK_PREVIEW_WIDTH / tileWidth;
@@ -127,8 +128,10 @@ function RackCard({
     const py = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
     tiltRef.current.style.setProperty("--rack-tilt-y", `${((px - 0.5) * 10).toFixed(2)}deg`);
     tiltRef.current.style.setProperty("--rack-tilt-x", `${((0.5 - py) * 6).toFixed(2)}deg`);
-    cardRef.current.style.setProperty("--rack-glare-x", `${(px * 100).toFixed(1)}%`);
-    cardRef.current.style.setProperty("--rack-glare-y", `${(py * 100).toFixed(1)}%`);
+    // On the glare itself: these vars are registered non-inheriting
+    // (RackTile.css), so a move restyles two elements, not the preview tile.
+    glareRef.current?.style.setProperty("--rack-glare-x", `${(px * 100).toFixed(1)}%`);
+    glareRef.current?.style.setProperty("--rack-glare-y", `${(py * 100).toFixed(1)}%`);
   };
 
   const neighbourShift = activeIndex === null || isActive ? 0 : (index > activeIndex ? 12 : -12);
@@ -187,7 +190,7 @@ function RackCard({
           </div>
           <div className="rack-tile__dim" />
           <div className="rack-tile__sheen" />
-          <div className="rack-tile__glare" />
+          <div ref={glareRef} className="rack-tile__glare" />
         </div>
       </div>
     </div>

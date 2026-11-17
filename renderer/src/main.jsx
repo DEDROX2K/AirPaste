@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppProvider } from "./context/AppProvider";
 import { LogProvider } from "./context/LogProvider";
+import { SplitViewProvider } from "./context/SplitViewProvider";
 import { TabProvider } from "./context/TabProvider";
 import { ToastProvider } from "./context/ToastProvider";
 import "./index.css";
@@ -21,7 +22,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <ToastProvider>
         <TabProvider>
           <AppProvider>
-            <App />
+            <SplitViewProvider>
+              <App />
+            </SplitViewProvider>
           </AppProvider>
         </TabProvider>
       </ToastProvider>

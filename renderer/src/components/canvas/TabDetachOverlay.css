@@ -1,0 +1,147 @@
+/* A tab dragged below the tab bar: drop boxes over the canvas area and a
+   small preview card of the file following the pointer. */
+
+.tab-detach {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  cursor: grabbing;
+  font-family: var(--ap-font-body, system-ui, sans-serif);
+}
+
+.tab-detach__area {
+  position: fixed;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(18, 18, 16, 0.12);
+  animation: tab-detach-in 140ms ease-out both;
+}
+
+.tab-detach__zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(6px);
+  color: #1f1f1d;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tab-detach__zone--left { grid-column: 1; }
+.tab-detach__zone--float {
+  grid-column: 2;
+  align-self: center;
+  justify-self: center;
+  width: min(180px, 100%);
+  aspect-ratio: 9 / 16;
+  max-height: 100%;
+  border-radius: 22px;
+}
+.tab-detach__zone--right { grid-column: 3; }
+
+.tab-detach__zone[data-hot] {
+  border-style: solid;
+  border-color: rgba(20, 99, 255, 0.9);
+  background: rgba(20, 99, 255, 0.18);
+  transform: scale(1.015);
+}
+
+.tab-detach__zone-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* A phone outline in the middle box. */
+.tab-detach__phone {
+  width: 38%;
+  aspect-ratio: 9 / 16;
+  border: 2px solid currentColor;
+  border-radius: 10px;
+  opacity: 0.45;
+}
+
+.tab-detach__preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 200px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transform: translate3d(-9999px, -9999px, 0) rotate(-1.5deg);
+  will-change: transform;
+}
+
+.tab-detach__preview-image {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  overflow: hidden;
+  background: #f3f3f1;
+  color: rgba(31, 31, 29, 0.4);
+}
+
+.tab-detach__preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tab-detach__preview-name {
+  overflow: hidden;
+  padding: 7px 10px 0;
+  color: #1f1f1d;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-detach__preview-hint {
+  overflow: hidden;
+  padding: 1px 10px 8px;
+  color: rgba(31, 31, 29, 0.55);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.tab-detach__preview-name:last-child {
+  padding-bottom: 8px;
+}
+
+.tab-detach__preview[data-zone="left"] .tab-detach__preview-hint,
+.tab-detach__preview[data-zone="right"] .tab-detach__preview-hint {
+  visibility: visible;
+}
+
+@keyframes tab-detach-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-detach__area { animation: none; }
+  .tab-detach__zone { transition: none; }
+}

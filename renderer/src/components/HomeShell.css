@@ -901,12 +901,12 @@
   gap: 12px;
   width: 100%;
   padding: 10px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--ap-radius-md);
   background: transparent;
   cursor: var(--ap-cursor-pointer);
   text-align: left;
-  transition: background-color var(--ap-transition-fast), border-color var(--ap-transition-fast);
+  transition: background-color var(--ap-transition-fast);
 }
 
 .ap-home-launch__recent:hover:not(:disabled) {
@@ -914,8 +914,7 @@
 }
 
 .ap-home-launch__recent.is-active {
-  border-color: var(--ap-border-strong);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .ap-home-launch__recent-icon {
@@ -994,19 +993,17 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px dashed rgba(0, 0, 0, 0.2);
+  border: 0;
   border-radius: 14px;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.04);
   color: var(--ap-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 140ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .ap-home-manage__quick-btn:hover {
-  background: rgba(74, 108, 181, 0.07);
-  border-style: solid;
-  border-color: rgba(74, 108, 181, 0.35);
+  background: rgba(74, 108, 181, 0.1);
 }
 
 .ap-home-manage__quick-btn:active {
@@ -1117,6 +1114,92 @@
   flex: none;
 }
 
+/* The whole row is the "switch" control (2026-11 redesign). Reveal and
+   remove fade in on hover; the right edge shows a check on the open
+   workspace, an arrow on the hovered one, a spinner while one opens. */
+.ap-home-dome-row {
+  cursor: var(--ap-cursor-pointer, pointer);
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    transform 220ms var(--ap-home-spring, ease);
+}
+
+.ap-home-dome-row:hover:not(.is-missing):not(.is-active) {
+  background: var(--ap-home-row-hover, #ececea);
+}
+
+.ap-home-dome-row:active:not(.is-missing):not(.is-active) {
+  transform: scale(0.99);
+}
+
+.ap-home-dome-row:focus-visible {
+  border-color: #4a7dff;
+  box-shadow: 0 0 0 3px rgba(74, 125, 255, 0.2);
+}
+
+.ap-home-dome-row.is-active {
+  cursor: default;
+}
+
+.ap-home-dome-row.is-missing {
+  cursor: not-allowed;
+}
+
+.ap-home-dome-row__name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-home-dome-row .ap-home-dome-row__actions {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.ap-home-dome-row:hover .ap-home-dome-row__actions,
+.ap-home-dome-row:focus-within .ap-home-dome-row__actions {
+  opacity: 1;
+}
+
+.ap-home-dome-row__indicator {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ap-text-tertiary);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 160ms ease, transform 220ms var(--ap-home-ease, ease), color 160ms ease;
+}
+
+.ap-home-dome-row:hover:not(.is-missing) .ap-home-dome-row__indicator,
+.ap-home-dome-row:focus-visible .ap-home-dome-row__indicator,
+.ap-home-dome-row.is-active .ap-home-dome-row__indicator,
+.ap-home-dome-row.is-pending .ap-home-dome-row__indicator {
+  opacity: 1;
+  transform: none;
+}
+
+.ap-home-dome-row:hover:not(.is-active) .ap-home-dome-row__indicator {
+  color: var(--ap-text-primary);
+}
+
+.ap-home-dome-row.is-active .ap-home-dome-row__indicator {
+  color: #1d7a3a;
+}
+
+/* Sidebar name while a switch is under way: the new name slides in. */
+.ap-home-workspace-card__name {
+  animation: ap-home-rise 320ms var(--ap-home-ease, ease) backwards;
+}
+
+.ap-home-workspace-card.is-switching .ap-home-workspace-card__label {
+  color: var(--ap-text-secondary);
+}
+
 /* Square icon button: the tooltip says what it does, the colour how risky. */
 .ap-home-icon-btn {
   display: grid;
@@ -1137,7 +1220,6 @@
 }
 
 .ap-home-icon-btn.is-danger:hover:not(:disabled) {
-  border: 2px solid var(--ap-btn-edge, rgba(0, 0, 0, 0.14));
   background: var(--ap-btn-red, #ef5350);
   color: var(--ap-btn-ink, #161616);
 }
@@ -1174,12 +1256,18 @@
 }
 
 /* ---- Colour marks (right-click a card or row; see lib/cardColors.js).
-   Each mark is a soft tint; cards keep their border, so a marked card is
-   still clearly a card. Add a colour in cardColors.js and one line here. */
-[data-card-color="rose"] { --ap-card-tint: color-mix(in srgb, #f3a9a0 30%, var(--ap-surface-default, #fff)); }
-[data-card-color="amber"] { --ap-card-tint: color-mix(in srgb, #f1cf7a 34%, var(--ap-surface-default, #fff)); }
-[data-card-color="mint"] { --ap-card-tint: color-mix(in srgb, #9fd8b0 30%, var(--ap-surface-default, #fff)); }
-[data-card-color="sky"] { --ap-card-tint: color-mix(in srgb, #9cc4ee 30%, var(--ap-surface-default, #fff)); }
+   Each mark is a strong colour; hover deepens it rather than replacing it
+   with the grey hover background (rules at the end of this file). Add a
+   colour in cardColors.js and one line here. */
+[data-card-color="rose"] { --ap-card-mark: #ff4d5e; }
+[data-card-color="amber"] { --ap-card-mark: #ffb020; }
+[data-card-color="mint"] { --ap-card-mark: #1fcb7a; }
+[data-card-color="sky"] { --ap-card-mark: #2e8bff; }
+
+[data-card-color] {
+  --ap-card-tint: color-mix(in srgb, var(--ap-card-mark) 62%, var(--ap-surface-default, #fff));
+  --ap-card-tint-hover: color-mix(in srgb, var(--ap-card-mark) 82%, var(--ap-surface-default, #fff));
+}
 
 .ap-home-card[data-card-color],
 .ap-home-row[data-card-color],
@@ -1206,7 +1294,7 @@
   background: var(--swatch, transparent);
   border: 1px solid rgba(0, 0, 0, 0.14);
   cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 160ms ease;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 160ms ease, filter 160ms ease;
 }
 
 .card-color-menu__swatch--none {
@@ -1215,9 +1303,25 @@
     var(--ap-surface-default, #fff);
 }
 
+/* Hovered / keyboard-highlighted swatch: its own colour, more saturated
+   and a touch bigger. !important: the shared context-menu highlight (and
+   the item's focus:bg-accent) would otherwise paint it grey. */
 .card-color-menu__swatch:hover,
+.card-color-menu__swatch:focus,
 .card-color-menu__swatch[data-highlighted] {
+  background: var(--swatch, transparent) !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  filter: saturate(1.45) brightness(1.04);
   transform: scale(1.14);
+}
+
+.card-color-menu__swatch--none:hover,
+.card-color-menu__swatch--none:focus,
+.card-color-menu__swatch--none[data-highlighted] {
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(0, 0, 0, 0.35) 47% 53%, transparent 54%),
+    var(--ap-surface-default, #fff) !important;
+  filter: none;
 }
 
 .card-color-menu__swatch.is-active {
@@ -1379,24 +1483,24 @@
   transition: transform 600ms var(--ap-home-ease);
 }
 
-/* View toggle: the active option is a white chip with an edge. */
+/* View toggle: the active option is a white chip (no borders on buttons). */
 .ap-home .ap-home-view-toggle {
-  padding: 2px;
-  border: 2px solid var(--ap-home-edge);
+  padding: 3px;
+  border: 0;
   border-radius: 6px;
   background: #e6e6e4;
 }
 
 .ap-home .ap-home-view-toggle__btn {
-  border: 2px solid transparent !important;
+  border: 0 !important;
   border-radius: 4px !important;
-  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease !important;
+  transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease !important;
 }
 
 .ap-home .ap-home-view-toggle__btn.is-active,
 .ap-home .ap-home-view-toggle__btn.is-active:hover:not(:disabled) {
   background: #ffffff !important;
-  border-color: var(--ap-home-edge) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
 }
 
 /* The reel's tiles are buttons: keep them out of the global button styling. */
@@ -1478,4 +1582,30 @@
 /* With the heading gone from the toolbar, its controls sit at the left. */
 .ap-home-toolbar:not(:has(.ap-home-toolbar__heading)) .ap-home-toolbar__controls {
   margin-right: auto;
+}
+
+/* Colour-marked cards and rows keep their colour on hover and selection,
+   deepened, instead of the grey hover/selected background above (these
+   come last so they win over the same-specificity :hover rules). */
+.ap-home-card[data-card-color]:hover,
+.ap-home-row[data-card-color]:hover,
+.ap-home-dome-row[data-card-color]:hover,
+.ap-home-card[data-card-color].is-selected,
+.ap-home-row[data-card-color].is-selected {
+  background: var(--ap-card-tint-hover);
+}
+
+.ap-home-card[data-card-color]:hover .ap-home-card__thumb {
+  background: color-mix(in srgb, var(--ap-card-tint-hover) 70%, transparent);
+}
+
+/* The default grey meta text washes out on a strong colour. */
+.ap-home-card[data-card-color] .ap-home-card__meta-item {
+  color: rgba(0, 0, 0, 0.58);
+}
+
+/* The card's full-size click target is a button, so SimpleUi.css's
+   app-wide button hover paints it grey over the colour. */
+.ap-home .ap-home-card[data-card-color] .ap-home-card__hit:hover:not(:disabled) {
+  background: transparent !important;
 }

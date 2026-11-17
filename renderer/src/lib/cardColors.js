@@ -6,10 +6,10 @@ import { useSyncExternalStore } from "react";
 // Stored per machine for now: { [itemKey]: colorId }.
 
 export const CARD_COLORS = Object.freeze([
-  { id: "rose", label: "Rose", swatch: "#f3a9a0" },
-  { id: "amber", label: "Amber", swatch: "#f1cf7a" },
-  { id: "mint", label: "Mint", swatch: "#9fd8b0" },
-  { id: "sky", label: "Sky", swatch: "#9cc4ee" },
+  { id: "rose", label: "Rose", swatch: "#ff4d5e" },
+  { id: "amber", label: "Amber", swatch: "#ffb020" },
+  { id: "mint", label: "Mint", swatch: "#1fcb7a" },
+  { id: "sky", label: "Sky", swatch: "#2e8bff" },
 ]);
 
 const STORAGE_KEY = "airpaste.cardColors";

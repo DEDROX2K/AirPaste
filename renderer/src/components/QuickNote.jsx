@@ -427,7 +427,7 @@ export default function QuickNote() {
               title="Collapse"
               onClick={collapse}
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </div>
           <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-frame" />

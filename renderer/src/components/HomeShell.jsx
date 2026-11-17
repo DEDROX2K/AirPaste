@@ -11,6 +11,7 @@ import {
 } from "../lib/home";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CardColorMenu } from "./ui/CardColorMenu";
+import { ContextMenuItem, ContextMenuSeparator } from "./ui/context-menu";
 import { desktop } from "../lib/desktop";
 import {
   AppButton,
@@ -30,6 +31,7 @@ import {
   AppSheetContent,
 } from "./ui/app";
 import {
+  ArrowLeft,
   Canvas,
   Check,
   ChevronRight,
@@ -63,6 +65,24 @@ import "./HomeShell.css";
 import HomeCanvasPeek from "./home/HomeCanvasPeek";
 import { loadPeekEntries } from "../systems/home/homeTiles";
 import { getCanvasThumbnailVersion, useCanvasThumbnailRevision } from "../lib/canvasThumbnail";
+import HomeGroupCard, { GroupNameInput } from "./home/HomeGroupCard";
+import { useHomeCardDrag } from "./home/useHomeCardDrag";
+import {
+  addToGroup,
+  buildHomeEntries,
+  canvasLayoutKey,
+  createGroupFromDrop,
+  findGroup,
+  groupEntryKey,
+  isGroupKey,
+  normalizeHomeLayout,
+  removeFromGroup,
+  renameGroup,
+  reorderGroupMembers,
+  setTopLevelOrder,
+  toggleGroupStar,
+  ungroup,
+} from "../lib/homeLayout";
 
 // Hovering a canvas this long pops some of its tiles in from the edges.
 const PEEK_DELAY_MS = 3000;
@@ -140,7 +160,7 @@ function itemKey(item) {
   return item.id || item.filePath || item.path || item.name;
 }
 
-function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleStar, triggerClassName, triggerLabel }) {
+function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleStar, onRemoveFromGroup, triggerClassName, triggerLabel }) {
   const { exportCanvasShare } = useAppContext();
   return (
     <AppDropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -169,6 +189,12 @@ function HomeEntryMenu({ item, open, onOpenChange, onRename, onDelete, onToggleS
           <AppDropdownMenuItem onSelect={() => void exportCanvasShare(item)}>
             <Share size={14} aria-hidden="true" />
             Share as file…
+          </AppDropdownMenuItem>
+        ) : null}
+        {onRemoveFromGroup ? (
+          <AppDropdownMenuItem onSelect={() => onRemoveFromGroup(item)}>
+            <Folder size={14} aria-hidden="true" />
+            Remove from group
           </AppDropdownMenuItem>
         ) : null}
         <AppDropdownMenuSeparator />
@@ -285,7 +311,7 @@ function BrowserCard({ item, viewMode, isActive = false, menuOpen = false, onMen
 }
 
 function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorkspace, onOpenWorkspace, onOpenDome, onManageWorkspaces }) {
-  const recentDomes = Array.isArray(domes) ? domes.slice(0, 4) : [];
+  const recentDomes = visibleDomes(domes).slice(0, 4);
 
   return (
     <section className="ap-home-launch" aria-label="Workspace launcher">
@@ -328,7 +354,7 @@ function WorkspaceLaunchScreen({ domes, folderLoading, activeDome, onCreateWorks
               type="button"
               className={`ap-home-launch__recent${dome.id === activeDome?.id ? " is-active" : ""}`}
               disabled={folderLoading}
-              onClick={() => onOpenDome(dome.id)}
+              onClick={() => onOpenDome(dome)}
             >
               <span className="ap-home-launch__recent-icon">
                 <FolderOpen size={17} aria-hidden="true" />
@@ -383,7 +409,9 @@ function HomeCanvasCardItem({
   onToggleStar,
   onMenuToggle,
   onMenuClose,
+  onRemoveFromGroup,
   peekHandlers,
+  dragKey,
   style,
 }) {
   const tileCount = Number.isFinite(item.tileCount) ? item.tileCount : 0;
@@ -395,9 +423,20 @@ function HomeCanvasCardItem({
   ].filter(Boolean);
 
   return (
-    <CardColorMenu itemKey={itemKey(item)}>
-    <article className={`ap-home-card${item.starred ? " is-starred" : ""}${menuOpen ? " is-menu-open" : ""}`} role="listitem" style={style} {...peekHandlers?.(item)}>
-      <div className="ap-home-card__toolbar">
+    <CardColorMenu
+      itemKey={itemKey(item)}
+      extraItems={onRemoveFromGroup ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => onRemoveFromGroup(item)}>
+            <Folder size={14} aria-hidden="true" />
+            Remove from group
+          </ContextMenuItem>
+        </>
+      ) : null}
+    >
+    <article className={`ap-home-card${item.starred ? " is-starred" : ""}${menuOpen ? " is-menu-open" : ""}`} role="listitem" data-drag-key={dragKey} style={style} {...peekHandlers?.(item)}>
+      <div className="ap-home-card__toolbar" data-no-drag>
         <AppButton
           type="button"
           tone="unstyled"
@@ -418,6 +457,7 @@ function HomeCanvasCardItem({
           onRename={onRename}
           onDelete={onDelete}
           onToggleStar={onToggleStar}
+          onRemoveFromGroup={onRemoveFromGroup}
           triggerClassName="ap-home-card__icon-btn"
           triggerLabel={`More actions for ${item.name}`}
         />
@@ -429,7 +469,7 @@ function HomeCanvasCardItem({
       >
         <div className="ap-home-card__thumb">
           {thumbUrl ? (
-            <img className="ap-home-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" />
+            <img className="ap-home-card__thumb-image" src={thumbUrl} alt={`${item.name} preview`} loading="lazy" draggable={false} />
           ) : (
             <div className="ap-home-card__thumb-placeholder" aria-hidden="true" />
           )}
@@ -509,23 +549,98 @@ function useGridReflowAnimation(gridRef, itemCount) {
   }, [gridRef, itemCount]);
 }
 
-function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete, onToggleStar, peekHandlers }) {
+// Cards view. With `grouping` on (Home, no search) the user's own order and
+// groups apply and cards can be dragged; with a group open, only that
+// group's canvases show and dragging reorders them. Otherwise (search,
+// Starred) it's a plain, sorted grid.
+function HomeCardsView({
+  folderPath,
+  canvases,
+  thumbCanvases,
+  layout,
+  grouping,
+  openGroupId,
+  starredGroups,
+  onLayoutChange,
+  onOpenGroup,
+  onCloseGroup,
+  onOpenCanvas,
+  onRename,
+  onDelete,
+  onToggleStar,
+  onDragStart,
+  peekHandlers,
+}) {
   const gridRef = useRef(null);
-  useGridReflowAnimation(gridRef, Array.isArray(canvases) ? canvases.length : 0);
   const [thumbUrls, setThumbUrls] = useState(() => ({}));
   const [openMenuKey, setOpenMenuKey] = useState(null);
+  const [renamingGroupId, setRenamingGroupId] = useState(null);
+  const mergedKeyRef = useRef("");
+  // Opening a group grows its canvases out of the group card; going back
+  // settles Home in around the same spot. The wrapper below is keyed by the
+  // open group, so its animation plays once per switch.
+  const wrapperRef = useRef(null);
+  const transitionRef = useRef({ dir: null, ox: "50%", oy: "0px" });
   const thumbnailRevision = useCanvasThumbnailRevision();
+  const allCanvases = thumbCanvases ?? canvases;
+
+  const openGroup = openGroupId ? findGroup(layout, openGroupId) : null;
+
+  const entries = useMemo(() => {
+    if (!Array.isArray(canvases)) return [];
+    if (openGroup) {
+      const byKey = new Map(canvases.map((item) => [canvasLayoutKey(item), item]));
+      return openGroup.members
+        .map((key) => byKey.get(key))
+        .filter(Boolean)
+        .map((item) => ({ type: "canvas", key: canvasLayoutKey(item), item }));
+    }
+    if (grouping) return buildHomeEntries(canvases, layout);
+    return [
+      ...(starredGroups ?? []),
+      ...canvases.map((item) => ({ type: "canvas", key: canvasLayoutKey(item), item })),
+    ];
+  }, [canvases, grouping, layout, openGroup, starredGroups]);
+
+  const entryKeys = useMemo(() => entries.map((entry) => entry.key), [entries]);
+  // Top-level keys as Home shows them, for edits made from inside a group.
+  const topLevelKeys = () => buildHomeEntries(allCanvases ?? [], layout).map((entry) => entry.key);
+  useGridReflowAnimation(gridRef, entries.length);
+
+  useHomeCardDrag(gridRef, {
+    enabled: Boolean(grouping || openGroup),
+    keys: entryKeys,
+    canMerge: (sourceKey) => !openGroup && !isGroupKey(sourceKey),
+    onDragStart,
+    onReorder: (keys) => {
+      if (openGroup) onLayoutChange(reorderGroupMembers(layout, openGroup.id, keys));
+      else onLayoutChange(setTopLevelOrder(layout, keys));
+    },
+    onMerge: (sourceKey, targetKey) => {
+      if (isGroupKey(targetKey)) {
+        mergedKeyRef.current = targetKey;
+        onLayoutChange(addToGroup(layout, entryKeys, targetKey.slice(groupEntryKey("").length), sourceKey));
+        return;
+      }
+      const { groupId, layout: next } = createGroupFromDrop(layout, entryKeys, sourceKey, targetKey);
+      mergedKeyRef.current = groupEntryKey(groupId);
+      onLayoutChange(next);
+      // A new group starts with its name field open.
+      setRenamingGroupId(groupId);
+    },
+    resolveMergedKey: () => mergedKeyRef.current,
+  }, entries.length > 0 ? `grid:${openGroupId ?? ""}` : "empty");
 
   useEffect(() => {
     let cancelled = false;
 
     async function resolveThumbnails() {
-      if (!folderPath || !Array.isArray(canvases) || canvases.length === 0) {
+      if (!folderPath || !Array.isArray(allCanvases) || allCanvases.length === 0) {
         setThumbUrls({});
         return;
       }
 
-      const entries = await Promise.all(canvases.map(async (item) => {
+      const resolvedEntries = await Promise.all(allCanvases.map(async (item) => {
         if (!item?.thumbnailPath) {
           return [itemKey(item), ""];
         }
@@ -535,7 +650,7 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
       }));
 
       if (cancelled) return;
-      setThumbUrls(Object.fromEntries(entries));
+      setThumbUrls(Object.fromEntries(resolvedEntries));
     }
 
     void resolveThumbnails();
@@ -543,43 +658,137 @@ function HomeCardsView({ folderPath, canvases, onOpenCanvas, onRename, onDelete,
     return () => {
       cancelled = true;
     };
-  }, [canvases, folderPath, thumbnailRevision]);
+  }, [allCanvases, folderPath, thumbnailRevision]);
 
-  if (!Array.isArray(canvases) || canvases.length === 0) {
+  const enterGroup = (groupId) => {
+    const wrapper = wrapperRef.current;
+    const card = gridRef.current?.querySelector(`[data-drag-key="${CSS.escape(groupEntryKey(groupId))}"]`);
+    if (wrapper && card) {
+      const outer = wrapper.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
+      transitionRef.current = {
+        dir: "in",
+        ox: `${Math.round(rect.left + rect.width / 2 - outer.left)}px`,
+        oy: `${Math.round(rect.top + rect.height / 2 - outer.top)}px`,
+      };
+    } else {
+      transitionRef.current = { ...transitionRef.current, dir: "in" };
+    }
+    onOpenGroup(groupId);
+  };
+  const leaveGroup = () => {
+    transitionRef.current = { ...transitionRef.current, dir: "out" };
+    onCloseGroup();
+  };
+  const { dir, ox, oy } = transitionRef.current;
+  const wrapperClassName = `ap-home-groupview${dir === "in" ? " is-entering" : dir === "out" ? " is-leaving" : ""}`;
+  const wrapperStyle = { "--ap-group-ox": ox, "--ap-group-oy": oy };
+  const wrapperKey = openGroupId ?? "home";
+
+  const groupBar = openGroup ? (
+    <div className="ap-home-groupbar">
+      <button type="button" className="ap-home-groupbar__crumb" onClick={leaveGroup} title="Back to all canvases">
+        <ArrowLeft size={14} aria-hidden="true" />
+        All canvases
+      </button>
+      <span className="ap-home-groupbar__sep" aria-hidden="true">/</span>
+      {renamingGroupId === openGroup.id ? (
+        <GroupNameInput
+          initialName={openGroup.name}
+          onSubmit={(name) => {
+            setRenamingGroupId(null);
+            onLayoutChange(renameGroup(layout, openGroup.id, name));
+          }}
+          onCancel={() => setRenamingGroupId(null)}
+        />
+      ) : (
+        <button type="button" className="ap-home-groupbar__name" title="Rename group" onClick={() => setRenamingGroupId(openGroup.id)}>
+          <Folder size={18} aria-hidden="true" />
+          {openGroup.name}
+        </button>
+      )}
+      <span className="ap-home-groupbar__spacer" />
+      <AppButton
+        type="button"
+        tone="surface"
+        onClick={() => {
+          const keys = topLevelKeys();
+          leaveGroup();
+          onLayoutChange(ungroup(layout, keys, openGroup.id));
+        }}
+      >
+        Ungroup
+      </AppButton>
+    </div>
+  ) : null;
+
+  if (entries.length === 0) {
     return (
-      <section className="ap-home-empty">
-        <div className="ap-home-empty__icon">
-          <Grid2X2 size={22} aria-hidden="true" />
-        </div>
-        <span className="ap-home-empty__eyebrow">Cards</span>
-        <h2 className="ap-home-empty__title">No canvases yet</h2>
-        <p className="ap-home-empty__copy">Create a canvas to see it appear here as a card with a live preview.</p>
-      </section>
+      <div key={wrapperKey} ref={wrapperRef} className={wrapperClassName} style={wrapperStyle}>
+        {groupBar}
+        <section className="ap-home-empty">
+          <div className="ap-home-empty__icon">
+            <Grid2X2 size={22} aria-hidden="true" />
+          </div>
+          <span className="ap-home-empty__eyebrow">Cards</span>
+          <h2 className="ap-home-empty__title">{openGroup ? "This group is empty" : "No canvases yet"}</h2>
+          <p className="ap-home-empty__copy">
+            {openGroup ? "Drag a canvas onto the group card to add it." : "Create a canvas to see it appear here as a card with a live preview."}
+          </p>
+        </section>
+      </div>
     );
   }
 
   return (
-    <div ref={gridRef} className="ap-home-grid" role="list">
-      {canvases.map((item, index) => {
-        const key = itemKey(item);
-        const thumbUrl = thumbUrls[itemKey(item)] || "";
-        return (
-          <HomeCanvasCardItem
-            key={key}
-            item={item}
-            thumbUrl={thumbUrl}
-            menuOpen={openMenuKey === key}
-            onOpenCanvas={onOpenCanvas}
-            onRename={onRename}
-            onDelete={onDelete}
-            onToggleStar={onToggleStar}
-            onMenuToggle={() => setOpenMenuKey((current) => (current === key ? null : key))}
-            onMenuClose={() => setOpenMenuKey(null)}
-            peekHandlers={peekHandlers}
-            style={{ "--ap-stagger": Math.min(index, 14) }}
-          />
-        );
-      })}
+    <div key={wrapperKey} ref={wrapperRef} className={wrapperClassName} style={wrapperStyle}>
+      {groupBar}
+      <div ref={gridRef} className="ap-home-grid" role="list">
+        {entries.map((entry, index) => {
+          if (entry.type === "group") {
+            const { group } = entry;
+            return (
+              <HomeGroupCard
+                key={entry.key}
+                entry={entry}
+                thumbUrls={thumbUrls}
+                renaming={renamingGroupId === group.id}
+                onOpen={() => enterGroup(group.id)}
+                onStartRename={() => setRenamingGroupId(group.id)}
+                onRename={(name) => {
+                  setRenamingGroupId(null);
+                  onLayoutChange(renameGroup(layout, group.id, name));
+                }}
+                onCancelRename={() => setRenamingGroupId(null)}
+                onToggleStar={() => onLayoutChange(toggleGroupStar(layout, group.id))}
+                onUngroup={() => onLayoutChange(ungroup(layout, grouping ? entryKeys : topLevelKeys(), group.id))}
+                style={{ "--ap-stagger": Math.min(index, 14) }}
+              />
+            );
+          }
+          const { item, key } = entry;
+          return (
+            <HomeCanvasCardItem
+              key={key}
+              dragKey={grouping || openGroup ? key : undefined}
+              item={item}
+              thumbUrl={thumbUrls[itemKey(item)] || ""}
+              menuOpen={openMenuKey === key}
+              onOpenCanvas={onOpenCanvas}
+              onRename={onRename}
+              onDelete={onDelete}
+              onToggleStar={onToggleStar}
+              onRemoveFromGroup={openGroup
+                ? () => onLayoutChange(removeFromGroup(layout, topLevelKeys(), openGroup.id, key))
+                : undefined}
+              onMenuToggle={() => setOpenMenuKey((current) => (current === key ? null : key))}
+              onMenuClose={() => setOpenMenuKey(null)}
+              peekHandlers={peekHandlers}
+              style={{ "--ap-stagger": Math.min(index, 14) }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -590,6 +799,7 @@ function HomeSidebarContent({
   homeData,
   folderPath,
   activeDome,
+  pendingDome = null,
   collapsed = false,
   onSectionChange,
   onToggleCollapsed,
@@ -658,11 +868,13 @@ function HomeSidebarContent({
       <div className="ap-home-sidebar__spacer" />
 
       <div className="ap-home-sidebar__footer">
-        <div className="ap-home-workspace-card">
-          <span className="ap-home-workspace-card__label">Workspace</span>
-          <h3 className="ap-home-workspace-card__name">{activeDome?.name || "AirPaste"}</h3>
-          <p className="ap-home-workspace-card__path" title={folderPath || activeDome?.path || "Workspace path unavailable."}>
-            {folderPath || activeDome?.path || "Workspace path unavailable."}
+        <div className={`ap-home-workspace-card${pendingDome ? " is-switching" : ""}`}>
+          <span className="ap-home-workspace-card__label">{pendingDome ? "Opening…" : "Workspace"}</span>
+          <h3 key={pendingDome?.id ?? activeDome?.id ?? ""} className="ap-home-workspace-card__name">
+            {pendingDome?.name || activeDome?.name || "AirPaste"}
+          </h3>
+          <p className="ap-home-workspace-card__path" title={pendingDome?.path || folderPath || activeDome?.path || "Workspace path unavailable."}>
+            {pendingDome?.path || folderPath || activeDome?.path || "Workspace path unavailable."}
           </p>
         </div>
         <AppButton type="button" tone="surface" className="ap-home-sidebar-action" onClick={onManageWorkspaces} title="Manage Workspaces">
@@ -753,7 +965,21 @@ function ConfirmDialog({ open, title, description, disabled, onCancel, onConfirm
   );
 }
 
-function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onClose, onRefresh, onCreateNew, onOpenFolder, onOpenDome, onRevealDome, onRemoveDome }) {
+// A recent-workspaces entry that points at a workspace's own `.airpaste`
+// metadata folder (opened by mistake once) isn't a workspace; hide it.
+function isInternalDomePath(domePath) {
+  return /(^|[\\/])\.airpaste([\\/]|$)/i.test(String(domePath ?? ""));
+}
+
+function visibleDomes(domes) {
+  return Array.isArray(domes) ? domes.filter((dome) => !isInternalDomePath(dome?.path)) : [];
+}
+
+// Workspaces: click a row to switch to it. The open one carries a check;
+// hovering any other shows an arrow saying "go here". Reveal and remove
+// sit at the end of the row and only appear on hover.
+function ManageWorkspacesDialog({ open, domes, activeDomeId, pendingDomeId, folderLoading, onClose, onRefresh, onCreateNew, onOpenFolder, onOpenDome, onRevealDome, onRemoveDome }) {
+  const list = visibleDomes(domes);
   return (
     <AppDialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <AppDialogContent className="max-w-xl ap-home-manage">
@@ -762,8 +988,86 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
             <Folder size={20} aria-hidden="true" />
             Workspaces
           </AppDialogTitle>
-          <AppDialogDescription>Every folder AirPaste knows about. Pick one to work in.</AppDialogDescription>
+          <AppDialogDescription>Click a workspace to switch to it.</AppDialogDescription>
         </AppDialogHeader>
+
+        <div className="ap-home-dome-list" role="listbox" aria-label="Workspaces">
+          {list.length === 0 ? (
+            <p className="ap-home-empty__copy">No workspaces yet. Create or open one below.</p>
+          ) : (
+            list.map((dome) => {
+              const isActive = dome.id === activeDomeId;
+              const isPending = dome.id === pendingDomeId;
+              const isMissing = dome.exists === false;
+              const disabled = isMissing || (folderLoading && !isActive);
+              return (
+                <CardColorMenu key={dome.id} itemKey={`dome:${dome.id}`}>
+                <div
+                  role="option"
+                  aria-selected={isActive}
+                  aria-disabled={disabled}
+                  tabIndex={disabled ? -1 : 0}
+                  title={isMissing ? "This folder is missing" : isActive ? "Open now" : `Switch to ${dome.name}`}
+                  className={`ap-home-dome-row${isActive ? " is-active" : ""}${isPending ? " is-pending" : ""}${isMissing ? " is-missing" : ""}`}
+                  onClick={() => {
+                    if (disabled) return;
+                    onOpenDome(dome);
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.key === "Enter" || event.key === " ") && !disabled && event.target === event.currentTarget) {
+                      event.preventDefault();
+                      onOpenDome(dome);
+                    }
+                  }}
+                >
+                  <span className="ap-home-dome-row__icon" aria-hidden="true">
+                    {isMissing ? <Warning size={18} /> : isActive ? <FolderOpen size={18} /> : <Folder size={18} />}
+                  </span>
+                  <div className="ap-home-dome-row__text">
+                    <div className="ap-home-dome-row__name">
+                      <span className="ap-home-dome-row__name-text">{dome.name || folderNameFromPath(dome.path)}</span>
+                      {isMissing ? <span className="ap-home-dome-row__badge is-warn">Missing</span> : null}
+                      {!isMissing && dome.valid === false ? <span className="ap-home-dome-row__badge is-warn">Needs setup</span> : null}
+                    </div>
+                    <div className="ap-home-dome-row__meta" title={dome.path}>{dome.path}</div>
+                  </div>
+                  <div className="ap-home-dome-row__actions">
+                    <button
+                      type="button"
+                      className="ap-home-icon-btn"
+                      title="Show in file explorer"
+                      aria-label="Reveal in file explorer"
+                      disabled={isMissing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRevealDome(dome.path);
+                      }}
+                    >
+                      <FolderOpen size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="ap-home-icon-btn is-danger"
+                      title="Remove from list (files stay on disk)"
+                      aria-label="Remove workspace"
+                      disabled={isActive}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemoveDome(dome.id);
+                      }}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <span className="ap-home-dome-row__indicator" aria-hidden="true">
+                    {isPending ? <span className="ap-home-switching__spinner" /> : isActive ? <Check size={16} /> : <ChevronRight size={16} />}
+                  </span>
+                </div>
+                </CardColorMenu>
+              );
+            })
+          )}
+        </div>
 
         <div className="ap-home-manage__quick">
           <button type="button" className="ap-home-manage__quick-btn" onClick={onCreateNew}>
@@ -776,46 +1080,6 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
           </button>
         </div>
 
-        <div className="ap-home-dome-list">
-          {domes.length === 0 ? (
-            <p className="ap-home-empty__copy">No workspaces yet. Create or open one above.</p>
-          ) : (
-            domes.map((dome) => {
-              const isActive = dome.id === activeDomeId;
-              const isMissing = dome.exists === false;
-              return (
-                <CardColorMenu key={dome.id} itemKey={`dome:${dome.id}`}>
-                <div className={`ap-home-dome-row${isActive ? " is-active" : ""}${isMissing ? " is-missing" : ""}`}>
-                  <span className="ap-home-dome-row__icon" aria-hidden="true">
-                    {isMissing ? <Warning size={18} /> : <Folder size={18} />}
-                  </span>
-                  <div className="ap-home-dome-row__text">
-                    <div className="ap-home-dome-row__name">
-                      {dome.name}
-                      {isActive ? <span className="ap-home-dome-row__badge"><Check size={11} aria-hidden="true" />Active</span> : null}
-                      {isMissing ? <span className="ap-home-dome-row__badge is-warn">Missing</span> : null}
-                      {!isMissing && dome.valid === false ? <span className="ap-home-dome-row__badge is-warn">Needs setup</span> : null}
-                    </div>
-                    <div className="ap-home-dome-row__meta" title={dome.path}>{dome.path}</div>
-                  </div>
-                  <div className="ap-home-dome-row__actions">
-                    <button type="button" className="ap-home-icon-btn" title={isActive ? "Already open" : "Switch to this workspace"} aria-label="Open workspace" disabled={folderLoading || isActive || isMissing} onClick={() => onOpenDome(dome.id)}>
-                      <ChevronRight size={16} aria-hidden="true" />
-                    </button>
-                    <button type="button" className="ap-home-icon-btn" title="Show in file explorer" aria-label="Reveal in file explorer" disabled={isMissing} onClick={() => onRevealDome(dome.path)}>
-                      <FolderOpen size={16} aria-hidden="true" />
-                    </button>
-                    <button type="button" className="ap-home-icon-btn is-danger" title="Remove from list (files stay on disk)" aria-label="Remove workspace" onClick={() => onRemoveDome(dome.id)}>
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-                </CardColorMenu>
-              );
-            })
-          )}
-        </div>
-
         <AppDialogFooter>
           <AppButton type="button" tone="surface" onClick={onRefresh}>
             <RefreshCw size={14} aria-hidden="true" /> Refresh
@@ -824,6 +1088,25 @@ function ManageWorkspacesDialog({ open, domes, activeDomeId, folderLoading, onCl
         </AppDialogFooter>
       </AppDialogContent>
     </AppDialog>
+  );
+}
+
+// Shown in place of the cards while another workspace opens: the old files
+// fade out at once, a skeleton with the new name fades in, and the real
+// cards rise in when they're ready.
+function WorkspaceSwitchingState({ name }) {
+  return (
+    <section className="ap-home-switching" aria-live="polite" aria-busy="true">
+      <div className="ap-home-switching__label">
+        <span className="ap-home-switching__spinner" aria-hidden="true" />
+        Opening {name || "workspace"}…
+      </div>
+      <div className="ap-home-switching__grid" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="ap-home-switching__card" style={{ "--ap-stagger": index }} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -862,6 +1145,12 @@ export default function HomeShell() {
   const [textDialog, setTextDialog] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [manageDomesOpen, setManageDomesOpen] = useState(false);
+  // The workspace being switched to, from the click until its files are in.
+  const [pendingDome, setPendingDome] = useState(null);
+  // Card order and groups (lib/homeLayout.js), saved in ui-state.json.
+  const [homeLayout, setHomeLayout] = useState(() => normalizeHomeLayout(homeData.uiState?.homeLayout));
+  const layoutSavesRef = useRef(0);
+  const [openGroupId, setOpenGroupId] = useState(null);
   // Stopgap, in-memory substring filter over data already loaded for the
   // current folder -- no IPC/index involved. The real search-index-backed
   // implementation lands later; buildBrowserItems' signature is kept stable
@@ -880,7 +1169,45 @@ export default function HomeShell() {
     setNavigation(normalizeHomeNavigation(homeData.uiState));
     setHomePreferences(normalizedPreferences);
     setHomeViewMode(getResolvedHomeViewMode(homeData.uiState));
+    // While a layout save is in flight, the local copy is newer than disk.
+    if (layoutSavesRef.current === 0) {
+      setHomeLayout(normalizeHomeLayout(homeData.uiState?.homeLayout));
+    }
   }, [homeData.uiState]);
+
+  // A different workspace starts at its top level.
+  useEffect(() => {
+    setOpenGroupId(null);
+  }, [folderPath]);
+
+  const updateHomeLayout = useCallback((nextLayout) => {
+    const normalized = normalizeHomeLayout(nextLayout);
+    setHomeLayout(normalized);
+    layoutSavesRef.current += 1;
+    void Promise.resolve(saveHomeUiState({ homeLayout: normalized }))
+      .catch(() => {})
+      .finally(() => {
+        layoutSavesRef.current -= 1;
+      });
+  }, [saveHomeUiState]);
+
+  // Switching workspaces: the dialog closes and the cards make way for a
+  // skeleton straight away, so the click feels answered. The skeleton stays
+  // at least a moment so a fast switch reads as a transition, not a flicker.
+  const handleSwitchDome = useCallback(async (dome) => {
+    if (!dome?.id) return;
+    setManageDomesOpen(false);
+    if (dome.id === activeDome?.id && folderPath) return;
+    setPendingDome({ id: dome.id, name: dome.name || folderNameFromPath(dome.path), path: dome.path });
+    try {
+      await Promise.all([
+        switchDome(dome.id),
+        new Promise((resolve) => { window.setTimeout(resolve, 360); }),
+      ]);
+    } finally {
+      setPendingDome(null);
+    }
+  }, [activeDome?.id, folderPath, switchDome]);
 
   useEffect(() => () => window.clearTimeout(scrollSaveTimeoutRef.current), []);
 
@@ -1064,6 +1391,16 @@ export default function HomeShell() {
     [browserItems],
   );
 
+  // Order and groups apply on Home in card view when not searching; search
+  // and Starred show a plain sorted grid (Starred leads with starred groups).
+  const isSearching = Boolean(searchQuery.trim());
+  const groupingActive = navigation.selectedSection === "home" && !isSearching;
+  const openGroup = openGroupId && groupingActive ? findGroup(homeLayout, openGroupId) : null;
+  const starredGroups = useMemo(() => {
+    if (navigation.selectedSection !== "starred" || isSearching) return [];
+    return buildHomeEntries(allCanvasItems, homeLayout).filter((entry) => entry.type === "group" && entry.group.starred);
+  }, [allCanvasItems, homeLayout, isSearching, navigation.selectedSection]);
+
   useEffect(() => {
     listButtonRefs.current = listButtonRefs.current.slice(0, browserItems.length);
   }, [browserItems.length]);
@@ -1072,6 +1409,7 @@ export default function HomeShell() {
     if (isNarrowDesktop) {
       setSidebarDrawerOpen(false);
     }
+    setOpenGroupId(null);
     const nextNavigation = {
       ...navigation,
       selectedSection,
@@ -1159,6 +1497,7 @@ export default function HomeShell() {
           homeData={homeData}
           folderPath={folderPath}
           activeDome={activeDome}
+          pendingDome={pendingDome}
           sectionTitle={sectionTitle}
           onSectionChange={handleSectionChange}
           onManageWorkspaces={() => setManageDomesOpen(true)}
@@ -1281,10 +1620,12 @@ export default function HomeShell() {
               activeDome={activeDome}
               onCreateWorkspace={() => openCreateDialog("create-dome", "New Workspace")}
               onOpenWorkspace={() => void openExistingWorkspace()}
-              onOpenDome={(id) => void switchDome(id)}
+              onOpenDome={(dome) => void handleSwitchDome(dome)}
               onManageWorkspaces={() => setManageDomesOpen(true)}
             />
-          ) : browserItems.length === 0 ? (
+          ) : pendingDome ? (
+            <WorkspaceSwitchingState name={pendingDome.name} />
+          ) : browserItems.length === 0 && starredGroups.length === 0 ? (
             <BrowserEmptyState
               title={emptyState.title}
               description={emptyState.description}
@@ -1293,22 +1634,37 @@ export default function HomeShell() {
             />
           ) : (
             <>
-            <section className="ap-home-panel">
-              <div className="ap-home-panel-header">
-                <h3 className="ap-home-panel-header__title">{sectionTitle}</h3>
-                <div className="ap-home-panel-header__meta">
-                  <span className="ap-home-pill">{itemCountLabel}</span>
-                  {searchQuery.trim() ? <span className="ap-home-pill">Filtered</span> : null}
+            <section key={folderPath} className="ap-home-panel">
+              {openGroup && isCardsView ? null : (
+                <div className="ap-home-panel-header">
+                  <h3 className="ap-home-panel-header__title">{sectionTitle}</h3>
+                  <div className="ap-home-panel-header__meta">
+                    <span className="ap-home-pill">{itemCountLabel}</span>
+                    {searchQuery.trim() ? <span className="ap-home-pill">Filtered</span> : null}
+                  </div>
                 </div>
-              </div>
+              )}
               {isCardsView ? (
                 <HomeCardsView
                   folderPath={folderPath}
                   canvases={canvasItems}
+                  thumbCanvases={groupingActive || starredGroups.length > 0 ? allCanvasItems : canvasItems}
+                  layout={homeLayout}
+                  grouping={groupingActive && !openGroup}
+                  openGroupId={openGroup?.id ?? null}
+                  starredGroups={starredGroups}
+                  onLayoutChange={updateHomeLayout}
+                  onOpenGroup={(groupId) => {
+                    // Groups open on Home (e.g. from Starred).
+                    if (navigation.selectedSection !== "home") void handleSectionChange("home");
+                    setOpenGroupId(groupId);
+                  }}
+                  onCloseGroup={() => setOpenGroupId(null)}
                   onOpenCanvas={(entry) => void handleOpenEntry(entry)}
                   onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
                   onDelete={(entry) => setConfirmDialog({ target: entry })}
                   onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                  onDragStart={endPeek}
                   peekHandlers={peekHandlers}
                 />
               ) : (
@@ -1354,6 +1710,7 @@ export default function HomeShell() {
               homeData={homeData}
               folderPath={folderPath}
               activeDome={activeDome}
+              pendingDome={pendingDome}
               onSectionChange={handleSectionChange}
               onManageWorkspaces={() => {
                 setSidebarDrawerOpen(false);
@@ -1421,12 +1778,13 @@ export default function HomeShell() {
         open={manageDomesOpen}
         domes={domes}
         activeDomeId={activeDome?.id}
+        pendingDomeId={pendingDome?.id ?? null}
         folderLoading={folderLoading}
         onClose={() => setManageDomesOpen(false)}
         onRefresh={() => void refreshDomes()}
         onCreateNew={() => openCreateDialog("create-dome", "New Workspace")}
         onOpenFolder={() => void openExistingWorkspace()}
-        onOpenDome={(id) => void switchDome(id)}
+        onOpenDome={(dome) => void handleSwitchDome(dome)}
         onRevealDome={(path) => void revealDome(path)}
         onRemoveDome={(id) => void removeDome(id)}
       />

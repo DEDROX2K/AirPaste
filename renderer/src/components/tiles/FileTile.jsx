@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { desktop } from "../../lib/desktop";
 import { useToast } from "../../hooks/useToast";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import TileShell from "./TileShell";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -212,8 +213,8 @@ function FileColorPanel({ color, onPreview, onCommit, onClose }) {
 }
 
 function FileTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -222,6 +223,8 @@ function FileTile({
   onPressStart,
   renderHint,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { toast } = useToast();
   const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const width = clampDefaultFileWidth(card.width);
@@ -462,7 +465,7 @@ function FileTile({
       const dy = (moveEvent.clientY - start.clientY) / zoom;
       const nextWidth = clampDefaultFileWidth(start.width + ((handle.dirX * dx) + (handle.dirY * dy / ratio)) / 2);
       const nextHeight = getDefaultFileHeight(nextWidth);
-      updateExistingCard(card.id, {
+      updateLive({
         width: nextWidth,
         height: nextHeight,
         x: handle.dirX < 0 ? start.x - (nextWidth - start.width) : start.x,
@@ -477,6 +480,7 @@ function FileTile({
       }
 
       setResizeLabel("");
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", finish, true);

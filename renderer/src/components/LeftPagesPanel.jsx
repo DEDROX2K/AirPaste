@@ -9,9 +9,12 @@ import {
   AppTooltipProvider,
   AppTooltipTrigger,
 } from "./ui/app";
-import { Canvas, Plus, Sidebar, SidebarClose, SidebarOpen } from "./ui/icons";
+import { Canvas, Plus, Sidebar, SidebarClose, SidebarOpen, SplitColumns, X } from "./ui/icons";
+import { useSplitView } from "../context/SplitViewContext";
+import "./LeftPagesPanel.css";
 
 const PANEL_COLLAPSED_STORAGE_KEY = "airpaste.leftPagesPanelCollapsed";
+const PANE_PANEL_COLLAPSED_STORAGE_KEY = "airpaste.splitPagesPanelCollapsed";
 
 function IconSidebarToggle({ collapsed = false }) {
   return collapsed ? <SidebarOpen size={16} aria-hidden="true" /> : <SidebarClose size={16} aria-hidden="true" />;
@@ -45,6 +48,10 @@ function PageListItem({
   onDragOver,
   onDragEnd,
   onDrop,
+  showSplitActions,
+  isInSplit,
+  onSplitPage,
+  onCloseSplit,
 }) {
   const inputRef = useRef(null);
 
@@ -57,11 +64,57 @@ function PageListItem({
     inputRef.current?.select();
   }, [isEditing]);
 
+  // Split screen controls (only with two or more pages): open this page in
+  // the right pane, or close the split from the page showing there.
+  const splitActions = showSplitActions && !collapsed && !isEditing ? (
+    <span className="left-pages-panel__item-actions">
+      {isInSplit ? (
+        <button
+          type="button"
+          className="left-pages-panel__item-action left-pages-panel__item-action--close"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCloseSplit();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          draggable={false}
+          aria-label={`Close split screen (${page.name})`}
+          title="Close split screen"
+        >
+          <X size={12} aria-hidden="true" />
+        </button>
+      ) : !isActive ? (
+        <button
+          type="button"
+          className="left-pages-panel__item-action"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSplitPage();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          draggable={false}
+          aria-label={`Open ${page.name} in split screen`}
+          title="Open in split screen"
+        >
+          <SplitColumns size={13} aria-hidden="true" />
+        </button>
+      ) : null}
+    </span>
+  ) : null;
+
   const button = (
-    <button
-      type="button"
-      className={`left-pages-panel__item${isActive ? " left-pages-panel__item--active" : ""}${isDragged ? " left-pages-panel__item--dragged" : ""}${dropIndicatorPosition ? ` left-pages-panel__item--drop-${dropIndicatorPosition}` : ""}`}
+    <div
+      role="button"
+      tabIndex={0}
+      className={`left-pages-panel__item${isActive ? " left-pages-panel__item--active" : ""}${isInSplit ? " left-pages-panel__item--split" : ""}${isDragged ? " left-pages-panel__item--dragged" : ""}${dropIndicatorPosition ? ` left-pages-panel__item--drop-${dropIndicatorPosition}` : ""}`}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (isEditing || event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       draggable={!isEditing}
       onDragStart={(event) => onDragStart(event, page.id)}
       onDragOver={(event) => onDragOver(event, page.id)}
@@ -110,7 +163,8 @@ function PageListItem({
           </span>
         )}
       </span>
-    </button>
+      {splitActions}
+    </div>
   );
 
   if (!collapsed) {
@@ -145,11 +199,16 @@ function PagesPanelContent({
   onDragOver,
   onDragEnd,
   onDrop,
+  splitPageId,
+  onSplitPage,
+  onCloseSplit,
+  title = "Pages",
+  extraActions = null,
 }) {
   return (
     <>
       <div className="left-pages-panel__header">
-        {!collapsed ? <h2 className="left-pages-panel__title">Pages</h2> : <span className="left-pages-panel__title-spacer" aria-hidden="true" />}
+        {!collapsed ? <h2 className="left-pages-panel__title" title={title}>{title}</h2> : <span className="left-pages-panel__title-spacer" aria-hidden="true" />}
 
         <div className="left-pages-panel__header-actions">
           {onCreatePage ? (
@@ -189,6 +248,7 @@ function PagesPanelContent({
               ) : null}
             </AppTooltip>
           ) : null}
+          {extraActions}
         </div>
       </div>
 
@@ -213,6 +273,10 @@ function PagesPanelContent({
                 onDragOver={onDragOver}
                 onDragEnd={onDragEnd}
                 onDrop={onDrop}
+                showSplitActions={pages.length > 1 && Boolean(onSplitPage)}
+                isInSplit={splitPageId === page.id}
+                onSplitPage={() => onSplitPage(page.id)}
+                onCloseSplit={onCloseSplit}
               />
             ))}
           </nav>
@@ -246,6 +310,10 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
     renameCanvasPage,
     setActiveCanvasPage,
   } = useAppContext();
+  const { rightPane, openPageSplitFor, closeSplit } = useSplitView();
+  const splitPageId = rightPane?.kind === "page"
+    ? (rightPane.pageId ?? workspace?.activePageId ?? null)
+    : null;
   const workspacePages = workspace?.pages;
   const pageListKey = (workspacePages ?? []).map((page) => `${page.id}\u0000${page.name}`).join("\u0001");
   const pages = useMemo(
@@ -262,6 +330,57 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
       reorderCanvasPages={reorderCanvasPages}
       renameCanvasPage={renameCanvasPage}
       setActiveCanvasPage={setActiveCanvasPage}
+      splitPageId={splitPageId}
+      onSplitPage={openPageSplitFor}
+      onCloseSplit={closeSplit}
+    />
+  );
+}
+
+// Pages section of split screen's right pane: the same panel as the main
+// one (same look, rename, reorder), listing the pages shown in that pane,
+// with a close-split button in its header.
+export function SplitPanePagesPanel({
+  workspacePages,
+  activePageId,
+  onSelectPage,
+  createCanvasPage = null,
+  renameCanvasPage,
+  reorderCanvasPages,
+  title = "Pages",
+  onClose,
+}) {
+  const pageListKey = (workspacePages ?? []).map((page) => `${page.id}\u0000${page.name}`).join("\u0001");
+  const pages = useMemo(
+    () => (workspacePages ?? []).map((page) => ({ id: page.id, name: page.name })),
+    [pageListKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const extraActions = useMemo(() => (
+    <AppButton
+      type="button"
+      tone="unstyled"
+      className="left-pages-panel__icon-button"
+      onClick={onClose}
+      aria-label="Close split screen"
+      title="Close split screen"
+    >
+      <X size={14} aria-hidden="true" />
+    </AppButton>
+  ), [onClose]);
+
+  return (
+    <LeftPagesPanelBody
+      isNarrowDesktop={false}
+      pages={pages}
+      activePageId={activePageId}
+      createCanvasPage={createCanvasPage}
+      reorderCanvasPages={reorderCanvasPages}
+      renameCanvasPage={renameCanvasPage}
+      setActiveCanvasPage={onSelectPage}
+      title={title}
+      extraActions={extraActions}
+      className="left-pages-panel--pane"
+      collapsedStorageKey={PANE_PANEL_COLLAPSED_STORAGE_KEY}
     />
   );
 }
@@ -274,6 +393,13 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
   reorderCanvasPages,
   renameCanvasPage,
   setActiveCanvasPage,
+  splitPageId,
+  onSplitPage,
+  onCloseSplit,
+  title = "Pages",
+  extraActions = null,
+  className = "",
+  collapsedStorageKey = PANEL_COLLAPSED_STORAGE_KEY,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [editingPageId, setEditingPageId] = useState(null);
@@ -288,11 +414,11 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
     }
 
     try {
-      setCollapsed(window.localStorage.getItem(PANEL_COLLAPSED_STORAGE_KEY) === "true");
+      setCollapsed(window.localStorage.getItem(collapsedStorageKey) === "true");
     } catch {
       // Ignore persistence failures and keep the default expanded state.
     }
-  }, []);
+  }, [collapsedStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -304,11 +430,11 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
     }
 
     try {
-      window.localStorage.setItem(PANEL_COLLAPSED_STORAGE_KEY, String(collapsed));
+      window.localStorage.setItem(collapsedStorageKey, String(collapsed));
     } catch {
       // Ignore persistence failures.
     }
-  }, [collapsed, isNarrowDesktop]);
+  }, [collapsed, collapsedStorageKey, isNarrowDesktop]);
 
   useEffect(() => {
     if (!editingPageId) {
@@ -389,7 +515,6 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
     setDropIndicator(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", pageId);
-    document.body.classList.add("left-pages-panel--dragging");
   }
 
   function handleDragOver(event, targetPageId) {
@@ -406,13 +531,18 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
       return;
     }
 
-    setDropIndicator({ pageId: targetPageId, position });
+    // dragover repeats every ~50 ms while the pointer rests: only re-render
+    // when the indicator actually moves.
+    setDropIndicator((current) => (
+      current?.pageId === targetPageId && current.position === position
+        ? current
+        : { pageId: targetPageId, position }
+    ));
   }
 
   function handleDragEnd() {
     setDraggedPageId(null);
     setDropIndicator(null);
-    document.body.classList.remove("left-pages-panel--dragging");
   }
 
   function handleDrop(event, targetPageId) {
@@ -493,7 +623,7 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
           </aside>
 
           <AppSheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <AppSheetContent side="left" className="left-pages-panel left-pages-panel--drawer">
+            <AppSheetContent side="left" className={`left-pages-panel left-pages-panel--drawer${draggedPageId ? " left-pages-panel--dragging" : ""}`}>
               <PagesPanelContent
                 collapsed={false}
                 pages={pages}
@@ -512,6 +642,9 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
                 onDrop={handleDrop}
+                splitPageId={splitPageId}
+                onSplitPage={onSplitPage}
+                onCloseSplit={onCloseSplit}
               />
             </AppSheetContent>
           </AppSheet>
@@ -523,8 +656,9 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
   return (
     <AppTooltipProvider delayDuration={120}>
       <aside
-        className={`left-pages-panel${collapsed ? " left-pages-panel--collapsed" : ""}`}
-        aria-label="Pages"
+        className={`left-pages-panel${collapsed ? " left-pages-panel--collapsed" : ""}${draggedPageId ? " left-pages-panel--dragging" : ""}${className ? ` ${className}` : ""}`}
+        aria-label={title}
+        onPointerDown={className ? (event) => event.stopPropagation() : undefined}
       >
         <PagesPanelContent
           collapsed={collapsed}
@@ -544,6 +678,11 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDrop={handleDrop}
+          splitPageId={splitPageId}
+          onSplitPage={onSplitPage}
+          onCloseSplit={onCloseSplit}
+          title={title}
+          extraActions={extraActions}
         />
       </aside>
     </AppTooltipProvider>

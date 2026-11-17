@@ -1,0 +1,63 @@
+/* Pages panel: split screen controls on each page row (two or more pages).
+   The split icon shows on hover / keyboard focus; the page open in the
+   right pane is marked and keeps its close icon visible. */
+
+.left-pages-panel__item-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+}
+
+.left-pages-panel__item-action {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ap-text-secondary, #6b6b68);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.left-pages-panel__item:hover .left-pages-panel__item-action,
+.left-pages-panel__item:focus-within .left-pages-panel__item-action,
+.left-pages-panel__item-action:focus-visible,
+.left-pages-panel__item-action--close {
+  opacity: 1;
+}
+
+.left-pages-panel__item-action:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ap-text-primary, #1f1f1d);
+}
+
+.left-pages-panel__item-action:focus-visible {
+  outline: 2px solid rgba(20, 99, 255, 0.5);
+  outline-offset: -2px;
+}
+
+/* The page showing in the right pane. */
+.left-pages-panel .left-pages-panel__item--split::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(20, 99, 255, 0.7);
+}
+
+.left-pages-panel__item--split .left-pages-panel__item-action--close {
+  color: var(--ap-text-primary, #1f1f1d);
+}
+
+.left-pages-panel__item:focus-visible {
+  outline: 2px solid rgba(20, 99, 255, 0.5);
+  outline-offset: -2px;
+}

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
-import { useAppContext } from "../../context/useAppContext";
-import { CHECKLIST_CARD_TYPE } from "../../lib/workspace";
+import { useChecklistCards } from "../../context/ChecklistCardsContext";
+import { useTileAppContext } from "../../context/TileAppContext";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import TileShell from "./TileShell";
 
@@ -41,7 +41,10 @@ function ProgressTile({
   onFocusOut,
   onPressStart,
 }) {
-  const { updateExistingCard, workspace } = useAppContext();
+  // Not the app context: that changes on every edit anywhere, and re-rendered
+  // this tile each time. The checklists list changes only with a checklist.
+  const { updateExistingCard } = useTileAppContext();
+  const checklistOptions = useChecklistCards();
   const surfaceGesture = useTileGesture({
     card,
     onDragStart: onBeginDrag,
@@ -55,10 +58,6 @@ function ProgressTile({
   ]
     .filter(Boolean)
     .join(" ");
-  const checklistOptions = useMemo(
-    () => workspace.cards.filter((workspaceCard) => workspaceCard.type === CHECKLIST_CARD_TYPE),
-    [workspace.cards],
-  );
   const linkedChecklist = checklistOptions.find((checklist) => checklist.id === card.linkedTileId) ?? null;
   const linkedTotals = useMemo(() => {
     if (!linkedChecklist) {

@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import AppLaunchSplash from "./components/AppLaunchSplash";
 import CanvasSplitLayout from "./components/canvas/CanvasSplitLayout";
 import ConflictDialog from "./components/ConflictDialog";
+import FloatingCanvasWindow from "./components/canvas/FloatingCanvasWindow";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import PixelScreenTransition from "./components/PixelScreenTransition";
@@ -82,11 +83,27 @@ function WindowResizeHandles() {
     event.currentTarget.setPointerCapture?.(event.pointerId);
     desktop.window.resizeStart?.(direction);
 
+    // One resize per frame: each one is an IPC round trip, and the window's
+    // resize then runs every resize listener and observer in the app.
+    let pending = null;
+    let frame = 0;
     const handlePointerMove = (moveEvent) => {
-      desktop.window.resizeMove?.(moveEvent.clientX - startClientX, moveEvent.clientY - startClientY);
+      pending = [moveEvent.clientX - startClientX, moveEvent.clientY - startClientY];
+      if (frame) {
+        return;
+      }
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        desktop.window.resizeMove?.(...pending);
+      });
     };
 
     const finishResize = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (pending) desktop.window.resizeMove?.(...pending);
+      }
       desktop.window.resizeEnd?.();
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", finishResize);
@@ -333,6 +350,13 @@ export default function App() {
         </div>
       </div>
 
+      <ErrorBoundary
+        label="floating view"
+        title="The floating view couldn't be displayed"
+        description="Your data on disk has not been changed. Close it and try again."
+      >
+        <FloatingCanvasWindow CanvasView={CanvasWorkspaceView} />
+      </ErrorBoundary>
       <QuickNote />
       {import.meta.env.DEV && <DevConsole />}
       <AppLaunchSplash />

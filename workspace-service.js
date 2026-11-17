@@ -455,7 +455,27 @@ function normalizeUiState(uiState) {
     lastOpenedCanvasPath: typeof safe.lastOpenedCanvasPath === "string" ? normalizeRel(safe.lastOpenedCanvasPath, "") : null,
     quickNote: normalizeQuickNoteState(safe.quickNote),
     splitView: normalizeSplitViewState(safe.splitView),
+    homeLayout: normalizeHomeLayoutState(safe.homeLayout),
   };
+}
+
+// Home card order and groups (renderer/src/lib/homeLayout.js has the full
+// rules). Here we only keep the shape sane and the size bounded.
+function normalizeHomeLayoutState(value) {
+  const safe = isObject(value) ? value : {};
+  const keyList = (list, limit) => (Array.isArray(list)
+    ? list.filter((key) => typeof key === "string" && key && key.length <= 512).slice(0, limit)
+    : []);
+  const groups = Array.isArray(safe.groups)
+    ? safe.groups.slice(0, 500).filter((group) => isObject(group) && typeof group.id === "string" && group.id).map((group) => ({
+      id: group.id.slice(0, 64),
+      name: typeof group.name === "string" ? group.name.slice(0, 120) : "",
+      members: keyList(group.members, 2000),
+      starred: group.starred === true,
+      updatedAt: typeof group.updatedAt === "string" ? group.updatedAt : null,
+    }))
+    : [];
+  return { order: keyList(safe.order, 5000), groups };
 }
 
 // Quick note (renderer/src/components/QuickNote.jsx): a checklist outside

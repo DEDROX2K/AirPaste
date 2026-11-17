@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -45,8 +46,8 @@ function PlusIcon() {
 }
 
 function StickyTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -59,6 +60,8 @@ function StickyTile({
   onEndTextBoxEdit,
   onCreateAdjacentSticky,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const style = normalizeStickyStyle(card.sticky);
   const size = Number.isFinite(card.width) ? card.width : STICKY_BASE_SIZE;
@@ -177,7 +180,7 @@ function StickyTile({
       const dy = (moveEvent.clientY - start.clientY) / zoom;
       const nextSize = clampStickySize(start.size + ((handle.dirX * dx) + (handle.dirY * dy)) / 2);
       const grow = nextSize - start.size;
-      updateExistingCard(card.id, {
+      updateLive({
         width: nextSize,
         height: nextSize,
         x: handle.dirX < 0 ? start.x - grow : start.x,
@@ -192,6 +195,7 @@ function StickyTile({
       }
 
       setResizeLabel("");
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", finish, true);

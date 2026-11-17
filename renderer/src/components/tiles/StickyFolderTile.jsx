@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { CANVAS_TEXT_TITLE_MODE_CUSTOM } from "../../lib/canvasText";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import {
@@ -64,8 +65,8 @@ function formatDate(iso) {
 }
 
 function StickyFolderTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -77,6 +78,8 @@ function StickyFolderTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive, liveRef } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const style = normalizeStickyStyle(card.sticky);
   const width = clampFolderStickyWidth(card.width);
@@ -191,12 +194,17 @@ function StickyFolderTile({
       const measured = Math.max(getFolderStickyMinHeight(clampFolderStickyWidth(current.width)), Math.ceil(root.offsetHeight));
 
       if (Math.abs(measured - (Number.isFinite(current.height) ? current.height : 0)) > 1) {
-        updateExistingCard(current.id, { height: measured });
+        // Mid-resize the height follows locally and is committed with the width.
+        if (liveRef.current) {
+          updateLive({ height: measured });
+        } else {
+          updateExistingCard(current.id, { height: measured });
+        }
       }
     });
     observer.observe(root);
     return () => observer.disconnect();
-  }, [isStaticPreview, updateExistingCard]);
+  }, [isStaticPreview, liveRef, updateExistingCard, updateLive]);
 
   const updateStyle = useCallback((patch) => {
     updateExistingCard(card.id, { sticky: { ...normalizeStickyStyle(card.sticky), ...patch } });
@@ -304,7 +312,7 @@ function StickyFolderTile({
       }
 
       const nextWidth = clampFolderStickyWidth(start.width + (handle.dirX * (moveEvent.clientX - start.clientX)) / zoom);
-      updateExistingCard(card.id, {
+      updateLive({
         width: nextWidth,
         x: handle.dirX < 0 ? start.x - (nextWidth - start.width) : start.x,
       });
@@ -317,6 +325,7 @@ function StickyFolderTile({
       }
 
       setResizeLabel("");
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", finish, true);

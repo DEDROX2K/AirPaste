@@ -34,6 +34,15 @@ export function useDrawingTool({
   const [selectedObjectId, setSelectedObjectId] = useState(null);
   const [isSpacePanning, setIsSpacePanning] = useState(false);
   const draftLineRef = useRef(null);
+  // The draft's moving end goes to these (DrawingLayer redraws the Konva
+  // line), not to state: state only says a draft exists, so the canvas
+  // renders once when drawing starts and once when it ends.
+  const draftListenersRef = useRef(new Set());
+  const subscribeDraftLine = useCallback((listener) => {
+    draftListenersRef.current.add(listener);
+    return () => draftListenersRef.current.delete(listener);
+  }, []);
+  const getDraftLine = useCallback(() => draftLineRef.current, []);
 
   const normalizedDrawings = useMemo(
     () => normalizeDrawings(drawings ?? createEmptyDrawings()),
@@ -176,9 +185,11 @@ export function useDrawingTool({
       return false;
     }
 
-    updateDraftState(updateDraftLine(draftLineRef.current, worldPoint));
+    const nextDraftLine = updateDraftLine(draftLineRef.current, worldPoint);
+    draftLineRef.current = nextDraftLine;
+    draftListenersRef.current.forEach((listener) => listener(nextDraftLine));
     return true;
-  }, [canvas, isLineToolActive, updateDraftState]);
+  }, [canvas, isLineToolActive]);
 
   const handleStagePointerUp = useCallback(() => (
     commitDraftLine()
@@ -294,6 +305,8 @@ export function useDrawingTool({
     activeTool,
     drawings: normalizedDrawings,
     draftLine,
+    getDraftLine,
+    subscribeDraftLine,
     isHandToolActive,
     isLineToolActive,
     isSpacePanning,

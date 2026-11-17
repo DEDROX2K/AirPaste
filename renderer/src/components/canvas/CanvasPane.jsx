@@ -64,3 +64,61 @@ export function CanvasPageScope({ pageId, viewport, onViewportChange, children }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
+
+// Context entries that must not be redirected to the other file.
+const FILE_UNSCOPED_ACTIONS = new Set([
+  "runInPageScope",
+  "runInCanvasScope",
+  "ensureCanvasLoaded",
+  "setAuxCanvasPaths",
+  "commitWorkspaceChangeForPath",
+  "showHome",
+  "openHomeItem",
+  "openExistingWorkspace",
+  "switchDome",
+]);
+
+// Re-provides the app context for a canvas file that isn't the active tab
+// (split screen's right half, the floating view):
+// - `currentEditor` and `workspace` are that file's, as its own tab would
+//   show them (its active page, that page's viewport);
+// - every action runs inside runInCanvasScope(filePath), so edits, undo and
+//   the interaction flag land on that file.
+// Renders `fallback` until the file is loaded.
+export function CanvasFileScope({ filePath, name = "", fallback = null, children }) {
+  const base = useAppContext();
+  const history = base.canvasWorkspaces?.[filePath] ?? null;
+  const wrapperCacheRef = useRef({ filePath: null, map: new Map() });
+
+  const value = useMemo(() => {
+    if (!filePath || !history?.present) return null;
+    const { runInCanvasScope } = base;
+
+    if (wrapperCacheRef.current.filePath !== filePath) {
+      wrapperCacheRef.current = { filePath, map: new Map() };
+    }
+    const cache = wrapperCacheRef.current.map;
+    const wrap = (fn) => {
+      let wrapped = cache.get(fn);
+      if (!wrapped) {
+        wrapped = (...args) => runInCanvasScope({ filePath }, () => fn(...args));
+        cache.set(fn, wrapped);
+      }
+      return wrapped;
+    };
+
+    const next = {};
+    for (const [key, entry] of Object.entries(base)) {
+      next[key] = typeof entry === "function" && !FILE_UNSCOPED_ACTIONS.has(key) ? wrap(entry) : entry;
+    }
+
+    next.currentEditor = { kind: "canvas", filePath, name };
+    next.workspace = withActivePageMirror(history.present);
+    next.canUndo = (history.past?.length ?? 0) > 0;
+    next.canRedo = (history.future?.length ?? 0) > 0;
+    return next;
+  }, [base, filePath, history, name]);
+
+  if (!value) return fallback;
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}

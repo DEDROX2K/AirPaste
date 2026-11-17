@@ -1,6 +1,7 @@
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CanvasMotionContext } from "../../context/CanvasMotionContext";
 import { useTileAppContext } from "../../context/TileAppContext";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { QUICK_TEXT_MIN_HEIGHT, QUICK_TEXT_MIN_WIDTH } from "../../lib/canvasText";
 import {
   TEXT_BOX_COLORS,
@@ -68,8 +69,8 @@ function getTextDecoration(style) {
 // Click selects, clicking again (or double-click / Enter) types, and text
 // that ends up empty deletes itself.
 function TextBoxTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -82,6 +83,8 @@ function TextBoxTile({
   onRequestTextBoxEdit,
   onEndTextBoxEdit,
 }) {
+  // Resizing previews here and commits once (useLiveTileGeometry).
+  const { card, tileMeta, updateLive, commitLive } = useLiveTileGeometry(committedCard, committedTileMeta);
   const { deleteExistingCard, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
   const isMoving = useContext(CanvasMotionContext);
   const rootRef = useRef(null);
@@ -331,7 +334,7 @@ function TextBoxTile({
 
       if (handle.dirY === 0) {
         const nextWidth = Math.round(Math.max(QUICK_TEXT_MIN_WIDTH, W + (handle.dirX * dx)));
-        updateExistingCard(card.id, {
+        updateLive({
           autoWidth: false,
           width: nextWidth,
           x: handle.dirX < 0 ? Math.round(start.x + (W - nextWidth)) : start.x,
@@ -341,7 +344,7 @@ function TextBoxTile({
 
       const rawFactor = 1 + (((handle.dirX * dx * W) + (handle.dirY * dy * H)) / ((W * W) + (H * H)));
       const factor = clamp(rawFactor, TEXT_BOX_MIN_FONT_SIZE / start.fontSize, TEXT_BOX_MAX_FONT_SIZE / start.fontSize);
-      updateExistingCard(card.id, {
+      updateLive({
         style: normalizeTextBoxStyle({ ...style, fontSize: start.fontSize * factor }),
         ...(start.fixedWidth ? { width: Math.round(start.fixedWidth * factor) } : null),
         x: handle.dirX < 0 ? Math.round(start.x + (W * (1 - factor))) : start.x,
@@ -355,6 +358,7 @@ function TextBoxTile({
       }
 
       setResizing(false);
+      commitLive();
       setCanvasInteractionState?.(false);
       window.removeEventListener("pointermove", handleMove, true);
       window.removeEventListener("pointerup", finish, true);

@@ -1,3 +1,11 @@
+/* Hover tilt + glare, written per pointermove (RackTile.jsx). Registered as
+   non-inheriting, so a change restyles only the element that uses it, not
+   the whole tile preview inside the rack slot. */
+@property --rack-tilt-x { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --rack-tilt-y { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --rack-glare-x { syntax: "<percentage>"; inherits: false; initial-value: 50%; }
+@property --rack-glare-y { syntax: "<percentage>"; inherits: false; initial-value: 30%; }
+
 /* Rack tile: tiles stand side by side in a rack, leaning back, with only
    their tops showing above a flat, translucent plastic sheet held by two
    brushed-metal pins. A card under the pointer comes upright, lifts and

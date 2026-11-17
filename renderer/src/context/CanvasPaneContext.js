@@ -9,6 +9,8 @@ const DEFAULT_PANE = Object.freeze({
   isActive: true,
   isSecondary: false,
   splitEnabled: false,
+  // The floating view: no dock or top bar.
+  compact: false,
   toggleSplit: null,
 });
 
