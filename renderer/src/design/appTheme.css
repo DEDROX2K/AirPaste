@@ -1,0 +1,319 @@
+/* App colour theme (lib/appTheme.js, picked in the Home sidebar).
+   Loaded last in main.jsx: the surfaces below are painted by several older
+   stylesheets with !important, so these rules need both the later position
+   and the html[...] prefix to win. Everything here is gated on the theme
+   attributes, so with the default grey the app looks exactly as before. */
+
+/* ─── Dark base: text straight on it flips to white ─────────────────────── */
+
+html[data-shell-tone="dark"] .app-window > .titlebar-root,
+html[data-shell-tone="dark"] .ap-home-sidebar:not(.ap-home-sidebar--drawer) {
+  --ap-text-primary: #ffffff;
+  --ap-text-secondary: rgba(255, 255, 255, 0.78);
+  --ap-text-tertiary: rgba(255, 255, 255, 0.6);
+  --ap-icon-default: #ffffff;
+  --ap-icon-muted: rgba(255, 255, 255, 0.75);
+  color: #fff;
+}
+
+html[data-shell-tone="dark"] .ap-home .ap-home-sidebar:not(.ap-home-sidebar--drawer) .ap-home-nav-link.is-active {
+  color: var(--ap-text-primary);
+  background: rgba(255, 255, 255, 0.24) !important;
+}
+
+/* ─── A colour is picked ────────────────────────────────────────────────── */
+
+html[data-app-theme="on"] .ap-home .ap-home-nav-link.is-active .ap-home-nav-link__badge {
+  background: var(--ap-theme-accent);
+  color: #fff;
+}
+
+
+/* Windows controls: a lighter step of the base, edged darker. Hover keeps
+   the orange / green / red traffic-light colours. */
+html[data-app-theme="on"] .titlebar-controls--win .titlebar-btn--win:not(:hover) {
+  background: var(--ap-theme-control) !important;
+  border-color: var(--ap-theme-control-edge) !important;
+}
+
+html[data-app-theme="on"][data-shell-tone="dark"] .titlebar-controls--win .titlebar-btn--win:not(:hover) {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Home card. Re-pointing --ap-bg-page carries the toolbar's tint too. */
+html[data-app-theme="on"] .app-window .ap-home-main,
+html[data-app-theme="on"] .ap-home-main {
+  --ap-bg-page: var(--ap-theme-surface);
+  background: var(--ap-theme-surface) !important;
+}
+
+/* Canvas board and the stage behind it. */
+html[data-app-theme="on"] .app-window .app-shell__workspace-layout .canvas-stage,
+html[data-app-theme="on"] .app-window .app-shell__workspace-layout #canvas-board,
+html[data-app-theme="on"] #canvas-board {
+  background-color: var(--ap-theme-surface) !important;
+  background-image: none !important;
+}
+
+html[data-app-theme="on"] .app-shell__workspace-layout .canvas__grid {
+  --grid-line: var(--ap-theme-grid) !important;
+}
+
+/* Pages panel (floating, rail and drawer). */
+html[data-app-theme="on"] .app-window .app-shell__workspace-layout :is(.left-pages-panel, .left-pages-rail),
+html[data-app-theme="on"] :is(.left-pages-panel, .left-pages-panel--drawer) {
+  background-color: var(--ap-theme-panel) !important;
+  background-image: none !important;
+  border-color: var(--ap-theme-panel-edge) !important;
+}
+
+html[data-app-theme="on"] .left-pages-panel :is(.left-pages-panel__header) {
+  border-bottom-color: var(--ap-theme-panel-edge) !important;
+}
+
+html[data-app-theme="on"] .left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__item:hover {
+  background-color: var(--ap-theme-tint) !important;
+}
+
+html[data-app-theme="on"] .app-window .left-pages-panel .left-pages-panel__item--active,
+html[data-app-theme="on"] .left-pages-panel:not(.left-pages-panel--collapsed) .left-pages-panel__item--active {
+  background-color: var(--ap-theme-tint-strong) !important;
+  border-color: transparent !important;
+}
+
+/* Quick note: the frame already follows --ap-shell-base; the sheet, ink
+   and rules take the theme. */
+html[data-app-theme="on"] :is(.quick-note, .quick-note-launcher) {
+  --quick-note-sheet: var(--ap-theme-panel);
+  --quick-note-ink: var(--ap-theme-ink);
+  --quick-note-rule: var(--ap-theme-tint-strong);
+}
+
+/* ─── Top bar ───────────────────────────────────────────────────────────── */
+
+/* Tabs: inactive ones are a lighter step of the base; the selected one
+   stays white (TopTabBar.css). */
+html[data-app-theme="on"] .titlebar-tabs {
+  --tab-shape-idle: var(--ap-theme-control);
+  --tab-shape-hover: var(--ap-theme-panel);
+}
+
+/* Home button: matches the window controls. */
+html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo {
+  background: var(--ap-theme-control);
+  border-color: var(--ap-theme-control-edge);
+}
+
+html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo:hover {
+  background: var(--ap-theme-panel);
+  border-color: #fff;
+}
+
+html[data-app-theme="on"] .titlebar-cluster__divider {
+  background: var(--ap-theme-control-edge);
+}
+
+/* ─── Bottom dock ───────────────────────────────────────────────────────── */
+
+/* MonochromeUi.css gives the strip a saturate(0) backdrop, which drains the
+   colour from whatever is behind it. Paint it solid instead. */
+html[data-app-theme="on"] :is(.canvas-win-strip, .canvas-dock__rail) {
+  background: var(--ap-theme-panel) !important;
+  border-color: var(--ap-theme-panel-edge) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-app-theme="on"] .canvas-win-strip :is(.workspace-view-toggle, .drawing-tool-controls, .grid-view-filter-toggle) {
+  background: var(--ap-theme-tint) !important;
+}
+
+html[data-app-theme="on"] .canvas-win-strip :is(.workspace-view-toggle__button, .drawing-tool-controls__button, .grid-view-filter-toggle__button):hover:not(:disabled),
+html[data-app-theme="on"] .canvas-win-strip .canvas-start-menu__trigger:hover:not(:disabled) {
+  background: var(--ap-theme-surface) !important;
+}
+
+html[data-app-theme="on"] .canvas-win-strip :is(.workspace-view-toggle__button--active, .drawing-tool-controls__button--active, .grid-view-filter-toggle__button--active),
+html[data-app-theme="on"] .canvas-win-strip .canvas-start-menu__trigger--open {
+  background: var(--ap-theme-surface) !important;
+  color: var(--ap-theme-ink) !important;
+}
+
+/* ─── Canvas grid view ──────────────────────────────────────────────────── */
+
+html[data-app-theme="on"] .grid-workspace {
+  background: var(--ap-theme-surface) !important;
+}
+
+/* ─── Manage workspaces dialog ──────────────────────────────────────────── */
+
+html[data-app-theme="on"] .ap-home-manage {
+  background: var(--ap-theme-surface) !important;
+  border-color: var(--ap-theme-panel-edge) !important;
+}
+
+html[data-app-theme="on"] .ap-home-manage__quick-btn {
+  background: var(--ap-theme-tint);
+}
+
+html[data-app-theme="on"] .ap-home-manage__quick-btn:hover {
+  background: var(--ap-theme-tint-strong);
+}
+
+html[data-app-theme="on"] .ap-home-dome-row:not([data-card-color]) {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--ap-theme-panel-edge);
+}
+
+html[data-app-theme="on"] .ap-home-dome-row:not([data-card-color]):hover {
+  background: #fff;
+}
+
+html[data-app-theme="on"] .ap-home-dome-row.is-active:not([data-card-color]) {
+  background: var(--ap-theme-tint-strong);
+  border-color: var(--ap-border-accent);
+}
+
+html[data-app-theme="on"] .ap-home-dome-row.is-active .ap-home-dome-row__icon,
+html[data-app-theme="on"] .ap-home-dome-row__badge:not(.is-warn) {
+  background: var(--ap-theme-accent);
+  color: #fff;
+}
+
+/* ─── Tiles keep their own design ───────────────────────────────────────── */
+
+/* lib/appTheme.js retints the shared tokens on <html> for the system UI.
+   Every tile's root has .card (TileShell.jsx), so restating the original
+   values there stops the theme at the tile edge. Values copied from
+   design/theme.css (light), index.css and components/SimpleUi.css. */
+html[data-app-theme="on"] .card {
+  --ap-accent-bg: #1c1c1e;
+  --ap-accent-bg-hover: #2c2c2e;
+  --ap-accent-bg-active: #3a3a3c;
+  --ap-accent-tint: rgba(0, 0, 0, 0.05);
+  --ap-accent-tint-hover: rgba(0, 0, 0, 0.1);
+  --ap-border-accent: rgba(0, 0, 0, 0.3);
+  --ap-text-accent: #1c1c1e;
+  --ap-icon-accent: #1c1c1e;
+
+  --ap-text-primary: #1c1c1e;
+  --ap-text-secondary: #636366;
+  --ap-text-tertiary: #8e8e93;
+  --ap-text-placeholder: #a1a1a6;
+  --ap-text-disabled: #c7c7cc;
+  --ap-icon-default: #3a3a3c;
+  --ap-icon-muted: #636366;
+  --ap-border-subtle: rgba(0, 0, 0, 0.05);
+  --ap-border-default: rgba(0, 0, 0, 0.1);
+  --ap-border-strong: rgba(0, 0, 0, 0.2);
+  --ap-border-focus: rgba(0, 0, 0, 0.3);
+  --ap-interactive-bg-hover: rgba(0, 0, 0, 0.05);
+  --ap-interactive-bg-active: rgba(0, 0, 0, 0.1);
+  --ap-bg-page: #f5f5f7;
+  --ap-bg-base: #e5e5ea;
+  --ap-bg-sunken: #d1d1d6;
+  --ap-surface-default: rgba(255, 255, 255, 0.7);
+  --ap-surface-raised: rgba(255, 255, 255, 0.85);
+  --ap-surface-overlay: rgba(255, 255, 255, 0.95);
+  --ap-surface-overlay-bg: rgba(255, 255, 255, 0.95);
+  --ap-surface-modal: rgba(255, 255, 255, 0.95);
+  --ap-surface-inset: #ffffff;
+  --ap-scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --ap-scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
+
+  --ap-simple-page: #f8f9fa;
+  --ap-simple-surface: #ffffff;
+  --ap-simple-subtle: #f6f7f8;
+  --ap-simple-hover: #f1f3f4;
+  --ap-simple-active: #e8eaed;
+  --ap-simple-line: #dadce0;
+  --ap-simple-line-strong: #bdc1c6;
+  --ap-simple-ink: #202124;
+  --ap-simple-muted: #5f6368;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 10%;
+  --foreground: 0 0% 10%;
+  --secondary: 0 0% 96%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ap-surface-shell: 0 0% 96%;
+  --ap-surface-panel: 0 0% 100%;
+  --ap-surface-menu: 0 0% 100%;
+  --ap-surface-dialog: 0 0% 100%;
+  --ap-surface-inspector: 0 0% 98%;
+  --ap-surface-muted: 0 0% 96%;
+}
+
+/* ─── Menus (right-click, dropdowns, tile menu) ─────────────────────────── */
+
+/* styles.css paints these with a fixed blue-grey gradient. */
+html[data-app-theme="on"] :is(.ap-context-menu-surface, .menu-card.is-dropdown, .home-entry-menu, .tile-context-menu, .zoom-menu__menu, .canvas-minimap__panel, .canvas-dock__fan) {
+  background: var(--ap-theme-menu) !important;
+  border-color: var(--ap-theme-panel-edge) !important;
+  color: var(--ap-text-primary);
+}
+
+html[data-app-theme="on"] :is(.ap-context-menu-item, .browser-entry-menu__action, .tile-context-menu__action):is(:hover, [data-highlighted], :focus-visible):not(.tile-context-menu__action--danger, .browser-entry-menu__action--danger, [data-tone="danger"]) {
+  background: var(--ap-theme-tint) !important;
+  border-color: var(--ap-theme-tint) !important;
+  color: var(--ap-theme-ink) !important;
+}
+
+html[data-app-theme="on"] .tile-context-menu__divider {
+  background: var(--ap-border-default);
+}
+
+/* Shadcn-style menus and popovers. */
+html[data-app-theme="on"] :is([data-radix-popper-content-wrapper] [role="menu"], [role="dialog"].bg-ap-surface-dialog) {
+  border-color: var(--ap-theme-panel-edge) !important;
+}
+
+/* Title bar slot buttons (zoom, canvas toolbar). */
+html[data-app-theme="on"] :is(#titlebar-right-slot button, #titlebar-right-slot .zoom-menu__trigger, #titlebar-center-slot button) {
+  background: var(--ap-theme-menu) !important;
+  border-color: var(--ap-theme-panel-edge) !important;
+}
+
+html[data-app-theme="on"] :is(#titlebar-right-slot button, #titlebar-right-slot .zoom-menu__trigger, #titlebar-center-slot button):hover {
+  background: var(--ap-theme-panel) !important;
+}
+
+html[data-app-theme="on"] .titlebar-tab__body {
+  color: var(--ap-text-primary);
+}
+
+/* ─── Home controls ─────────────────────────────────────────────────────── */
+
+/* Row / card hover and selected fills, and the list edge. */
+html[data-app-theme="on"] .ap-home {
+  --ap-home-edge: var(--ap-theme-panel-edge);
+  --ap-home-row-hover: var(--ap-simple-hover);
+  --ap-home-row-selected: var(--ap-simple-active);
+}
+
+/* View toggle (list / cards): a tinted track; the selected option stays a
+   white chip, like the selected tab. */
+html[data-app-theme="on"] .ap-home .ap-home-view-toggle {
+  background: var(--ap-simple-active);
+}
+
+html[data-app-theme="on"] .ap-home .ap-home-view-toggle__btn:not(.is-active) {
+  color: var(--ap-text-secondary) !important;
+}
+
+html[data-app-theme="on"] .ap-home .ap-home-view-toggle__btn:not(.is-active):hover:not(:disabled) {
+  background: var(--ap-simple-hover) !important;
+  color: var(--ap-text-primary) !important;
+}
+
+html[data-app-theme="on"] .ap-home .ap-home-view-toggle__btn.is-active {
+  color: var(--ap-theme-ink) !important;
+}
+
+/* Surface buttons (Import, toolbar actions): white face, tinted edge. */
+html[data-app-theme="on"] .ap-ui-button--surface {
+  border-color: var(--ap-theme-panel-edge) !important;
+}

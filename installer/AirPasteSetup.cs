@@ -19,6 +19,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows;
@@ -174,14 +175,55 @@ namespace AirPasteInstaller
     }
 
     // ---------------------------------------------------------------- UI
+    //
+    // Bento layout: a dark notice bar on top; under it a media tile (a
+    // looping strip of art and three keys: fast forward, play/pause,
+    // website) and a blue progress tile (big percentage, speed chip, ETA
+    // dot, and a track of rounded bars that widen as progress passes them).
+    // Icons are pixelarticons (MIT), the same set the app uses.
+
+    static class Icons
+    {
+        public const string Play = "M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2-2H9V5h2zM9 21H7V3h2zm6-8h2v-2h-2zm-6 4h2v2H9z";
+        public const string Pause = "M10 20H4V4h6v16Zm8-16v16h-6V4h6Zm-4 2v12h2V6h-2ZM6 18h2V6H6v12Z";
+        public const string Forward = "M5 19H3v-2h2v2Zm16 0h-2v-2h2v2ZM3 17H1v-6h2v6Zm11 0h-4v-4h4v4Zm9 0h-2v-6h2v6Zm-7-4h-2v-2h2v2ZM5 11H3V9h2v2Zm13 0h-2V9h2v2ZM9 9H5V7h4v2Zm11 0h-2V7h2v2Zm-5-2H9V5h6v2Z"; // speed-fast
+        public const string Globe = "M6 2h12v2H6zm0 18h12v2H6zM4 4h2v2H4zm5 0h2v2H9zm0 14h2v2H9zm4 0h2v2h-2zM7 6h2v12H7zm8 0h2v12h-2zm-2-2h2v2h-2zm7 0h-2v2h2zM2 6h2v12H2zm20 0h-2v12h2zM4 18h2v2H4zm16 0h-2v2h2zM3 11h18v2H3z";
+        public const string Close = "M7 19H5V17H7V19ZM19 19H17V17H19V19ZM9 15V17H7V15H9ZM17 17H15V15H17V17ZM11 15H9V13H11V15ZM15 15H13V13H15V15ZM13 13H11V11H13V13ZM11 11H9V9H11V11ZM15 11H13V9H15V11ZM9 9H7V7H9V9ZM17 9H15V7H17V9ZM7 7H5V5H7V7ZM19 7H17V5H19V7Z";
+
+        // 24px grid, nonzero fill (as in the SVGs), snapped to pixels.
+        public static UIElement Make(string data, Brush fill)
+        {
+            System.Windows.Shapes.Path path = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("F1 " + data),
+                Fill = fill,
+                Width = 24,
+                Height = 24,
+                Stretch = Stretch.None,
+                SnapsToDevicePixels = true,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            RenderOptions.SetEdgeMode(path, EdgeMode.Aliased);
+            return path;
+        }
+    }
 
     class SetupWindow : Window
     {
-        const int SegmentCount = 32;
-        static readonly Color Ink = Color.FromRgb(0x1E, 0x1E, 0x1E);
-        static readonly Color Muted = Color.FromRgb(0x55, 0x55, 0x58);
-        static readonly Color Filled = Color.FromRgb(0x3B, 0x3B, 0x3D);
-        static readonly Color Empty = Color.FromRgb(0xD3, 0xD3, 0xD3);
+        const string WebsiteUrl = "https://dedrox2k.github.io/dedrox/airpaste.html";
+        const double BarStep = 17;
+        const double StripSpeed = 60;      // px/s while playing
+        const double StripFastSpeed = 420; // px/s while fast forward is held
+
+        static readonly Color PageColor = Color.FromRgb(0xE9, 0xEA, 0xEE);
+        static readonly Color MediaColor = Color.FromRgb(0x17, 0x17, 0x1A);
+        static readonly Color BlueColor = Color.FromRgb(0x34, 0x74, 0xFF);
+        static readonly Color BlackColor = Color.FromRgb(0x07, 0x07, 0x09);
+        static readonly Color OrangeColor = Color.FromRgb(0xFF, 0x91, 0x24);
+        static readonly Color NavyColor = Color.FromRgb(0x0B, 0x1F, 0x45);
+        static readonly Color InkColor = Color.FromRgb(0xF4, 0xF6, 0xFF);
+        static readonly Color DimColor = Color.FromRgb(0x8A, 0x8D, 0x96);
         static readonly FontFamily Display = new FontFamily("Segoe UI Variable Display, Segoe UI");
         static readonly FontFamily Text = new FontFamily("Segoe UI Variable Text, Segoe UI");
 
@@ -189,16 +231,39 @@ namespace AirPasteInstaller
         readonly bool quiet;
         readonly string uninstallDir;
         readonly string version;
-        readonly Rectangle[] segments = new Rectangle[SegmentCount];
-        TextBlock statusText;
-        TextBlock percentText;
-        TextBlock chipText;
-        Border chip;
-        TextBlock noteText;
+
+        TextBlock headlineText;
+        TextBlock detailText;
         Button primaryButton;
         Button secondaryButton;
         Action primaryAction;
         Action secondaryAction;
+
+        Border screen;
+        Canvas stripCanvas;
+        Image stripImage;
+        BitmapSource stripSource;
+        Button fastKey;
+        Button playKey;
+        bool playing = true;
+        bool holding;
+        double stripPhase;
+
+        TextBlock percentText;
+        TextBlock stageText;
+        TextBlock speedText;
+        TextBlock etaText;
+        Border etaDot;
+        Border track;
+        Canvas barCanvas;
+        readonly System.Collections.Generic.List<Rectangle> bars = new System.Collections.Generic.List<Rectangle>();
+        Brush barBrush;
+        double targetFraction;
+        double shownFraction;
+        string stageOverride;
+
+        readonly Stopwatch frameClock = new Stopwatch();
+        double lastFrame;
         bool busy;
         string lastError;
 
@@ -210,7 +275,7 @@ namespace AirPasteInstaller
             this.version = version;
 
             Title = uninstallMode ? "Uninstall AirPaste" : "AirPaste Setup";
-            Width = 640;
+            Width = 860;
             SizeToContent = SizeToContent.Height;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -219,8 +284,9 @@ namespace AirPasteInstaller
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             UseLayoutRounding = true;
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+            playing = SystemParameters.ClientAreaAnimation;
 
-            Content = BuildCard();
+            Content = BuildLayout();
             MouseLeftButtonDown += delegate (object sender, MouseButtonEventArgs e)
             {
                 if (e.ButtonState == MouseButtonState.Pressed) DragMove();
@@ -229,6 +295,7 @@ namespace AirPasteInstaller
             {
                 if (busy) e.Cancel = true;
             };
+            Closed += delegate { CompositionTarget.Rendering -= OnFrame; };
 
             if (quiet) return;
             if (uninstallMode) ShowUninstallPrompt();
@@ -238,170 +305,459 @@ namespace AirPasteInstaller
                 Topmost = true;
                 Activate();
                 Topmost = false;
+                frameClock.Start();
+                CompositionTarget.Rendering += OnFrame;
             };
         }
 
-        UIElement BuildCard()
+        static SolidColorBrush Solid(Color color)
         {
-            StackPanel body = new StackPanel();
+            SolidColorBrush brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
 
-            // Top row: tags, close.
-            DockPanel top = new DockPanel { LastChildFill = false };
-            StackPanel tags = new StackPanel { Orientation = Orientation.Horizontal };
-            tags.Children.Add(MakeTag("v" + version));
-            tags.Children.Add(MakeTag("Windows"));
-            tags.Children.Add(MakeTag(uninstallMode ? "uninstall" : "setup"));
-            DockPanel.SetDock(tags, Dock.Left);
-            top.Children.Add(tags);
-            Button close = new Button
+        static SolidColorBrush Solid(Color color, double opacity)
+        {
+            return Solid(Color.FromArgb((byte)Math.Round(opacity * 255), color.R, color.G, color.B));
+        }
+
+        static Effect Shadow(Color color, double opacity)
+        {
+            return new DropShadowEffect { BlurRadius = 40, ShadowDepth = 10, Direction = 270, Opacity = opacity, Color = color };
+        }
+
+        // Keeps an element's children inside its rounded corners.
+        static void ClipRounded(FrameworkElement element, double radius)
+        {
+            element.SizeChanged += delegate
             {
-                Content = new TextBlock { Text = "✕", FontSize = 13, Foreground = new SolidColorBrush(Muted) },
-                Width = 28,
-                Height = 28,
-                Cursor = Cursors.Hand,
-                ToolTip = "Close",
-                Template = FlatTemplate(14),
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
+                element.Clip = new RectangleGeometry(new Rect(0, 0, element.ActualWidth, element.ActualHeight), radius, radius);
             };
-            close.Click += delegate { if (!busy) Close(); };
-            DockPanel.SetDock(close, Dock.Right);
-            top.Children.Add(close);
-            body.Children.Add(top);
+        }
 
-            // Title: logo + name.
-            StackPanel title = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
-            Image logo = new Image { Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
-            logo.Source = LoadLogo();
-            RenderOptions.SetBitmapScalingMode(logo, BitmapScalingMode.HighQuality);
-            title.Children.Add(logo);
-            title.Children.Add(new TextBlock
+        UIElement BuildLayout()
+        {
+            Grid stack = new Grid();
+            stack.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            stack.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
+            stack.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            UIElement notice = BuildNotice();
+            Grid.SetRow(notice, 0);
+            stack.Children.Add(notice);
+
+            Grid bento = new Grid();
+            bento.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            bento.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+            bento.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.25, GridUnitType.Star) });
+            UIElement media = BuildMediaTile();
+            Grid.SetColumn(media, 0);
+            bento.Children.Add(media);
+            UIElement progress = BuildProgressTile();
+            Grid.SetColumn(progress, 2);
+            bento.Children.Add(progress);
+            Grid.SetRow(bento, 2);
+            stack.Children.Add(bento);
+
+            return new Border
             {
-                Text = Product.Name,
+                Background = Solid(PageColor),
+                CornerRadius = new CornerRadius(44),
+                Padding = new Thickness(14),
+                Margin = new Thickness(24),
+                Child = stack,
+                Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 6, Direction = 270, Opacity = 0.28, Color = Colors.Black },
+            };
+        }
+
+        UIElement BuildNotice()
+        {
+            StackPanel text = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            headlineText = new TextBlock
+            {
                 FontFamily = Display,
-                FontSize = 30,
-                Foreground = new SolidColorBrush(Ink),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            body.Children.Add(title);
+                FontSize = 22,
+                FontWeight = FontWeights.Medium,
+                Foreground = Solid(InkColor),
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            detailText = new TextBlock
+            {
+                FontFamily = Text,
+                FontSize = 14,
+                Foreground = Solid(DimColor),
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0),
+            };
+            text.Children.Add(headlineText);
+            text.Children.Add(detailText);
 
-            body.Children.Add(new Rectangle { Height = 1, Fill = new SolidColorBrush(Ink), Margin = new Thickness(0, 14, 0, 18) });
-
-            statusText = new TextBlock { FontFamily = Text, FontSize = 15, Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x36)), TextWrapping = TextWrapping.Wrap };
-            body.Children.Add(statusText);
-
-            // Percentage row: big number, chip, note, buttons on the right.
-            DockPanel row = new DockPanel { Margin = new Thickness(0, 6, 0, 18), LastChildFill = true };
-            StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             secondaryButton = PillButton(false);
             secondaryButton.Click += delegate { if (secondaryAction != null) secondaryAction(); };
             primaryButton = PillButton(true);
             primaryButton.Click += delegate { if (primaryAction != null) primaryAction(); };
             buttons.Children.Add(secondaryButton);
             buttons.Children.Add(primaryButton);
-            DockPanel.SetDock(buttons, Dock.Right);
-            row.Children.Add(buttons);
+            text.Children.Add(buttons);
 
-            StackPanel left = new StackPanel { Orientation = Orientation.Horizontal };
-            percentText = new TextBlock { FontFamily = Display, FontSize = 52, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Ink), Text = "0%", MinWidth = 120 };
-            left.Children.Add(percentText);
-            chipText = new TextBlock { FontFamily = Text, FontSize = 14, Foreground = new SolidColorBrush(Ink) };
-            chip = new Border
+            Button close = new Button
             {
-                BorderBrush = new SolidColorBrush(Muted),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Padding = new Thickness(10, 3, 10, 4),
-                Margin = new Thickness(16, 0, 12, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = chipText,
+                Content = Icons.Make(Icons.Close, Solid(DimColor)),
+                Width = 36,
+                Height = 36,
+                Cursor = Cursors.Hand,
+                ToolTip = "Close",
+                Template = FlatTemplate(18, Solid(Colors.White, 0.08)),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, -8, -14, 0),
             };
-            left.Children.Add(chip);
-            noteText = new TextBlock { FontFamily = Text, FontSize = 14, Foreground = new SolidColorBrush(Muted), VerticalAlignment = VerticalAlignment.Center };
-            left.Children.Add(noteText);
-            row.Children.Add(left);
-            body.Children.Add(row);
+            System.Windows.Automation.AutomationProperties.SetName(close, "Close");
+            close.Click += delegate { if (!busy) Close(); };
 
-            // The segmented bar.
-            UniformGrid bar = new UniformGrid { Rows = 1, Columns = SegmentCount, Height = 64 };
-            for (int i = 0; i < SegmentCount; i++)
-            {
-                segments[i] = new Rectangle { Fill = new SolidColorBrush(Empty), Margin = new Thickness(i == 0 ? 0 : 2, 0, i == SegmentCount - 1 ? 0 : 2, 0), RadiusX = 1, RadiusY = 1 };
-                bar.Children.Add(segments[i]);
-            }
-            body.Children.Add(bar);
+            Grid content = new Grid();
+            content.Children.Add(text);
+            content.Children.Add(close);
 
-            Border card = new Border
+            return new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF2)),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(22, 16, 22, 22),
-                Margin = new Thickness(24),
-                Child = body,
-                Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 6, Direction = 270, Opacity = 0.28, Color = Colors.Black },
+                Background = Solid(MediaColor),
+                CornerRadius = new CornerRadius(34),
+                Padding = new Thickness(28, 22, 28, 22),
+                Child = content,
             };
-            return card;
         }
 
-        static ControlTemplate FlatTemplate()
+        UIElement BuildMediaTile()
         {
-            return FlatTemplate(4);
+            Grid inner = new Grid();
+            inner.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 200 });
+            inner.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
+            inner.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });
+
+            // The screen: the strip pans left and right inside it.
+            stripSource = LoadResourceImage("strip.png");
+            stripImage = new Image { Source = stripSource, Stretch = Stretch.Fill };
+            RenderOptions.SetBitmapScalingMode(stripImage, BitmapScalingMode.NearestNeighbor);
+            stripCanvas = new Canvas { ClipToBounds = true };
+            stripCanvas.Children.Add(stripImage);
+            Grid screenContent = new Grid();
+            screenContent.Children.Add(stripCanvas);
+            LinearGradientBrush glare = new LinearGradientBrush { StartPoint = new Point(0.1, 0), EndPoint = new Point(0.6, 1) };
+            glare.GradientStops.Add(new GradientStop(Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF), 0));
+            glare.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.38));
+            screenContent.Children.Add(new Rectangle { Fill = glare, IsHitTestVisible = false });
+            screen = new Border
+            {
+                Background = Brushes.Black,
+                CornerRadius = new CornerRadius(34),
+                Child = screenContent,
+            };
+            ClipRounded(screen, 34);
+            screen.SizeChanged += delegate { LayoutStrip(); };
+            Grid.SetRow(screen, 0);
+            inner.Children.Add(screen);
+
+            // The keys.
+            Grid keys = new Grid();
+            for (int i = 0; i < 5; i++)
+            {
+                keys.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(8) });
+            }
+
+            fastKey = MakeKey(Icons.Forward, new CornerRadius(28, 28, 28, 48), "Fast forward (hold)");
+            fastKey.PreviewMouseLeftButtonDown += delegate { SetHolding(true); };
+            fastKey.PreviewMouseLeftButtonUp += delegate { SetHolding(false); };
+            fastKey.LostMouseCapture += delegate { SetHolding(false); };
+            fastKey.MouseLeave += delegate { SetHolding(false); };
+            fastKey.PreviewKeyDown += delegate (object sender, KeyEventArgs e)
+            {
+                if (e.Key == Key.Space || e.Key == Key.Enter) { SetHolding(true); e.Handled = true; }
+            };
+            fastKey.PreviewKeyUp += delegate (object sender, KeyEventArgs e)
+            {
+                if (e.Key == Key.Space || e.Key == Key.Enter) { SetHolding(false); e.Handled = true; }
+            };
+            fastKey.LostKeyboardFocus += delegate { SetHolding(false); };
+
+            playKey = MakeKey(Icons.Pause, new CornerRadius(28), "Pause");
+            playKey.Click += delegate { playing = !playing; RenderPlayKey(); };
+            RenderPlayKey();
+
+            Button webKey = MakeKey(Icons.Globe, new CornerRadius(28, 28, 48, 28), "Visit the AirPaste website");
+            webKey.Click += delegate { OpenWebsite(); };
+
+            Grid.SetColumn(fastKey, 0);
+            Grid.SetColumn(playKey, 2);
+            Grid.SetColumn(webKey, 4);
+            keys.Children.Add(fastKey);
+            keys.Children.Add(playKey);
+            keys.Children.Add(webKey);
+            Grid.SetRow(keys, 2);
+            inner.Children.Add(keys);
+
+            return new Border
+            {
+                Background = Solid(MediaColor),
+                CornerRadius = new CornerRadius(48),
+                Padding = new Thickness(18),
+                Child = inner,
+            };
         }
 
-        static ControlTemplate FlatTemplate(double radius)
+        UIElement BuildProgressTile()
+        {
+            StackPanel column = new StackPanel();
+
+            // Big percentage + stage.
+            DockPanel main = new DockPanel { LastChildFill = false };
+            percentText = new TextBlock
+            {
+                FontFamily = Display,
+                FontSize = 84,
+                FontWeight = FontWeights.Light,
+                Foreground = Solid(InkColor),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, -10, 0, -8),
+            };
+            DockPanel.SetDock(percentText, Dock.Left);
+            main.Children.Add(percentText);
+            TextBlock percentSign = new TextBlock
+            {
+                Text = "%",
+                FontFamily = Display,
+                FontSize = 35,
+                FontWeight = FontWeights.Light,
+                Foreground = Solid(Color.FromRgb(0xBF, 0xC4, 0xD1)),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(4, 0, 0, 4),
+            };
+            DockPanel.SetDock(percentSign, Dock.Left);
+            main.Children.Add(percentSign);
+            stageText = new TextBlock
+            {
+                FontFamily = Text,
+                FontSize = 14,
+                Foreground = Solid(Color.FromRgb(0x9E, 0xA3, 0xB2)),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(12, 0, 0, 6),
+            };
+            DockPanel.SetDock(stageText, Dock.Right);
+            main.Children.Add(stageText);
+            column.Children.Add(new Border
+            {
+                Background = Solid(BlackColor),
+                CornerRadius = new CornerRadius(24),
+                Padding = new Thickness(20, 18, 20, 16),
+                Child = main,
+            });
+
+            column.Children.Add(new TextBlock
+            {
+                Text = "AirPaste " + (string.IsNullOrEmpty(version) ? "" : "v" + version + " ") + "for Windows",
+                FontFamily = Text,
+                FontSize = 12,
+                Foreground = Solid(Color.FromRgb(0xCF, 0xE0, 0xFF)),
+                Opacity = 0.85,
+                Margin = new Thickness(6, 10, 6, 10),
+            });
+
+            // Speed chip + ETA dot.
+            Grid row = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            DockPanel chipBody = new DockPanel { LastChildFill = false };
+            TextBlock speedLabel = new TextBlock { Text = uninstallMode ? "files" : "speed", FontFamily = Text, FontSize = 12, Foreground = Solid(Color.FromRgb(0x11, 0x11, 0x11)), Opacity = 0.75 };
+            DockPanel.SetDock(speedLabel, Dock.Top);
+            chipBody.Children.Add(speedLabel);
+            speedText = new TextBlock { FontFamily = Display, FontSize = 22, FontWeight = FontWeights.Medium, Foreground = Solid(Color.FromRgb(0x11, 0x11, 0x11)) };
+            DockPanel.SetDock(speedText, Dock.Bottom);
+            chipBody.Children.Add(speedText);
+            Border chip = new Border
+            {
+                Background = Solid(OrangeColor),
+                CornerRadius = new CornerRadius(20),
+                Padding = new Thickness(16, 14, 16, 14),
+                MinHeight = 78,
+                Child = chipBody,
+            };
+            Grid.SetColumn(chip, 0);
+            row.Children.Add(chip);
+
+            etaText = new TextBlock { FontFamily = Display, FontSize = 18, Foreground = Solid(Color.FromRgb(0xDF, 0xE6, 0xFF)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            etaDot = new Border
+            {
+                Background = Solid(NavyColor),
+                CornerRadius = new CornerRadius(999),
+                MinHeight = 78,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = etaText,
+            };
+            etaDot.SizeChanged += delegate { SyncEtaDot(); };
+            Grid.SetColumn(etaDot, 2);
+            row.Children.Add(etaDot);
+            column.Children.Add(row);
+
+            // The bar track.
+            barBrush = Solid(BlueColor);
+            barCanvas = new Canvas { Margin = new Thickness(18, 14, 18, 14) };
+            barCanvas.SizeChanged += delegate { LayoutBars(); };
+            track = new Border
+            {
+                Background = Solid(BlackColor),
+                CornerRadius = new CornerRadius(26),
+                Height = 86,
+                Child = barCanvas,
+            };
+            ClipRounded(track, 26);
+            column.Children.Add(track);
+
+            return new Border
+            {
+                Background = Solid(BlueColor),
+                CornerRadius = new CornerRadius(34),
+                Padding = new Thickness(12),
+                Child = column,
+            };
+        }
+
+        static ControlTemplate FlatTemplate(double radius, Brush hover)
         {
             ControlTemplate template = new ControlTemplate(typeof(Button));
+            FrameworkElementFactory root = new FrameworkElementFactory(typeof(Grid));
             FrameworkElementFactory border = new FrameworkElementFactory(typeof(Border));
             border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
             border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
             border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Control.BorderThicknessProperty));
             border.SetValue(Border.CornerRadiusProperty, new CornerRadius(radius));
-            border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+            root.AppendChild(border);
+            FrameworkElementFactory overlay = new FrameworkElementFactory(typeof(Border));
+            overlay.Name = "overlay";
+            overlay.SetValue(Border.BackgroundProperty, hover);
+            overlay.SetValue(Border.CornerRadiusProperty, new CornerRadius(radius));
+            overlay.SetValue(UIElement.OpacityProperty, 0.0);
+            root.AppendChild(overlay);
             FrameworkElementFactory presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetValue(FrameworkElement.MarginProperty, new TemplateBindingExtension(Control.PaddingProperty));
             presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
             presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-            border.AppendChild(presenter);
-            template.VisualTree = border;
+            root.AppendChild(presenter);
+            template.VisualTree = root;
+            Trigger over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            over.Setters.Add(new Setter(UIElement.OpacityProperty, 1.0, "overlay"));
+            template.Triggers.Add(over);
+            Trigger pressed = new Trigger { Property = ButtonBase.IsPressedProperty, Value = true };
+            pressed.Setters.Add(new Setter(UIElement.OpacityProperty, 0.6, "overlay"));
+            template.Triggers.Add(pressed);
             return template;
         }
 
-        static Border MakeTag(string text)
+        // A dark key: lit top edge, deep bottom edge, brightens on hover/press.
+        static ControlTemplate KeyTemplate(CornerRadius radius)
         {
-            return new Border
+            ControlTemplate template = new ControlTemplate(typeof(Button));
+            FrameworkElementFactory root = new FrameworkElementFactory(typeof(Grid));
+            root.SetValue(UIElement.RenderTransformOriginProperty, new Point(0.5, 0.5));
+            FrameworkElementFactory body = new FrameworkElementFactory(typeof(Border));
+            body.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+            LinearGradientBrush edge = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+            edge.GradientStops.Add(new GradientStop(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF), 0));
+            edge.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.3));
+            edge.GradientStops.Add(new GradientStop(Color.FromRgb(0x0B, 0x0B, 0x0D), 1));
+            edge.Freeze();
+            body.SetValue(Border.BorderBrushProperty, edge);
+            body.SetValue(Border.BorderThicknessProperty, new Thickness(0, 1, 0, 2));
+            body.SetValue(Border.CornerRadiusProperty, radius);
+            root.AppendChild(body);
+            FrameworkElementFactory overlay = new FrameworkElementFactory(typeof(Border));
+            overlay.Name = "overlay";
+            overlay.SetValue(Border.BackgroundProperty, Solid(Colors.White));
+            overlay.SetValue(Border.CornerRadiusProperty, radius);
+            overlay.SetValue(UIElement.OpacityProperty, 0.0);
+            root.AppendChild(overlay);
+            FrameworkElementFactory presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            root.AppendChild(presenter);
+            FrameworkElementFactory focus = new FrameworkElementFactory(typeof(Border));
+            focus.Name = "focus";
+            focus.SetValue(Border.BorderBrushProperty, Brushes.White);
+            focus.SetValue(Border.BorderThicknessProperty, new Thickness(2));
+            focus.SetValue(Border.CornerRadiusProperty, radius);
+            focus.SetValue(FrameworkElement.MarginProperty, new Thickness(-4));
+            focus.SetValue(UIElement.VisibilityProperty, Visibility.Hidden);
+            root.AppendChild(focus);
+            template.VisualTree = root;
+
+            Trigger over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            over.Setters.Add(new Setter(UIElement.OpacityProperty, 0.06, "overlay"));
+            template.Triggers.Add(over);
+            Trigger pressed = new Trigger { Property = ButtonBase.IsPressedProperty, Value = true };
+            pressed.Setters.Add(new Setter(UIElement.OpacityProperty, 0.12, "overlay"));
+            pressed.Setters.Add(new Setter(UIElement.RenderTransformProperty, new ScaleTransform(0.97, 0.97)));
+            template.Triggers.Add(pressed);
+            Trigger keyboard = new Trigger { Property = UIElement.IsKeyboardFocusedProperty, Value = true };
+            keyboard.Setters.Add(new Setter(UIElement.VisibilityProperty, Visibility.Visible, "focus"));
+            template.Triggers.Add(keyboard);
+            return template;
+        }
+
+        static Brush KeyFill(bool lit)
+        {
+            LinearGradientBrush brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+            brush.GradientStops.Add(new GradientStop(lit ? Color.FromRgb(0x3C, 0x3C, 0x44) : Color.FromRgb(0x30, 0x30, 0x36), 0));
+            brush.GradientStops.Add(new GradientStop(lit ? Color.FromRgb(0x30, 0x30, 0x36) : Color.FromRgb(0x26, 0x26, 0x2B), 1));
+            brush.Freeze();
+            return brush;
+        }
+
+        static Button MakeKey(string icon, CornerRadius radius, string label)
+        {
+            Button key = new Button
             {
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x58)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Padding = new Thickness(8, 2, 8, 3),
-                Margin = new Thickness(0, 0, 6, 0),
-                Child = new TextBlock { Text = text, FontFamily = Text, FontSize = 12, Foreground = new SolidColorBrush(Ink) },
+                Template = KeyTemplate(radius),
+                Background = KeyFill(false),
+                Content = Icons.Make(icon, Brushes.White),
+                Cursor = Cursors.Hand,
+                ToolTip = label,
+                FocusVisualStyle = null,
             };
+            System.Windows.Automation.AutomationProperties.SetName(key, label);
+            return key;
         }
 
         static Button PillButton(bool primary)
         {
-            Button button = new Button
+            return new Button
             {
-                Template = FlatTemplate(),
-                Padding = new Thickness(14, 6, 14, 7),
-                Margin = new Thickness(8, 0, 0, 0),
+                Template = FlatTemplate(18, Solid(Colors.White, primary ? 0.14 : 0.08)),
+                Height = 36,
+                Padding = new Thickness(18, 0, 18, 1),
+                Margin = new Thickness(5, 14, 5, 0),
                 Cursor = Cursors.Hand,
                 FontFamily = Text,
                 FontSize = 14,
                 Visibility = Visibility.Collapsed,
-                Background = primary ? new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2C)) : Brushes.Transparent,
-                Foreground = primary ? Brushes.White : new SolidColorBrush(Ink),
-                BorderBrush = primary ? Brushes.Transparent : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9D)),
-                BorderThickness = new Thickness(1),
+                Background = primary ? Solid(BlueColor) : Solid(Color.FromRgb(0x2A, 0x2A, 0x30)),
+                Foreground = Brushes.White,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
             };
-            return button;
         }
 
-        static ImageSource LoadLogo()
+        static BitmapSource LoadResourceImage(string name)
         {
             try
             {
-                Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("logo.png");
+                Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
                 if (stream == null) return null;
                 BitmapImage image = new BitmapImage();
                 image.BeginInit();
@@ -417,24 +773,171 @@ namespace AirPasteInstaller
             }
         }
 
+        static void OpenWebsite()
+        {
+            try { Process.Start(new ProcessStartInfo(WebsiteUrl) { UseShellExecute = true }); }
+            catch { }
+        }
+
+        void SyncEtaDot()
+        {
+            if (etaDot.ActualWidth > 0 && (double.IsNaN(etaDot.Height) || Math.Abs(etaDot.Height - etaDot.ActualWidth) > 0.5)) etaDot.Height = etaDot.ActualWidth;
+        }
+
+        // ---- animation
+
+        void SetHolding(bool value)
+        {
+            if (holding == value) return;
+            holding = value;
+            fastKey.Background = KeyFill(value);
+        }
+
+        void RenderPlayKey()
+        {
+            playKey.Content = Icons.Make(playing ? Icons.Pause : Icons.Play, Brushes.White);
+            string label = playing ? "Pause" : "Play";
+            playKey.ToolTip = label;
+            System.Windows.Automation.AutomationProperties.SetName(playKey, label);
+        }
+
+        void OnFrame(object sender, EventArgs e)
+        {
+            double now = frameClock.Elapsed.TotalSeconds;
+            double dt = Math.Min(0.064, now - lastFrame);
+            lastFrame = now;
+
+            double over = StripOverflow();
+            if (over > 0 && (holding || playing))
+            {
+                // Constant pixel speed whatever the strip's width; the phase
+                // runs 0..2 and ping-pongs.
+                stripPhase = (stripPhase + dt * (holding ? StripFastSpeed : StripSpeed) / over) % 2;
+                LayoutStrip();
+            }
+
+            if (Math.Abs(targetFraction - shownFraction) > 0.0005)
+            {
+                shownFraction += (targetFraction - shownFraction) * (1 - Math.Exp(-dt * 9));
+                LayoutBars();
+            }
+        }
+
+        // The strip is pixel art: draw it at a whole number of device pixels
+        // per art pixel (at least enough to cover the screen), never shrunk.
+        double StripScale()
+        {
+            double w = stripCanvas.ActualWidth, h = stripCanvas.ActualHeight;
+            double dpi = 1;
+            try { dpi = VisualTreeHelper.GetDpi(this).DpiScaleX; } catch { }
+            double needed = Math.Max(h / stripSource.PixelHeight, w / stripSource.PixelWidth) * dpi;
+            return Math.Max(1, Math.Ceiling(needed - 0.001)) / dpi;
+        }
+
+        double StripOverflow()
+        {
+            if (stripSource == null) return 0;
+            double w = stripCanvas.ActualWidth, h = stripCanvas.ActualHeight;
+            if (w <= 0 || h <= 0) return 0;
+            return Math.Max(0, stripSource.PixelWidth * StripScale() - w);
+        }
+
+        void LayoutStrip()
+        {
+            if (stripSource == null) return;
+            double w = stripCanvas.ActualWidth, h = stripCanvas.ActualHeight;
+            if (w <= 0 || h <= 0) return;
+            double scale = StripScale();
+            double dw = stripSource.PixelWidth * scale;
+            double dh = stripSource.PixelHeight * scale;
+            double tri = 1 - Math.Abs(stripPhase - 1);
+            double eased = tri * tri * (3 - 2 * tri);
+            stripImage.Width = dw;
+            stripImage.Height = dh;
+            Canvas.SetLeft(stripImage, Math.Round(-eased * Math.Max(0, dw - w)));
+            Canvas.SetTop(stripImage, Math.Round(-(dh - h) / 2));
+        }
+
+        // Bars sit every 17px; each widens from a thin line to a full bead as
+        // the progress edge passes it, over a soft ~1/9 of the track.
+        void LayoutBars()
+        {
+            double w = barCanvas.ActualWidth, h = barCanvas.ActualHeight;
+            if (w <= 0 || h <= 0) return;
+            int count = (int)Math.Ceiling((w + 15) / BarStep);
+            while (bars.Count < count)
+            {
+                Rectangle bar = new Rectangle { Fill = barBrush };
+                bars.Add(bar);
+                barCanvas.Children.Add(bar);
+            }
+            while (bars.Count > count)
+            {
+                barCanvas.Children.Remove(bars[bars.Count - 1]);
+                bars.RemoveAt(bars.Count - 1);
+            }
+            double edge = shownFraction * w * (1 + 1.0 / 9) - w / 18;
+            for (int i = 0; i < count; i++)
+            {
+                double x = 2 + i * BarStep;
+                double local = Math.Max(0, Math.Min(1, 0.5 + (edge - x) / w * 18));
+                double bw = 2.2 + (BarStep - 2.2) * local;
+                Rectangle bar = bars[i];
+                bar.Width = bw;
+                bar.Height = h;
+                bar.RadiusX = bar.RadiusY = Math.Min(bw / 2, h / 2);
+                Canvas.SetLeft(bar, x - bw / 2);
+            }
+        }
+
         // ---- state helpers (call on the UI thread)
+
+        void SetHeadline(string headline, string detail)
+        {
+            headlineText.Text = headline;
+            detailText.Text = detail ?? "";
+            detailText.Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible;
+        }
 
         void SetProgress(double fraction)
         {
             if (fraction < 0) fraction = 0;
             if (fraction > 1) fraction = 1;
-            percentText.Text = ((int)Math.Floor(fraction * 100)).ToString() + "%";
-            int filled = (int)Math.Round(fraction * SegmentCount);
-            for (int i = 0; i < SegmentCount; i++)
+            targetFraction = fraction;
+            if (quiet || !frameClock.IsRunning || fraction < shownFraction)
             {
-                ((SolidColorBrush)segments[i].Fill).Color = i < filled ? Filled : Empty;
+                shownFraction = fraction;
+                LayoutBars();
             }
+            int percent = (int)Math.Floor(fraction * 100);
+            percentText.Text = percent.ToString();
+            stageText.Text = stageOverride ?? StageFor(percent);
         }
 
-        void SetChip(string text)
+        string StageFor(int percent)
         {
-            chipText.Text = text;
-            chip.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+            if (percent >= 100) return "done";
+            if (uninstallMode) return percent > 0 ? "removing" : "ready";
+            if (percent >= 90) return "almost there";
+            if (percent >= 60) return "installing";
+            if (percent >= 25) return "unpacking";
+            return "starting";
+        }
+
+        void SetStage(string stage)
+        {
+            stageOverride = stage;
+            stageText.Text = stage ?? StageFor((int)Math.Floor(targetFraction * 100));
+        }
+
+        void SetSpeed(string text)
+        {
+            speedText.Text = string.IsNullOrEmpty(text) ? "—" : text;
+        }
+
+        void SetEta(string text)
+        {
+            etaText.Text = string.IsNullOrEmpty(text) ? "—" : text;
         }
 
         void SetButtons(string primaryLabel, Action primary, string secondaryLabel, Action secondary)
@@ -461,28 +964,23 @@ namespace AirPasteInstaller
             return lastError == null ? 0 : 1;
         }
 
-        // --render-preview: the card in each state, saved as PNGs (2x).
+        // --render-preview: the window in each state, saved as PNGs (2x).
         public void RenderPreviews(string directory)
         {
             Directory.CreateDirectory(directory);
-            statusText.Text = uninstallMode ? "Remove AirPaste from this PC? Your canvases and files are kept." : "Installing AirPaste on this PC.";
             if (uninstallMode)
             {
-                SetProgress(0);
-                SetChip(null);
-                SetButtons("Uninstall", null, "Cancel", null);
+                ShowUninstallPrompt();
                 SavePng(System.IO.Path.Combine(directory, "uninstall.png"));
                 return;
             }
+            ShowInstalling();
             SetProgress(0.65);
-            SetChip("↗ 48 MB/s");
-            noteText.Text = "about 4 seconds left";
+            SetSpeed("48 MB/s");
+            SetEta("~4s");
+            stripPhase = 0.35;
             SavePng(System.IO.Path.Combine(directory, "installing.png"));
-            SetProgress(1);
-            statusText.Text = "AirPaste is installed. Find it in Start and on your desktop.";
-            SetChip("✓ done");
-            noteText.Text = "";
-            SetButtons("Open AirPaste", null, "Close", null);
+            ShowInstalled();
             SavePng(System.IO.Path.Combine(directory, "done.png"));
         }
 
@@ -490,15 +988,41 @@ namespace AirPasteInstaller
         {
             FrameworkElement root = (FrameworkElement)Content;
             Content = null;
+            for (int pass = 0; pass < 3; pass++)
+            {
+                root.Measure(new Size(Width, double.PositiveInfinity));
+                root.Arrange(new Rect(new Point(0, 0), new Size(Width, root.DesiredSize.Height)));
+                root.UpdateLayout();
+                SyncEtaDot();
+            }
             root.Measure(new Size(Width, double.PositiveInfinity));
             root.Arrange(new Rect(new Point(0, 0), new Size(Width, root.DesiredSize.Height)));
             root.UpdateLayout();
-            RenderTargetBitmap bitmap = new RenderTargetBitmap((int)(Width * 2), (int)(root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+            LayoutStrip();
+            LayoutBars();
+            root.UpdateLayout();
+            RenderTargetBitmap bitmap = new RenderTargetBitmap((int)(Width * 2), (int)Math.Ceiling(root.DesiredSize.Height * 2), 192, 192, PixelFormats.Pbgra32);
             bitmap.Render(root);
             PngBitmapEncoder encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
             using (FileStream output = File.Create(path)) encoder.Save(output);
             Content = root;
+        }
+
+        void ShowInstalling()
+        {
+            SetHeadline("AirPaste is being installed", "This only takes a moment. You can open AirPaste as soon as it's ready.");
+            SetStage(null);
+            SetButtons(null, null, null, null);
+        }
+
+        void ShowInstalled()
+        {
+            SetHeadline("AirPaste is installed", "Find it in Start and on your desktop.");
+            SetStage(null);
+            SetProgress(1);
+            SetEta("done");
+            SetButtons("Open AirPaste", delegate { LaunchApp(); Close(); }, "Close", delegate { Close(); });
         }
 
         // ---------------------------------------------------------- install
@@ -509,18 +1033,20 @@ namespace AirPasteInstaller
             Process running = FindRunningApp();
             if (running != null)
             {
-                statusText.Text = "AirPaste is open. Close it so setup can update it.";
+                SetHeadline("AirPaste is open", "Close it so setup can update it.");
+                SetStage("waiting");
                 SetProgress(0);
-                SetChip(null);
-                noteText.Text = "";
+                SetSpeed(null);
+                SetEta(null);
                 SetButtons("Close AirPaste", delegate { CloseRunningAppThenInstall(); }, "Cancel", delegate { Close(); });
                 return;
             }
 
             busy = true;
-            statusText.Text = "Installing AirPaste on this PC.";
-            SetChip("↗ starting");
-            noteText.Text = "";
+            ShowInstalling();
+            SetProgress(0);
+            SetSpeed(null);
+            SetEta(null);
             Thread worker = new Thread(InstallWorker) { IsBackground = true };
             worker.Start();
         }
@@ -528,7 +1054,7 @@ namespace AirPasteInstaller
         void CloseRunningAppThenInstall()
         {
             SetButtons(null, null, null, null);
-            statusText.Text = "Closing AirPaste…";
+            SetHeadline("Closing AirPaste…", null);
             Thread worker = new Thread(delegate ()
             {
                 Process running = FindRunningApp();
@@ -617,13 +1143,13 @@ namespace AirPasteInstaller
                                     double seconds = Math.Max(0.001, clock.Elapsed.TotalSeconds);
                                     double speed = doneBytes / seconds;
                                     double left = speed > 0 ? (totalBytes - doneBytes) / speed : 0;
-                                    string chipLabel = "↗ " + Math.Round(speed / (1024 * 1024)).ToString() + " MB/s";
-                                    string note = left >= 1.5 ? "about " + Math.Ceiling(left).ToString() + " seconds left" : "almost there";
+                                    string speedLabel = Math.Round(speed / (1024 * 1024)).ToString() + " MB/s";
+                                    string eta = left >= 60 ? "~" + Math.Ceiling(left / 60).ToString() + "m" : "~" + Math.Max(1, Math.Ceiling(left)).ToString() + "s";
                                     Ui(delegate
                                     {
                                         SetProgress(fraction * 0.96);
-                                        SetChip(chipLabel);
-                                        noteText.Text = note;
+                                        SetSpeed(speedLabel);
+                                        SetEta(eta);
                                     });
                                 }
                             }
@@ -645,20 +1171,17 @@ namespace AirPasteInstaller
                     }
                 }
 
-                Ui(delegate { statusText.Text = "Adding shortcuts…"; SetProgress(0.98); });
+                Ui(delegate { SetStage("shortcuts"); SetProgress(0.98); });
                 string appExe = System.IO.Path.Combine(installDir, Product.ExeName);
                 CreateShortcut(Product.StartMenuShortcut, appExe, installDir);
                 CreateShortcut(Product.DesktopShortcut, appExe, installDir);
                 RegisterUninstall(installDir, appExe, totalBytes);
+                RefreshShellIcons();
 
                 Ui(delegate
                 {
                     busy = false;
-                    SetProgress(1);
-                    statusText.Text = "AirPaste is installed. Find it in Start and on your desktop.";
-                    SetChip("✓ done");
-                    noteText.Text = "";
-                    SetButtons("Open AirPaste", delegate { LaunchApp(); Close(); }, "Close", delegate { Close(); });
+                    ShowInstalled();
                 });
             }
             catch (Exception error)
@@ -668,9 +1191,10 @@ namespace AirPasteInstaller
                 Ui(delegate
                 {
                     busy = false;
-                    statusText.Text = "Setup couldn't finish: " + message;
-                    SetChip(null);
-                    noteText.Text = "";
+                    SetHeadline("Setup couldn't finish", message);
+                    SetStage("stopped");
+                    SetSpeed(null);
+                    SetEta(null);
                     SetButtons("Try again", delegate { StartInstall(); }, "Close", delegate { Close(); });
                 });
             }
@@ -686,6 +1210,19 @@ namespace AirPasteInstaller
         {
             File.SetAttributes(path, FileAttributes.Normal);
             File.Delete(path);
+        }
+
+        [DllImport("shell32.dll")]
+        static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+
+        // Explorer caches icons by file path, so reinstalling over an older
+        // build (or one that had Electron's icon) can keep showing the stale
+        // icon on shortcuts and in Settings > Apps. This tells it to reload.
+        static void RefreshShellIcons()
+        {
+            const int SHCNE_ASSOCCHANGED = 0x08000000;
+            const uint SHCNF_IDLIST = 0x0000;
+            try { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero); } catch { }
         }
 
         static void CreateShortcut(string shortcutPath, string targetPath, string workingDirectory)
@@ -776,10 +1313,11 @@ namespace AirPasteInstaller
 
         void ShowUninstallPrompt()
         {
-            statusText.Text = "Remove AirPaste from this PC? Your canvases and files are kept.";
+            SetHeadline("Remove AirPaste from this PC?", "Your canvases and files are kept.");
+            SetStage(null);
             SetProgress(0);
-            SetChip(null);
-            noteText.Text = "";
+            SetSpeed(null);
+            SetEta(null);
             SetButtons("Uninstall", delegate { StartUninstall(); }, "Cancel", delegate { Close(); });
         }
 
@@ -788,13 +1326,13 @@ namespace AirPasteInstaller
             SetButtons(null, null, null, null);
             if (FindRunningApp() != null)
             {
-                statusText.Text = "AirPaste is open. Close it first, then try again.";
+                SetHeadline("AirPaste is open", "Close it first, then try again.");
                 SetButtons("Try again", delegate { StartUninstall(); }, "Cancel", delegate { Close(); });
                 return;
             }
 
             busy = true;
-            statusText.Text = "Removing AirPaste…";
+            SetHeadline("Removing AirPaste…", "Your canvases and files are kept.");
             Thread worker = new Thread(UninstallWorker) { IsBackground = true };
             worker.Start();
         }
@@ -811,20 +1349,23 @@ namespace AirPasteInstaller
                     if (i % 25 == 0)
                     {
                         double fraction = (double)(i + 1) / Math.Max(1, files.Length);
-                        Ui(delegate { SetProgress(fraction * 0.95); });
+                        string removed = (i + 1).ToString();
+                        Ui(delegate { SetProgress(fraction * 0.95); SetSpeed(removed); });
                     }
                 }
                 try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { }
                 DeleteShortcutIfOurs(Product.StartMenuShortcut, dir);
                 DeleteShortcutIfOurs(Product.DesktopShortcut, dir);
                 try { Registry.CurrentUser.DeleteSubKeyTree(Product.RegistryKey, false); } catch { }
+                RefreshShellIcons();
 
                 Ui(delegate
                 {
                     busy = false;
+                    SetHeadline("AirPaste was removed", "Your canvases are still where you saved them.");
                     SetProgress(1);
-                    statusText.Text = "AirPaste was removed. Your canvases are still where you saved them.";
-                    SetChip("✓ done");
+                    SetSpeed(files.Length.ToString());
+                    SetEta("done");
                     SetButtons("Close", delegate { Close(); }, null, null);
                 });
             }
@@ -834,7 +1375,8 @@ namespace AirPasteInstaller
                 Ui(delegate
                 {
                     busy = false;
-                    statusText.Text = "Couldn't remove everything: " + message;
+                    SetHeadline("Couldn't remove everything", message);
+                    SetStage("stopped");
                     SetButtons("Close", delegate { Close(); }, null, null);
                 });
             }

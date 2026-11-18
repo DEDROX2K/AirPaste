@@ -32,8 +32,8 @@
   position: relative;
   z-index: 20;
   flex: 0 0 var(--canvas-split-divider);
-  background: var(--ap-shell-base, #b0b0b0);
-  color: var(--ap-shell-base, #b0b0b0);
+  background: var(--ap-shell-base, var(--ap-theme-base, #b0b0b0));
+  color: var(--ap-shell-base, var(--ap-theme-base, #b0b0b0));
   cursor: col-resize;
   touch-action: none;
 }
@@ -69,6 +69,26 @@
 .canvas-split__fillet--tr { left: 100%; top: 0; }
 .canvas-split__fillet--bl { right: 100%; bottom: 0; }
 .canvas-split__fillet--br { left: 100%; bottom: 0; }
+
+/* Stacked: top / bottom panes, a horizontal divider. */
+.canvas-split--stacked {
+  flex-direction: column;
+}
+
+.canvas-split--stacked .canvas-split__divider,
+.canvas-split--stacked.canvas-split--resizing {
+  cursor: row-resize;
+}
+
+.canvas-split--stacked .canvas-split__grip {
+  width: 36px;
+  height: 2px;
+}
+
+.canvas-split__fillet--s-tl { left: 0; bottom: 100%; }
+.canvas-split__fillet--s-tr { right: 0; bottom: 100%; }
+.canvas-split__fillet--s-bl { left: 0; top: 100%; }
+.canvas-split__fillet--s-br { right: 0; top: 100%; }
 
 /* While dragging the divider: no text selection, no tile hover churn. */
 .canvas-split--resizing {

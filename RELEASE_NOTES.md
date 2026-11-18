@@ -1,6 +1,6 @@
-# AirPaste v1.0.0 Beta 2
+# AirPaste v1.0.0 Beta 3
 
-Version `1.0.0-beta.2` · Windows · November 2026
+Version `1.0.0-beta.3` · Windows · November 2026
 
 ## Listing
 

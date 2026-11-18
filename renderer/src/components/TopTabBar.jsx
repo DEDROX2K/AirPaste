@@ -6,8 +6,18 @@ import { useToast } from "../hooks/useToast";
 import { desktop } from "../lib/desktop";
 import { openLaunchSplash } from "../lib/launchSplash";
 import CanvasHistoryDialog from "./CanvasHistoryDialog";
-import { AppContextMenu, AppContextMenuContent, AppContextMenuItem, AppContextMenuTrigger } from "./ui/app";
-import { Check, ChevronRight, Copy, ErrorIcon, Home, HomeGlyph, Info, Minus, Pencil, RefreshCw, Share, SplitColumns, Timer, Warning, X } from "./ui/icons";
+import {
+  AppContextMenu,
+  AppContextMenuContent,
+  AppContextMenuItem,
+  AppContextMenuTrigger,
+  AppDropdownMenu,
+  AppDropdownMenuContent,
+  AppDropdownMenuItem,
+  AppDropdownMenuSeparator,
+  AppDropdownMenuTrigger,
+} from "./ui/app";
+import { Check, ChevronRight, Copy, ErrorIcon, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import { useSplitView } from "../context/SplitViewContext";
 import TabDetachOverlay from "./canvas/TabDetachOverlay";
@@ -686,6 +696,100 @@ function mergeTabPresence(previousEntries, nextTabs, measureWidth) {
   return merged;
 }
 
+// The gooey connector between a linked split pair's two tabs. Right-click
+// it, or rest the pointer on it for half a second, for the pair's menu.
+const PAIR_MENU_HOVER_MS = 500;
+const PAIR_MENU_LEAVE_MS = 250;
+
+function SplitPairLink({ stacked, onSeparate, onCloseLeft, onCloseRight, onToggleStacked, onReverse }) {
+  const [open, setOpen] = useState(false);
+  const openTimer = useRef(0);
+  const closeTimer = useRef(0);
+
+  const clearTimers = useCallback(() => {
+    window.clearTimeout(openTimer.current);
+    window.clearTimeout(closeTimer.current);
+  }, []);
+  useEffect(() => clearTimers, [clearTimers]);
+
+  const scheduleOpen = () => {
+    window.clearTimeout(closeTimer.current);
+    if (open) return;
+    window.clearTimeout(openTimer.current);
+    openTimer.current = window.setTimeout(() => setOpen(true), PAIR_MENU_HOVER_MS);
+  };
+  // Leaving the connector or the menu closes it, unless the pointer moves
+  // between the two within a moment.
+  const scheduleClose = () => {
+    clearTimers();
+    closeTimer.current = window.setTimeout(() => setOpen(false), PAIR_MENU_LEAVE_MS);
+  };
+
+  return (
+    <AppDropdownMenu open={open} onOpenChange={(next) => { clearTimers(); setOpen(next); }} modal={false}>
+      <AppDropdownMenuTrigger asChild>
+        <span
+          className={`titlebar-pair-link${open ? " is-open" : ""}`}
+          role="button"
+          aria-label="Split view options"
+          onPointerEnter={scheduleOpen}
+          onPointerLeave={scheduleClose}
+          // Not the window drag (the bar moves the window on presses), and
+          // only right-click or hover opens the menu.
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (event.button !== 2) event.preventDefault();
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clearTimers();
+            setOpen(true);
+          }}
+        />
+      </AppDropdownMenuTrigger>
+      <AppDropdownMenuContent
+        className="titlebar-tab-menu titlebar-pair-menu"
+        side="bottom"
+        align="center"
+        sideOffset={6}
+        onPointerEnter={() => window.clearTimeout(closeTimer.current)}
+        onPointerLeave={scheduleClose}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <AppDropdownMenuItem onSelect={onSeparate}>
+          <Unlink size={15} aria-hidden="true" />
+          Separate views
+        </AppDropdownMenuItem>
+        <AppDropdownMenuSeparator />
+        <AppDropdownMenuItem onSelect={onCloseLeft}>
+          <PaneLeft size={15} aria-hidden="true" />
+          {stacked ? "Close top view" : "Close left view"}
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem disabled={!onCloseRight} onSelect={onCloseRight}>
+          <PaneRight size={15} aria-hidden="true" />
+          {stacked ? "Close bottom view" : "Close right view"}
+        </AppDropdownMenuItem>
+        <AppDropdownMenuSeparator />
+        <AppDropdownMenuItem onSelect={onToggleStacked}>
+          {stacked ? <SplitColumns size={15} aria-hidden="true" /> : <SplitRows size={15} aria-hidden="true" />}
+          {stacked ? "Show side by side" : "Show stacked"}
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem onSelect={onReverse}>
+          <SwapHorizontal size={15} aria-hidden="true" />
+          Reverse views
+        </AppDropdownMenuItem>
+        <AppDropdownMenuSeparator />
+        {/* No feedback channel exists yet. */}
+        <AppDropdownMenuItem disabled title="Not available yet">
+          <Feedback size={15} aria-hidden="true" />
+          Send feedback
+        </AppDropdownMenuItem>
+      </AppDropdownMenuContent>
+    </AppDropdownMenu>
+  );
+}
+
 export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const {
     tabs,
@@ -704,7 +808,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const previousRectsRef = useRef(new Map());
   const [draggedTabId, setDraggedTabId] = useState(null);
   const [historyDialogTab, setHistoryDialogTab] = useState(null);
-  const { getSplitPartner, splitWithTab, floatTab, pairedPaths, activeTabPath, separatePair } = useSplitView();
+  const { getSplitPartner, splitWithTab, floatTab, pairedPaths, activeTabPath, separatePair, reversePair, toggleStacked, stacked } = useSplitView();
   const [detachState, setDetachState] = useState(null);
   const detachOverlayRef = useRef(null);
   const rootRef = useRef(null);
@@ -1127,6 +1231,20 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
               shouldIgnoreClick={() => suppressClickRef.current}
               onSeparate={pairSide ? () => separatePair(tab.entityId) : undefined}
             />
+            {pairSide === "left" ? (() => {
+              const pair = pairedPaths.get(tab.entityId);
+              const rightTab = tabs.find((entry) => entry.type === "canvas" && entry.entityId === pair?.rightPath);
+              return (
+                <SplitPairLink
+                  stacked={stacked}
+                  onSeparate={() => separatePair(tab.entityId)}
+                  onCloseLeft={() => closeTab(tab.id)}
+                  onCloseRight={rightTab ? () => closeTab(rightTab.id) : undefined}
+                  onToggleStacked={toggleStacked}
+                  onReverse={() => reversePair(tab.entityId)}
+                />
+              );
+            })() : null}
           </div>
           );
         })}

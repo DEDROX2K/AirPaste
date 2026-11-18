@@ -2,7 +2,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { useAppContext } from "../../context/useAppContext";
 import { useSplitView } from "../../context/SplitViewContext";
 import { useTabs } from "../../context/useTabs";
-import { SPLIT_DIVIDER_WIDTH, clampSplitRatio } from "../../systems/canvas/splitView";
+import { SPLIT_DIVIDER_WIDTH, SPLIT_MIN_PANE_HEIGHT, SPLIT_MIN_PANE_WIDTH, clampSplitRatio } from "../../systems/canvas/splitView";
 import EdgeConnector from "../ui/app/icons/EdgeConnector";
 import { SplitPanePagesPanel } from "../LeftPagesPanel";
 import { CanvasPaneContext } from "../../context/CanvasPaneContext";
@@ -10,17 +10,20 @@ import { CanvasFileScope, CanvasPageScope } from "./CanvasPane";
 import { useCanvasPaneRegistry } from "./canvasPaneRegistry";
 import "./CanvasSplitLayout.css";
 
-function useElementWidth(ref) {
-  const [width, setWidth] = useState(0);
+function useElementSize(ref) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const node = ref.current;
     if (!node) return undefined;
-    setWidth(node.getBoundingClientRect().width);
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const rect = node.getBoundingClientRect();
+    setSize({ width: rect.width, height: rect.height });
+    const observer = new ResizeObserver(([entry]) => {
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
     observer.observe(node);
     return () => observer.disconnect();
   }, [ref]);
-  return width;
+  return size;
 }
 
 // Right pane showing another file: that file's own pages (from the scoped
@@ -78,6 +81,7 @@ export default function CanvasSplitLayout({ CanvasView }) {
     updatePagePane,
     setRatio,
     floatFocused,
+    stacked,
   } = useSplitView();
   const filePath = currentEditor.kind === "canvas" ? currentEditor.filePath : null;
   const splitEnabled = Boolean(rightPane && filePath);
@@ -93,13 +97,16 @@ export default function CanvasSplitLayout({ CanvasView }) {
     leftPaneRef.current = node;
     registry.paneElementRef("left")(node);
   }, [registry]);
-  const containerWidth = useElementWidth(containerRef);
+  const containerSize = useElementSize(containerRef);
+  // Side by side splits along the width, stacked along the height.
+  const containerLength = stacked ? containerSize.height : containerSize.width;
+  const minPane = stacked ? SPLIT_MIN_PANE_HEIGHT : SPLIT_MIN_PANE_WIDTH;
 
   useEffect(() => {
     if (!splitEnabled) setActivePaneState("left");
   }, [splitEnabled]);
 
-  const ratio = clampSplitRatio(savedRatio, containerWidth);
+  const ratio = clampSplitRatio(savedRatio, containerLength, minPane);
   // Each page keeps its own camera: open it where it was saved.
   const handleRightPageSelect = useCallback((pageId) => {
     const page = workspaceRef.current.pages?.find((entry) => entry.id === pageId);
@@ -130,7 +137,9 @@ export default function CanvasSplitLayout({ CanvasView }) {
     let frame = 0;
 
     const handleMove = (moveEvent) => {
-      nextRatio = clampSplitRatio((moveEvent.clientX - rect.left) / rect.width, rect.width);
+      nextRatio = stacked
+        ? clampSplitRatio((moveEvent.clientY - rect.top) / rect.height, rect.height, minPane)
+        : clampSplitRatio((moveEvent.clientX - rect.left) / rect.width, rect.width, minPane);
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
@@ -153,16 +162,18 @@ export default function CanvasSplitLayout({ CanvasView }) {
     handle.addEventListener("pointermove", handleMove);
     handle.addEventListener("pointerup", finish);
     handle.addEventListener("pointercancel", finish);
-  }, [setRatio]);
+  }, [minPane, setRatio, stacked]);
 
   const handleDividerKeyDown = useCallback((event) => {
     const step = event.shiftKey ? 0.1 : 0.02;
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const back = stacked ? "ArrowUp" : "ArrowLeft";
+    const forward = stacked ? "ArrowDown" : "ArrowRight";
+    if (event.key !== back && event.key !== forward) return;
     event.preventDefault();
     event.stopPropagation();
-    const delta = event.key === "ArrowLeft" ? -step : step;
-    setRatio((current) => clampSplitRatio(current + delta, containerWidth));
-  }, [containerWidth, setRatio]);
+    const delta = event.key === back ? -step : step;
+    setRatio((current) => clampSplitRatio(current + delta, containerLength, minPane));
+  }, [containerLength, minPane, setRatio, stacked]);
 
   const leftPaneContext = useMemo(() => ({
     paneId: "left",
@@ -200,7 +211,7 @@ export default function CanvasSplitLayout({ CanvasView }) {
   return (
     <div
       ref={containerRef}
-      className={`canvas-split${splitEnabled ? " canvas-split--on" : ""}`}
+      className={`canvas-split${splitEnabled ? " canvas-split--on" : ""}${splitEnabled && stacked ? " canvas-split--stacked" : ""}`}
     >
       <div
         className="canvas-split__pane canvas-split__pane--left"
@@ -220,7 +231,7 @@ export default function CanvasSplitLayout({ CanvasView }) {
           <div
             className="canvas-split__divider"
             role="separator"
-            aria-orientation="vertical"
+            aria-orientation={stacked ? "horizontal" : "vertical"}
             aria-label="Resize split panes"
             aria-valuenow={Math.round(ratio * 100)}
             aria-valuemin={0}
@@ -230,12 +241,24 @@ export default function CanvasSplitLayout({ CanvasView }) {
             onKeyDown={handleDividerKeyDown}
             onDoubleClick={() => setRatio(0.5)}
           >
-            {/* Fillets where the divider meets the top bar and the bottom
-                edge, so each pane reads as its own rounded card. */}
-            <EdgeConnector corner="top-right" className="canvas-split__fillet canvas-split__fillet--tl" />
-            <EdgeConnector corner="top-left" className="canvas-split__fillet canvas-split__fillet--tr" />
-            <EdgeConnector corner="bottom-right" className="canvas-split__fillet canvas-split__fillet--bl" />
-            <EdgeConnector corner="bottom-left" className="canvas-split__fillet canvas-split__fillet--br" />
+            {/* Fillets where the divider meets the card's edges, so each
+                pane reads as its own rounded card. Named for the pane
+                corner each one rounds. */}
+            {stacked ? (
+              <>
+                <EdgeConnector corner="bottom-left" className="canvas-split__fillet canvas-split__fillet--s-tl" />
+                <EdgeConnector corner="bottom-right" className="canvas-split__fillet canvas-split__fillet--s-tr" />
+                <EdgeConnector corner="top-left" className="canvas-split__fillet canvas-split__fillet--s-bl" />
+                <EdgeConnector corner="top-right" className="canvas-split__fillet canvas-split__fillet--s-br" />
+              </>
+            ) : (
+              <>
+                <EdgeConnector corner="top-right" className="canvas-split__fillet canvas-split__fillet--tl" />
+                <EdgeConnector corner="top-left" className="canvas-split__fillet canvas-split__fillet--tr" />
+                <EdgeConnector corner="bottom-right" className="canvas-split__fillet canvas-split__fillet--bl" />
+                <EdgeConnector corner="bottom-left" className="canvas-split__fillet canvas-split__fillet--br" />
+              </>
+            )}
             <span className="canvas-split__grip" aria-hidden="true" />
           </div>
           <div

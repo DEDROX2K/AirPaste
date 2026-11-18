@@ -1,6 +1,6 @@
 {
   "name": "airpaste",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "private": true,
   "description": "AirPaste is a local-first desktop canvas for everything you save. Paste links, images, files and notes, then arrange them freely on an infinite board. Your canvases stay as plain files on your computer: private, offline and yours.",
   "keywords": [
@@ -46,6 +46,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "vite build --config vite.config.mjs",
+    "icons": "node scripts/sync-icons.js",
+    "prepackage": "node scripts/sync-icons.js",
     "package": "npm run build && electron-builder --publish never",
     "package:win": "node scripts/package-windows.js"
   },

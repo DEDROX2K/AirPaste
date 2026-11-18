@@ -526,6 +526,10 @@
   position: relative;
   aspect-ratio: 16 / 10;
   background: var(--ap-bg-base);
+  background-clip: padding-box;
+  /* Transparent edge: the card's own fill (hover, colour marks) frames it. */
+  border: 5px solid transparent;
+  border-radius: 12px;
   overflow: hidden;
 }
 

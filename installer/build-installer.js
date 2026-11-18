@@ -51,7 +51,7 @@ function buildInstaller() {
     "/optimize+",
     `/out:${stubPath}`,
     `/win32icon:${path.join(projectRoot, "build", "icon.ico")}`,
-    `/resource:${path.join(projectRoot, "public", "logo.png")},logo.png`,
+    `/resource:${path.join(__dirname, "assets", "strip.png")},strip.png`,
     `/resource:${versionPath},version.txt`,
     `/reference:${path.join(wpfDir, "PresentationFramework.dll")}`,
     `/reference:${path.join(wpfDir, "PresentationCore.dll")}`,

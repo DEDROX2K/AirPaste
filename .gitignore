@@ -2,7 +2,11 @@ node_modules/
 dist-renderer/
 release/
 dist/
-build/
+# build/ holds generated packaging files, but the app icons must be committed:
+# without them a clean checkout (CI) packages with Electron's default icon.
+build/*
+!build/icon.ico
+!build/icon.png
 
 .env
 

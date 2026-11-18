@@ -57,9 +57,11 @@ import {
   Star,
   TileCard,
   Trash2,
+  Palette,
   Warning,
   X,
 } from "./ui/icons";
+import { ThemePickerPopover } from "./home/ThemePicker";
 const ConstellationView = lazy(() => import("./constellation/ConstellationView"));
 import "./HomeShell.css";
 import HomeCanvasPeek from "./home/HomeCanvasPeek";
@@ -877,11 +879,36 @@ function HomeSidebarContent({
             {pendingDome?.path || folderPath || activeDome?.path || "Workspace path unavailable."}
           </p>
         </div>
+        <ThemeSidebarButton />
         <AppButton type="button" tone="surface" className="ap-home-sidebar-action" onClick={onManageWorkspaces} title="Manage Workspaces">
           <Settings2 size={15} aria-hidden="true" />
           <span className="ap-home-sidebar-action__label">Manage Workspaces</span>
         </AppButton>
       </div>
+    </>
+  );
+}
+
+function ThemeSidebarButton() {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  return (
+    <>
+      <AppButton
+        ref={anchorRef}
+        type="button"
+        tone="surface"
+        className={`ap-home-sidebar-action${open ? " is-open" : ""}`}
+        onClick={() => setOpen((value) => !value)}
+        title="Theme"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+      >
+        <Palette size={15} aria-hidden="true" />
+        <span className="ap-home-sidebar-action__label">Theme</span>
+      </AppButton>
+      <ThemePickerPopover anchorRef={anchorRef} open={open} onClose={close} />
     </>
   );
 }

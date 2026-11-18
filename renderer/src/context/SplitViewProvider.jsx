@@ -187,6 +187,23 @@ export function SplitViewProvider({ children }) {
     setPreferredPane("left");
   }, [updateSplit]);
 
+  // Swaps the two halves of the pair `filePath` belongs to. The new left
+  // half's tab becomes the active one (the layout is built around it).
+  const reversePair = useCallback((filePath) => {
+    const found = split ? findFilePair(split, filePath) : null;
+    if (!found) return;
+    updateSplit((current) => openFilePair(current, found.rightPath, found.leftPath));
+    placeTabsSideBySide(found.rightPath, found.leftPath);
+    const newLeft = tabForPath(found.rightPath);
+    if (newLeft) setActiveTab(newLeft.id);
+    setPreferredPane("left");
+  }, [placeTabsSideBySide, setActiveTab, split, tabForPath, updateSplit]);
+
+  // Side by side <-> stacked (top / bottom), for every split.
+  const toggleStacked = useCallback(() => {
+    updateSplit((current) => ({ ...current, stacked: !current.stacked }));
+  }, [updateSplit]);
+
   const closeSplit = useCallback(() => {
     const path = activePathRef.current;
     if (!path) return;
@@ -303,6 +320,9 @@ export function SplitViewProvider({ children }) {
     ready: Boolean(split),
     activeTabPath: activePath,
     ratio: split?.ratio ?? 0.5,
+    stacked: split?.stacked === true,
+    reversePair,
+    toggleStacked,
     rightPane,
     floating: split?.floating ?? null,
     pairedPaths,
@@ -335,12 +355,14 @@ export function SplitViewProvider({ children }) {
     openPageSplitFor,
     pairedPaths,
     preferredPane,
+    reversePair,
     rightPane,
     separatePair,
     setRatio,
     split,
     splitWithTab,
     toggleSplit,
+    toggleStacked,
     updateFloat,
     updatePagePane,
   ]);

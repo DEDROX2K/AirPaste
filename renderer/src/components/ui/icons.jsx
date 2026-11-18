@@ -8,6 +8,7 @@ import {
   ArrowBarLeft,
   ArrowLeft as PixelArrowLeft,
   Brush as PixelBrush,
+  ColorsSwatch,
   Checkbox as PixelCheckbox,
   Terminal as PixelTerminal,
   ArrowBarRight,
@@ -31,6 +32,8 @@ import {
   Circle as PixelCircle,
   CircleInfo,
   Close,
+  ArrowsHorizontal as PixelArrowsHorizontal,
+  MessageText as PixelMessageText,
   CloudSun as PixelCloudSun,
   Copy as PixelCopy,
   Download,
@@ -239,6 +242,7 @@ export const Bolt = pixelIcon(Zap, "Bolt");
 export const Code = pixelIcon(PixelCode, "Code");
 export const ArrowLeft = pixelIcon(PixelArrowLeft, "ArrowLeft");
 export const Highlighter = pixelIcon(PixelBrush, "Highlighter");
+export const Palette = pixelIcon(ColorsSwatch, "Palette");
 export const CheckboxEmpty = pixelIcon(PixelCheckbox, "CheckboxEmpty");
 export const CodeBlock = pixelIcon(PixelTerminal, "CodeBlock");
 export const Gauge = pixelIcon(SpeedFast, "Gauge");
@@ -261,3 +265,25 @@ function SplitColumnsGlyph(props) {
 }
 
 export const SplitColumns = pixelIcon(SplitColumnsGlyph, "SplitColumns");
+
+// Split pair menu (the connector between linked tabs): a frame with one
+// side marked, and the panes stacked top / bottom.
+const FRAME_PATH = "M2 3h20v2H2zM2 19h20v2H2zM2 5h2v14H2zM20 5h2v14h-2z";
+
+function pathGlyph(d, name) {
+  function Glyph(props) {
+    return (
+      <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
+        <path d={d} />
+      </svg>
+    );
+  }
+  Glyph.displayName = name;
+  return Glyph;
+}
+
+export const PaneLeft = pixelIcon(pathGlyph(`${FRAME_PATH}M9 5h2v14H9zM5 10h2v4H5z`, "PaneLeftGlyph"), "PaneLeft");
+export const PaneRight = pixelIcon(pathGlyph(`${FRAME_PATH}M13 5h2v14h-2zM17 10h2v4h-2z`, "PaneRightGlyph"), "PaneRight");
+export const SplitRows = pixelIcon(pathGlyph(`${FRAME_PATH}M4 11h16v2H4z`, "SplitRowsGlyph"), "SplitRows");
+export const SwapHorizontal = pixelIcon(PixelArrowsHorizontal, "SwapHorizontal");
+export const Feedback = pixelIcon(PixelMessageText, "Feedback");

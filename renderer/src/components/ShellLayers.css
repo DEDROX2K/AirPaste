@@ -15,7 +15,7 @@
    MonochromeUi. */
 
 .app-shell--ready .app-window {
-  --ap-shell-base: #b0b0b0;
+  --ap-shell-base: var(--ap-theme-base, #b0b0b0);
     --ap-shell-gap-x: 8px;
     --ap-shell-gap-b: 8px;
     --ap-shell-card-radius: 5px;

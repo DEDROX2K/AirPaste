@@ -30,3 +30,32 @@ export function normalizeQuickNote(value) {
     items,
   };
 }
+
+// First-run intro: the very first time the app shows a quick note (on any
+// Dome), it opens with two editable starter tasks. Remembered app-wide in
+// localStorage so later Domes, and later launches, start empty.
+export const QUICK_NOTE_WELCOME_STORAGE_KEY = "airpaste.quickNote.welcomed";
+export const QUICK_NOTE_WELCOME_TEXTS = [
+  "Welcome to AirPaste",
+  "This is a quick checklist you can add things into and hide it quick!",
+];
+
+export function makeWelcomeQuickNote() {
+  return {
+    open: true,
+    items: QUICK_NOTE_WELCOME_TEXTS.map((text) => makeQuickNoteItem({ text })),
+  };
+}
+
+// Claims the one-time welcome: true only on the first call ever (per
+// install), when the folder has no saved quick note yet.
+export function claimQuickNoteWelcome(savedQuickNote, storage = globalThis.localStorage) {
+  if (savedQuickNote && typeof savedQuickNote === "object") return false;
+  try {
+    if (!storage || storage.getItem(QUICK_NOTE_WELCOME_STORAGE_KEY) === "true") return false;
+    storage.setItem(QUICK_NOTE_WELCOME_STORAGE_KEY, "true");
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -7,7 +7,7 @@
 .quick-note-launcher {
   /* Same grey as the window base (ShellLayers.css), so the panel reads as
      the frame growing into the corner. */
-  --quick-note-frame: var(--ap-shell-base, #b0b0b0);
+  --quick-note-frame: var(--ap-shell-base, var(--ap-theme-base, #b0b0b0));
   --quick-note-sheet: #dbe7fd;
   --quick-note-ink: #1463ff;
   --quick-note-rule: rgba(20, 99, 255, 0.1);
@@ -43,11 +43,11 @@
   z-index: var(--quick-note-z);
   display: inline-grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: 0;
-  border-radius: 14px 0 0 0;
+  border-radius: 12px 0 0 0;
   background: var(--quick-note-frame);
   color: #fff;
   cursor: pointer;
@@ -100,7 +100,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  width: 300px;
+  width: 248px;
   max-width: calc(100vw - 24px);
   color: var(--quick-note-frame);
   animation: quick-note-grow 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
@@ -147,9 +147,9 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 24px;
-  border-top-left-radius: 10px;
+  width: 30px;
+  height: 20px;
+  border-top-left-radius: 9px;
   background: var(--quick-note-frame);
 }
 
@@ -175,11 +175,11 @@
 .quick-note__close {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: #fff;
   cursor: pointer;
@@ -197,17 +197,17 @@
 .quick-note__frame {
   align-self: stretch;
   /* Right/bottom match the window gap (--ap-shell-gap-x/-b). */
-  padding: 10px 8px 8px 10px;
+  padding: 8px 8px 8px 8px;
   border-top-left-radius: 24px;
   background: var(--quick-note-frame);
 }
 
 .quick-note__sheet {
-  max-height: min(520px, calc(100vh - 180px));
+  max-height: min(420px, calc(100vh - 180px));
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px 14px;
-  border-radius: 16px;
+  padding: 6px 11px;
+  border-radius: 13px;
   background: var(--quick-note-sheet);
   scrollbar-width: thin;
 }
@@ -219,11 +219,11 @@
 }
 
 .quick-note__row {
-  --quick-note-line: 21px;
+  --quick-note-line: 17px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
+  gap: 8px;
+  min-height: 33px;
   border-bottom: 1px solid var(--quick-note-rule);
 }
 
@@ -235,11 +235,11 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 17px;
+  height: 17px;
   padding: 0;
   border: 2px solid var(--quick-note-ink);
-  border-radius: 7px;
+  border-radius: 5px;
   background: transparent;
   color: #fff;
   cursor: pointer;
@@ -281,7 +281,7 @@
   min-width: 2ch;
   max-width: 100%;
   margin: 0;
-  padding: 10px 0;
+  padding: 8px 0;
   border: 0;
   outline: none;
   resize: none;
@@ -290,9 +290,9 @@
   color: var(--quick-note-ink);
   caret-color: var(--quick-note-ink);
   font: inherit;
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 500;
-  line-height: var(--quick-note-line, 21px);
+  line-height: var(--quick-note-line, 17px);
   letter-spacing: -0.01em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -303,7 +303,7 @@
 }
 
 .quick-note__row > .quick-note__check {
-  margin-top: 9.5px;
+  margin-top: 8px;
 }
 
 .quick-note__input--draft {
@@ -344,7 +344,7 @@
 .quick-note__scribble path {
   fill: none;
   stroke: var(--quick-note-ink);
-  stroke-width: 2.4;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 1;

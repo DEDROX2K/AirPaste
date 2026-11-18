@@ -3,16 +3,13 @@ const fsSync = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const pngToIco = require("png-to-ico").default;
 const { buildInstaller } = require("../installer/build-installer");
+const { syncIconAssets } = require("./sync-icons");
 
 const projectRoot = path.resolve(__dirname, "..");
 const buildDir = path.join(projectRoot, "build");
 const distDir = path.join(projectRoot, "dist");
 const releaseDir = path.join(projectRoot, "release");
-const publicLogoPath = path.join(projectRoot, "public", "logo.png");
-const buildIconPngPath = path.join(buildDir, "icon.png");
-const buildLogoPngPath = path.join(buildDir, "logo.png");
 const buildIconIcoPath = path.join(buildDir, "icon.ico");
 const releaseIconDir = path.join(releaseDir, ".icon-ico");
 const releaseIconPath = path.join(releaseIconDir, "icon.ico");
@@ -98,19 +95,6 @@ function findLatestRcedit() {
     });
 
   return entries[0] ? path.join(entries[0].fullPath, "rcedit-x64.exe") : "";
-}
-
-async function syncIconAssets() {
-  if (!(await pathExists(publicLogoPath))) {
-    throw new Error(`Missing logo source at ${publicLogoPath}`);
-  }
-
-  await fs.mkdir(buildDir, { recursive: true });
-  await fs.copyFile(publicLogoPath, buildIconPngPath);
-  await fs.copyFile(publicLogoPath, buildLogoPngPath);
-
-  const iconBuffer = await pngToIco(publicLogoPath);
-  await fs.writeFile(buildIconIcoPath, iconBuffer);
 }
 
 async function cleanOutputs() {

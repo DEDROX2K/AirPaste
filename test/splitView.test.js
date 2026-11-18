@@ -73,12 +73,18 @@ describe("applyInPageScope", () => {
 });
 
 describe("split view state", () => {
+  it("keeps the stacked layout flag", () => {
+    expect(normalizeSplitView({ stacked: true }).stacked).toBe(true);
+    expect(normalizeSplitView({ stacked: "yes" }).stacked).toBe(false);
+  });
+
   it("normalizes junk into a closed 50/50 split", () => {
-    expect(normalizeSplitView(null)).toEqual({ ratio: 0.5, panes: {}, floating: null });
+    expect(normalizeSplitView(null)).toEqual({ ratio: 0.5, stacked: false, panes: {}, floating: null });
     // The old global `enabled` flag is dropped; panes keep their page.
     expect(normalizeSplitView({ enabled: true, ratio: 3, panes: { f: { pageId: 1, viewport: { x: 1 } }, g: { enabled: true, pageId: "p", filePath: "g" } } }))
       .toEqual({
         ratio: 0.85,
+        stacked: false,
         panes: {
           f: { enabled: false, filePath: null, pageId: null, viewport: null },
           g: { enabled: true, filePath: null, pageId: "p", viewport: null },

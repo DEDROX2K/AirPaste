@@ -748,8 +748,16 @@
   }
 }
 
+.titlebar-tabs {
+  /* Tab fills. The selected tab is always white; the theme
+     (design/appTheme.css) recolours the other two. */
+  --tab-shape-idle: #dadada;
+  --tab-shape-hover: #d0d0d0;
+  --tab-shape-active: #ffffff;
+}
+
 .titlebar-tab {
-  --shape: #dadada;
+  --shape: var(--tab-shape-idle);
   --top: var(--tab-unsel-top);
   position: relative;
   display: flex;
@@ -760,11 +768,11 @@
 }
 
 .titlebar-tab:not(.titlebar-tab--active):hover {
-  --shape: #d0d0d0;
+  --shape: var(--tab-shape-hover);
 }
 
 .titlebar-tab--active {
-  --shape: #f5f5f7;
+  --shape: var(--tab-shape-active);
   --top: var(--tab-sel-top);
 }
 
@@ -1172,48 +1180,77 @@
   box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.18);
 }
 
-/* Split screen: two tabs linked as a pair (always side by side) sit
-   together in one green rounded box; each tab inside is a full pill. The
-   box is drawn as two halves (one per tab) meeting across the gap. */
+/* Split screen: two tabs linked as a pair (always side by side). Their
+   outer ends stay fully round, their inner ends are cut square, and a gooey
+   connector (.titlebar-pair-link, the "splitscreentab connector" SVG used
+   as a mask) fills the gap between them. It takes the tabs' own fill, so
+   the three read as one shape, and hovering any of them hovers all three. */
 .titlebar-tabs {
-  --tab-pair-pad: 4px;
-  --tab-pair-bg: #6cbb5c;
+  /* The connector's own aspect ratio (39.39 x 27.11), at tab height. */
+  --tab-pair-link-w: calc(var(--tab-h) * 39.39 / 27.11);
+  --tab-pair-link-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 39.3885 27.1094' preserveAspectRatio='none'%3E%3Cpath d='M0.264543 0C3.31529 0 6.13122 1.00709 8.39638 2.70801V2.70605L8.40712 2.7168C9.51052 3.5471 10.4818 4.543 11.287 5.66602L13.3778 9.39327C15.913 13.6934 24.0947 13.6602 25.788 9.39327L27.8222 5.72168C30.2778 2.25922 34.3186 1.65082e-07 38.8866 0H39.3885V27.1094H38.8866C34.3183 27.1094 30.2778 24.8495 27.8222 21.3867L25.788 17.8749C22.9219 13.1458 16.0687 13.1458 13.3778 17.8749L11.287 21.4424C10.4819 22.5655 9.51054 23.5612 8.40712 24.3916L8.39638 24.4033V24.4004C6.13114 26.1015 3.3155 27.1094 0.264543 27.1094H0V0H0.264543Z'/%3E%3C/svg%3E");
 }
 
+/* The flex gap is 5px; the margin makes the gap the connector's width. */
 .titlebar-tab-shell--paired-left {
-  margin-left: var(--tab-pair-pad);
-  margin-right: 3px;
+  margin-right: calc(var(--tab-pair-link-w) - 5px);
 }
 
-.titlebar-tab-shell--paired-right {
-  margin-right: var(--tab-pair-pad);
+.titlebar-tab-shell--paired-left .titlebar-tab__body {
+  border-radius: calc(var(--tab-h) / 2) 0 0 calc(var(--tab-h) / 2) !important;
 }
 
-.titlebar-tab-shell--paired > .titlebar-tab::before {
-  content: "";
+.titlebar-tab-shell--paired-right .titlebar-tab__body {
+  border-radius: 0 calc(var(--tab-h) / 2) calc(var(--tab-h) / 2) 0 !important;
+}
+
+/* Pair fills: --pair-idle is the unselected fill, raised to the hover fill
+   while the pointer is on either tab or the connector. */
+.titlebar-tab-shell--paired {
+  --pair-idle: var(--tab-shape-idle);
+}
+
+.titlebar-tab-shell--paired-left:is(:hover, :has(+ .titlebar-tab-shell--paired-right:hover)),
+.titlebar-tab-shell--paired-left:hover + .titlebar-tab-shell--paired-right,
+.titlebar-tab-shell--paired-right:hover {
+  --pair-idle: var(--tab-shape-hover);
+}
+
+.titlebar-tab-shell--paired > .titlebar-tab:not(.titlebar-tab--active) {
+  --shape: var(--pair-idle);
+}
+
+/* The connector blends from the left tab's fill to the right tab's. */
+.titlebar-tab-shell--paired-left {
+  --pair-link-l: var(--pair-idle);
+  --pair-link-r: var(--pair-idle);
+}
+
+.titlebar-tab-shell--paired-left:has(> .titlebar-tab--active) {
+  --pair-link-l: var(--tab-shape-active);
+}
+
+.titlebar-tab-shell--paired-left:has(+ .titlebar-tab-shell--paired-right > .titlebar-tab--active) {
+  --pair-link-r: var(--tab-shape-active);
+}
+
+.titlebar-pair-link {
   position: absolute;
-  top: calc(var(--tab-sel-top) - var(--tab-pair-pad));
-  height: calc(var(--tab-h) + var(--tab-pair-pad) * 2);
-  z-index: 0;
-  background: var(--tab-pair-bg);
-  pointer-events: none;
+  top: var(--tab-sel-top);
+  left: 100%;
+  z-index: 2;
+  width: var(--tab-pair-link-w);
+  height: var(--tab-h);
+  background: linear-gradient(90deg, var(--pair-link-l), var(--pair-link-r));
+  -webkit-mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
+  mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
+  cursor: var(--ap-cursor-pointer, pointer);
+  -webkit-app-region: no-drag;
 }
 
-.titlebar-tab-shell--paired-left > .titlebar-tab::before {
-  left: calc(var(--tab-pair-pad) * -1);
-  /* Across the flex gap (5px) plus this tab's extra margin. */
-  right: -8px;
-  border-radius: calc(var(--tab-h) / 2 + var(--tab-pair-pad)) 0 0 calc(var(--tab-h) / 2 + var(--tab-pair-pad));
-}
-
-.titlebar-tab-shell--paired-right > .titlebar-tab::before {
-  left: 0;
-  right: calc(var(--tab-pair-pad) * -1);
-  border-radius: 0 calc(var(--tab-h) / 2 + var(--tab-pair-pad)) calc(var(--tab-h) / 2 + var(--tab-pair-pad)) 0;
-}
-
-.titlebar-tab-shell--paired .titlebar-tab__body {
-  border-radius: calc(var(--tab-h) / 2) !important;
+.titlebar-pair-link:focus-visible {
+  outline: none;
+  filter: brightness(0.94);
 }
 
 /* A tab pulled down onto the split / float drop boxes. */

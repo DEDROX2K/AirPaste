@@ -15,6 +15,8 @@ import "./components/CanvasDockPolish.css";
 import "./components/SimpleUi.css";
 import "./components/MonochromeUi.css";
 import "./components/ShellLayers.css";
+import "./design/appTheme.css";
+import "./lib/appTheme";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <StrictMode>

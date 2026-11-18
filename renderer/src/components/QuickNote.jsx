@@ -5,7 +5,9 @@ import { desktop } from "../lib/desktop";
 import {
   QUICK_NOTE_MAX_ITEMS,
   QUICK_NOTE_SAVE_DEBOUNCE_MS,
+  claimQuickNoteWelcome,
   makeQuickNoteItem,
+  makeWelcomeQuickNote,
   normalizeQuickNote,
 } from "../lib/quickNote";
 import { Check, ListChecks, X } from "./ui/icons";
@@ -169,7 +171,7 @@ function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
         className="quick-note__check"
         onClick={() => onToggle(item.id)}
       >
-        {item.checked ? <Check size={14} /> : null}
+        {item.checked ? <Check size={11} /> : null}
       </button>
       <span ref={wrapRef} className="quick-note__text">
         <textarea
@@ -234,7 +236,16 @@ export default function QuickNote() {
       .catch(() => null)
       .then((uiState) => {
         if (cancelled) return;
-        setNote(normalizeQuickNote(uiState?.quickNote));
+        // First run ever: open with two starter tasks and save them, so the
+        // intro is a normal, editable note from then on.
+        if (claimQuickNoteWelcome(uiState?.quickNote)) {
+          const welcome = makeWelcomeQuickNote();
+          setNote(welcome);
+          void Promise.resolve(desktop.workspace.saveUiState(folderPath, { quickNote: welcome }))
+            .catch(() => {});
+        } else {
+          setNote(normalizeQuickNote(uiState?.quickNote));
+        }
         setLoadedFor(folderPath);
       });
 
@@ -400,7 +411,7 @@ export default function QuickNote() {
         >
           <EdgeConnector className="quick-note__fillet quick-note__fillet--above-tab" />
           <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-tab" />
-          <ListChecks size={20} />
+          <ListChecks size={17} />
           {openCount ? <span className="quick-note-launcher__count">{openCount}</span> : null}
         </button>
       ) : null}
@@ -427,7 +438,7 @@ export default function QuickNote() {
               title="Collapse"
               onClick={collapse}
             >
-              <X size={12} />
+              <X size={11} />
             </button>
           </div>
           <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-frame" />

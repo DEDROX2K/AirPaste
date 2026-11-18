@@ -10,6 +10,7 @@
 // ui-state.json:
 //   splitView: {
 //     ratio: number,               // left pane share, 0.15..0.85
+//     stacked: boolean,            // panes top / bottom instead of left / right
 //     panes: {
 //       [leftCanvasFilePath]: {
 //         enabled: boolean,
@@ -25,6 +26,7 @@
 import { removeStructuredEntriesForTileIds, withActivePageMirror } from "../../lib/workspace";
 
 export const SPLIT_MIN_PANE_WIDTH = 320;
+export const SPLIT_MIN_PANE_HEIGHT = 160;
 export const SPLIT_DIVIDER_WIDTH = 8;
 export const SPLIT_SAVE_DEBOUNCE_MS = 400;
 const MIN_RATIO = 0.15;
@@ -78,6 +80,7 @@ export function normalizeSplitView(value) {
   }
   return {
     ratio: Number.isFinite(safe.ratio) ? Math.min(MAX_RATIO, Math.max(MIN_RATIO, safe.ratio)) : 0.5,
+    stacked: safe.stacked === true,
     panes,
     floating: normalizeFloating(safe.floating),
   };
@@ -231,13 +234,15 @@ export function getDetachZone(area, clientX, clientY, canSplit) {
 
 // Keeps both panes at least SPLIT_MIN_PANE_WIDTH wide. When the container
 // can't fit two minimum panes, the split sits at the middle.
-export function clampSplitRatio(ratio, containerWidth) {
+// `minPane` is the smallest a pane may get along the split's axis (height
+// when the panes are stacked).
+export function clampSplitRatio(ratio, containerWidth, minPane = SPLIT_MIN_PANE_WIDTH) {
   const usable = containerWidth - SPLIT_DIVIDER_WIDTH;
-  if (!Number.isFinite(usable) || usable < SPLIT_MIN_PANE_WIDTH * 2) {
+  if (!Number.isFinite(usable) || usable < minPane * 2) {
     return 0.5;
   }
-  const min = Math.max(MIN_RATIO, SPLIT_MIN_PANE_WIDTH / usable);
-  const max = Math.min(MAX_RATIO, 1 - SPLIT_MIN_PANE_WIDTH / usable);
+  const min = Math.max(MIN_RATIO, minPane / usable);
+  const max = Math.min(MAX_RATIO, 1 - minPane / usable);
   return Math.min(max, Math.max(min, Number.isFinite(ratio) ? ratio : 0.5));
 }
 
