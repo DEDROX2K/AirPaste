@@ -155,7 +155,7 @@ function Scribble({ layout, seed }) {
   );
 }
 
-function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
+function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown, onDelete }) {
   const wrapRef = useRef(null);
   const measureRef = useRef(null);
   const showScribble = item.checked && Boolean(item.text);
@@ -191,6 +191,15 @@ function QuickNoteRow({ item, inputRef, onChange, onToggle, onKeyDown }) {
           </>
         ) : null}
       </span>
+      <button
+        type="button"
+        className="quick-note__delete"
+        aria-label={item.text ? `Delete "${item.text}"` : "Delete task"}
+        title="Delete"
+        onClick={() => onDelete(item.id)}
+      >
+        <X size={10} />
+      </button>
     </li>
   );
 }
@@ -310,6 +319,11 @@ export default function QuickNote() {
   const toggleItem = useCallback((id) => commit((current) => ({
     ...current,
     items: current.items.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)),
+  })), [commit]);
+
+  const deleteItem = useCallback((id) => commit((current) => ({
+    ...current,
+    items: current.items.filter((item) => item.id !== id),
   })), [commit]);
 
   const handleRowKeyDown = useCallback((event, item) => {
@@ -453,6 +467,7 @@ export default function QuickNote() {
                     onChange={updateText}
                     onToggle={toggleItem}
                     onKeyDown={handleRowKeyDown}
+                    onDelete={deleteItem}
                   />
                 ))}
                 <li className="quick-note__row quick-note__row--draft">

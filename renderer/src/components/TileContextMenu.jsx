@@ -11,6 +11,7 @@ import {
   Link2,
   ListChecks,
   Notes,
+  Palette,
   Pencil,
   RefreshCw,
   Tether,
@@ -39,6 +40,7 @@ const ACTION_ICONS = Object.freeze({
   tether: Tether,
   untether: Unlink,
   rack: Archive,
+  "rack-style": Palette,
   link: Link2,
   delete: Trash2,
 });

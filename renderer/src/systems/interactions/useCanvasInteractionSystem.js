@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { canAttachTileToRack } from "../../lib/workspace";
+import { canAttachTileToRack, getRackLayoutSpec } from "../../lib/workspace";
+import { getRackTierPosition } from "../../tiles/rack/layout";
 import {
   recordHitTestSample,
   readPointerMoveStats,
@@ -8,6 +9,7 @@ import {
   recordPointerMoveSample,
 } from "../../lib/perf";
 import {
+  findNearestRackZone,
   findRackDropTarget,
   getRenderableTileEntries,
   getRenderableTileEntryById,
@@ -20,6 +22,13 @@ import {
 import { resolveSnappedDragDelta } from "../snapping/canvasSnapping";
 import { createDragMotionStore } from "./dragMotion";
 import {
+  RACK_APPROACH_MAX,
+  RACK_APPROACH_REACH,
+  RACK_FLING_PROJECTION,
+  getRackSlotMetrics,
+} from "../../tiles/rack/geometry";
+import { setRackApproach, setRackDockHint } from "../../tiles/rack/rackMotion";
+import {
   easeSnapOffset,
   getSnapRectsBounds,
   resolveTileMagnetSnap,
@@ -30,6 +39,60 @@ const VIEWPORT_PADDING = 16;
 const SNAP_DEBUG_LOG_ENABLED = Boolean(import.meta.env?.DEV);
 // Gap between a rack's top edge and a tile pulled out of it with a click.
 const RACK_PULL_OUT_GAP = 24;
+
+// Pointer samples kept for the release velocity (a throw), in ms.
+const RELEASE_VELOCITY_WINDOW_MS = 90;
+
+function pushVelocitySample(dragState, point) {
+  const now = performance.now();
+  const samples = dragState.samples ?? (dragState.samples = []);
+  samples.push({ t: now, x: point.x, y: point.y });
+
+  while (samples.length > 2 && now - samples[0].t > RELEASE_VELOCITY_WINDOW_MS) {
+    samples.shift();
+  }
+}
+
+// World px/s over the last few samples; zero if the pointer has stopped.
+function getReleaseVelocity(dragState) {
+  const samples = dragState?.samples ?? [];
+
+  if (samples.length < 2 || performance.now() - samples[samples.length - 1].t > RELEASE_VELOCITY_WINDOW_MS) {
+    return { x: 0, y: 0 };
+  }
+
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const seconds = Math.max(0.016, (last.t - first.t) / 1000);
+  return { x: (last.x - first.x) / seconds, y: (last.y - first.y) / seconds };
+}
+
+// Where a dragged tile is on screen: its spot plus the drag, shrunk by the
+// rack approach around the grab point.
+function getDraggedVisualRect(dragState, tileId) {
+  const origin = dragState.origins[tileId];
+
+  if (!origin) {
+    return null;
+  }
+
+  const delta = dragState.lastDelta ?? { x: 0, y: 0 };
+  const width = origin.width ?? 0;
+  const height = origin.height ?? 0;
+  const approach = dragState.approach?.tileId === tileId ? dragState.approach : null;
+  const scale = approach?.scale ?? 1;
+  const grabX = approach?.grabX ?? 0;
+  const grabY = approach?.grabY ?? 0;
+  const grabWorldX = origin.x + delta.x + (width / 2) + grabX;
+  const grabWorldY = origin.y + delta.y + (height / 2) + grabY;
+
+  return {
+    x: grabWorldX - (grabX + (width / 2)) * scale,
+    y: grabWorldY - (grabY + (height / 2)) * scale,
+    width: width * scale,
+    height: height * scale,
+  };
+}
 
 function isSelectionModifierPressed(event) {
   return event.shiftKey || event.ctrlKey || event.metaKey;
@@ -228,6 +291,7 @@ export function useCanvasInteractionSystem({
     setFocusedTileId(null);
     setDraggingTileIds([]);
     dragMotion.clear();
+    dragStateRef.current?.tileIds?.forEach((tileId) => setRackApproach(tileId, null));
     setDragGrabPoint(null);
     setMarqueeBox(null);
     dragStateRef.current = null;
@@ -588,7 +652,10 @@ export function useCanvasInteractionSystem({
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }, [canvas, selectedTileIds]);
 
-  const beginTileDrag = useStableCallback((tile, event, pressOrigin = null) => {
+  // rackPull (from RackTile, once a racked tile is torn off): where on the
+  // tile it was grabbed (fx/fy, 0-1) and the scale it was drawn at, so it
+  // comes out under the pointer at that size and grows from there.
+  const beginTileDrag = useStableCallback((tile, event, pressOrigin = null, rackPull = null) => {
     if (!isSelectMode) {
       return;
     }
@@ -652,10 +719,22 @@ export function useCanvasInteractionSystem({
       ]),
     );
 
+    let rackPullApproach = null;
+
     if (anchorEntry.containerType === "rack" && anchorEntry.rackId) {
+      const pressWorld = canvas.clientToWorldPoint(
+        pressOrigin?.clientX ?? event.clientX,
+        pressOrigin?.clientY ?? event.clientY,
+      );
+      const fx = Number.isFinite(rackPull?.fx) ? rackPull.fx : 0.5;
+      const fy = Number.isFinite(rackPull?.fy) ? rackPull.fy : 0.5;
+      // Full size, with the grabbed point under the press point.
+      const detachX = rackPull ? pressWorld.x - (fx * anchorEntry.width) : anchorEntry.x;
+      const detachY = rackPull ? pressWorld.y - (fy * anchorEntry.height) : anchorEntry.y;
+      const rackIndex = anchorEntry.rackSlotIndex ?? 0;
       const detachedTile = commands.removeTileFromRack(anchorEntry.tile.id, anchorEntry.rackId, {
-        x: anchorEntry.x,
-        y: anchorEntry.y,
+        x: detachX,
+        y: detachY,
       });
 
       if (!detachedTile) {
@@ -668,15 +747,41 @@ export function useCanvasInteractionSystem({
           containerType: "canvas",
           folderId: null,
           rackId: null,
-          x: anchorEntry.x,
-          y: anchorEntry.y,
-          localX: anchorEntry.x,
-          localY: anchorEntry.y,
+          x: detachX,
+          y: detachY,
+          localX: detachX,
+          localY: detachY,
           width: anchorEntry.width,
           height: anchorEntry.height,
         },
       };
       setSelectedTileIds([anchorEntry.tile.id]);
+
+      if (rackPull) {
+        // Drawn at its rack size from the first frame, then the approach
+        // takes over: it stays small over the rack, grows back once away.
+        rackPullApproach = {
+          tileId: anchorEntry.tile.id,
+          scale: Number.isFinite(rackPull.scale) ? rackPull.scale : 1,
+          grabX: (fx - 0.5) * anchorEntry.width,
+          grabY: (fy - 0.5) * anchorEntry.height,
+        };
+        setRackApproach(anchorEntry.tile.id, { ...rackPullApproach, instant: true });
+        // Keep the gap it left open: the drag is still over its rack.
+        const rackTile = tileByIdRef.current[anchorEntry.rackId];
+        if (rackTile) {
+          const place = getRackTierPosition(getRackLayoutSpec(rackTile).tiers, rackIndex);
+          setRackDropPreview({
+            rackId: rackTile.id,
+            targetTileId: rackTile.id,
+            slotIndex: place.index,
+            tier: place.tier,
+            refusedTier: null,
+            dropRect: null,
+            gapWidth: getRackSlotMetrics(anchorEntry.tile).frameWidth,
+          });
+        }
+      }
     } else if (!selectedTileIdSet.has(tile.id)) {
       setSelectedTileIds([tile.id]);
     }
@@ -717,11 +822,22 @@ export function useCanvasInteractionSystem({
       y: currentWorldPoint.y - pointerWorldStart.y,
     };
 
+    const anchorOrigin = dragOrigins[tile.id];
     dragStateRef.current = {
       tileId: tile.id,
       tileIds: dragTileIds,
       tileIdSet: dragTileIdSet,
       startedFromRack: anchorEntry.containerType === "rack",
+      // How the anchor tile is drawn near a rack (single-tile drags only).
+      approach: rackPullApproach ?? (dragTileIds.length === 1 && anchorOrigin
+        ? {
+          tileId: tile.id,
+          scale: 1,
+          grabX: pointerWorldStart.x - (anchorOrigin.x + (anchorOrigin.width ?? 0) / 2),
+          grabY: pointerWorldStart.y - (anchorOrigin.y + (anchorOrigin.height ?? 0) / 2),
+        }
+        : null),
+      samples: [{ t: performance.now(), x: pointerWorldStart.x, y: pointerWorldStart.y }],
       pointerWorldStart,
       lastDelta: initialDelta,
       origins: dragOrigins,
@@ -734,6 +850,9 @@ export function useCanvasInteractionSystem({
       snapShown: { x: 0, y: 0 },
       targetCache: {
         rootTiles: dragTargetRootTiles,
+        // Racks are looked up fresh each move: a tear-off changes its rack
+        // on the very frame the drag starts.
+        rackIds: dragTargetRootTiles.filter((entry) => entry.type === "rack").map((entry) => entry.id),
         draggedTile: tileByIdRef.current[tile.id] ?? tile,
       },
     };
@@ -1099,6 +1218,7 @@ export function useCanvasInteractionSystem({
           });
           if (dropped) {
             dragMotion.clear();
+            dragState.tileIds.forEach((tileId) => setRackApproach(tileId, null));
             setDragGrabPoint(null);
             dragStateRef.current = null;
             setDraggingTileIds([]);
@@ -1109,12 +1229,40 @@ export function useCanvasInteractionSystem({
         }
       }
 
-      if (event && dragState.kind !== "group" && !rackDropPreviewRef.current?.rackId) {
+      // A throw: project the release velocity ahead; if that lands in a
+      // rack's zone the tiles dock there, even if the pointer never did.
+      const releaseVelocity = getReleaseVelocity(dragState);
+      let activeRackPreview = rackDropPreviewRef.current;
+
+      if (
+        event
+        && dragState.kind !== "group"
+        && !activeRackPreview?.rackId
+        && dragState.tileIds.every((tileId) => (
+          dragState.origins[tileId]?.containerType === "canvas" && canAttachTileToRack(tileByIdRef.current[tileId])
+        ))
+      ) {
+        const releasePoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+        const projected = {
+          x: releasePoint.x + (releaseVelocity.x * RACK_FLING_PROJECTION),
+          y: releasePoint.y + (releaseVelocity.y * RACK_FLING_PROJECTION),
+        };
+        activeRackPreview = findRackDropTarget({
+          tiles: tileByIdRef.current,
+          dragTileIds: dragState.tileIds,
+          dragTileIdSet: dragState.tileIdSet,
+          dragOrigins: dragState.origins,
+          clientToWorldPoint: canvas.clientToWorldPoint,
+          rootTiles: getLiveRacks(dragState),
+          worldPoint: projected,
+        });
+      }
+
+      if (event && dragState.kind !== "group" && !activeRackPreview?.rackId) {
         commands.bringTilesToFront(dragState.tileIds);
       }
 
       const commitStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const activeRackPreview = rackDropPreviewRef.current;
       const dragDelta = dragState.lastDelta ?? { x: 0, y: 0 };
       let nextSelectedIds = dragState.tileIds;
       let wasHandled = false;
@@ -1127,7 +1275,20 @@ export function useCanvasInteractionSystem({
           commands.cancelPendingWorkspaceChange();
         }
       } else if (event && activeRackPreview?.rackId) {
-        const rackTile = commands.addTilesToRack(dragState.tileIds, activeRackPreview.rackId);
+        // The rack flies each tile in from where it is on screen, keeping
+        // the throw's momentum (RackTile picks these up).
+        dragState.tileIds.forEach((tileId) => {
+          const rect = getDraggedVisualRect(dragState, tileId);
+          if (rect) {
+            setRackDockHint(tileId, { ...rect, vx: releaseVelocity.x, vy: releaseVelocity.y });
+          }
+        });
+        const rackTile = commands.addTilesToRack(
+          dragState.tileIds,
+          activeRackPreview.rackId,
+          activeRackPreview.slotIndex,
+          activeRackPreview.tier,
+        );
 
         if (rackTile) {
           // The tiles are inside the rack now; the rack is what's selected.
@@ -1174,6 +1335,7 @@ export function useCanvasInteractionSystem({
       // Tiles keep showing the last offset until the commit that moves them
       // (TileShell drops it when its tile stops dragging), so nothing jumps.
       dragMotion.clear();
+      dragState.tileIds.forEach((tileId) => setRackApproach(tileId, null));
       setDragGrabPoint(null);
 
       dragStateRef.current = null;
@@ -1184,6 +1346,44 @@ export function useCanvasInteractionSystem({
       } else {
         setSelectedTileIds(nextSelectedIds);
       }
+    }
+
+    // Near a rack the dragged tile shrinks toward the size it will take
+    // there (anticipation); over it, all the way. Single-tile drags only.
+    function getLiveRacks(dragState) {
+      return (dragState.targetCache.rackIds ?? [])
+        .map((rackId) => tileByIdRef.current[rackId])
+        .filter(Boolean);
+    }
+
+    function updateRackApproach(dragState, preview, point, racks = null) {
+      const approach = dragState.approach;
+
+      if (!approach) {
+        return;
+      }
+
+      const tile = tileByIdRef.current[approach.tileId];
+      const target = tile ? getRackSlotMetrics(tile).approachScale : 1;
+      let progress = 0;
+
+      if (preview?.rackId) {
+        progress = 1;
+      } else if (point) {
+        const nearest = findNearestRackZone(racks ?? getLiveRacks(dragState), point, dragState.tileIdSet);
+        progress = nearest
+          ? Math.max(0, Math.min(1, 1 - (nearest.distance / RACK_APPROACH_REACH))) * RACK_APPROACH_MAX
+          : 0;
+      }
+
+      const scale = Math.round((1 + ((target - 1) * progress)) * 1000) / 1000;
+
+      if (scale === approach.scale) {
+        return;
+      }
+
+      approach.scale = scale;
+      setRackApproach(approach.tileId, { tileId: approach.tileId, scale, grabX: approach.grabX, grabY: approach.grabY });
     }
 
     function processPointerMove(event) {
@@ -1209,6 +1409,7 @@ export function useCanvasInteractionSystem({
 
       updateExternalDropPreview(dragState, event);
       const currentWorldPoint = canvas.clientToWorldPoint(event.clientX, event.clientY);
+      pushVelocitySample(dragState, currentWorldPoint);
       const rawWorldDelta = {
         x: currentWorldPoint.x - dragState.pointerWorldStart.x,
         y: currentWorldPoint.y - dragState.pointerWorldStart.y,
@@ -1269,8 +1470,10 @@ export function useCanvasInteractionSystem({
       if (canDropOnRack) {
         const rackHitTestMetrics = {};
         const rackHitTestStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const anchorRect = getDraggedVisualRect(dragState, dragState.tileId);
+        const racks = getLiveRacks(dragState);
         const nextRackDropPreview = findRackDropTarget({
-          tiles: cardsRef.current,
+          tiles: tileByIdRef.current,
           dragTileIds: dragState.tileIds,
           dragTileIdSet: dragState.tileIdSet,
           dragOrigins: dragState.origins,
@@ -1278,16 +1481,24 @@ export function useCanvasInteractionSystem({
           clientToWorldPoint: canvas.clientToWorldPoint,
           pointerClientX: event.clientX,
           pointerClientY: event.clientY,
-          rootTiles: dragState.targetCache.rootTiles,
+          rootTiles: racks,
           metrics: rackHitTestMetrics,
+          previousRackId: rackDropPreviewRef.current?.rackId ?? null,
+          worldPoint: currentWorldPoint,
+          centerX: anchorRect ? anchorRect.x + (anchorRect.width / 2) : null,
         });
         const rackHitTestEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
         recordHitTestSample("rack-drop", rackHitTestEnd - rackHitTestStart, rackHitTestMetrics);
+        rackDropPreviewRef.current = isSameRackDropPreview(rackDropPreviewRef.current, nextRackDropPreview)
+          ? rackDropPreviewRef.current
+          : nextRackDropPreview;
         setRackDropPreview((currentPreview) => (
           isSameRackDropPreview(currentPreview, nextRackDropPreview) ? currentPreview : nextRackDropPreview
         ));
+        updateRackApproach(dragState, nextRackDropPreview, currentWorldPoint, racks);
       } else {
         clearRackDropPreview();
+        updateRackApproach(dragState, null, null);
       }
 
       if (dragState.tileIds.length !== 1 || rackDropPreviewRef.current?.rackId) {

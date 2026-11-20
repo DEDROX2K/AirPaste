@@ -35,6 +35,7 @@ const PREVIEW_KIND = Object.freeze({
   VIDEO_GENERIC: "video-generic",
   IMAGE: "image",
   X_POST: "x-post",
+  X_PROFILE: "x-profile",
   FALLBACK_LINK: "fallback-link",
 });
 

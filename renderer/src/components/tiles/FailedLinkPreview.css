@@ -1,0 +1,138 @@
+/* Failed link preview. Everything inside the art is placed on its 504 x 490
+   design grid: --failed-preview-u is one grid px, so the art scales to fit
+   whatever size the link tile is. No shadows: the frame art carries its own
+   offset shadow. */
+
+.failed-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  padding: 6px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.failed-preview__art {
+  position: relative;
+  width: min(100cqw, calc(100cqh * 504 / 490));
+  aspect-ratio: 504 / 490;
+  container-type: inline-size;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.failed-preview__art > * {
+  --failed-preview-u: calc(100cqw / 504);
+}
+
+.failed-preview__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.failed-preview__badge {
+  position: absolute;
+  left: calc(var(--failed-preview-u) * 274);
+  top: calc(var(--failed-preview-u) * -8);
+  transform: translateX(-50%);
+  height: calc(var(--failed-preview-u) * 34);
+  padding: 0 calc(var(--failed-preview-u) * 14);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: calc(var(--failed-preview-u) * 2) solid #ececec;
+  border-radius: calc(var(--failed-preview-u) * 6);
+  background: #f65a5b;
+  color: #fff;
+  font-family: "Inter", var(--ap-font-body, system-ui);
+  font-size: calc(var(--failed-preview-u) * 22);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The URL: cropped to its box with a fade at the bottom when cut; hovering
+   slides the rest into view. */
+.failed-preview__url-box {
+  position: absolute;
+  left: calc(var(--failed-preview-u) * 110);
+  top: calc(var(--failed-preview-u) * 48);
+  width: calc(var(--failed-preview-u) * 315);
+  height: calc(var(--failed-preview-u) * 252);
+  box-sizing: border-box;
+  overflow: hidden;
+  border: calc(var(--failed-preview-u) * 2) solid #ebebeb;
+  border-radius: calc(var(--failed-preview-u) * 8);
+  background: #f2f2f2;
+  cursor: var(--cursor-pointer, pointer);
+}
+
+.failed-preview__url-box:hover {
+  border-color: #d9d9d9;
+}
+
+.failed-preview__url-box:focus-visible {
+  outline: calc(var(--failed-preview-u) * 3) solid #39393b;
+  outline-offset: calc(var(--failed-preview-u) * 2);
+}
+
+.failed-preview__url {
+  padding: calc(var(--failed-preview-u) * 16) calc(var(--failed-preview-u) * 18);
+  color: #39393b;
+  font-family: "Inter", var(--ap-font-body, system-ui);
+  font-size: calc(var(--failed-preview-u) * 21);
+  font-weight: 400;
+  line-height: calc(var(--failed-preview-u) * 28);
+  word-break: break-all;
+  transition: transform var(--failed-preview-dur, 0.6s) linear;
+}
+
+.failed-preview__url-box--scroll .failed-preview__url {
+  transform: translateY(calc(var(--failed-preview-over, 0px) * -1));
+}
+
+.failed-preview__url-box--cut::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--failed-preview-u) * 36);
+  background: linear-gradient(rgba(242, 242, 242, 0), #f2f2f2);
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.failed-preview__url-box--cut.failed-preview__url-box--scroll::after {
+  opacity: 0;
+}
+
+.failed-preview__reason {
+  position: absolute;
+  left: calc(var(--failed-preview-u) * 128);
+  top: calc(var(--failed-preview-u) * 326);
+  width: calc(var(--failed-preview-u) * 300);
+  height: calc(var(--failed-preview-u) * 64);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #39393b;
+  font-family: "Inter", var(--ap-font-body, system-ui);
+  font-size: calc(var(--failed-preview-u) * 19);
+  font-weight: 700;
+  line-height: calc(var(--failed-preview-u) * 24);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .failed-preview__url {
+    transition: none;
+  }
+}

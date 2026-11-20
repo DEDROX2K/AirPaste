@@ -35,14 +35,6 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.floating-canvas--focused {
-  box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.28),
-    0 4px 14px rgba(0, 0, 0, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 0 0 2px rgba(20, 99, 255, 0.55);
-}
-
 .floating-canvas__header {
   display: flex;
   flex: 0 0 34px;
@@ -77,15 +69,18 @@
 }
 
 .floating-canvas__page {
-  position: relative;
   display: inline-flex;
   flex: 0 1 auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
-  padding: 2px 6px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
   color: rgba(255, 255, 255, 0.65);
+  font: inherit;
   cursor: pointer;
 }
 
@@ -95,17 +90,40 @@
   white-space: nowrap;
 }
 
-.floating-canvas__page:hover {
+.floating-canvas__page:hover,
+.floating-canvas__page[data-state="open"] {
   background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
-.floating-canvas__page select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font: inherit;
+.floating-canvas__page:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: -2px;
+}
+
+/* The page list (shared app menu, AppDropdownMenu). */
+.floating-canvas__page-menu {
+  min-width: 160px;
+  max-width: 240px;
+}
+
+.floating-canvas__page-menu [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.floating-canvas__page-check {
+  display: inline-grid;
+  flex: 0 0 12px;
+  place-items: center;
+}
+
+.floating-canvas__page-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .floating-canvas__actions {

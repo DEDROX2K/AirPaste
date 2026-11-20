@@ -7,7 +7,7 @@
 .noted-link {
   --nl-k: 1;
   --nl-ui: calc(1 / var(--canvas-zoom, 1));
-  --nl-card: #222222;
+  --nl-card: #ffbc21;
   --nl-media-height: 648px;
   --nl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --nl-blue: #0d99ff;
@@ -174,7 +174,7 @@
 }
 
 .noted-link__text {
-  padding: calc(58px * var(--nl-k)) calc(65px * var(--nl-k)) calc(70px * var(--nl-k));
+  padding: 10px 20px;
   opacity: 0;
   transform: translateY(calc(12px * var(--nl-k)));
   transition: opacity 0.45s ease 0.35s, transform 0.6s var(--nl-ease) 0.35s;
@@ -212,6 +212,7 @@
   line-height: 1.3;
   white-space: pre-wrap;
   caret-color: #9ea3ab;
+      text-align: center;
 }
 
 .noted-link__title:empty::before,
@@ -238,13 +239,217 @@
   background: rgba(13, 153, 255, 0.35);
 }
 
+/* ---------- Long note: side panel joined to the image's frame ----------
+   Sizes come from getSideNoteLayout() as --nl-* px values. The image's
+   frame runs on under the note frame, so its right corners never show;
+   the two edge connectors fill the corners where the frames meet. */
+
+.noted-link--side {
+  --nl-panel: #2a2a2a;
+  --nl-join-scale: 1.019125; /* 106.572 / 104.572 */
+
+  width: var(--nl-width);
+  min-height: var(--nl-min-height);
+}
+
+/* The shape isn't a rectangle: an SVG ring follows it instead. */
+.noted-link--side::after {
+  content: none;
+}
+
+.noted-link__ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.noted-link__ring path {
+  fill: none;
+  stroke: transparent;
+  stroke-width: calc(1.5px * var(--nl-ui));
+}
+
+.card--hovered .noted-link__ring path {
+  stroke: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .noted-link__ring path {
+  stroke: var(--nl-blue);
+}
+
+.noted-link__frame,
+.noted-link__join {
+  position: absolute;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.noted-link__frame {
+  left: 0;
+  top: var(--nl-tile-top);
+  width: calc(var(--nl-note-left) + var(--nl-outer-radius) + var(--nl-frame));
+  height: var(--nl-tile-height);
+  border-radius: var(--nl-outer-radius);
+  background: var(--nl-card);
+}
+
+.noted-link__join {
+  display: block;
+  overflow: visible;
+}
+
+.noted-link__join path {
+  fill: var(--nl-card);
+}
+
+/* The connector's shape runs on under both frames (see EDGE_CONNECTOR_PATH),
+   so its box is a little larger than the curve's radius. */
+.noted-link__join--top {
+  left: calc(var(--nl-note-left) - var(--nl-top-join));
+  top: calc(var(--nl-tile-top) - var(--nl-top-join));
+  width: calc(var(--nl-top-join) * var(--nl-join-scale));
+  height: calc(var(--nl-top-join) * var(--nl-join-scale));
+}
+
+/* The same connector flipped to curve downward, and larger. Flipped, its
+   overlap strip is on top, so the box starts that much above the frame's
+   bottom edge. */
+.noted-link__join--bottom {
+  left: calc(var(--nl-note-left) - var(--nl-bottom-join));
+  top: calc(var(--nl-tile-top) + var(--nl-tile-height) + var(--nl-bottom-join) * (1 - var(--nl-join-scale)));
+  width: calc(var(--nl-bottom-join) * var(--nl-join-scale));
+  height: calc(var(--nl-bottom-join) * var(--nl-join-scale));
+  transform: scaleY(-1);
+}
+
+.noted-link--side .noted-link__media {
+  position: absolute;
+  left: var(--nl-pad);
+  top: calc(var(--nl-tile-top) + var(--nl-pad));
+  z-index: 2;
+  width: var(--nl-media-width);
+}
+
+.noted-link--side.noted-link--revealed .noted-link__media {
+  border-radius: var(--nl-inner-radius);
+}
+
+/* The note frame and panel: in the flow, so the tile grows with the text. */
+.noted-link__side-note {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: var(--nl-min-height);
+  margin-left: var(--nl-note-left);
+  padding: var(--nl-frame);
+  border-radius: var(--nl-outer-radius);
+  background: var(--nl-card);
+  opacity: 0;
+  clip-path: inset(0 100% 0 0 round var(--nl-outer-radius));
+  transition:
+    opacity 0.4s ease,
+    clip-path 0.7s var(--nl-ease);
+}
+
+.noted-link__panel {
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--nl-inner-radius);
+  background: var(--nl-panel);
+}
+
+.noted-link--side.noted-link--revealed .noted-link__frame,
+.noted-link--side.noted-link--revealed .noted-link__join,
+.noted-link--side.noted-link--revealed .noted-link__side-note {
+  opacity: 1;
+}
+
+.noted-link--side.noted-link--revealed .noted-link__side-note {
+  clip-path: inset(0 0 0 0 round var(--nl-outer-radius));
+}
+
+/* The right-edge handle: drag to make the panel narrower or wider. A plain
+   rectangle (no rounding) centred on the edge, kept a steady size on screen
+   at any zoom. The hit area is wider than the bar you see. */
+.noted-link__panel-handle {
+  position: absolute;
+  left: var(--nl-width);
+  top: 50%;
+  z-index: 4;
+  width: calc(22px * var(--nl-ui));
+  height: calc(88px * var(--nl-ui));
+  cursor: ew-resize !important;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+}
+
+.noted-link__panel-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(7px * var(--nl-ui));
+  height: calc(64px * var(--nl-ui));
+  border-radius: 0;
+  background: #5e636c;
+  transform: translate(-50%, -50%);
+  transition: background-color 120ms ease;
+}
+
+.noted-link__panel-handle:hover::after {
+  background: #9ea3ab;
+}
+
+.noted-link--panel-resizing .noted-link__panel-handle::after {
+  background: var(--nl-blue);
+}
+
+.noted-link--panel-resizing,
+.noted-link--panel-resizing * {
+  cursor: ew-resize !important;
+}
+
+/* ---------- Short note: yellow card, body only ---------- */
+
+.noted-link--short {
+  --nl-card: #ffbc21;
+}
+
+
+
+.noted-link--short .noted-link__body {
+  color: #3b3500;
+  caret-color: #3b3500;
+}
+
+.noted-link--short .noted-link__body .nt-placeholder,
+.noted-link--short .noted-link__body .cm-placeholder {
+  color: #8c8035;
+}
+
+.noted-link--short.noted-link--editing .noted-link__body:focus-within {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* The card colour cross-fades when switching long <-> short. */
+.noted-link__notch path {
+  transition: fill 0.35s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .noted-link__notch,
   .noted-link__notch-icon,
   .noted-link__card,
   .noted-link__media,
   .noted-link__note,
-  .noted-link__text {
+  .noted-link__text,
+  .noted-link__frame,
+  .noted-link__join,
+  .noted-link__side-note {
     transition: none;
   }
 }

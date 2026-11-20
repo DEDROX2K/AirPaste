@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from "react";
+import { pickLoadingGif } from "../../lib/loadingGif";
 
 const loadedImageSources = new Set();
 
@@ -11,6 +12,7 @@ function TileImageReveal({
   onError,
   onLoad,
 }) {
+  const [loadingGif] = useState(pickLoadingGif);
   const [isLoaded, setIsLoaded] = useState(() => loadedImageSources.has(src));
 
   useEffect(() => {
@@ -36,7 +38,7 @@ function TileImageReveal({
 
   return (
     <div className={`card__image-reveal${isLoaded ? " card__image-reveal--final" : " card__image-reveal--loading"}${enableReveal ? "" : " card__image-reveal--disabled"}${wrapperClassName ? ` ${wrapperClassName}` : ""}`}>
-      <div className="card__image-reveal__placeholder" aria-hidden="true" />
+      <div className="card__image-reveal__placeholder" data-loading-gif={loadingGif} aria-hidden="true" />
       <img
         className={`card__image-reveal__final ${className}`.trim()}
         src={src}

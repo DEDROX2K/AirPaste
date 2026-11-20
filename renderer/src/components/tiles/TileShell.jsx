@@ -1,6 +1,7 @@
 import { memo, useContext, useLayoutEffect, useMemo, useRef } from "react";
 import { CanvasDragMotionContext } from "../../context/CanvasDragMotionContext";
 import { recordTileRender } from "../../lib/perf";
+import { getRackApproach, subscribeRackApproach } from "../../tiles/rack/rackMotion";
 
 function preventNativeDrag(event) {
   event.preventDefault();
@@ -50,6 +51,56 @@ function useLiveDragOffset(nodeRef, tileId, isDragging) {
   }, [dragMotion, isDragging, nodeRef, tileId]);
 }
 
+// Near a rack a dragged tile shrinks toward its rack size, around the point
+// under the pointer (tiles/rack/rackMotion.js). --rack-s is a registered
+// property with its own transition (styles.css), so the scale glides even
+// though the drag rewrites the transform every frame; `instant` (a tear-off
+// out of a rack) sets it with no glide.
+function useRackApproach(nodeRef, tileId, isDragging) {
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+
+    if (!node || !isDragging) {
+      return undefined;
+    }
+
+    const write = (value) => {
+      if (!value) {
+        node.style.setProperty("--rack-s", "1");
+        return;
+      }
+
+      if (value.instant) {
+        node.classList.remove("card--rack-approach");
+      }
+
+      node.style.setProperty("--rack-gx", `${value.grabX}px`);
+      node.style.setProperty("--rack-gy", `${value.grabY}px`);
+      node.style.setProperty("--rack-s", String(value.scale));
+
+      if (value.instant) {
+        // Commit the instant value before the glide is switched back on.
+        void node.offsetWidth;
+      }
+
+      node.classList.add("card--rack-approach");
+    };
+
+    const current = getRackApproach(tileId);
+    if (current) {
+      write(current);
+    }
+
+    const unsubscribe = subscribeRackApproach(tileId, write);
+
+    return () => {
+      unsubscribe();
+      node.classList.remove("card--rack-approach");
+      ["--rack-s", "--rack-gx", "--rack-gy"].forEach((property) => node.style.removeProperty(property));
+    };
+  }, [isDragging, nodeRef, tileId]);
+}
+
 function TileShell({
   card,
   tileMeta,
@@ -68,6 +119,7 @@ function TileShell({
   const isStacked = Boolean(card.stack?.id);
   const articleRef = useRef(null);
   useLiveDragOffset(articleRef, card.id, Boolean(tileMeta?.isDragging));
+  useRackApproach(articleRef, card.id, Boolean(tileMeta?.isDragging));
   const classNames = useMemo(() => [
     "card",
     `card--${card.type}`,

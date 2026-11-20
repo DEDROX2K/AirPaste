@@ -89,12 +89,27 @@ import {
 import {
   RACK_DEFAULT_DESCRIPTION,
   RACK_DEFAULT_TITLE,
+  normalizeRackFrameStyle,
+  normalizeRackMaterial,
   normalizeRackPlasticColor,
   normalizeRackTileIds,
 } from "../tiles/rack/model";
 import {
+  getRackLayout,
+  insertIntoRackTiers,
+  normalizeRackTiers,
+  removeFromRackTiers,
+} from "../tiles/rack/layout";
+import {
+  RACK_HEIGHT as RACK_GEOMETRY_HEIGHT,
+  RACK_MIN_WIDTH,
+  getRackFrameWidth,
+  normalizeRackSlotWidths,
+} from "../tiles/rack/geometry";
+import {
   LINK_CARD_SIZE,
   AMAZON_PRODUCT_CARD_SIZE,
+  getProductTileHeight,
   LINK_PREVIEW_STATUSES,
   getNormalizedImageLinkDimensions,
   isLinkLikeType,
@@ -106,6 +121,14 @@ import {
   GITHUB_REPO_CARD_TYPE,
   normalizeGitHubRepoData,
 } from "../tiles/github/model";
+import {
+  X_POST_CARD_SIZE,
+  X_POST_CARD_TYPE,
+  X_PROFILE_CARD_SIZE,
+  X_PROFILE_CARD_TYPE,
+  normalizeXPost,
+  normalizeXProfile,
+} from "../tiles/x/model";
 import {
   WEATHER_CARD_SIZE,
   WEATHER_CARD_TYPE,
@@ -121,6 +144,7 @@ import {
   normalizeLanguageHints,
 } from "../tiles/canvasText/model";
 import { normalizeLinkNote } from "../tiles/link/notedLink";
+import { normalizeWebclipCropRatio } from "../tiles/link/webclipCrop";
 import { normalizeLinkArticle } from "../tiles/link/articleView";
 import {
   clampDefaultFileWidth,
@@ -180,29 +204,15 @@ export const LINK_CONTENT_KIND_IMAGE = "image";
 // via shared/workspace-schema.json -- do not hardcode this number here.
 export const WORKSPACE_SCHEMA_VERSION = workspaceSchema.WORKSPACE_SCHEMA_VERSION;
 export const CANVAS_SELECTION_CLIPBOARD_TYPE = "airpaste/canvas-selection";
-// Rack geometry (see RackTile.css). Tiles stand in the rack as 176 x 216
-// preview cards, 206px apart, centred as a group; the rack is never
-// narrower than three cards and widens by one pitch per extra tile.
+// Rack geometry lives in tiles/rack/geometry.js (import-free, so it is safe
+// to read here at module-evaluation time despite the workspace <-> rack/model
+// import cycle). A rack's width follows its tiles: each stands in a frame
+// sized by its own proportions (rack.slotWidths), on a shelf with fixed caps.
 export const RACK_MIN_SLOTS = 3;
-export const RACK_CARD_PITCH = 206;
-export const RACK_PREVIEW_WIDTH = 176;
-export const RACK_PREVIEW_HEIGHT = 216;
-export const RACK_SIDE_MARGIN = 26;
-export const RACK_HEIGHT = 360;
-// Top edge of a card in its lifted (hovered) pose, from the rack's top.
-export const RACK_LIFTED_PREVIEW_TOP = 26;
-// Defined here (not in tiles/rack/model.js) because it's computed from the
-// geometry constants directly above at module-evaluation time. Since those
-// constants are themselves imported back into tiles/rack/model.js (which
-// this file also imports from, for normalizeRackTileIds/createRackCard),
-// computing this in rack/model.js instead would read them before lib/
-// workspace.js's own top-level code has run -- ES module imports are
-// hoisted and evaluated before the importing module's body, so the circular
-// reference would throw "Cannot access ... before initialization" under
-// native ESM (Vite dev), even though a bundler like Rollup can mask it.
+export const RACK_HEIGHT = RACK_GEOMETRY_HEIGHT;
 export const RACK_CARD_SIZE = Object.freeze({
-  width: ((RACK_MIN_SLOTS - 1) * RACK_CARD_PITCH) + RACK_PREVIEW_WIDTH + (RACK_SIDE_MARGIN * 2),
-  height: RACK_HEIGHT,
+  width: RACK_MIN_WIDTH,
+  height: RACK_GEOMETRY_HEIGHT,
 });
 const DEFAULT_PAGE_NAME = "Page 1";
 const LEGACY_FOLDER_CARD_TYPE = "folder";
@@ -259,6 +269,10 @@ function getCardType(card) {
 
   if (card?.type === GITHUB_REPO_CARD_TYPE) {
     return GITHUB_REPO_CARD_TYPE;
+  }
+
+  if (card?.type === X_PROFILE_CARD_TYPE || card?.type === X_POST_CARD_TYPE) {
+    return card.type;
   }
 
   if (card?.type === WEATHER_CARD_TYPE) {
@@ -349,6 +363,14 @@ function getCardSize(type) {
 
   if (type === GITHUB_REPO_CARD_TYPE) {
     return GITHUB_REPO_CARD_SIZE;
+  }
+
+  if (type === X_PROFILE_CARD_TYPE) {
+    return X_PROFILE_CARD_SIZE;
+  }
+
+  if (type === X_POST_CARD_TYPE) {
+    return X_POST_CARD_SIZE;
   }
 
   if (type === WEATHER_CARD_TYPE) {
@@ -666,9 +688,9 @@ function normalizeWorkspacePage(page, fallbackIndex = 0) {
     : Array.isArray(page?.tiles)
       ? page.tiles
       : [];
-  const cards = sourceCards
+  const cards = backfillRackSlots(sourceCards
     .map((card, index) => normalizeCard(card, index))
-    .filter(Boolean);
+    .filter(Boolean));
 
   return {
     id: typeof page?.id === "string" && page.id.trim().length > 0 ? page.id : generateWorkspacePageId(),
@@ -729,6 +751,29 @@ export function createWorkspacePage(name = "", index = 0) {
     tethers: [],
     airpaste: null,
   }, index);
+}
+
+// Removes a page. The last page is never removed (a canvas always has one).
+// Deleting the active page opens the page below it, or above it when it was
+// the last one. Returns the workspace unchanged when nothing applies.
+export function removeWorkspacePage(workspace, pageId) {
+  const pages = Array.isArray(workspace?.pages) ? workspace.pages : [];
+  const index = pages.findIndex((page) => page.id === pageId);
+
+  if (index === -1 || pages.length <= 1) {
+    return workspace;
+  }
+
+  const nextPages = pages.filter((page) => page.id !== pageId);
+  const activePageId = workspace.activePageId === pageId
+    ? nextPages[Math.min(index, nextPages.length - 1)].id
+    : workspace.activePageId;
+
+  return {
+    ...workspace,
+    activePageId,
+    pages: nextPages,
+  };
 }
 
 export function updateWorkspaceActivePage(workspace, updater) {
@@ -870,30 +915,49 @@ export function getRackSlotCount(rackCard) {
   return Math.max(RACK_MIN_SLOTS, Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0);
 }
 
-export function getRackSize(rackCard) {
+// Frame width of each racked tile, in tileIds order.
+export function getRackSlotWidths(rackCard) {
+  const count = Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0;
+  return normalizeRackSlotWidths(rackCard?.slotWidths, count);
+}
+
+// What tiles/rack/layout.js draws a rack from.
+export function getRackLayoutSpec(rackCard) {
+  const slotWidths = getRackSlotWidths(rackCard);
   return {
-    width: ((getRackSlotCount(rackCard) - 1) * RACK_CARD_PITCH) + RACK_PREVIEW_WIDTH + (RACK_SIDE_MARGIN * 2),
-    height: RACK_HEIGHT,
+    slotWidths,
+    tiers: normalizeRackTiers(rackCard?.tiers, slotWidths.length),
   };
 }
 
-// Horizontal centre of a tile's preview card, from the rack's left edge.
-export function getRackCardCenterX(rackCard, rackIndex) {
-  const tileCount = Array.isArray(rackCard?.tileIds) ? rackCard.tileIds.length : 0;
-  const normalizedIndex = Number.isFinite(rackIndex) ? rackIndex : 0;
+export function getRackSize(rackCard) {
+  const layout = getRackLayout(getRackLayoutSpec(rackCard));
+  return { width: layout.width, height: layout.height };
+}
 
-  return (getRackSize(rackCard).width / 2) + ((normalizedIndex - ((tileCount - 1) / 2)) * RACK_CARD_PITCH);
+function getRackSlot(rackCard, rackIndex) {
+  const layout = getRackLayout(getRackLayoutSpec(rackCard));
+  const normalizedIndex = Number.isFinite(rackIndex) ? Math.round(rackIndex) : 0;
+  return { layout, slot: layout.slots[Math.max(0, Math.min(layout.slots.length - 1, normalizedIndex))] ?? null };
+}
+
+// Horizontal centre of a tile's slot, from the rack's left edge.
+export function getRackCardCenterX(rackCard, rackIndex) {
+  const { layout, slot } = getRackSlot(rackCard, rackIndex);
+  return (layout.width / 2) + (slot ? slot.x + (slot.w / 2) : 0);
 }
 
 // Where a tile lands, full size, when it leaves the rack: centred on its
-// card, top edge where the lifted card's top is -- i.e. under the pointer
-// that grabbed it.
+// slot, top edge on the slot top.
 export function getRackTileWorldPosition(rackCard, tile, rackIndex = tile?.rackIndex ?? 0) {
+  const { layout, slot } = getRackSlot(rackCard, rackIndex);
+
   return {
-    x: rackCard.x + getRackCardCenterX(rackCard, rackIndex) - ((tile?.width ?? 0) / 2),
-    y: rackCard.y + RACK_LIFTED_PREVIEW_TOP,
+    x: rackCard.x + (layout.width / 2) + (slot ? slot.x + (slot.w / 2) : 0) - ((tile?.width ?? 0) / 2),
+    y: rackCard.y + (slot?.y ?? 0),
   };
 }
+
 
 export function canAttachTileToRack(tile) {
   return Boolean(
@@ -995,11 +1059,21 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
   const paperNoteSubtitle = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteSubtitle(card?.subtitle) : "";
   const paperNoteText = type === PAPER_NOTE_CARD_TYPE ? normalizePaperNoteText(card?.text) : "";
   const rackTileIds = type === RACK_CARD_TYPE ? normalizeRackTileIds(card?.tileIds) : [];
+  const rackSlotWidths = type === RACK_CARD_TYPE
+    ? normalizeRackSlotWidths(card?.slotWidths, rackTileIds.length)
+    : null;
+  const rackTiers = type === RACK_CARD_TYPE ? normalizeRackTiers(card?.tiers, rackTileIds.length) : null;
   const rackSize = type === RACK_CARD_TYPE
     ? getRackSize({
-      minSlots: Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS),
       tileIds: rackTileIds,
+      slotWidths: rackSlotWidths,
+      tiers: rackTiers,
     })
+    : null;
+
+  // A product tile keeps its design's proportions (tiles/link/model.js).
+  const productTileHeight = type === AMAZON_PRODUCT_CARD_TYPE
+    ? getProductTileHeight(Number.isFinite(card?.width) && card.width > 0 ? card.width : size.width)
     : null;
 
   return {
@@ -1014,7 +1088,7 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
         : normalizedLinkDimensions?.width ?? (Number.isFinite(card?.width) ? card.width : size.width)),
     height: type === RACK_CARD_TYPE
       ? rackSize.height
-      : stickySize ?? designStickyHeight ?? (type === CANVAS_TEXT_CARD_TYPE
+      : stickySize ?? designStickyHeight ?? productTileHeight ?? (type === CANVAS_TEXT_CARD_TYPE
         ? Math.max(canvasText.format === CANVAS_TEXT_FORMAT_PLAIN ? QUICK_TEXT_MIN_HEIGHT : TEXT_BOX_MIN_HEIGHT, Number.isFinite(card?.height) ? card.height : size.height)
         : normalizedLinkDimensions?.height ?? (Number.isFinite(card?.height) ? card.height : size.height)),
     url: isLinkLikeCard ? String(card?.url ?? "") : "",
@@ -1119,6 +1193,7 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
     webclipAspectRatio: isLinkLikeCard && Number.isFinite(card?.webclipAspectRatio) && card.webclipAspectRatio > 0
       ? Number(card.webclipAspectRatio)
       : null,
+    webclipCropRatio: isLinkLikeCard ? normalizeWebclipCropRatio(card?.webclipCropRatio) : null,
     webclipPreviousHeight: isLinkLikeCard && Number.isFinite(card?.webclipPreviousHeight)
       ? Number(card.webclipPreviousHeight)
       : null,
@@ -1145,6 +1220,8 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
       : null,
     items: checklistItems,
     repo: type === GITHUB_REPO_CARD_TYPE ? normalizeGitHubRepoData(card?.repo, card?.url) : null,
+    xProfile: type === X_PROFILE_CARD_TYPE ? normalizeXProfile(card?.xProfile, card?.url) : null,
+    xPost: type === X_POST_CARD_TYPE ? normalizeXPost(card?.xPost, card?.url) : null,
     city: type === WEATHER_CARD_TYPE ? normalizeWeatherCity(card?.city) : "",
     location: type === WEATHER_CARD_TYPE ? normalizeWeatherLocation(card?.location) : null,
     dateLabel: type === CHECKLIST_CARD_TYPE ? normalizeChecklistDateLabel(card?.dateLabel, createdAt) : "",
@@ -1152,6 +1229,10 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
     columns: tableColumns,
     rows: tableRows,
     tileIds: rackTileIds,
+    slotWidths: rackSlotWidths,
+    tiers: rackTiers,
+    material: type === RACK_CARD_TYPE ? normalizeRackMaterial(card?.material) : null,
+    frameStyle: type === RACK_CARD_TYPE ? normalizeRackFrameStyle(card?.frameStyle) : null,
     minSlots: type === RACK_CARD_TYPE
       ? Math.max(RACK_MIN_SLOTS, Number.isFinite(card?.minSlots) ? card.minSlots : RACK_MIN_SLOTS)
       : null,
@@ -1364,22 +1445,84 @@ function migrateWorkspace(rawWorkspace) {
 }
 
 function updateRackTiles(rackCard, nextTileIds) {
+  const slotWidths = getRackSlotWidths(rackCard);
+  const widthById = new Map(rackCard.tileIds.map((tileId, index) => [tileId, slotWidths[index]]));
+  const keep = new Set(nextTileIds);
+  let tiers = normalizeRackTiers(rackCard.tiers, rackCard.tileIds.length);
+
+  // Take the removed tiles off their shelves, last first so indices hold.
+  for (let index = rackCard.tileIds.length - 1; index >= 0; index -= 1) {
+    if (!keep.has(rackCard.tileIds[index])) {
+      tiers = removeFromRackTiers(tiers, index);
+    }
+  }
+
   return normalizeCard({
     ...rackCard,
     tileIds: nextTileIds,
+    tiers,
+    slotWidths: nextTileIds.map((tileId) => widthById.get(tileId)),
     updatedAt: nowIso(),
   });
 }
 
-function syncRackChildren(cards, rackId, nextTileIds) {
+// A rack's frame widths come from its tiles' own sizes. The rack grows and
+// shrinks about its centre (x moves by half the change), so the shelf opens
+// both ways, as it does while a tile hovers over it.
+function getRackSlotWidthsFromCards(cards, tileIds) {
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  return tileIds.map((tileId) => getRackFrameWidth(cardById.get(tileId)));
+}
+
+function withRackSlots(rackCard, cards, tileIds, tiers) {
+  const slotWidths = getRackSlotWidthsFromCards(cards, tileIds);
+  const previousWidth = Number.isFinite(rackCard.width) ? rackCard.width : getRackSize(rackCard).width;
+  const nextWidth = getRackSize({ ...rackCard, tileIds, slotWidths, tiers }).width;
+
+  return {
+    ...rackCard,
+    tileIds,
+    slotWidths,
+    tiers,
+    x: rackCard.x - ((nextWidth - previousWidth) / 2),
+  };
+}
+
+// Legacy racks (and racks whose tiles changed size elsewhere) get their
+// frame widths from their tiles on load, without moving.
+function backfillRackSlots(cards) {
+  if (!cards.some((card) => card.type === RACK_CARD_TYPE && card.tileIds.length > 0)) {
+    return cards;
+  }
+
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  let changed = false;
+  const nextCards = cards.map((card) => {
+    if (card.type !== RACK_CARD_TYPE || card.tileIds.length === 0) {
+      return card;
+    }
+
+    const slotWidths = card.tileIds.map((tileId) => getRackFrameWidth(cardById.get(tileId)));
+
+    if (slotWidths.every((width, index) => width === card.slotWidths?.[index])) {
+      return card;
+    }
+
+    changed = true;
+    return normalizeCard({ ...card, slotWidths });
+  });
+
+  return changed ? nextCards : cards;
+}
+
+function syncRackChildren(cards, rackId, nextTileIds, nextTiers = null) {
   const timestamp = nowIso();
   const tileSet = new Set(nextTileIds);
 
   return cards.map((card) => {
     if (card.id === rackId && card.type === RACK_CARD_TYPE) {
       return normalizeCard({
-        ...card,
-        tileIds: nextTileIds,
+        ...withRackSlots(card, cards, nextTileIds, normalizeRackTiers(nextTiers, nextTileIds.length)),
         updatedAt: timestamp,
       });
     }
@@ -1414,7 +1557,11 @@ function detachTileFromRacks(cards, tileId) {
   }
 
   const nextTileIds = sourceRack.tileIds.filter((attachedTileId) => attachedTileId !== tileId);
-  return syncRackChildren(cards, sourceRack.id, nextTileIds);
+  const nextTiers = removeFromRackTiers(
+    normalizeRackTiers(sourceRack.tiers, sourceRack.tileIds.length),
+    sourceRack.tileIds.indexOf(tileId),
+  );
+  return syncRackChildren(cards, sourceRack.id, nextTileIds, nextTiers);
 }
 
 function intersects(a, b) {
@@ -1583,7 +1730,10 @@ export function getRackByTileId(cards, tileId) {
   return cards.find((card) => card.type === RACK_CARD_TYPE && card.tileIds.includes(tileId)) ?? null;
 }
 
-export function addTileToRack(cards, tileId, rackId, slotIndex = null) {
+// slotIndex is the index within shelf `tier`; with no tier it is a flat
+// index (collapsed racks, legacy callers), and with neither the tile goes
+// at the end. A full shelf passes the tile down (tiles/rack/layout.js).
+export function addTileToRack(cards, tileId, rackId, slotIndex = null, tier = null) {
   if (!tileId || !rackId || tileId === rackId) {
     return null;
   }
@@ -1602,12 +1752,13 @@ export function addTileToRack(cards, tileId, rackId, slotIndex = null) {
     return null;
   }
 
-  const insertionIndex = Number.isFinite(slotIndex)
-    ? Math.max(0, Math.min(latestRackCard.tileIds.length, Math.round(slotIndex)))
-    : latestRackCard.tileIds.length;
+  const placed = insertIntoRackTiers(
+    normalizeRackTiers(latestRackCard.tiers, latestRackCard.tileIds.length),
+    { tier: Number.isFinite(tier) ? tier : null, index: Number.isFinite(slotIndex) ? slotIndex : null },
+  );
   const nextTileIds = [...latestRackCard.tileIds];
-  nextTileIds.splice(insertionIndex, 0, tileId);
-  const nextCards = syncRackChildren(cleanedCards, rackId, nextTileIds);
+  nextTileIds.splice(placed.flatIndex, 0, tileId);
+  const nextCards = syncRackChildren(cleanedCards, rackId, nextTileIds, placed.tiers);
   const nextRackCard = nextCards.find((card) => card.id === rackId && card.type === RACK_CARD_TYPE) ?? latestRackCard;
 
   return {
@@ -1629,7 +1780,11 @@ export function removeTileFromRack(cards, tileId, rackId, dropPosition = null) {
   }
 
   const nextTileIds = rackCard.tileIds.filter((attachedTileId) => attachedTileId !== tileId);
-  const nextCards = syncRackChildren(cards, rackId, nextTileIds).map((card) => {
+  const nextTiers = removeFromRackTiers(
+    normalizeRackTiers(rackCard.tiers, rackCard.tileIds.length),
+    rackCard.tileIds.indexOf(tileId),
+  );
+  const nextCards = syncRackChildren(cards, rackId, nextTileIds, nextTiers).map((card) => {
     if (card.id !== tileId) {
       return card;
     }
@@ -1734,6 +1889,50 @@ export function isUrl(value) {
   }
 }
 
+// Endings that make a bare "name.ending/..." read as a web address when
+// pasted without http(s)://. A short list on purpose: "notes.md" or
+// "script.js" pasted as text must stay text.
+const BARE_URL_TLDS = new Set([
+  "com", "net", "org", "io", "co", "uk", "us", "ca", "au", "nz", "ie", "in", "de", "fr", "es", "it",
+  "nl", "be", "se", "no", "dk", "fi", "pl", "pt", "ch", "at", "jp", "kr", "cn", "sg", "hk", "br",
+  "mx", "ar", "za", "ae", "app", "dev", "ai", "gg", "tv", "me", "fm", "so", "xyz", "shop", "store",
+  "design", "art", "edu", "gov", "info", "biz",
+]);
+
+// A pasted link as a full URL: "https://..." as is, and a bare address such
+// as "amazon.co.uk/dp/B0..." or "www.ebay.com/itm/1" with https:// added.
+// Null for anything else (plain text stays text).
+export function toPastedUrl(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const text = value.trim();
+
+  if (isUrl(text)) {
+    return text;
+  }
+
+  if (!text || /\s/.test(text) || text.includes("@") || /^[a-z][a-z0-9+.-]*:/i.test(text)) {
+    return null;
+  }
+
+  const match = text.match(/^((?:[a-z0-9-]+\.)+([a-z]{2,24}))(?::\d{2,5})?(?:[/?#]\S*)?$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const isWww = /^www\./i.test(match[1]);
+
+  if (!isWww && !BARE_URL_TLDS.has(match[2].toLowerCase())) {
+    return null;
+  }
+
+  const candidate = `https://${text}`;
+  return isUrl(candidate) ? candidate : null;
+}
+
 export function isImageLinkCard(card) {
   return isLinkLikeType(card?.type) && card.contentKind === LINK_CONTENT_KIND_IMAGE;
 }
@@ -1800,7 +1999,7 @@ export function createLinkPreviewRefreshPatch(card) {
 
   // A repo tile keeps its type and last-known numbers while it refreshes,
   // so it shows its own loading state instead of becoming a link tile.
-  if (card.type === GITHUB_REPO_CARD_TYPE) {
+  if (card.type === GITHUB_REPO_CARD_TYPE || card.type === X_PROFILE_CARD_TYPE || card.type === X_POST_CARD_TYPE) {
     return { status: "loading", previewError: "" };
   }
 
@@ -1817,6 +2016,9 @@ export function createLinkPreviewRefreshPatch(card) {
     channelName: "",
     mediaAspectRatio: null,
     previewError: "",
+    // The last attempt's diagnostics say "fallback"/"ready"; left in place,
+    // the tile reads them as a finished preview and skips its loading state.
+    previewDiagnostics: null,
     image: "",
     productAsin: "",
     productPrice: "",
@@ -1913,6 +2115,14 @@ export function formatCardSubtitle(card) {
 
   if (card.type === WEATHER_CARD_TYPE) {
     return `weather · ${card.city || "local"}`;
+  }
+
+  if (card.type === X_PROFILE_CARD_TYPE) {
+    return card.xProfile?.handle ? `x · @${card.xProfile.handle}` : "X profile";
+  }
+
+  if (card.type === X_POST_CARD_TYPE) {
+    return card.xPost?.author?.handle ? `x · @${card.xPost.author.handle} post` : "X post";
   }
 
   if (card.type === GITHUB_REPO_CARD_TYPE) {

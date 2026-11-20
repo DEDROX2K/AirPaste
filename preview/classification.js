@@ -1,6 +1,7 @@
 const { PREVIEW_KIND, PREVIEW_REJECTION_REASON } = require("./constants");
 const { getUrlHostname } = require("./utils");
 const { parseGitHubRepoIdentity } = require("./resolvers/github");
+const { isEbayItemUrl } = require("./resolvers/ebay");
 
 function isDirectImageUrl(url) {
   return /\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(url);
@@ -132,6 +133,14 @@ function classifyPreviewTarget(url) {
       classification: "direct-image",
       resolverKey: "image",
       resolvedKind: PREVIEW_KIND.IMAGE,
+    };
+  }
+
+  if (isEbayItemUrl(url)) {
+    return {
+      classification: "ebay-item",
+      resolverKey: "ebay",
+      resolvedKind: PREVIEW_KIND.AMAZON_PRODUCT,
     };
   }
 

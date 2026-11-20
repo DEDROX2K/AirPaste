@@ -1,5 +1,7 @@
 const AMAZON_PRODUCT_CARD_TYPE = "amazon-product";
 const GITHUB_REPO_CARD_TYPE = "github-repo";
+const X_PROFILE_CARD_TYPE = "x-profile";
+const X_POST_CARD_TYPE = "x-post";
 const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
 const { PREVIEW_KIND, PREVIEW_STATE_VALUES, PREVIEW_STATUS } = require("./constants");
@@ -28,7 +30,30 @@ function getImageCardSizeFromAspectRatio(aspectRatio) {
   };
 }
 
-function defaultCardTypeForResult(result) {
+function hasXData(value) {
+  return Boolean(value && typeof value === "object" && value.fetchedAt);
+}
+
+function defaultCardTypeForResult(result, currentCard = {}) {
+  if (result.kind === PREVIEW_KIND.X_PROFILE) {
+    if (hasXData(result.metadata?.xProfile)) {
+      return X_PROFILE_CARD_TYPE;
+    }
+    // A failed refresh keeps a tile that already showed real data.
+    if (currentCard.type === X_PROFILE_CARD_TYPE && hasXData(currentCard.xProfile)) {
+      return X_PROFILE_CARD_TYPE;
+    }
+  }
+
+  if (result.kind === PREVIEW_KIND.X_POST) {
+    if (hasXData(result.metadata?.xPost)) {
+      return X_POST_CARD_TYPE;
+    }
+    if (currentCard.type === X_POST_CARD_TYPE && hasXData(currentCard.xPost)) {
+      return X_POST_CARD_TYPE;
+    }
+  }
+
   if (result.kind === PREVIEW_KIND.AMAZON_PRODUCT && result.status !== PREVIEW_STATUS.BLOCKED) {
     return AMAZON_PRODUCT_CARD_TYPE;
   }
@@ -50,7 +75,7 @@ function getNextGitHubRepoState(currentRepo, nextRepo) {
 }
 
 function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
-  const nextType = defaultCardTypeForResult(result);
+  const nextType = defaultCardTypeForResult(result, currentCard);
   const nextSize = defaultCardSize(nextType);
   const shouldResize = currentCard.type !== nextType;
   const domainFallback = getHostname(result.canonicalUrl || currentCard.url);
@@ -62,6 +87,15 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
   const nextGitHubRepo = isGitHubRepoCard ? getNextGitHubRepoState(currentCard.repo, result.metadata.github) : null;
   const keptPreviousGitHubRepo = isGitHubRepoCard && nextGitHubRepo === currentCard.repo;
   const isXPost = result.kind === PREVIEW_KIND.X_POST;
+  const nextXProfile = nextType === X_PROFILE_CARD_TYPE
+    ? (hasXData(result.metadata?.xProfile) ? result.metadata.xProfile : currentCard.xProfile)
+    : null;
+  const nextXPost = nextType === X_POST_CARD_TYPE
+    ? (hasXData(result.metadata?.xPost) ? result.metadata.xPost : currentCard.xPost)
+    : null;
+  const keptPreviousX = nextType === X_PROFILE_CARD_TYPE
+    ? !hasXData(result.metadata?.xProfile)
+    : nextType === X_POST_CARD_TYPE && !hasXData(result.metadata?.xPost);
   const previewDiagnostics = result.diagnostics && typeof result.diagnostics === "object"
     ? result.diagnostics
     : null;
@@ -91,16 +125,16 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
         ? Math.max(currentCard.height, currentCard.width)
         : currentCard.height),
     contentKind,
-    title: result.title || result.siteName || domainFallback,
-    description: keptPreviousGitHubRepo
+    title: keptPreviousX ? (currentCard.title || "") : (result.title || result.siteName || domainFallback),
+    description: keptPreviousX ? (currentCard.description || "") : keptPreviousGitHubRepo
       ? (currentCard.description || "")
       : (safeStatus === "blocked" ? "" : (result.description || "")),
     image: keepImage ? result.image || "" : "",
     favicon: result.favicon || "",
     siteName: result.siteName || domainFallback,
     previewKind: result.previewKind === "music" ? "music" : "default",
-    previewError: result.reason || "",
-    status: safeStatus,
+    previewError: keptPreviousX ? "" : (result.reason || ""),
+    status: keptPreviousX ? "ready" : safeStatus,
     previewStatus: result.previewStatus || safeStatus,
     contentType: result.contentType || (isXPost ? "video" : (currentCard.contentType || "link")),
     sourceType: result.sourceType || (isXPost ? "x" : (currentCard.sourceType || "generic-link")),
@@ -119,6 +153,8 @@ function getCardStateFromResolvedPreview(currentCard, result, defaultCardSize) {
       ? Math.round(result.metadata.productReviewCount)
       : null,
     repo: nextGitHubRepo,
+    xProfile: nextXProfile,
+    xPost: nextXPost,
   };
 }
 

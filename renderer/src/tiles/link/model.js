@@ -8,6 +8,12 @@ import {
 } from "../../lib/workspace";
 import TILE_TYPES from "../tileTypes";
 import { GITHUB_REPO_CARD_TYPE, normalizeGitHubRepoData, parseGitHubRepoUrl } from "../github/model";
+import {
+  X_POST_CARD_TYPE,
+  X_PROFILE_CARD_TYPE,
+  normalizeXPost,
+  normalizeXProfile,
+} from "../x/model";
 
 export const LINK_CARD_TYPE = TILE_TYPES.LINK;
 export const AMAZON_PRODUCT_CARD_TYPE = TILE_TYPES.AMAZON_PRODUCT;
@@ -17,9 +23,18 @@ export const LINK_CARD_SIZE = Object.freeze({
   height: 280,
 });
 
+// The product tile (AmazonProductTile) is one fixed shape, drawn at
+// 470 x 625 and scaled to the tile's width: same width as a link tile,
+// height from the shape.
+export const PRODUCT_TILE_DESIGN_SIZE = Object.freeze({ width: 470, height: 625 });
+
+export function getProductTileHeight(width) {
+  return Math.round((width * PRODUCT_TILE_DESIGN_SIZE.height) / PRODUCT_TILE_DESIGN_SIZE.width);
+}
+
 export const AMAZON_PRODUCT_CARD_SIZE = Object.freeze({
   width: 340,
-  height: 388,
+  height: getProductTileHeight(340),
 });
 
 export const LINK_PREVIEW_STATUSES = Object.freeze(["idle", "loading", "ready", "fallback", "blocked", "error", "failed"]);
@@ -30,7 +45,8 @@ const IMAGE_CARD_PORTRAIT_MAX_HEIGHT = 540;
 const IMAGE_CARD_FIXED_WIDTH = 340;
 
 export function isLinkLikeType(type) {
-  return type === LINK_CARD_TYPE || type === AMAZON_PRODUCT_CARD_TYPE || type === GITHUB_REPO_CARD_TYPE;
+  return type === LINK_CARD_TYPE || type === AMAZON_PRODUCT_CARD_TYPE || type === GITHUB_REPO_CARD_TYPE
+    || type === X_PROFILE_CARD_TYPE || type === X_POST_CARD_TYPE;
 }
 
 export function normalizeLinkContentKind(contentKind, asset = null) {
@@ -108,6 +124,8 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
   const contentKind = normalizeLinkContentKind(options?.contentKind, options?.asset);
   // A repo link becomes the GitHub tile straight away (in its loading state)
   // rather than flashing the generic link tile until the preview resolves.
+  // X links instead start as a plain link tile showing the loading gif; the
+  // preview turns them into their X tile once everything has loaded.
   const isGitHubRepo = contentKind === LINK_CONTENT_KIND_BOOKMARK && parseGitHubRepoUrl(url) !== null;
   const type = options?.type === AMAZON_PRODUCT_CARD_TYPE
     ? AMAZON_PRODUCT_CARD_TYPE
@@ -171,6 +189,8 @@ export function createLinkCard(cards, viewport, url, preferredCenter = null, opt
     productRating: Number.isFinite(options?.productRating) ? Number(options.productRating) : null,
     productReviewCount: Number.isFinite(options?.productReviewCount) ? Math.max(0, Math.round(options.productReviewCount)) : null,
     repo: type === GITHUB_REPO_CARD_TYPE ? normalizeGitHubRepoData(options?.repo, url) : null,
+    xProfile: type === X_PROFILE_CARD_TYPE ? normalizeXProfile(options?.xProfile, url) : null,
+    xPost: type === X_POST_CARD_TYPE ? normalizeXPost(options?.xPost, url) : null,
     x: position.x,
     y: position.y,
     width: Number.isFinite(options?.width) ? options.width : position.width,

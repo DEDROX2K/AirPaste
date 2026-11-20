@@ -3,11 +3,16 @@ import { useTileAppContext } from "../../context/TileAppContext";
 import { useToast } from "../../hooks/useToast";
 import { desktop } from "../../lib/desktop";
 import { LINK_CONTENT_KIND_IMAGE } from "../../lib/workspace";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
 import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
 import {
   LINK_NOTE_BASE_MEDIA_WIDTH,
-  LINK_NOTE_CARD_PADDING,
+  LINK_NOTE_VARIANT_SHORT,
+  getNotePanelResizePatch,
+  getNotedLinkMediaWidth,
+  getSideNoteLayout,
+  getSideNoteOutlinePath,
   normalizeLinkNote,
 } from "../../tiles/link/notedLink";
 import { NoteTextEditor, NoteTextView } from "../noteText/NoteText";
@@ -15,12 +20,27 @@ import { NotebookText } from "../ui/icons";
 import TileShell from "./TileShell";
 import "./NotedLinkTile.css";
 
-// A link or image tile with a note (see tiles/link/notedLink.js): the
-// image in a dark card, an editable title and text below that grow the
-// tile downward, and a notch with a note icon that peeks out above on
-// hover. It opens with an animation when the note is added. Double-click
-// the image to open the link; click (once selected) or double-click the
-// note to write.
+// A link or image tile with a note (see tiles/link/notedLink.js).
+//   Long note: the image in a frame with a note panel (title and body) to
+//   its right, joined by curved edge connectors above and below; the panel
+//   grows downward as you write.
+//   Short note: a yellow card around the image with the body below it (the
+//   title is kept for when it's long again), and a notch with a note icon
+//   that peeks out above on hover.
+// Each opens with an animation. Double-click the image to open the link;
+// click (once selected) or double-click the note to write. A selected long
+// note has a handle on its right edge that drags the panel narrower or
+// wider, also while writing.
+
+// The edge connector (the design's 104.572 square with a quarter circle cut
+// from its top-left) filling the corner where the image frame meets the
+// note frame. It carries a 2-unit strip on its right and bottom that runs
+// on under both frames, so their edges never leave a hairline seam.
+// CSS sizes the box at join * 106.572 / 104.572 (--nl-join-scale).
+const EDGE_CONNECTOR_SIZE = 106.572;
+const EDGE_CONNECTOR_PATH = "M0 104.572C57.7537 104.572 104.572 57.7537 104.572 0H106.572V106.572H0Z";
+// Gap between the long note's shape and its hover/selection ring, canvas px.
+const SIDE_RING_GAP = 5;
 
 function placeCaretAtEnd(element) {
   const range = document.createRange();
@@ -36,8 +56,9 @@ function normalizeBody(text) {
 }
 
 function NotedLinkTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
+  viewportZoom,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -49,15 +70,26 @@ function NotedLinkTile({
 }) {
   const { toast } = useToast();
   const { folderPath, setCanvasInteractionState, updateExistingCard } = useTileAppContext();
+  // Dragging the panel's edge previews here and commits once on release.
+  const { card, tileMeta, updateLive, commitLive, liveRef } = useLiveTileGeometry(committedCard, committedTileMeta);
   const note = normalizeLinkNote(card.note) ?? { title: "", body: "", mediaWidth: card.width, mediaHeight: card.height };
-  // The image's width inside the card: the card is the image plus padding
-  // on three sides.
-  const mediaWidth = card.width / (1 + ((2 * LINK_NOTE_CARD_PADDING) / LINK_NOTE_BASE_MEDIA_WIDTH));
+  const isShort = note.variant === LINK_NOTE_VARIANT_SHORT;
+  // The image's width inside the tile: the tile scales with it.
+  const mediaWidth = getNotedLinkMediaWidth(note.variant, card.width, note.panelWidth);
+  const panelResizeRef = useRef(null);
+  const [isPanelResizing, setPanelResizing] = useState(false);
   const k = mediaWidth / LINK_NOTE_BASE_MEDIA_WIDTH;
   const isStaticPreview = renderHint?.isStaticPreview === true;
-  const [isRevealed, setRevealed] = useState(isStaticPreview);
+  // Revealed per variant, so switching long <-> short plays the opening again.
+  const [revealedVariant, setRevealedVariant] = useState(isStaticPreview ? note.variant : null);
+  const isRevealed = isStaticPreview || revealedVariant === note.variant;
+  // The long note frame's rendered height, for the ring around its shape.
+  const [sideNoteHeight, setSideNoteHeight] = useState(0);
+  const sideNoteRef = useRef(null);
   const [editingField, setEditingField] = useState(null);
   const isEditing = editingField !== null;
+  const isEditingRef = useRef(isEditing);
+  isEditingRef.current = isEditing;
   const rootRef = useRef(null);
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
@@ -68,6 +100,7 @@ function NotedLinkTile({
   cardRef.current = card;
   const wasSelectedAtPressRef = useRef(false);
   const pressedFieldRef = useRef(null);
+  const bodyPlaceholder = isShort ? "Write a note…" : "Start writing…";
   const title = note.title;
   const body = note.body;
   const { src: previewSource } = useTilePreviewSource({
@@ -93,6 +126,7 @@ function NotedLinkTile({
   const mediaAspect = loadedAspect
     ?? (Number.isFinite(knownAspect) && knownAspect > 0 ? knownAspect : note.mediaWidth / note.mediaHeight);
   const mediaHeight = mediaWidth / mediaAspect;
+  const side = isShort ? null : getSideNoteLayout(mediaWidth, mediaHeight, note.panelWidth);
 
   useEffect(() => {
     setHasImageError(false);
@@ -131,9 +165,24 @@ function NotedLinkTile({
       return undefined;
     }
 
-    const frame = window.requestAnimationFrame(() => setRevealed(true));
+    const variant = note.variant;
+    const frame = window.requestAnimationFrame(() => setRevealedVariant(variant));
     return () => window.cancelAnimationFrame(frame);
-  }, [isStaticPreview]);
+  }, [isStaticPreview, note.variant]);
+
+  // The ring around the long note's shape needs the note frame's height.
+  useLayoutEffect(() => {
+    const element = sideNoteRef.current;
+
+    if (!element || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    setSideNoteHeight(element.offsetHeight);
+    const observer = new ResizeObserver(() => setSideNoteHeight(element.offsetHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isShort]);
 
   // The tile grows down with its note, but card.height is what selection,
   // hit-testing and layout use, so write the rendered height back.
@@ -150,12 +199,17 @@ function NotedLinkTile({
       const measured = Math.ceil(root.offsetHeight);
 
       if (measured > 0 && Math.abs(measured - (Number.isFinite(current.height) ? current.height : 0)) > 1) {
+        // Mid-drag the height follows locally and is committed with the width.
+        if (liveRef.current) {
+          updateLive({ height: measured });
+          return;
+        }
         updateExistingCard(current.id, { height: measured });
       }
     });
     observer.observe(root);
     return () => observer.disconnect();
-  }, [isStaticPreview, updateExistingCard]);
+  }, [isStaticPreview, liveRef, updateExistingCard, updateLive]);
 
   // The title is uncontrolled: React never writes it while typing.
   useLayoutEffect(() => {
@@ -258,7 +312,10 @@ function NotedLinkTile({
 
   const commitNote = () => {
     // textContent, not innerText: the title is shown uppercase by CSS only.
-    const nextTitle = (titleRef.current?.textContent ?? "").replace(/\s*\n\s*/g, " ");
+    // A short note has no title field; its saved title is left alone.
+    const nextTitle = titleRef.current
+      ? titleRef.current.textContent.replace(/\s*\n\s*/g, " ")
+      : title;
     const nextBody = normalizeBody(bodyDraftRef.current ?? body);
 
     if (nextTitle !== title || nextBody !== body) {
@@ -309,6 +366,75 @@ function NotedLinkTile({
     }
   };
 
+  // The long note's right-edge handle: drag to make the panel narrower or
+  // wider. The image stays put; the text reflows and the tile's height
+  // follows. Works while writing too (the editor keeps focus).
+  const handlePanelResizePointerDown = (event) => {
+    if (event.button !== 0 || !side) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const zoom = Math.max(0.05, viewportZoom ?? 1);
+    panelResizeRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      // Panel width at k = 1, and canvas px per k = 1 unit.
+      startPanelWidth: side.panelWidth / side.k,
+      k: side.k,
+      mediaWidth,
+    };
+    setPanelResizing(true);
+    setCanvasInteractionState?.(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const handlePointerMove = (moveEvent) => {
+      const state = panelResizeRef.current;
+
+      if (!state || state.pointerId !== moveEvent.pointerId) {
+        return;
+      }
+
+      const deltaX = (moveEvent.clientX - state.startClientX) / zoom;
+      const patch = getNotePanelResizePatch(
+        cardRef.current,
+        state.mediaWidth,
+        state.startPanelWidth + (deltaX / state.k),
+      );
+
+      if (patch) {
+        updateLive(patch);
+      }
+    };
+
+    const finishResize = (finishEvent) => {
+      const state = panelResizeRef.current;
+
+      if (!state || (finishEvent?.pointerId !== undefined && state.pointerId !== finishEvent.pointerId)) {
+        return;
+      }
+
+      panelResizeRef.current = null;
+      commitLive();
+      setPanelResizing(false);
+      // Writing keeps the canvas locked; otherwise release it.
+      if (!isEditingRef.current) {
+        setCanvasInteractionState?.(false);
+      }
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerup", finishResize, true);
+      window.removeEventListener("pointercancel", finishResize, true);
+      window.removeEventListener("blur", finishResize);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, true);
+    window.addEventListener("pointerup", finishResize, true);
+    window.addEventListener("pointercancel", finishResize, true);
+    window.addEventListener("blur", finishResize);
+  };
+
   const titleProps = {
     role: "textbox",
     "aria-label": "Note title",
@@ -321,6 +447,45 @@ function NotedLinkTile({
     onKeyDown: isEditing ? handleTitleKeyDown : undefined,
     onBlur: isEditing ? handleTitleBlur : undefined,
   };
+
+  const media = (
+    <div className="noted-link__media">
+      {mediaSrc && !hasImageError && renderHint?.imageEnabled !== false ? (
+        <img
+          src={mediaSrc}
+          alt={card.title || ""}
+          draggable={false}
+          decoding="async"
+          onLoad={handleMediaLoad}
+          onError={() => setHasImageError(true)}
+        />
+      ) : null}
+    </div>
+  );
+
+  const noteText = (
+    <div className="noted-link__text">
+      {isShort ? null : <div ref={titleRef} className="noted-link__title" {...titleProps} />}
+      <div ref={bodyRef} className="noted-link__body" aria-label="Note">
+        {isEditing ? (
+          <NoteTextEditor
+            ref={bodyEditorRef}
+            initialText={body}
+            initialSelection="end"
+            autoFocus={editingField === "body"}
+            placeholder={bodyPlaceholder}
+            onChange={(nextText) => { bodyDraftRef.current = nextText; }}
+            onExit={handleBodyExit}
+          />
+        ) : (
+          <NoteTextView text={body} placeholder={bodyPlaceholder} />
+        )}
+      </div>
+    </div>
+  );
+
+  const px = (value) => `${value}px`;
+  const ringHeight = Math.max(sideNoteHeight, side?.minHeight ?? 0);
 
   return (
     <TileShell
@@ -338,60 +503,93 @@ function NotedLinkTile({
         ref={rootRef}
         className={[
           "noted-link",
+          isShort ? "noted-link--short" : "noted-link--side",
           isRevealed ? "noted-link--revealed" : "",
           isEditing ? "noted-link--editing" : "",
+          isPanelResizing ? "noted-link--panel-resizing" : "",
         ].filter(Boolean).join(" ")}
         aria-label={card.title ? `${card.title} with a note` : "Image with a note"}
-        style={{ "--nl-k": k, "--nl-media-height": `${mediaHeight}px` }}
+        style={side ? {
+          "--nl-k": k,
+          "--nl-width": px(side.width),
+          "--nl-media-width": px(mediaWidth),
+          "--nl-media-height": px(mediaHeight),
+          "--nl-pad": px(side.pad),
+          "--nl-frame": px(side.frame),
+          "--nl-tile-top": px(side.tileTop),
+          "--nl-tile-height": px(side.tileHeight),
+          "--nl-note-left": px(side.noteLeft),
+          "--nl-min-height": px(side.minHeight),
+          "--nl-top-join": px(side.topJoin),
+          "--nl-bottom-join": px(side.bottomJoin),
+          "--nl-outer-radius": px(side.outerRadius),
+          "--nl-inner-radius": px(side.innerRadius),
+        } : { "--nl-k": k, "--nl-media-height": px(mediaHeight) }}
         {...gesture}
         onPointerDown={handlePointerDown}
       >
-        <div className="noted-link__notch" aria-hidden="true">
-          <svg viewBox="0 0 192 66" preserveAspectRatio="none">
-            <path d="M0,66 C12,66 26,62 38,44 C46,32 48,0 62,0 H130 C144,0 146,32 154,44 C166,62 180,66 192,66 Z" />
-          </svg>
-          <span className="noted-link__notch-icon">
-            <NotebookText size={22} />
-          </span>
-        </div>
+        {side ? (
+          <>
+            <svg
+              className="noted-link__ring"
+              aria-hidden="true"
+              width={side.width}
+              height={ringHeight}
+              viewBox={`0 0 ${side.width} ${ringHeight}`}
+            >
+              <path d={getSideNoteOutlinePath(side, ringHeight, SIDE_RING_GAP)} />
+            </svg>
 
-        <div className="noted-link__card">
-          <div className="noted-link__media">
-            {mediaSrc && !hasImageError && renderHint?.imageEnabled !== false ? (
-              <img
-                src={mediaSrc}
-                alt={card.title || ""}
-                draggable={false}
-                decoding="async"
-                onLoad={handleMediaLoad}
-                onError={() => setHasImageError(true)}
+            <div className="noted-link__frame" aria-hidden="true" />
+            {["top", "bottom"].map((edge) => (
+              <svg
+                key={edge}
+                className={`noted-link__join noted-link__join--${edge}`}
+                aria-hidden="true"
+                viewBox={`0 0 ${EDGE_CONNECTOR_SIZE} ${EDGE_CONNECTOR_SIZE}`}
+                preserveAspectRatio="none"
+              >
+                <path d={EDGE_CONNECTOR_PATH} />
+              </svg>
+            ))}
+
+            {media}
+
+            <div ref={sideNoteRef} className="noted-link__side-note">
+              <div className="noted-link__panel">{noteText}</div>
+            </div>
+
+            {(tileMeta?.isSelected || isEditing || isPanelResizing) && !isStaticPreview ? (
+              <div
+                className="noted-link__panel-handle"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize note width"
+                onPointerDown={handlePanelResizePointerDown}
+                // Keeps the editor focused, so you can resize mid-sentence.
+                onMouseDown={(event) => event.preventDefault()}
               />
             ) : null}
-          </div>
+          </>
+        ) : (
+          <>
+            <div className="noted-link__notch" aria-hidden="true">
+              <svg viewBox="0 0 192 66" preserveAspectRatio="none">
+                <path d="M0,66 C12,66 26,62 38,44 C46,32 48,0 62,0 H130 C144,0 146,32 154,44 C166,62 180,66 192,66 Z" />
+              </svg>
+              <span className="noted-link__notch-icon">
+                <NotebookText size={22} />
+              </span>
+            </div>
 
-          <div className="noted-link__note">
-            <div className="noted-link__note-inner">
-              <div className="noted-link__text">
-                <div ref={titleRef} className="noted-link__title" {...titleProps} />
-                <div ref={bodyRef} className="noted-link__body" aria-label="Note">
-                  {isEditing ? (
-                    <NoteTextEditor
-                      ref={bodyEditorRef}
-                      initialText={body}
-                      initialSelection="end"
-                      autoFocus={editingField === "body"}
-                      placeholder="Start writing…"
-                      onChange={(nextText) => { bodyDraftRef.current = nextText; }}
-                      onExit={handleBodyExit}
-                    />
-                  ) : (
-                    <NoteTextView text={body} placeholder="Start writing…" />
-                  )}
-                </div>
+            <div className="noted-link__card">
+              {media}
+              <div className="noted-link__note">
+                <div className="noted-link__note-inner">{noteText}</div>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </article>
     </TileShell>
   );

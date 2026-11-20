@@ -3,11 +3,14 @@ const { PREVIEW_CONFIDENCE, PREVIEW_KIND, PREVIEW_REJECTION_REASON, PREVIEW_STAT
 const { createBlockedResult, createResolvedPreviewResult } = require("./result");
 const { validateResolvedPreview } = require("./validation");
 const { resolveAmazonProductPreview } = require("./resolvers/amazon");
+const { resolveEbayItemPreview } = require("./resolvers/ebay");
 const {
   acquirePreviewImage,
   capturePreviewScreenshot,
   closePreviewBrowser,
+  fetchImageDataUrl,
   fetchJson,
+  fetchRenderedPageHtml,
   resolveGenericLinkPreview,
 } = require("./resolvers/generic");
 const { resolveGitHubRepoPreview } = require("./resolvers/github");
@@ -20,8 +23,8 @@ const {
 const {
   resolveDirectImagePreview,
   resolveSpotifyPreview,
-  resolveXPreview,
 } = require("./resolvers/providers");
+const { resolveXLinkPreview } = require("./resolvers/x");
 const { firstString, getHostname, normalizeExternalUrl, normalizePreviewText } = require("./utils");
 
 const PREVIEW_DEBUG_ENABLED = String(process.env.AIRPASTE_PREVIEW_DEBUG ?? "").trim() === "1";
@@ -58,6 +61,14 @@ async function selectResolver(classification, url) {
   if (classification.resolverKey === "image") {
     return {
       result: await resolveDirectImagePreview(url),
+      documentSignals: {},
+      documentSnapshot: null,
+    };
+  }
+
+  if (classification.resolverKey === "ebay") {
+    return {
+      result: await resolveEbayItemPreview(url, { fetchRenderedPageHtml }),
       documentSignals: {},
       documentSnapshot: null,
     };
@@ -193,14 +204,12 @@ async function selectResolver(classification, url) {
   }
 
   if (classification.resolverKey === "x") {
-    const providerResult = await resolveXPreview(url, fetchJson);
+    // Profiles and posts become the X tiles; other X pages (search, login,
+    // ...) fall through to the generic resolver.
+    const xResult = await resolveXLinkPreview(url, { fetchImage: fetchImageDataUrl });
 
-    if (providerResult) {
-      return {
-        result: providerResult,
-        documentSignals: {},
-        documentSnapshot: null,
-      };
+    if (xResult) {
+      return xResult;
     }
   }
 
@@ -292,6 +301,11 @@ async function applyImageAcquisition(result, validation) {
   };
 }
 
+// Tiles drawn from API data rather than a scraped page + preview image.
+function isApiNativeTileKind(kind) {
+  return kind === PREVIEW_KIND.GITHUB_REPO || kind === PREVIEW_KIND.X_POST || kind === PREVIEW_KIND.X_PROFILE;
+}
+
 function buildResolverNativeValidation(result) {
   if (result.kind === PREVIEW_KIND.PINTEREST_PIN) {
     const hasCandidateImage = Array.isArray(result.candidateImageUrls)
@@ -308,9 +322,9 @@ function buildResolverNativeValidation(result) {
     };
   }
 
-  // Repo data comes straight from GitHub's API, not scraped page text, so
+  // Repo / X data comes straight from an API, not scraped page text, so
   // there's nothing to vet and no preview image to require.
-  if (result.kind === PREVIEW_KIND.GITHUB_REPO) {
+  if (isApiNativeTileKind(result.kind)) {
     return {
       decision: "accept",
       status: PREVIEW_STATUS.READY,
@@ -734,7 +748,7 @@ async function resolveUrlToPreview(url) {
       contentType: result.contentType || classification.contentType || "link",
       sourceType: result.sourceType || classification.sourceType || "generic-link",
     });
-    const validation = result.kind === PREVIEW_KIND.PINTEREST_PIN || result.kind === PREVIEW_KIND.GITHUB_REPO
+    const validation = result.kind === PREVIEW_KIND.PINTEREST_PIN || isApiNativeTileKind(result.kind)
       ? buildResolverNativeValidation(result)
       : validateResolvedPreview(result, documentSignals);
     traceStep("validate", "ok", {
@@ -757,7 +771,7 @@ async function resolveUrlToPreview(url) {
     const description = validation.status === PREVIEW_STATUS.BLOCKED
       ? ""
       : firstString(result.description, documentSignals?.ogDescription);
-    const finalStatus = validation.status === PREVIEW_STATUS.READY && !imageAcquisition.image && result.kind !== PREVIEW_KIND.IMAGE && result.kind !== PREVIEW_KIND.GITHUB_REPO
+    const finalStatus = validation.status === PREVIEW_STATUS.READY && !imageAcquisition.image && result.kind !== PREVIEW_KIND.IMAGE && !isApiNativeTileKind(result.kind)
       ? PREVIEW_STATUS.FALLBACK
       : validation.status;
     const metadataFetchStatus = result.metadata?.metadataFetchStatus

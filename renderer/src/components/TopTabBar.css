@@ -990,82 +990,151 @@
 }
 
 /* --- Windows controls (in-app; the native overlay is off). ---
-   Compact pills; each one's real hit box is stretched past the visible shape
-   (::after) so it reaches the bar's top/bottom, and the close button reaches
-   the window's right edge (the bar has 10px side padding). */
-.titlebar-controls--win {
-  align-items: center !important;
-  gap: 4px !important;
+   Minimize, maximize and close joined into one grey piece (TopTabBar.jsx,
+   from "Window controls.svg", 120 x 42), hanging from the top edge of the
+   window: the stems on top of minimize and close touch it. The glyphs are
+   cut out of the shape, so the bar shows through them.
+   Hover: a faint glow in the piece's traffic-light colour (yellow / green /
+   red) rings it and lights its glyph from behind. Plain gradients, no
+   filter, so it costs nothing to show. */
+.titlebar-right:has(.titlebar-controls--joined) {
+  align-self: stretch;
 }
 
-.titlebar-btn--win {
-  appearance: none !important;
-  -webkit-appearance: none !important;
+.titlebar-controls--joined {
+  --titlebar-controls-fill: #d9d9d9;
+  --glow-minimize: 255, 189, 46;
+  --glow-maximize: 39, 201, 63;
+  --glow-close: 255, 95, 86;
+
   position: relative;
-  display: grid !important;
-  place-items: center !important;
-  width: 30px !important;
-  height: 30px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: 2px solid #7676767f !important;
-  border-radius: 100px !important;
-  background: #c0c0c0 !important;
-  color: rgba(0, 0, 0, 0.45) !important;
-  cursor: var(--ap-cursor-default) !important;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  align-self: flex-start;
+  width: 120px;
+  height: 42px;
 }
 
-.titlebar-btn--win::after {
-  content: "";
+.titlebar-joined__shape {
   position: absolute;
-  inset: -12px -2px;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.titlebar-btn--win.is-close::after {
-  right: -10px;
+.titlebar-joined__shape path {
+  fill: var(--titlebar-controls-fill);
+  transition: fill 140ms ease;
 }
 
-.titlebar-btn--win:hover {
-  color: rgba(0, 0, 0, 0.7) !important;
+/* Each glow is centred on its piece and reaches ~14px past it. */
+.titlebar-joined__glow {
+  --glow: 0, 0, 0;
+
+  position: absolute;
+  z-index: 0;
+  top: -10.7px;
+  width: 70px;
+  height: 66px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--glow), 0.6) 0%,
+    rgba(var(--glow), 0.32) 58%,
+    rgba(var(--glow), 0) 100%
+  );
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
 }
 
-.titlebar-btn--win:active {
+.titlebar-joined__glow.is-minimize {
+  --glow: var(--glow-minimize);
+  left: -15.7px;
+}
+
+.titlebar-joined__glow.is-maximize {
+  --glow: var(--glow-maximize);
+  left: 28.4px;
+}
+
+.titlebar-joined__glow.is-close {
+  --glow: var(--glow-close);
+  left: 69.6px;
+  top: -9.8px;
+  width: 66px;
+  height: 66px;
+}
+
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-minimize:hover) .titlebar-joined__glow.is-minimize,
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-maximize:hover) .titlebar-joined__glow.is-maximize,
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-close:hover) .titlebar-joined__glow.is-close,
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-minimize:focus-visible) .titlebar-joined__glow.is-minimize,
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-maximize:focus-visible) .titlebar-joined__glow.is-maximize,
+.titlebar-controls--joined:has(.titlebar-joined__hit.is-close:focus-visible) .titlebar-joined__glow.is-close {
+  opacity: 1;
+  transform: none;
+}
+
+/* Pressed: the glow tightens a touch. */
+.titlebar-controls--joined:has(.titlebar-joined__hit:active) .titlebar-joined__glow {
   transform: scale(0.94);
 }
 
-/* Hover colours: orange / green / red, like the traffic lights. */
-.titlebar-btn--win.is-minimize:hover {
-  background: #ffbd2e !important;
-  border-color: #ffffff !important;
+/* The click areas: each piece's slice of the shape, full height; close
+   runs on to the window's right edge (the bar has 10px side padding). */
+.titlebar-joined__hit {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  cursor: var(--ap-cursor-default) !important;
 }
 
-.titlebar-btn--win.is-maximize {
-  border-radius: 30% !important;
+/* The click areas are real <button>s, and SimpleUi.css gives every button
+   a hover fill and a focus outline with !important (`:is(button, ...)
+   :hover:not(:disabled)`, specificity 0,3,0). Here that painted a white box
+   over the piece. They stay invisible in every state (the glow is the
+   feedback): 0,4,0 and !important out-rank it. */
+.titlebar-controls.titlebar-controls--joined .titlebar-joined__hit.titlebar-joined__hit {
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transform: none !important;
 }
 
-.titlebar-btn--win.is-maximize:hover {
-  background: #27c93f !important;
-  border-color: #ffffff !important;
+.titlebar-joined__hit.is-minimize {
+  left: 0;
+  width: 41.5px;
 }
 
-.titlebar-btn--win.is-close {
-  border-radius: 30% !important;
+.titlebar-joined__hit.is-maximize {
+  left: 41.5px;
+  width: 42.5px;
 }
 
-.titlebar-btn--win.is-close:hover {
-  background-color: #ff5f56 !important;
-  border-color: #ffffff !important;
+.titlebar-joined__hit.is-close {
+  left: 84px;
+  width: 46px;
 }
 
-.titlebar-btn--win svg {
-  width: 12px;
-  height: 12px;
-  color: inherit;
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-joined__glow {
+    transition: opacity 120ms ease;
+    transform: none !important;
+  }
 }
 
 /* --- macOS Traffic Lights styling --- */
@@ -1220,10 +1289,12 @@
   --shape: var(--pair-idle);
 }
 
-/* The connector blends from the left tab's fill to the right tab's. */
+/* The connector's fill: the pair's background colour, which fades exactly
+   like the tab bodies (same property, same 140ms), plus a white end on the
+   side of a selected tab, laid over it as a gradient. */
 .titlebar-tab-shell--paired-left {
-  --pair-link-l: var(--pair-idle);
-  --pair-link-r: var(--pair-idle);
+  --pair-link-l: transparent;
+  --pair-link-r: transparent;
 }
 
 .titlebar-tab-shell--paired-left:has(> .titlebar-tab--active) {
@@ -1234,14 +1305,18 @@
   --pair-link-r: var(--tab-shape-active);
 }
 
+/* Overlaps each tab by 1px so no hairline shows where they meet (their
+   edges land on fractional pixels). */
 .titlebar-pair-link {
   position: absolute;
   top: var(--tab-sel-top);
-  left: 100%;
+  left: calc(100% - 1px);
   z-index: 2;
-  width: var(--tab-pair-link-w);
+  width: calc(var(--tab-pair-link-w) + 2px);
   height: var(--tab-h);
-  background: linear-gradient(90deg, var(--pair-link-l), var(--pair-link-r));
+  background-color: var(--pair-idle);
+  background-image: linear-gradient(90deg, var(--pair-link-l), var(--pair-link-r));
+  transition: background-color 140ms ease;
   -webkit-mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
   mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
   cursor: var(--ap-cursor-pointer, pointer);

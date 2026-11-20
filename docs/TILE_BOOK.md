@@ -34,7 +34,9 @@ A tile feature is not complete until:
 | Implemented | Files & Navigation | File Tile | `file` | Local file reference with an open action. | `renderer/src/components/tiles/FileTile.jsx` | `renderer/src/lib/workspace.js` | No direct Add menu entry. | No seeded examples yet | No dedicated diagnostics. | Created from file import flows. |
 | Implemented | Link & Media | Link Tile | `link` | Bookmark, preview, and media reference tile for web links. | `renderer/src/components/tiles/LinkTile.jsx` | `renderer/src/lib/workspace.js` | No direct Add menu entry. Usually created from paste/import. | Yes | Dedicated preview diagnostics and Codex copy report in DEV/testing flows. | Stable core tile type. |
 | Implemented | Link & Media | Image Tile | `link` | Imported image tile rendered through the link tile system. | `renderer/src/components/tiles/LinkTile.jsx` | `renderer/src/lib/workspace.js` | No direct Add menu entry. Created through import/paste flows. | No seeded examples yet | No dedicated image-only copy report. Uses clean serializable link payload. | Implemented as `type: "link"` plus `contentKind: "image"`, not as a separate type id. |
-| Implemented | Commerce | Amazon Product Tile | `amazon-product` | Specialized product preview tile for Amazon items. | `renderer/src/components/tiles/AmazonProductTile.jsx` | `renderer/src/lib/workspace.js` | No | No seeded examples yet | No dedicated copy report documented. | Specialized link-like tile. |
+| Implemented | Commerce | Product Tile | `amazon-product` | Product tile for shop links: Amazon, eBay and any page with product data. | `renderer/src/components/tiles/AmazonProductTile.jsx` | `renderer/src/lib/workspace.js` | No | No seeded examples yet | No dedicated copy report documented. | Specialized link-like tile. |
+| Implemented | Link & Media | X Profile Tile | `x-profile` | X/Twitter profile as an ID badge hanging from a clip. | `renderer/src/components/tiles/XProfileTile.jsx` | `renderer/src/tiles/x/model.js` | No. Created by pasting an x.com/<handle> link. | No seeded examples yet | Link preview diagnostics. | Data from `preview/resolvers/x.js`; images stored in the card. |
+| Implemented | Link & Media | X Post Tile | `x-post` | X/Twitter post card held by a pin: text, media (1-4 images or inline video), link card, quoted post, counts. | `renderer/src/components/tiles/XPostTile.jsx` | `renderer/src/tiles/x/model.js` | No. Created by pasting an x.com/<handle>/status/<id> link. | No seeded examples yet | Link preview diagnostics. | Data from `preview/resolvers/x.js`; images stored in the card, video streamed. |
 | Implemented | Planning | Calendar Tile | `calendar` | Canvas calendar for planning dates and events. | `renderer/src/components/tiles/CalendarTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics. | Stable manual tile. |
 | Implemented | Structure & Planning | Checklist Tile | `checklist` | Simple checklist with editable items and completion state. | `renderer/src/components/tiles/ChecklistTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable manual tile. |
 | Deprecated | Notes & Writing | Note / Markdown Tile | `note` | Legacy alias kept so previously saved Markdown notes still render; no longer creatable. | `renderer/src/components/tiles/CanvasTextTile.jsx` | `renderer/src/lib/workspace.js` | No (removed) | None | No dedicated diagnostics/copy report. State is serializable. | Replaced by the Paper Note tile; file-backed vault notes are unaffected. |
@@ -44,7 +46,7 @@ A tile feature is not complete until:
 | Implemented | Tracking & Productivity | Counter Tile | `counter` | Large plus/minus counter for lightweight tracking. | `renderer/src/components/tiles/CounterTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated counter diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
 | Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Rewritten with a cleaner dashboard-style layout. |
 | Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
-| Implemented | Layout & Containment | Rack Tile | `rack` | Container tile for mounted/slotted child tiles. | `renderer/src/components/tiles/RackTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable container tile. |
+| Implemented | Layout & Containment | Rack Tile | `rack` | Shelf that holds tiles in captioned frames, with spring drag on/off. | `renderer/src/components/tiles/RackTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics/copy report yet. State is serializable. | Stable container tile. |
 | Implemented | Notes & Writing | Paper Note Tile | `paper-note` | Vertical notebook-paper note with an immersive fullscreen write mode, Obsidian-style live preview (lists, tasks, code, highlight), slash menu and selection toolbar. | `renderer/src/components/tiles/PaperNoteTile.jsx` | `renderer/src/lib/workspace.js`, `renderer/src/tiles/paperNote/model.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Canvas preview is read-only and renders the same markdown tree as the editor; all editing happens in the fullscreen overlay. Extra stacked pages are a decorative pagination cue, not separate tiles. |
 | Planned | Structure & Systems | Node Group Tile | `node-group` | Future grouping/system wrapper for related tiles. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
 | Planned | Interactive | Game Tile | `game` | Future embedded interactive/game surface. | Placeholder in `renderer/src/tiles/tileRegistry.js` | Not normalized in active workspace model yet | No | No | None | Registry placeholder only. |
@@ -64,7 +66,7 @@ A tile feature is not complete until:
 - User-facing UX:
   - Usually created by paste/import, not from the Add menu
   - Shows preview image, metadata, and link actions
-  - Supports retry for recoverable preview failures
+  - Failed preview (no image/video): framed "Preview failed" art (`FailedLinkPreview.jsx`) with the full URL (hover slides the rest into view, click opens it) and a short reason derived from `previewError`/`previewDiagnostics` (`tiles/link/failedPreview.js`). Retry is the right-click "Refresh preview"; no button on the tile
   - Supports copy-link action
 - Data model:
 ```js
@@ -151,16 +153,26 @@ A tile feature is not complete until:
   - Add seeded image examples to Testing Tiles.
   - Consider whether image deserves its own tile type in the future.
 
-## Amazon Product Tile
+## Product Tile (`amazon-product`)
 
-- Type ID: `amazon-product`
+- Type ID: `amazon-product` (kept so saved tiles still load; shown as "Product")
 - Category: Commerce
-- Status: Implemented
-- Purpose: Specialized product card for Amazon product links.
+- Status: Implemented (redesigned 2026-11-20 from the "Online Product Tile v1" prototype)
+- Purpose: Any online-shop product link: Amazon, eBay, and any page with structured product data.
+- Where products come from (all map to this tile via `preview/card-mapper.js`):
+  - Amazon: `preview/resolvers/amazon.js` (unchanged)
+  - eBay item links (`ebay.<tld>/itm/<id>`): `preview/resolvers/ebay.js`. eBay 403s plain fetches with a bot check, so the item is read in an offscreen browser (`fetchRenderedPageHtml` in `preview/resolvers/generic.js`, its own in-memory session cleared per load, real Chrome UA)
+  - Any other shop: the generic resolver turns a page with JSON-LD `Product`, `og:type=product` or `product:price:*` tags into a product (`preview/product.js`)
 - User-facing UX:
-  - Renders product-specific metadata such as pricing and ratings when available
-  - Behaves like a specialized link-like preview tile
-- Data model:
+  - One fixed shape, drawn at 470 x 625 and scaled to the tile's width (340 wide = 452 tall; `normalizeCard` keeps the proportions)
+  - Name in the top lobe: centred, or faded at the right edge and rolled left on hover when long
+  - Product photo cropped to fill the window; red `#FD5B60` when there's none
+  - Price in the bottom tab, shown number-then-symbol (`69.99£`, `PRODUCT_PRICE_FORMAT` in `tiles/link/product.js`), shrunk to fit; "No price" in grey
+  - Shop pill from the domain (`Ebay.co.uk`)
+  - Nothing inside is a control: the whole tile drags; double-click or right-click > Open opens the product
+  - Hover / selection ring follows the shape
+  - Everything shows at every zoom level (no compact LOD hiding)
+- Data model (no new fields; rating / review count are kept but not shown):
 ```js
 {
   type: "amazon-product",
@@ -168,27 +180,57 @@ A tile feature is not complete until:
   title: "",
   image: "",
   productAsin: "",
-  productPrice: "",
-  productDomain: "",
+  productPrice: "",   // as scraped: "£69.99"
+  productDomain: "",  // "ebay.co.uk"
   productRating: null,
   productReviewCount: null
 }
 ```
 - Main files:
-  - `renderer/src/components/tiles/AmazonProductTile.jsx`
-  - `renderer/src/lib/workspace.js`
-  - `renderer/src/tiles/tileRegistry.js`
-- Add menu behavior: No direct Add menu entry.
-- Testing Tiles examples:
-  - None seeded yet.
-- Diagnostics / copy report behavior:
-  - No dedicated copy report documented.
-  - State is normalized in the workspace model.
+  - `renderer/src/components/tiles/AmazonProductTile.jsx` / `.css`
+  - `renderer/src/tiles/link/product.js` (price / shop text), `renderer/src/tiles/link/model.js` (size)
+  - `preview/product.js`, `preview/resolvers/ebay.js`, `preview/resolvers/amazon.js`
+- Add menu behavior: No direct Add menu entry; paste a product link (bare addresses like `amazon.co.uk/dp/...` paste as links too).
+- Tests: `test/product-links.test.js`
 - Known limitations:
-  - Narrow domain-specific tile.
-  - No dedicated QA row yet.
-- Future improvements:
-  - Add seeded examples once product-specific QA is needed.
+  - Fonts: name and shop pill use Obel Mono (bundled); the price uses Geist bold in place of the design's IBM Plex Sans.
+  - Old `.card__amazon-product-*` CSS rules in styles.css / MonochromeUi.css / TilePolish.css are now unused.
+
+## X Profile Tile / X Post Tile
+
+- Type IDs: `x-profile`, `x-post`
+- Category: Link & Media
+- Status: Implemented
+- Purpose: Paste an X (Twitter) profile or post link and get a native-looking X card instead of a screenshot.
+- User-facing UX:
+  - Profile: banner, avatar, name + verified rosette (blue / gold / grey), handle, bio, location / website / joined, following + followers. Hangs from a clip.
+  - Post: author row, text with coloured @mentions / #tags / links, 1-4 image grid or an inline video (no play button; click plays/pauses, never autoplays). Photos and video are part of the drag surface: grab them to move the tile; double-click a photo to open it on X, link card (only when no media), quoted post, timestamp, likes + replies. Held by a pin. Hover is the default tile hover (shadow, no movement). Both are the standard 340px link-tile width. Selecting one (single tile) shows the standard Open / Copy quick-action bar.
+  - Every pill, link, image, card and quote opens externally via the app's open-link handler; double-click opens the profile/post.
+  - Counts under 10,000 show in full (8,242), above compact like X (12.5K, 3.4M).
+  - A pasted X link shows the link tile's loading gif and only becomes the X tile once its data and images have loaded.
+  - First fetch fails: the card becomes the link tile's failed-preview state. A failed refresh keeps the last good data.
+- Data model (one prefixed object per tile, `normalizeXProfile` / `normalizeXPost`):
+```js
+{ type: "x-profile", url, xProfile: { name, handle, bio, location, website, websiteUrl, joined: "YYYY-MM",
+  following, followers, verified: "blue"|"business"|"government"|"none", avatarAsset, bannerAsset, fetchedAt } }
+{ type: "x-post", url, xPost: { id, url, author: { name, handle, verified, avatarAsset }, text,
+  entities: [{ type, start, end, href }] | null, createdAt, likes, replies,
+  media: [{ kind: "photo"|"video"|"gif", asset, videoUrl, width, height, durationMs }],
+  linkCard: { url, domain, title, imageAsset } | null,
+  quoted: { id, url, author: { name, handle }, createdAt, text } | null, fetchedAt } }
+```
+- Data source (`preview/resolvers/x.js`, main process, unofficial keyless endpoints isolated in that one file):
+  - Profile: `api.fxtwitter.com/<handle>` (retried: it intermittently answers 404 for real accounts).
+  - Post: `cdn.syndication.twimg.com/tweet-result` then `api.fxtwitter.com/<handle>/status/<id>`.
+  - Avatar / banner / photos / posters / link image are downloaded into the card as data URLs; video is streamed from video.twimg.com.
+- Main files:
+  - `renderer/src/components/tiles/XProfileTile.jsx`, `XPostTile.jsx`, `XTileParts.jsx`, `XTileParts.css`
+  - `renderer/src/tiles/x/model.js`
+  - `preview/resolvers/x.js`, `preview/card-mapper.js`
+- Known limitations:
+  - Depends on unofficial endpoints; a payload change is a one-file fix in the resolver.
+  - Video playback needs a connection.
+  - Compact LOD only pauses video; content stays the same so the measured height does not jump while zooming.
 
 ## Checklist Tile
 
@@ -564,23 +606,36 @@ A tile feature is not complete until:
 - Type ID: `rack`
 - Category: Layout & Containment
 - Status: Implemented
-- Purpose: Structured container for mounted/slotted child tiles.
+- Purpose: A shelf that holds tiles. Tiles stand on it side by side in dark frames, captioned with their source.
 - User-facing UX:
   - Manual creation from Add menu
-  - Holds mounted child tiles in slots
-  - Maintains attached tile layout rules
+  - Drag (or throw) a tile onto the shelf; neighbours open a gap where it will go
+  - Pull a racked tile up to take it off (it rubber-bands, then tears off); slide it along the shelf to reorder
+  - Enter / Space / R on a focused racked tile takes it off
+  - Five tiles a shelf; a full shelf refuses and passes the tile to a new shelf below (posts join them)
+  - Right-click: Rack style (5 materials, 3 frames)
+  - The name is pressed into the shelf's front lip; click it to rename
+  - Design and animation rules: `docs/rules/rack-rules.md`
 - Data model:
 ```js
 {
   type: "rack",
   title: "Rack",
   description: "Mounted display rack",
-  tileIds: [],
-  minSlots: 3
+  tileIds: [],      // order on the shelf
+  slotWidths: [],   // frame width of each tile, derived from its size
+  tiers: [],        // tiles per shelf (max 5 each), in order
+  material: "steel",   // steel | oak | walnut | acrylic | concrete
+  frameStyle: "dark",  // dark | mat | polaroid
+  minSlots: 3,      // legacy, unused by layout
+  plasticColor: 0   // legacy, kept but no longer drawn
 }
 ```
 - Main files:
   - `renderer/src/components/tiles/RackTile.jsx`
+  - `renderer/src/tiles/rack/geometry.js`
+  - `renderer/src/tiles/rack/layout.js`
+  - `renderer/src/tiles/rack/rackMotion.js`
   - `renderer/src/lib/workspace.js`
   - `renderer/src/components/CanvasAddMenu.jsx`
   - `renderer/src/systems/commands/useCanvasCommands.js`

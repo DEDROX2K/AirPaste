@@ -6,6 +6,7 @@ import { useToast } from "../hooks/useToast";
 import { maybeRemark, WORKSPACE_OPEN_QUIPS } from "../lib/eyeCommentary";
 import {
   createWorkspacePage,
+  removeWorkspacePage,
   createCanvasTextCard,
   createEmptyWorkspace,
   createCalendarCard,
@@ -2031,6 +2032,11 @@ export function AppProvider({ children }) {
     }));
   }, [updateWorkspaceState]);
 
+  // Undoable like any other edit (history snapshots the whole workspace).
+  const deleteCanvasPage = useCallback((pageId) => {
+    commitWorkspaceChange((current) => removeWorkspacePage(current, pageId));
+  }, [commitWorkspaceChange]);
+
   const reorderCanvasPages = useCallback((pageId, targetIndex) => {
     if (!pageId || !Number.isFinite(targetIndex)) {
       return;
@@ -2263,6 +2269,7 @@ export function AppProvider({ children }) {
     createNewTableCard,
     createNewTextBoxCard,
     createCanvasPage,
+    deleteCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,
     createNewWorkspace,
@@ -2342,6 +2349,7 @@ export function AppProvider({ children }) {
     createNewTableCard,
     createNewTextBoxCard,
     createCanvasPage,
+    deleteCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,
     createNewWorkspace,

@@ -1,0 +1,195 @@
+/* Product tile (AmazonProductTile.jsx). Drawn at 470 x 625 and scaled by
+   --product-k (tile width / 470); every size below is design px times k.
+   Nothing inside takes the pointer: the whole tile is the drag surface. */
+
+.product-tile {
+  --product-k: 1;
+  --product-ink: #000;
+  --product-empty: #fd5b60;
+  --product-pill: #d9d9d9;
+  --product-mono: "Obel Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --product-sans: "IBM Plex Sans", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  position: relative;
+  width: calc(470px * var(--product-k));
+  height: calc(625px * var(--product-k));
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.product-tile * {
+  pointer-events: none;
+}
+
+/* The product photo's window: under the frame, whose notch covers its
+   bottom. Fills (crops, never stretches); red when there's no photo. */
+.product-tile__shot {
+  position: absolute;
+  left: calc(27px * var(--product-k));
+  top: calc(92px * var(--product-k));
+  width: calc(415px * var(--product-k));
+  height: calc(410px * var(--product-k));
+  overflow: hidden;
+  border-radius: calc(13px * var(--product-k));
+  background: var(--product-empty);
+}
+
+.product-tile__shot--filled {
+  background: #fff;
+}
+
+.product-tile__shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.product-tile__loading {
+  width: 100%;
+  height: 100%;
+  background: #1d1d1f var(--ap-loading-gif) center / cover no-repeat;
+}
+
+.product-tile__frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.product-tile__frame path {
+  fill: #fff;
+}
+
+/* Hover / selection ring following the shape, a steady size on screen at
+   any zoom: SVG user units are design px, so screen px are divided by the
+   tile's scale and the canvas zoom. */
+.product-tile__ring {
+  --product-ring-gap: 4px;
+  --product-ring-width: 1.5px;
+  --product-ring-scale: calc(var(--product-k) * var(--canvas-zoom, 1));
+
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.product-tile__ring rect {
+  fill: transparent;
+}
+
+.product-tile__ring-outer {
+  fill: #fff;
+  stroke: #fff;
+  stroke-width: calc((var(--product-ring-gap) + var(--product-ring-width)) * 2 / var(--product-ring-scale));
+}
+
+.product-tile__ring-inner {
+  fill: #000;
+  stroke: #000;
+  stroke-width: calc(var(--product-ring-gap) * 2 / var(--product-ring-scale));
+}
+
+.card--hovered .product-tile__ring rect {
+  fill: rgba(13, 153, 255, 0.6);
+}
+
+.card--selected .product-tile__ring rect {
+  fill: #0d99ff;
+}
+
+/* The name in the top lobe: centred when it fits; a long one sits left,
+   fades at the right edge and, on hover, rolls left to show the rest. */
+.product-tile__name {
+  position: absolute;
+  left: calc(100px * var(--product-k));
+  top: calc(12px * var(--product-k));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(270px * var(--product-k));
+  height: calc(44px * var(--product-k));
+  overflow: hidden;
+}
+
+.product-tile__name span {
+  flex: none;
+  color: var(--product-ink);
+  font-family: var(--product-mono);
+  font-size: calc(30px * var(--product-k));
+  font-weight: 700;
+  line-height: calc(44px * var(--product-k));
+  white-space: nowrap;
+  transition: transform var(--product-roll-duration, 0.6s) linear;
+}
+
+.product-tile__name--cut {
+  justify-content: flex-start;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px * var(--product-k)), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 40px * var(--product-k)), transparent);
+}
+
+.product-tile__name--cut.product-tile__name--roll {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 calc(24px * var(--product-k)), #000 calc(100% - 24px * var(--product-k)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 calc(24px * var(--product-k)), #000 calc(100% - 24px * var(--product-k)), transparent);
+}
+
+.product-tile__name--roll span {
+  transform: translateX(calc(var(--product-roll) * -1px * var(--product-k)));
+  transition-delay: 0.15s;
+}
+
+/* The price in the bottom tab; the tile shrinks a long one to fit. */
+.product-tile__price {
+  position: absolute;
+  left: calc(85px * var(--product-k));
+  top: calc(486px * var(--product-k));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(300px * var(--product-k));
+  height: calc(66px * var(--product-k));
+  color: var(--product-ink);
+  font-family: var(--product-sans);
+  font-size: calc(var(--product-price-size, 56) * 1px * var(--product-k));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.product-tile__price--none {
+  color: #b5b5b5;
+}
+
+.product-tile__source {
+  position: absolute;
+  left: calc(129px * var(--product-k));
+  top: calc(574px * var(--product-k));
+  width: calc(216px * var(--product-k));
+  height: calc(36px * var(--product-k));
+  overflow: hidden;
+  padding: 0 calc(14px * var(--product-k));
+  border-radius: calc(18px * var(--product-k));
+  background: var(--product-pill);
+  color: var(--product-ink);
+  font-family: var(--product-mono);
+  font-size: calc(16px * var(--product-k));
+  font-weight: 700;
+  line-height: calc(36px * var(--product-k));
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-tile__name span {
+    transition: none;
+  }
+}

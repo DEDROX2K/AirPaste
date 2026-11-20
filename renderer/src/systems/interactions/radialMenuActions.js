@@ -12,12 +12,14 @@ const CANVAS_ACTION_ORDER = [
 const TILE_ACTION_ORDER = [
   "edit-text",
   "link-note",
+  "link-note-variant",
   "file-color",
   "refresh-preview",
   "webclip",
   "article",
   "copy-preview-diagnostics",
   "copy-codex-report",
+  "rack-style",
   "stack",
   "tether",
   "untether",
@@ -48,12 +50,16 @@ export function buildRadialMenuActions({
   showEditText = false,
   showFileColor = false,
   linkNoteState = null,
+  // "long" | "short": the open note's variant (only read when it's open).
+  linkNoteVariant = "long",
   showTether = false,
   tetherCount = 0,
   showUntether = false,
   // "stacked": the tile sits in a stack (its menu is only Ungroup);
   // "can-stack": two or more tiles are selected (offers Group).
   stackState = null,
+  // A single rack right-clicked: offers Rack style.
+  showRackStyle = false,
   handlers,
 }) {
   const selectionCount = menu?.selectionIds?.length ?? 0;
@@ -212,6 +218,24 @@ export function buildRadialMenuActions({
       };
     }
 
+    // Closed: "Add short note". Open: switch between long and short.
+    if (id === "link-note-variant") {
+      if (!linkNoteState) {
+        return null;
+      }
+
+      const label = linkNoteState !== "open"
+        ? "Add short note"
+        : linkNoteVariant === "short" ? "Make long note" : "Make short note";
+
+      return {
+        id,
+        label,
+        kind: "action",
+        onTrigger: handlers.onLinkNoteVariant,
+      };
+    }
+
     if (id === "file-color") {
       if (!showFileColor) {
         return null;
@@ -319,6 +343,19 @@ export function buildRadialMenuActions({
         kind: "action",
         activeLabel: "G",
         onTrigger: handlers.onStack,
+      };
+    }
+
+    if (id === "rack-style") {
+      if (!showRackStyle) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Rack style",
+        kind: "action",
+        onTrigger: handlers.onOpenRackStyle,
       };
     }
 

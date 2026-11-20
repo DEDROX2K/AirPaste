@@ -9,7 +9,13 @@ import {
   getFloatSize,
   snapFloatPosition,
 } from "../../systems/canvas/splitView";
-import { ChevronDown, RefreshCw, SplitColumns, X } from "../ui/icons";
+import { Check, ChevronDown, RefreshCw, SplitColumns, X } from "../ui/icons";
+import {
+  AppDropdownMenu,
+  AppDropdownMenuContent,
+  AppDropdownMenuItem,
+  AppDropdownMenuTrigger,
+} from "../ui/app";
 import { CanvasFileScope } from "./CanvasPane";
 import { useCanvasPaneRegistry } from "./canvasPaneRegistry";
 import "./FloatingCanvasWindow.css";
@@ -50,19 +56,30 @@ function FloatHeader({ onDragStart, onRotate, onDock, onClose, orientation }) {
       <div className="floating-canvas__title">
         <span className="floating-canvas__name" title={currentEditor.name}>{currentEditor.name || "Canvas"}</span>
         {pages.length > 1 ? (
-          <label className="floating-canvas__page" onPointerDown={(event) => event.stopPropagation()}>
-            <span>{currentPage?.name || "Page"}</span>
-            <ChevronDown size={11} aria-hidden="true" />
-            <select
-              aria-label="Page shown in the floating view"
-              value={currentPage?.id ?? ""}
-              onChange={(event) => setActiveCanvasPage(event.target.value)}
-            >
+          <AppDropdownMenu modal={false}>
+            <AppDropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="floating-canvas__page"
+                aria-label="Page shown in the floating view"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <span>{currentPage?.name || "Page"}</span>
+                <ChevronDown size={11} aria-hidden="true" />
+              </button>
+            </AppDropdownMenuTrigger>
+            {/* Above the floating card (z-index 900). */}
+            <AppDropdownMenuContent align="start" className="floating-canvas__page-menu" style={{ zIndex: 1000 }}>
               {pages.map((page, index) => (
-                <option key={page.id} value={page.id}>{page.name || `Page ${index + 1}`}</option>
+                <AppDropdownMenuItem key={page.id} onSelect={() => setActiveCanvasPage(page.id)}>
+                  <span className="floating-canvas__page-check">
+                    {page.id === currentPage?.id ? <Check size={12} aria-hidden="true" /> : null}
+                  </span>
+                  <span className="floating-canvas__page-label">{page.name || `Page ${index + 1}`}</span>
+                </AppDropdownMenuItem>
               ))}
-            </select>
-          </label>
+            </AppDropdownMenuContent>
+          </AppDropdownMenu>
         ) : null}
       </div>
       <div className="floating-canvas__actions" onPointerDown={(event) => event.stopPropagation()}>

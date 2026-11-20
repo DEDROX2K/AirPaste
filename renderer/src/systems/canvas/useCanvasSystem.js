@@ -335,11 +335,18 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
     window.addEventListener("resize", handleWindowResize);
     window.addEventListener("scroll", handleWindowResize, true);
+    // The canvas can move without resizing (the floating view is dragged
+    // around by a transform), so measure again whenever the pointer comes
+    // in or presses, before anything reads the saved position.
+    container.addEventListener("pointerenter", handleWindowResize);
+    container.addEventListener("pointerdown", handleWindowResize, true);
 
     return () => {
       resizeObserver?.disconnect?.();
       window.removeEventListener("resize", handleWindowResize);
       window.removeEventListener("scroll", handleWindowResize, true);
+      container.removeEventListener("pointerenter", handleWindowResize);
+      container.removeEventListener("pointerdown", handleWindowResize, true);
     };
   }, [containerElement, measureContainerRect]);
 
@@ -499,7 +506,12 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       // Ctrl/Cmd + any wheel. A two-finger trackpad scroll pans, and
       // Shift + mouse wheel pans sideways.
       if (event.ctrlKey || event.metaKey || (!event.shiftKey && isMouseWheelEvent(event))) {
-        const canvasPoint = toCanvasPoint(event.clientX, event.clientY);
+        // From this event's own measurement, never a saved one: the canvas
+        // may have moved since (floating view).
+        const canvasPoint = rect
+          ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
+          : toCanvasPoint(event.clientX, event.clientY);
+        if (rect) containerRectRef.current = rect;
         const worldPoint = {
           x: (canvasPoint.x - vp.x) / vp.zoom,
           y: (canvasPoint.y - vp.y) / vp.zoom,

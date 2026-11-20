@@ -3,6 +3,8 @@ export const TILE_TYPES = Object.freeze({
   FILE: "file",
   AMAZON_PRODUCT: "amazon-product",
   GITHUB_REPO: "github-repo",
+  X_PROFILE: "x-profile",
+  X_POST: "x-post",
   CALENDAR: "calendar",
   CHECKLIST: "checklist",
   CODE: "code",

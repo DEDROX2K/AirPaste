@@ -27,6 +27,8 @@ const RACK_CARD_TYPE = "rack";
 const FILE_CARD_TYPE = "file";
 const AMAZON_PRODUCT_CARD_TYPE = "amazon-product";
 const GITHUB_REPO_CARD_TYPE = "github-repo";
+const X_PROFILE_CARD_TYPE = "x-profile";
+const X_POST_CARD_TYPE = "x-post";
 const LINK_CONTENT_KIND_BOOKMARK = "bookmark";
 const LINK_CONTENT_KIND_IMAGE = "image";
 const NOTE_STYLE_TWO = "notes-2";
@@ -105,13 +107,23 @@ function defaultCardSize(type) {
     return { width: 340, height: 280 };
   }
 
+  // The product tile's shape is 470 x 625 (renderer tiles/link/model.js).
   if (type === AMAZON_PRODUCT_CARD_TYPE) {
-    return { width: 340, height: 388 };
+    return { width: 340, height: 452 };
   }
 
   // Starting height only: the tile measures its content and writes it back.
   if (type === GITHUB_REPO_CARD_TYPE) {
     return { width: 440, height: 330 };
+  }
+
+  // Starting heights only, like the repo tile: the X tiles measure theirs.
+  if (type === X_PROFILE_CARD_TYPE) {
+    return { width: 340, height: 312 };
+  }
+
+  if (type === X_POST_CARD_TYPE) {
+    return { width: 340, height: 300 };
   }
 
   if (type === RACK_CARD_TYPE) {
@@ -196,6 +208,10 @@ function getCardType(card) {
     return GITHUB_REPO_CARD_TYPE;
   }
 
+  if (card?.type === X_PROFILE_CARD_TYPE || card?.type === X_POST_CARD_TYPE) {
+    return card.type;
+  }
+
   if (card?.type === RACK_CARD_TYPE) {
     return RACK_CARD_TYPE;
   }
@@ -224,7 +240,8 @@ function normalizeLinkContentKind(contentKind, asset = null) {
 }
 
 function isLinkLikeCardType(type) {
-  return type === "link" || type === AMAZON_PRODUCT_CARD_TYPE || type === GITHUB_REPO_CARD_TYPE;
+  return type === "link" || type === AMAZON_PRODUCT_CARD_TYPE || type === GITHUB_REPO_CARD_TYPE
+    || type === X_PROFILE_CARD_TYPE || type === X_POST_CARD_TYPE;
 }
 
 function normalizeLinkAsset(asset) {
@@ -469,6 +486,9 @@ function normalizeCard(card, index = 0) {
     // Shape is owned by the renderer (tiles/github/model.js normalizes it);
     // here it only has to survive the preview write-back intact.
     repo: type === GITHUB_REPO_CARD_TYPE && card?.repo && typeof card.repo === "object" ? card.repo : null,
+    // Owned by the renderer too (tiles/x/model.js).
+    xProfile: type === X_PROFILE_CARD_TYPE && card?.xProfile && typeof card.xProfile === "object" ? card.xProfile : null,
+    xPost: type === X_POST_CARD_TYPE && card?.xPost && typeof card.xPost === "object" ? card.xPost : null,
     tileIds,
     minSlots,
     childIds,

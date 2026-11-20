@@ -498,17 +498,91 @@
   opacity: 0 !important;
 }
 
+/* Loading animation variants: each loading element picks one at random
+   (lib/loadingGif.js). */
+.card__link-loading,
+.card__image-reveal__placeholder,
+.product-tile__loading,
+.card__video-loading { --ap-loading-gif: url("/tilesimg/Loading preview 1.gif"); }
+[data-loading-gif="2"] { --ap-loading-gif: url("/tilesimg/Loading preview 2.gif"); }
+[data-loading-gif="3"] { --ap-loading-gif: url("/tilesimg/Loading preview 3.gif"); }
+[data-loading-gif="4"] { --ap-loading-gif: url("/tilesimg/Loading preview 4.gif"); }
+[data-loading-gif="5"] { --ap-loading-gif: url("/tilesimg/Loading preview 5.gif"); }
+[data-loading-gif="6"] { --ap-loading-gif: url("/tilesimg/Loading preview 6.gif"); }
+[data-loading-gif="7"] { --ap-loading-gif: url("/tilesimg/Loading preview 7.gif"); }
+[data-loading-gif="8"] { --ap-loading-gif: url("/tilesimg/Loading preview 8.gif"); }
+[data-loading-gif="9"] { --ap-loading-gif: url("/tilesimg/Loading preview 9.gif"); }
+[data-loading-gif="10"] { --ap-loading-gif: url("/tilesimg/Loading preview 10.gif"); }
+[data-loading-gif="11"] { --ap-loading-gif: url("/tilesimg/Loading preview 11.gif"); }
+[data-loading-gif="12"] { --ap-loading-gif: url("/tilesimg/Loading preview 12.gif"); }
+[data-loading-gif="13"] { --ap-loading-gif: url("/tilesimg/Loading preview 13.gif"); }
+
+/* Loading link preview: the loading gif fills the media area with a bold
+   white mono label in the middle. */
+.canvas__content .card__link-loading,
+.grid-workspace .card__link-loading {
+  background: #1d1d1f var(--ap-loading-gif) center / cover no-repeat !important;
+  animation: none !important;
+}
+
+.canvas__content .card__link-loading::before,
+.grid-workspace .card__link-loading::before,
+.canvas__content .card__link-loading::after,
+.grid-workspace .card__link-loading::after {
+  content: none !important;
+}
+
+.canvas__content .card__link-loading-label,
+.grid-workspace .card__link-loading-label {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 1;
+  margin: 0;
+  padding: 0 12px !important;
+  transform: none !important;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: "Obel Mono", var(--ap-font-mono) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-align: center;
+  text-transform: none !important;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Media that hasn't loaded yet: the same gif plays only in a 5px border
+   round the empty area (masked to a ring). */
 .canvas__content .card__image-reveal__placeholder,
 .grid-workspace .card__image-reveal__placeholder,
 .canvas__content .card__video-loading,
-.grid-workspace .card__video-loading,
-.canvas__content .card__link-loading,
-.grid-workspace .card__link-loading {
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.68) 48%, transparent 100%),
-    #eef0f3 !important;
-  background-size: 220% 100%, 100% 100%;
-  animation: apTileLoadingSweep 1400ms ease-in-out infinite;
+.grid-workspace .card__video-loading {
+  background: #eef0f3 !important;
+  animation: none !important;
+}
+
+.canvas__content .card__video-loading,
+.grid-workspace .card__video-loading {
+  position: relative;
+}
+
+.canvas__content .card__image-reveal__placeholder::after,
+.grid-workspace .card__image-reveal__placeholder::after,
+.canvas__content .card__video-loading::after,
+.grid-workspace .card__video-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 5px;
+  border-radius: inherit;
+  background: var(--ap-loading-gif) center / cover no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
 }
 
 .canvas__content .card__video-loading-bar,
@@ -517,12 +591,17 @@
   box-shadow: none !important;
 }
 
-.canvas__content :is(.card__preview-fallback, .card__surface--preview-fallback),
-.grid-workspace :is(.card__preview-fallback, .card__surface--preview-fallback) {
-  border: 1px solid #aeb0b5 !important;
-  border-radius: var(--ap-tile-radius) !important;
-  background: #d5d6d9 !important;
+/* Failed link preview: the art carries its own frame and shadow, so the
+   surface stays see-through in every state. Out-ranks the hovered/selected
+   .card__surface shadows above, which otherwise outline an empty box round
+   the art (same treatment as stickers: no ring, no lift). */
+.canvas__content .card .card__surface-frame.card__surface-frame--preview-fallback .card__surface.card__surface--preview-fallback,
+.grid-workspace .card .card__surface-frame.card__surface-frame--preview-fallback .card__surface.card__surface--preview-fallback {
+  border: 0 !important;
+  outline: none !important;
+  background: transparent !important;
   box-shadow: none !important;
+  overflow: visible !important;
 }
 
 .canvas__content .card__surface--file,

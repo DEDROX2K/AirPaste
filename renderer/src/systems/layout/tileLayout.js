@@ -1,13 +1,24 @@
 import {
+  getRackLayoutSpec,
   getRackSize,
   getRackTileWorldPosition,
   RACK_CARD_TYPE,
 } from "../../lib/workspace";
+import {
+  RACK_FRAME_TOP,
+  RACK_ZONE_ABOVE,
+  RACK_ZONE_BELOW,
+  RACK_ZONE_HYSTERESIS,
+  RACK_ZONE_SIDE,
+  SLOT_GAP,
+  getRackFrameWidth,
+} from "../../tiles/rack/geometry";
+import {
+  getRackDropSlot,
+  removeFromRackTiers,
+} from "../../tiles/rack/layout";
 
 export const MARQUEE_DRAG_THRESHOLD = 6;
-export const RACK_DROP_REACH = 220;
-export const RACK_DROP_SIDE_PADDING = 18;
-export const RACK_DROP_BOTTOM_PADDING = 18;
 
 export function normalizeRect(startX, startY, endX, endY) {
   const left = Math.min(startX, endX);
@@ -136,17 +147,43 @@ export function getRackRect(rackTile) {
   };
 }
 
-export function getRackDropRect(rackTile) {
+// The rack's drop zone: the shelf plus RACK_ZONE_SIDE each side, from
+// RACK_ZONE_ABOVE over the top of the frames to RACK_ZONE_BELOW under the
+// shelf; `pad` grows it (the hysteresis once a drag is already inside).
+export function getRackDropRect(rackTile, pad = 0) {
   const rackRect = getRackRect(rackTile);
+  const left = rackRect.left - RACK_ZONE_SIDE - pad;
+  const right = rackRect.right + RACK_ZONE_SIDE + pad;
+  const top = rackRect.top + RACK_FRAME_TOP - RACK_ZONE_ABOVE - pad;
+  const bottom = rackRect.bottom + RACK_ZONE_BELOW + pad;
 
-  return {
-    left: rackRect.left - RACK_DROP_SIDE_PADDING,
-    top: rackRect.top - RACK_DROP_REACH,
-    right: rackRect.right + RACK_DROP_SIDE_PADDING,
-    bottom: rackRect.bottom + RACK_DROP_BOTTOM_PADDING,
-    width: rackRect.width + (RACK_DROP_SIDE_PADDING * 2),
-    height: RACK_DROP_REACH + rackRect.height + RACK_DROP_BOTTOM_PADDING,
-  };
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+export function getRackZoneDistance(rackTile, point) {
+  const zone = getRackDropRect(rackTile);
+  const dx = Math.max(zone.left - point.x, 0, point.x - zone.right);
+  const dy = Math.max(zone.top - point.y, 0, point.y - zone.bottom);
+  return Math.hypot(dx, dy);
+}
+
+// Closest rack zone to a point (0 = inside), for the approach shrink.
+export function findNearestRackZone(rootTiles, point, excludeIdSet = null) {
+  let nearest = null;
+
+  for (const tile of rootTiles ?? []) {
+    if (tile.type !== RACK_CARD_TYPE || excludeIdSet?.has(tile.id)) {
+      continue;
+    }
+
+    const distance = getRackZoneDistance(tile, point);
+
+    if (!nearest || distance < nearest.distance) {
+      nearest = { rackId: tile.id, rack: tile, distance };
+    }
+  }
+
+  return nearest;
 }
 
 // A tile in a rack isn't on the canvas -- the rack draws its snapshot. This
@@ -315,64 +352,29 @@ export function getBoxStyleVars(box) {
   };
 }
 
-function getDraggedRect(dragOrigins, dragTileId, dragDelta) {
-  const origin = dragOrigins[dragTileId];
-
-  if (!origin) {
-    return null;
-  }
-
-  return {
-    left: origin.x + dragDelta.x,
-    top: origin.y + dragDelta.y,
-    right: origin.x + dragDelta.x + origin.width,
-    bottom: origin.y + dragDelta.y + origin.height,
-    width: origin.width,
-    height: origin.height,
-  };
-}
-
-function getDraggedBounds(dragOrigins, dragTileIds, dragDelta) {
-  return dragTileIds.reduce((bounds, dragTileId) => {
-    const draggedRect = getDraggedRect(dragOrigins, dragTileId, dragDelta);
-
-    if (!draggedRect) {
-      return bounds;
-    }
-
-    if (!bounds) {
-      return draggedRect;
-    }
-
-    return {
-      left: Math.min(bounds.left, draggedRect.left),
-      top: Math.min(bounds.top, draggedRect.top),
-      right: Math.max(bounds.right, draggedRect.right),
-      bottom: Math.max(bounds.bottom, draggedRect.bottom),
-      width: 0,
-      height: 0,
-    };
-  }, null);
-}
-
 export function findRackDropTarget({
   tiles,
   dragTileIds,
   dragOrigins,
-  dragDelta,
   clientToWorldPoint,
   pointerClientX,
   pointerClientY,
   rootTiles = null,
   dragTileIdSet = null,
   metrics = null,
+  // The rack the drag is already over: its zone gets the hysteresis.
+  previousRackId = null,
+  // Overrides the pointer (the projected point of a throw).
+  worldPoint = null,
+  // The dragged tile's centre x on screen (world), which picks the slot.
+  // Defaults to the pointer.
+  centerX = null,
 }) {
-  const draggedBounds = getDraggedBounds(dragOrigins, dragTileIds, dragDelta);
-  const pointerWorldPoint = clientToWorldPoint(pointerClientX, pointerClientY);
+  const pointerWorldPoint = worldPoint ?? clientToWorldPoint(pointerClientX, pointerClientY);
   const candidateRootTiles = rootTiles ?? getRootTiles(tiles, metrics);
   const candidateDragTileIdSet = dragTileIdSet ?? new Set(dragTileIds);
   let bestTarget = null;
-  let bestScore = 0;
+  let bestDistance = Infinity;
 
   if (metrics) {
     metrics.pointerChecks = 0;
@@ -380,7 +382,7 @@ export function findRackDropTarget({
     metrics.rootLoopCount = 0;
   }
 
-  if (!draggedBounds) {
+  if (!pointerWorldPoint || dragTileIds.length === 0) {
     return null;
   }
 
@@ -393,31 +395,73 @@ export function findRackDropTarget({
       continue;
     }
 
-    const rackDropRect = getRackDropRect(tile);
+    const rackDropRect = getRackDropRect(tile, tile.id === previousRackId ? RACK_ZONE_HYSTERESIS : 0);
     if (metrics) {
-      metrics.intersectionChecks += 1;
       metrics.pointerChecks += 1;
     }
-    const intersectionArea = getIntersectionArea(draggedBounds, rackDropRect);
-    const overlapScore = intersectionArea / Math.min(
-      Math.max(1, draggedBounds.width * draggedBounds.height),
-      Math.max(1, rackDropRect.width * rackDropRect.height),
-    );
-    const pointerInsideTarget = pointInsideRect(pointerWorldPoint, rackDropRect);
-    const score = pointerInsideTarget ? overlapScore + 1 : overlapScore;
 
-    if ((pointerInsideTarget || overlapScore >= 0.08) && score > bestScore) {
+    if (!pointInsideRect(pointerWorldPoint, rackDropRect)) {
+      continue;
+    }
+
+    // Overlapping zones: the rack whose centre is nearest wins.
+    const rackRect = getRackRect(tile);
+    const rackCenterX = rackRect.left + (rackRect.width / 2);
+    const distance = Math.hypot(pointerWorldPoint.x - rackCenterX, pointerWorldPoint.y - (rackRect.top + rackRect.height / 2));
+
+    if (distance < bestDistance) {
+      const drop = getRackDropSlot(getDropSpec(tile, candidateDragTileIdSet), {
+        x: (Number.isFinite(centerX) ? centerX : pointerWorldPoint.x) - rackCenterX,
+        y: pointerWorldPoint.y - rackRect.top,
+      });
       bestTarget = {
         rackId: tile.id,
         targetTileId: tile.id,
-        slotIndex: tile.tileIds.length,
+        slotIndex: drop.index,
+        tier: drop.tier,
+        refusedTier: drop.refusedTier,
         dropRect: rackDropRect,
+        gapWidth: getDraggedFramesWidth(dragTileIds, dragOrigins, tiles),
       };
-      bestScore = score;
+      bestDistance = distance;
     }
   }
 
   return bestTarget;
+}
+
+// The rack as a drop sees it. A tile just torn off may still be listed for
+// a frame: it is not a slot.
+function getDropSpec(rackTile, dragTileIdSet) {
+  const spec = getRackLayoutSpec(rackTile);
+  const listed = (rackTile.tileIds ?? []).map((tileId, index) => (dragTileIdSet.has(tileId) ? index : -1)).filter((index) => index >= 0);
+
+  if (listed.length === 0) {
+    return spec;
+  }
+
+  let tiers = spec.tiers;
+  for (let position = listed.length - 1; position >= 0; position -= 1) {
+    tiers = removeFromRackTiers(tiers, listed[position]);
+  }
+
+  const keep = (_, index) => !listed.includes(index);
+  return { ...spec, tiers, slotWidths: spec.slotWidths.filter(keep) };
+}
+
+// Width the dragged tiles take in a rack, side by side: the gap that opens.
+function getDraggedFramesWidth(dragTileIds, dragOrigins, tiles) {
+  const tileById = Array.isArray(tiles) ? null : tiles;
+  const widths = dragTileIds.map((tileId) => {
+    const origin = dragOrigins?.[tileId];
+    const tile = tileById?.[tileId] ?? (Array.isArray(tiles) ? tiles.find((entry) => entry.id === tileId) : null);
+    return getRackFrameWidth({
+      width: origin?.width ?? tile?.width,
+      height: origin?.height ?? tile?.height,
+    });
+  });
+
+  return widths.reduce((total, width) => total + width, 0) + (SLOT_GAP * Math.max(0, widths.length - 1));
 }
 
 // findRackDropTarget returns a fresh object every time it finds a match, even
@@ -440,6 +484,9 @@ export function isSameRackDropPreview(a, b) {
   return a.rackId === b.rackId
     && a.targetTileId === b.targetTileId
     && a.slotIndex === b.slotIndex
+    && a.gapWidth === b.gapWidth
+    && a.tier === b.tier
+    && a.refusedTier === b.refusedTier
     && a.dropRect?.left === b.dropRect?.left
     && a.dropRect?.top === b.dropRect?.top
     && a.dropRect?.right === b.dropRect?.right

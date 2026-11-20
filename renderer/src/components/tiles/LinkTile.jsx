@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   canRefreshLinkPreviewCard,
   LINK_CONTENT_KIND_IMAGE,
@@ -14,12 +14,17 @@ import {
 } from "../../lib/testingTiles";
 import TileShell from "./TileShell";
 import TileImageReveal from "./TileImageReveal";
+import FailedLinkPreview from "./FailedLinkPreview";
+import { getFailedPreviewReason } from "../../tiles/link/failedPreview";
+import { pickLoadingGif } from "../../lib/loadingGif";
 import {
   formatVideoDuration,
   getVideoTileRecipe,
   resolveVideoAspectRatio,
 } from "./videoTileRecipe";
+import { useLiveTileGeometry } from "../../systems/interactions/useLiveTileGeometry";
 import { useTileGesture } from "../../systems/interactions/useTileGesture";
+import { getWebclipCropPatch, getWebclipFullHeight } from "../../tiles/link/webclipCrop";
 import { useTilePreviewSource } from "../../systems/canvas/useTilePreviewSource";
 
 function formatShortUrl(url) {
@@ -55,14 +60,6 @@ function isTwitterLikeSource(card) {
   const sourceType = String(card?.sourceType || "").toLowerCase();
   const url = String(card?.url || "").toLowerCase();
   return sourceType === "twitter" || sourceType === "x" || url.includes("twitter.com/") || url.includes("x.com/");
-}
-
-function getLinkDomain(url) {
-  try {
-    return new URL(url).hostname.replace(/^www\./i, "");
-  } catch {
-    return "Untitled link";
-  }
 }
 
 function findPreviewDiagnosticReason(card) {
@@ -270,9 +267,22 @@ async function openTileLink({ card, onOpenLink, toast, fallbackMessage }) {
   }
 }
 
+// The progressive blur over a cropped webclip's bottom edge: three strips
+// over the bottom band, each drawing the page blurred more and faded in
+// lower down (see .card__link-webclip-blur in styles.css). Plain `filter`
+// blur -- never backdrop-filter inside a tile (it makes the whole canvas
+// repaint on drag).
+const WEBCLIP_BLUR_LAYERS = [1, 2, 3];
+
+// A CSS url() for an image source, for the blur strips' background.
+function toCssUrl(src) {
+  return `url("${String(src).replace(/["\\]/g, "\\$&")}")`;
+}
+
 function LinkTile({
-  card,
-  tileMeta,
+  card: committedCard,
+  tileMeta: committedTileMeta,
+  viewportZoom,
   onBeginDrag,
   onContextMenu,
   onHoverChange,
@@ -285,7 +295,12 @@ function LinkTile({
   renderHint,
 }) {
   const { toast } = useToast();
-  const { currentEditor, folderPath } = useTileAppContext();
+  const { currentEditor, folderPath, setCanvasInteractionState } = useTileAppContext();
+  // Cropping a webclip previews here and commits once on release.
+  const { card, tileMeta, updateLive, commitLive } = useLiveTileGeometry(committedCard, committedTileMeta);
+  const cropDragRef = useRef(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [loadingGif] = useState(pickLoadingGif);
   const [hasImageError, setHasImageError] = useState(false);
   const [hasLoadedImage, setHasLoadedImage] = useState(false);
   const [loadedVideoAspectRatio, setLoadedVideoAspectRatio] = useState(null);
@@ -380,10 +395,9 @@ function LinkTile({
   }
 
   const isTextAllowed = !isDragging && !isQuietAfterDrag && tileMeta?.isMultiSelect !== true;
-  const isTitleVisible = !isImageTile;
+  const isTitleVisible = !isImageTile && !isPreviewFallbackActive;
   const isTitleShown = isTitleVisible && isTextAllowed && (isHovered || isSingleSelected);
   const isDescriptionVisible = isTextAllowed && isSingleSelected;
-  const fallbackDomainLabel = getLinkDomain(card.url);
   const surfaceFrameClassName = [
     "card__surface-frame",
     "card__surface-frame--interactive",
@@ -414,6 +428,72 @@ function LinkTile({
       });
     },
   });
+
+  // Webclip crop: the bottom handle drags the tile shorter (or back down to
+  // the whole page). The image stays pinned to the top.
+  const webclipFullHeight = isWebclipMode ? getWebclipFullHeight(card) : null;
+  const isWebclipCropped = webclipFullHeight !== null && card.height < webclipFullHeight - 1;
+  const showCropHandle = isWebclipMode
+    && webclipFullHeight !== null
+    && renderHint?.isStaticPreview !== true
+    && ((isSingleSelected && !isDragging) || isCropping);
+
+  const handleCropPointerDown = (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const zoom = Math.max(0.05, viewportZoom ?? 1);
+    cropDragRef.current = {
+      pointerId: event.pointerId,
+      startClientY: event.clientY,
+      startHeight: card.height,
+      card,
+    };
+    setIsCropping(true);
+    setCanvasInteractionState?.(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const handlePointerMove = (moveEvent) => {
+      const state = cropDragRef.current;
+
+      if (!state || state.pointerId !== moveEvent.pointerId) {
+        return;
+      }
+
+      const deltaY = (moveEvent.clientY - state.startClientY) / zoom;
+      const patch = getWebclipCropPatch(state.card, state.startHeight + deltaY);
+
+      if (patch) {
+        updateLive(patch);
+      }
+    };
+
+    const finishCrop = (finishEvent) => {
+      const state = cropDragRef.current;
+
+      if (!state || (finishEvent?.pointerId !== undefined && state.pointerId !== finishEvent.pointerId)) {
+        return;
+      }
+
+      cropDragRef.current = null;
+      commitLive();
+      setIsCropping(false);
+      setCanvasInteractionState?.(false);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerup", finishCrop, true);
+      window.removeEventListener("pointercancel", finishCrop, true);
+      window.removeEventListener("blur", finishCrop);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, true);
+    window.addEventListener("pointerup", finishCrop, true);
+    window.addEventListener("pointercancel", finishCrop, true);
+    window.addEventListener("blur", finishCrop);
+  };
 
   const handleCopyLinkQuickAction = async () => {
     try {
@@ -575,7 +655,7 @@ function LinkTile({
                     onLoad={handleMediaLoad}
                   />
                 ) : isPreviewLoading ? (
-                  <div className="card__video-loading" aria-hidden="true">
+                  <div className="card__video-loading" data-loading-gif={loadingGif} aria-hidden="true">
                     <div className="card__video-loading-bar card__video-loading-bar--one" />
                     <div className="card__video-loading-bar card__video-loading-bar--two" />
                     <div className="card__video-loading-bar card__video-loading-bar--three" />
@@ -641,24 +721,23 @@ function LinkTile({
           onLoad={handleMediaLoad}
         />
       ) : isPreviewLoading ? (
-        <div className="card__link-loading" aria-hidden="true">
-          <div className="card__link-loading-ring card__link-loading-ring--outer" />
-          <div className="card__link-loading-ring card__link-loading-ring--middle" />
-          <div className="card__link-loading-ring card__link-loading-ring--inner" />
-          <div className="card__link-loading-core" />
-          <div className="card__link-loading-boom" />
-          <div className="card__link-loading-sheen" />
-          <p className="card__link-loading-label">Loading preview</p>
+        <div className="card__link-loading" data-loading-gif={loadingGif} aria-hidden="true">
+          <p className="card__link-loading-label">Preview loading</p>
         </div>
       ) : (
-        <div className="card__preview-fallback" role="note" aria-label={`Preview unavailable for ${linkTitle}`}>
-          <span className="card__preview-fallback__icon" aria-hidden="true">↗</span>
-          <div className="card__preview-fallback__details">
-            <p className="card__preview-fallback__title">{linkTitle}</p>
-            <p className="card__preview-fallback__domain">{fallbackDomainLabel}</p>
-          </div>
-          <p className="card__preview-fallback__status">{previewFallbackReason || "Preview unavailable"}</p>
-        </div>
+        <FailedLinkPreview
+          url={card.url}
+          reason={getFailedPreviewReason(card, {
+            hasImageError,
+            isOnline: typeof navigator === "undefined" || navigator.onLine !== false,
+          })}
+          onOpen={() => void openTileLink({
+            card,
+            onOpenLink,
+            toast,
+            fallbackMessage: "Could not open link",
+          })}
+        />
       )}
     </>
   );
@@ -733,7 +812,15 @@ function LinkTile({
       <div className="card__content">
         <div className={surfaceFrameClassName} {...surfaceGesture}>
           {isWebclipMode ? (
-            <div className="card__surface card__surface--link card__surface--link-webclip" aria-label={linkTitle}>
+            <div
+              className={`card__surface card__surface--link card__surface--link-webclip${isWebclipCropped ? " card__surface--link-webclip-cropped" : ""}`}
+              aria-label={linkTitle}
+              style={webclipFullHeight !== null ? {
+                "--webclip-full-height": `${webclipFullHeight}px`,
+                "--webclip-crop-height": `${card.height}px`,
+                ...(webclipSrc ? { "--webclip-src": toCssUrl(webclipSrc) } : null),
+              } : undefined}
+            >
               {webclipSrc ? (
                 <img
                   className="card__link-webclip-image"
@@ -741,7 +828,15 @@ function LinkTile({
                   alt={linkTitle}
                   draggable={false}
                 />
-              ) : (
+              ) : null}
+              {webclipSrc && isWebclipCropped ? (
+                <div className="card__link-webclip-blur" aria-hidden="true">
+                  {WEBCLIP_BLUR_LAYERS.map((layer) => (
+                    <div key={layer} className={`card__link-webclip-blur-layer card__link-webclip-blur-layer--${layer}`} />
+                  ))}
+                </div>
+              ) : null}
+              {webclipSrc ? null : (
                 <div className="card__link-webclip-loading" aria-hidden="true">
                   <div className="card__link-loading-ring card__link-loading-ring--outer" />
                   <div className="card__link-loading-ring card__link-loading-ring--middle" />
@@ -766,6 +861,16 @@ function LinkTile({
             </div>
           )}
 
+          {showCropHandle ? (
+            <div
+              className={`card__webclip-crop-handle${isCropping ? " card__webclip-crop-handle--active" : ""}`}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Crop webclip"
+              onPointerDown={handleCropPointerDown}
+            />
+          ) : null}
+
           {isTitleVisible ? (
             <div className="card__link-float-overlay" aria-hidden="true">
               <div className={`card__link-float-overlay__title ${isTitleShown ? "card__link-float-overlay__title--shown" : "card__link-float-overlay__title--hidden"}`}>{linkTitle}</div>
@@ -787,7 +892,7 @@ function LinkTile({
           ) : null}
         </div>
 
-        {!isImageTile && shouldRecoverLinkPreviewCard(card) ? (
+        {!isImageTile && !isPreviewFallbackActive && shouldRecoverLinkPreviewCard(card) ? (
           <button
             className="card__retry"
             type="button"

@@ -20,6 +20,8 @@ import StickyTile from "../components/tiles/StickyTile";
 import TableTile from "../components/tiles/TableTile";
 import TextBoxTile from "../components/tiles/TextBoxTile";
 import WeatherTile from "../components/tiles/WeatherTile";
+import XPostTile from "../components/tiles/XPostTile";
+import XProfileTile from "../components/tiles/XProfileTile";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_SOURCE_FILE,
@@ -78,6 +80,18 @@ const tileRegistry = {
     displayName: "GitHub Repo Tile",
     status: "stable",
     Component: GitHubRepoTile,
+  },
+  [TILE_TYPES.X_PROFILE]: {
+    type: TILE_TYPES.X_PROFILE,
+    displayName: "X Profile Tile",
+    status: "stable",
+    Component: XProfileTile,
+  },
+  [TILE_TYPES.X_POST]: {
+    type: TILE_TYPES.X_POST,
+    displayName: "X Post Tile",
+    status: "stable",
+    Component: XPostTile,
   },
   [TILE_TYPES.WEATHER]: {
     type: TILE_TYPES.WEATHER,

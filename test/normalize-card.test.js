@@ -80,8 +80,13 @@ describe("normalizeCard", () => {
       productRating: 4.5,
       productReviewCount: 1235,
       width: 340,
-      height: 388,
+      // The product tile's 470 x 625 shape at 340 wide.
+      height: 452,
     });
+    // An older product tile (340 x 388) takes the new shape; a wider one
+    // keeps its width.
+    expect(normalizeCard({ type: "amazon-product", width: 340, height: 388 }).height).toBe(452);
+    expect(normalizeCard({ type: "amazon-product", width: 470, height: 100 }).height).toBe(625);
   });
 
   it("normalizes a calendar card with its month/year/view/theme fields and defaults", () => {

@@ -23,6 +23,8 @@ import PaperNoteTile from "@/components/tiles/PaperNoteTile";
 import StickyNoteTile from "@/components/tiles/StickyNoteTile";
 import TextBoxTile from "@/components/tiles/TextBoxTile";
 import WeatherTile from "@/components/tiles/WeatherTile";
+import XPostTile from "@/components/tiles/XPostTile";
+import XProfileTile from "@/components/tiles/XProfileTile";
 
 describe("getTileRegistration (the dispatch Card.jsx uses for every rendered tile)", () => {
   it.each([
@@ -30,6 +32,8 @@ describe("getTileRegistration (the dispatch Card.jsx uses for every rendered til
     ["link", LinkTile],
     ["amazon-product", AmazonProductTile],
     ["github-repo", GitHubRepoTile],
+    ["x-profile", XProfileTile],
+    ["x-post", XPostTile],
     ["weather", WeatherTile],
     ["calendar", CalendarTile],
     ["checklist", ChecklistTile],

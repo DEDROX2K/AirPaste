@@ -17,7 +17,7 @@ import {
   AppDropdownMenuSeparator,
   AppDropdownMenuTrigger,
 } from "./ui/app";
-import { Check, ChevronRight, Copy, ErrorIcon, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, ErrorIcon, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import { useSplitView } from "../context/SplitViewContext";
 import TabDetachOverlay from "./canvas/TabDetachOverlay";
@@ -79,17 +79,18 @@ function IconHomeFilled() {
   );
 }
 
-function IconWindowsMinimize() {
-  return <Minus size={12} aria-hidden="true" />;
-}
-
-function IconWindowsMaximize() {
-  return <Copy size={14} aria-hidden="true" />;
-}
-
-function IconWindowsClose() {
-  return <X size={12} aria-hidden="true" />;
-}
+// Windows window controls: minimize, maximize and close joined into one
+// grey piece (designed as "Window controls.svg", 120 x 42), hanging from the
+// top edge of the window. The glyphs are cut out of the shape (evenodd);
+// the maximize glyph's inner square is its own path.
+const WINDOW_CONTROLS_PATH = "M21.5781 1.46387C21.5781 2.27218 22.2337 2.92747 23.042 2.92773H33.6729C36.4343 2.92773 38.6729 5.16631 38.6729 7.92773C38.6729 9.10466 39.4048 10.1579 40.5078 10.5684L40.8301 10.6875C42.5932 11.3431 44.5197 10.3635 45.5537 8.79199C47.8778 5.25959 51.8785 2.9279 56.4229 2.92773H69.0957C76.2754 2.92773 82.0957 8.74803 82.0957 15.9277C82.0957 16.8887 82.8751 17.6677 83.8359 17.668H85.2119C85.5752 17.6679 85.9247 17.6016 86.2539 17.4844C88.1447 12.1 92.5651 7.83145 98.1387 6.37402C99.3973 6.03678 100.48 5.87563 100.48 3.75781V0.00390625H104.547V3.60156C104.547 5.77894 105.144 6.03988 106.564 6.37402C114.205 8.17128 119.892 15.031 119.893 23.2197C119.893 32.7774 112.144 40.5261 102.587 40.5264C94.423 40.5264 87.5793 34.8728 85.7568 27.2676C85.6122 27.2473 85.4649 27.2354 85.3154 27.2354H83.4609C82.7072 27.2356 82.0957 27.8468 82.0957 28.6006C82.0957 35.7803 76.2754 41.6006 69.0957 41.6006H56.4229C51.2471 41.6004 46.7772 38.5756 44.6855 34.1973C43.9571 32.6727 42.281 31.6484 40.6689 32.1543C39.4816 32.5273 38.6729 33.6284 38.6729 34.873V36.6006C38.6729 39.362 36.4343 41.6006 33.6729 41.6006H5C2.2388 41.6003 0 39.3618 0 36.6006V7.92773C0 5.16647 2.2388 2.928 5 2.92773H14.1143C14.9165 2.92773 15.5672 2.28233 15.5771 1.48242V0H21.5781V1.46387ZM57.6924 13.2344C56.5879 13.2345 55.6924 14.1299 55.6924 15.2344V28.7012C55.6924 29.8057 56.5879 30.701 57.6924 30.7012H68.5664C69.6709 30.701 70.5664 29.8057 70.5664 28.7012V15.2344C70.5664 14.1299 69.6709 13.2345 68.5664 13.2344H57.6924ZM109.169 17.0742C108.583 16.4886 107.634 16.4885 107.048 17.0742L105.687 18.4355C104.349 19.773 102.18 19.7731 100.843 18.4355L99.4814 17.0742C98.8957 16.4886 97.946 16.4885 97.3604 17.0742C96.7748 17.6599 96.7748 18.6096 97.3604 19.1953L98.7217 20.5566C100.059 21.8942 100.059 24.0628 98.7217 25.4004L97.3604 26.7617C96.7748 27.3474 96.7748 28.2971 97.3604 28.8828C97.946 29.4685 98.8957 29.4684 99.4814 28.8828L100.843 27.5215C102.18 26.184 104.349 26.184 105.687 27.5215L107.048 28.8828C107.634 29.4685 108.583 29.4684 109.169 28.8828C109.755 28.2971 109.755 27.3474 109.169 26.7617L107.808 25.4004C106.47 24.0629 106.47 21.8942 107.808 20.5566L109.169 19.1953C109.755 18.6096 109.755 17.6599 109.169 17.0742ZM41.876 16.1904C40.3245 15.6138 38.673 16.7608 38.6729 18.416V23.7119C38.6731 25.361 40.3131 26.5076 41.8623 25.9424C42.7992 25.6003 43.4227 24.7093 43.4229 23.7119V18.416C43.4227 17.4239 42.8059 16.5364 41.876 16.1904ZM12.6436 18.7793C11.3551 18.7755 10.3071 19.818 10.3047 21.1064C10.3024 22.3925 11.3429 23.4372 12.6289 23.4414L26.8184 23.4932C28.1069 23.4971 29.1538 22.4546 29.1562 21.166C29.1586 19.8798 28.1192 18.8342 26.833 18.8301L12.6436 18.7793Z";
+const WINDOW_CONTROLS_MAXIMIZE_GLYPH_PATH = "M65.73 15.6238C66.8345 15.6239 67.73 16.5193 67.73 17.6238V25.8318C67.73 26.9363 66.8345 27.8317 65.73 27.8318H60.856C59.7515 27.8317 58.856 26.9363 58.856 25.8318V17.6238C58.856 16.5193 59.7515 15.6239 60.856 15.6238H65.73Z";
+// Each piece's click area and glow, left to right, in the shape's units.
+const WINDOW_CONTROL_PIECES = [
+  { key: "minimize", label: "Minimize" },
+  { key: "maximize", label: "Maximize" },
+  { key: "close", label: "Close" },
+];
 
 function TitleBarControls({ isMac, onRequestClose }) {
   const closeWindow = onRequestClose || desktop.window.close;
@@ -123,36 +124,30 @@ function TitleBarControls({ isMac, onRequestClose }) {
   }
 
   return (
-    <div className="titlebar-controls titlebar-controls--win">
-      <button
-        className="titlebar-btn titlebar-btn--win is-minimize"
-        type="button"
-        title="Minimize"
-        aria-label="Minimize"
-        onClick={() => desktop.window.minimize()}
-      >
-        <IconWindowsMinimize />
-      </button>
+    <div className="titlebar-controls titlebar-controls--win titlebar-controls--joined">
+      {/* A faint coloured glow behind each piece, shown on its hover. It
+          rings the piece and lights its cut-out glyph from behind. */}
+      {WINDOW_CONTROL_PIECES.map((piece) => (
+        <span key={piece.key} className={`titlebar-joined__glow is-${piece.key}`} aria-hidden="true" />
+      ))}
 
-      <button
-        className="titlebar-btn titlebar-btn--win is-maximize"
-        type="button"
-        title="Maximize"
-        aria-label="Maximize"
-        onClick={() => desktop.window.maximize()}
-      >
-        <IconWindowsMaximize />
-      </button>
+      <svg className="titlebar-joined__shape" viewBox="0 0 120 42" aria-hidden="true">
+        <path d={WINDOW_CONTROLS_MAXIMIZE_GLYPH_PATH} />
+        <path fillRule="evenodd" clipRule="evenodd" d={WINDOW_CONTROLS_PATH} />
+      </svg>
 
-      <button
-        className="titlebar-btn titlebar-btn--win is-close"
-        type="button"
-        title="Close"
-        aria-label="Close"
-        onClick={closeWindow}
-      >
-        <IconWindowsClose />
-      </button>
+      {WINDOW_CONTROL_PIECES.map((piece) => (
+        <button
+          key={piece.key}
+          className={`titlebar-joined__hit is-${piece.key}`}
+          type="button"
+          title={piece.label}
+          aria-label={piece.label}
+          onClick={piece.key === "close" ? closeWindow : piece.key === "minimize"
+            ? () => desktop.window.minimize()
+            : () => desktop.window.maximize()}
+        />
+      ))}
     </div>
   );
 }
@@ -701,6 +696,12 @@ function mergeTabPresence(previousEntries, nextTabs, measureWidth) {
 const PAIR_MENU_HOVER_MS = 500;
 const PAIR_MENU_LEAVE_MS = 250;
 
+// Opens a new GitHub issue, pre-titled so split-view feedback is easy to find.
+const SPLIT_FEEDBACK_URL = `https://github.com/DEDROX2K/AirPaste/issues/new?${new URLSearchParams({
+  title: "Split view: ",
+  body: "What happened, or what would you like split view to do?\n\n",
+})}`;
+
 function SplitPairLink({ stacked, onSeparate, onCloseLeft, onCloseRight, onToggleStacked, onReverse }) {
   const [open, setOpen] = useState(false);
   const openTimer = useRef(0);
@@ -780,8 +781,7 @@ function SplitPairLink({ stacked, onSeparate, onCloseLeft, onCloseRight, onToggl
           Reverse views
         </AppDropdownMenuItem>
         <AppDropdownMenuSeparator />
-        {/* No feedback channel exists yet. */}
-        <AppDropdownMenuItem disabled title="Not available yet">
+        <AppDropdownMenuItem onSelect={() => void desktop.shell.openExternal(SPLIT_FEEDBACK_URL)}>
           <Feedback size={15} aria-hidden="true" />
           Send feedback
         </AppDropdownMenuItem>
@@ -811,6 +811,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const { getSplitPartner, splitWithTab, floatTab, pairedPaths, activeTabPath, separatePair, reversePair, toggleStacked, stacked } = useSplitView();
   const [detachState, setDetachState] = useState(null);
   const detachOverlayRef = useRef(null);
+  const detachSeqRef = useRef(0);
   const rootRef = useRef(null);
   // The linked split pair on screen (both its tabs read as active).
   const shownPair = activeTabPath ? pairedPaths.get(activeTabPath) ?? null : null;
@@ -1028,14 +1029,23 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
       activateReorder();
     }
 
-    function enterDetach() {
+    function enterDetach(clientX, clientY) {
       drag.detached = true;
+      // Where the tab sat in the bar, so the preview stretches out of it.
+      const tabRect = (drag.items.find((item) => item.id === tabId)?.rect) ?? target.getBoundingClientRect();
       settleStrip();
       const partner = getSplitPartner(tab);
+      detachSeqRef.current += 1;
       setDetachState({
+        id: detachSeqRef.current,
         tab,
         isCurrent: tab.id === activeTabId,
         partnerName: partner?.title ?? "",
+        from: {
+          x: clientX,
+          y: clientY,
+          rect: { left: tabRect.left, top: tabRect.top, width: tabRect.width, height: tabRect.height },
+        },
       });
     }
 
@@ -1068,7 +1078,7 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
       if (canDetach) {
         const below = moveEvent.clientY - drag.stripBottom;
         if (!drag.detached && below > TAB_DETACH_DISTANCE) {
-          enterDetach();
+          enterDetach(moveEvent.clientX, moveEvent.clientY);
         } else if (drag.detached && below < TAB_DETACH_DISTANCE / 2) {
           leaveDetach();
         }
@@ -1132,8 +1142,14 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
 
       if (drag.detached) {
         const isRelease = endEvent?.type === "pointerup";
-        const zone = isRelease ? detachOverlayRef.current?.move(endEvent.clientX, endEvent.clientY) : null;
-        setDetachState(null);
+        const overlay = detachOverlayRef.current;
+        const zone = isRelease ? overlay?.move(endEvent.clientX, endEvent.clientY) : null;
+        // The preview morphs into the box (or fades when dropped nowhere)
+        // while the split / floating view opens underneath.
+        const detachId = detachSeqRef.current;
+        const clear = () => setDetachState((current) => (current?.id === detachId ? null : current));
+        if (overlay?.finish) void overlay.finish(zone).then(clear, clear);
+        else clear();
         if (zone === "left" || zone === "right") {
           splitWithTab(tab, zone);
         } else if (zone === "float") {
@@ -1252,7 +1268,9 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
 
       {detachState ? (
         <TabDetachOverlay
+          key={detachState.id}
           ref={detachOverlayRef}
+          from={detachState.from}
           tab={detachState.tab}
           isCurrent={detachState.isCurrent}
           partnerName={detachState.partnerName}

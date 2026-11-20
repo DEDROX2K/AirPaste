@@ -153,9 +153,10 @@
   background: var(--quick-note-frame);
 }
 
-/* Joins the tab (or launcher) to the window's right edge above it. */
+/* Joins the tab (or launcher) to the canvas card's right edge above it,
+   which sits the window gap in from the window edge. */
 .quick-note__fillet--above-tab {
-  right: 0;
+  right: var(--ap-shell-gap-x, 8px);
   bottom: 100%;
 }
 
@@ -166,10 +167,12 @@
   bottom: 0;
 }
 
-/* Joins the frame to the window's bottom edge, on its left. */
+/* Joins the frame to the canvas card's bottom edge, on its left. The card
+   ends the window gap above the window's bottom; at bottom: 0 the fillet
+   sat inside the grey gap, the same colour, and never showed. */
 .quick-note__fillet--beside-frame {
   right: 100%;
-  bottom: 0;
+  bottom: var(--ap-shell-gap-b, 8px);
 }
 
 .quick-note__close {
@@ -227,6 +230,41 @@
   border-bottom: 1px solid var(--quick-note-rule);
 }
 
+/* Delete: an X at the row's right end, shown while the row is hovered or
+   has focus. */
+.quick-note__delete {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 7px 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--quick-note-ink);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.quick-note__row:hover .quick-note__delete,
+.quick-note__row:focus-within .quick-note__delete {
+  opacity: 0.55;
+}
+
+.quick-note__delete:hover:not(:disabled) {
+  opacity: 1 !important;
+  background: var(--quick-note-rule) !important;
+}
+
+.quick-note__delete:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--quick-note-ink);
+  outline-offset: 1px;
+}
+
 .quick-note__row:last-child {
   border-bottom: 0;
 }
@@ -271,6 +309,7 @@
 .quick-note__text {
   position: relative;
   display: inline-block;
+  flex: 0 1 auto;
   min-width: 24px;
   max-width: 100%;
 }

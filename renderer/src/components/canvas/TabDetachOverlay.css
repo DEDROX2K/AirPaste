@@ -1,7 +1,15 @@
 /* A tab dragged below the tab bar: drop boxes over the canvas area and a
-   small preview card of the file following the pointer. */
+   preview card of the file following the pointer (TabDetachOverlay.jsx).
+   Each box is a white card with a marching dashed border and a small
+   picture of the result. Box and picture leans are set inline (magnet). */
 
 .tab-detach {
+  --detach-card: #ffffff;
+  --detach-dash: var(--ap-theme-grid, #d4d4d4);
+  --detach-dash-hot: var(--ap-theme-accent, #9f9f9f);
+  --detach-device: var(--ap-theme-base, #b5b5b5);
+  --detach-ink: var(--ap-theme-ink, #1f1f1d);
+
   position: fixed;
   inset: 0;
   z-index: 2000;
@@ -17,85 +25,218 @@
   gap: 14px;
   padding: 16px;
   box-sizing: border-box;
-  background: rgba(18, 18, 16, 0.12);
-  animation: tab-detach-in 140ms ease-out both;
 }
 
+/* The blurred, lightly dimmed backdrop sweeps in from the top: a soft-edged mask whose edge
+   (--detach-reveal) runs down the area with a quick ease-out. */
+@property --detach-reveal {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+.tab-detach__area::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(18, 18, 16, 0.05);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 var(--detach-reveal), transparent calc(var(--detach-reveal) + 35%));
+  mask-image: linear-gradient(to bottom, #000 var(--detach-reveal), transparent calc(var(--detach-reveal) + 35%));
+  animation: tab-detach-sweep 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+
+/* ─── Drop boxes ──────────────────────────────────────────────────────── */
+
+/* The hit box: a full third of the area, invisible. */
 .tab-detach__zone {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 2px dashed rgba(255, 255, 255, 0.9);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(6px);
-  color: #1f1f1d;
-  transition: background-color 120ms ease, border-color 120ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  transition: opacity 180ms ease;
 }
 
 .tab-detach__zone--left { grid-column: 1; }
-.tab-detach__zone--float {
-  grid-column: 2;
-  align-self: center;
-  justify-self: center;
-  width: min(180px, 100%);
-  aspect-ratio: 9 / 16;
-  max-height: 100%;
-  border-radius: 22px;
-}
+.tab-detach__zone--float { grid-column: 2; }
 .tab-detach__zone--right { grid-column: 3; }
 
-.tab-detach__zone[data-hot] {
-  border-style: solid;
-  border-color: rgba(20, 99, 255, 0.9);
-  background: rgba(20, 99, 255, 0.18);
-  transform: scale(1.015);
+/* The card shown in it: tall cards for split left / right, a small one
+   for float, all centred in their thirds. */
+.tab-detach__card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 56%;
+  min-width: 120px;
+  height: 48%;
+  min-height: 160px;
+  border-radius: 20px;
+  background: var(--detach-card);
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.25);
+  will-change: transform;
+  animation: tab-detach-zone-in 240ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transition: box-shadow 200ms ease;
 }
 
-.tab-detach__zone-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+.tab-detach__zone--float .tab-detach__card {
+  width: 36%;
+  min-width: 110px;
+  height: 22%;
+  min-height: 136px;
+  border-radius: 18px;
+  animation-delay: 30ms;
 }
 
-/* A phone outline in the middle box. */
-.tab-detach__phone {
-  width: 38%;
-  aspect-ratio: 9 / 16;
-  border: 2px solid currentColor;
-  border-radius: 10px;
-  opacity: 0.45;
+.tab-detach__zone--right .tab-detach__card { animation-delay: 60ms; }
+
+.tab-detach__zone[data-hot] .tab-detach__card {
+  box-shadow: 0 22px 44px -18px rgba(0, 0, 0, 0.35);
 }
+
+/* The dashed border: an SVG rect sized by CSS so it follows the box. */
+.tab-detach__dash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tab-detach__dash rect {
+  x: 8px;
+  y: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  rx: 12px;
+  fill: none;
+  stroke: var(--detach-dash);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 16 14;
+  animation: tab-detach-march 1.6s linear infinite;
+  transition: stroke 160ms ease;
+}
+
+.tab-detach__zone[data-hot] .tab-detach__dash rect {
+  stroke: var(--detach-dash-hot);
+  animation-duration: 0.7s;
+}
+
+.tab-detach__zone-inner {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  will-change: transform;
+}
+
+/* The picture: a grey device with white screens and a chin at the bottom. */
+.tab-detach__device {
+  display: flex;
+  gap: 5px;
+  box-sizing: border-box;
+  padding: 5px 5px 18%;
+  border-radius: 9px;
+  background: var(--detach-device);
+  transition: transform 260ms cubic-bezier(0.34, 1.6, 0.64, 1);
+}
+
+.tab-detach__device--phone {
+  width: 50%;
+  aspect-ratio: 2 / 3;
+  padding-bottom: 24%;
+}
+
+.tab-detach__device--split {
+  width: 76%;
+  aspect-ratio: 4 / 3;
+}
+
+.tab-detach__screen {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--detach-ink);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.tab-detach__screen.is-target {
+  background: var(--detach-card);
+}
+
+.tab-detach__zone[data-hot] .tab-detach__device {
+  transform: scale(1.06);
+}
+
+/* ─── Drop: other boxes step back, the chosen one fills with the preview ─ */
+
+.tab-detach[data-morph] .tab-detach__zone {
+  opacity: 0;
+}
+
+.tab-detach[data-morph="left"] .tab-detach__zone--left,
+.tab-detach[data-morph="float"] .tab-detach__zone--float,
+.tab-detach[data-morph="right"] .tab-detach__zone--right {
+  opacity: 1;
+}
+
+.tab-detach[data-morph] .tab-detach__zone-inner,
+.tab-detach[data-morph] .tab-detach__dash {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.tab-detach[data-morph] .tab-detach__preview-name,
+.tab-detach[data-morph] .tab-detach__preview-hint {
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+/* ─── Preview card ────────────────────────────────────────────────────── */
 
 .tab-detach__preview {
   position: fixed;
   top: 0;
   left: 0;
+  display: flex;
   width: 200px;
+  opacity: 0;
+  transform: translate3d(-9999px, -9999px, 0);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
+  will-change: transform;
+}
+
+.tab-detach__preview-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
+  border-radius: inherit;
   background: #fff;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
-  opacity: 0;
-  transform: translate3d(-9999px, -9999px, 0) rotate(-1.5deg);
-  will-change: transform;
+  transform-origin: 0 0;
 }
 
 .tab-detach__preview-image {
   display: grid;
+  flex: 1 1 auto;
   place-items: center;
-  height: 112px;
+  min-height: 112px;
   overflow: hidden;
   background: #f3f3f1;
   color: rgba(31, 31, 29, 0.4);
@@ -136,12 +277,22 @@
   visibility: visible;
 }
 
-@keyframes tab-detach-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes tab-detach-sweep {
+  from { --detach-reveal: -35%; }
+  to { --detach-reveal: 100%; }
+}
+
+@keyframes tab-detach-zone-in {
+  from { opacity: 0; scale: 0.94; }
+}
+
+@keyframes tab-detach-march {
+  to { stroke-dashoffset: -30; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab-detach__area { animation: none; }
-  .tab-detach__zone { transition: none; }
+  .tab-detach__area::before,
+  .tab-detach__card,
+  .tab-detach__dash rect { animation: none; }
+  .tab-detach__device { transition: none; }
 }

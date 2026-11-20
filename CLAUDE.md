@@ -14,3 +14,4 @@ note text.
 
 - Tile conventions: `docs/rules/tile-system-rules.md`
 - Tile catalogue and status: `docs/TILE_BOOK.md`
+- Rack design and animation rules: `docs/rules/rack-rules.md`

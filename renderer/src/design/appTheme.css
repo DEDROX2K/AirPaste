@@ -29,15 +29,10 @@ html[data-app-theme="on"] .ap-home .ap-home-nav-link.is-active .ap-home-nav-link
 }
 
 
-/* Windows controls: a lighter step of the base, edged darker. Hover keeps
-   the orange / green / red traffic-light colours. */
-html[data-app-theme="on"] .titlebar-controls--win .titlebar-btn--win:not(:hover) {
-  background: var(--ap-theme-control) !important;
-  border-color: var(--ap-theme-control-edge) !important;
-}
-
-html[data-app-theme="on"][data-shell-tone="dark"] .titlebar-controls--win .titlebar-btn--win:not(:hover) {
-  color: rgba(0, 0, 0, 0.6) !important;
+/* Windows controls (one joined piece): a lighter step of the base. The
+   hover glows keep their yellow / green / red. */
+html[data-app-theme="on"] .titlebar-controls--joined {
+  --titlebar-controls-fill: var(--ap-theme-control);
 }
 
 /* Home card. Re-pointing --ap-bg-page carries the toolbar's tint too. */

@@ -9,7 +9,7 @@ import {
   getWorkspaceActivePage,
   getRackByTileId,
   isBookmarkLinkCard,
-  isUrl,
+  toPastedUrl,
   LINK_CONTENT_KIND_BOOKMARK,
   LINK_CONTENT_KIND_IMAGE,
   removeCard,
@@ -50,6 +50,7 @@ import { getRenderableTileEntries } from "../layout/tileLayout";
 import { stackCards, unstackCards } from "../stack/tileStack";
 import { LINK_CARD_SIZE } from "../../tiles/link/model";
 import { getArticleModePatch, getStandardLinkTileSize } from "../../tiles/link/articleView";
+import { getWebclipHeight } from "../../tiles/link/webclipCrop";
 import { maybeRemark, NOTE_CREATE_QUIPS, TILE_CREATE_QUIPS, TILE_DELETE_QUIPS } from "../../lib/eyeCommentary";
 
 const PREVIEW_REFRESH_CONCURRENCY = 4;
@@ -339,7 +340,8 @@ export function useCanvasCommands({
       updateExistingCard(tile.id, {
         previewMode: "webclip",
         width: standardSize.width,
-        height: aspect > 0 ? Math.round(standardSize.width / aspect) : standardSize.height,
+        // Keeps the crop from the bottom handle, if any.
+        height: aspect > 0 ? getWebclipHeight(standardSize.width, aspect, tile.webclipCropRatio) : standardSize.height,
         webclipPreviousHeight: standardSize.height,
       });
       return true;
@@ -425,6 +427,8 @@ export function useCanvasCommands({
       updateExistingCard(tile.id, {
         webclipImagePath: result.webclipPath,
         webclipAspectRatio: aspect,
+        // A fresh capture is a new page: start uncropped.
+        webclipCropRatio: null,
         webclipPreviousHeight: standardSize.height,
         webclipStatus: "ready",
         previewMode: "webclip",
@@ -1166,7 +1170,7 @@ export function useCanvasCommands({
     return nextRackCard;
   }, [commitWorkspaceChange, log, toast]);
 
-  const addTilesToRackCommand = useCallback((tileIds, rackId) => {
+  const addTilesToRackCommand = useCallback((tileIds, rackId, slotIndex = null, tier = null) => {
     const normalizedTileIds = Array.isArray(tileIds)
       ? [...new Set(tileIds.filter(Boolean))]
       : [];
@@ -1181,8 +1185,15 @@ export function useCanvasCommands({
       const activePage = getWorkspaceActivePage(current);
       let nextCards = activePage.cards;
 
-      normalizedTileIds.forEach((tileId) => {
-        const result = addTileToRack(nextCards, tileId, rackId);
+      // Several tiles go in side by side, from the slot onward.
+      normalizedTileIds.forEach((tileId, offset) => {
+        const result = addTileToRack(
+          nextCards,
+          tileId,
+          rackId,
+          Number.isFinite(slotIndex) ? slotIndex + offset : null,
+          Number.isFinite(tier) ? tier : null,
+        );
 
         if (result?.rackCard) {
           nextCards = result.cards;
@@ -1202,10 +1213,10 @@ export function useCanvasCommands({
       return null;
     }
 
-    log("success", "Tiles attached to rack", { rackId, tileIds: normalizedTileIds });
-    toast("success", normalizedTileIds.length === 1 ? "Tile mounted on rack." : `${normalizedTileIds.length} tiles mounted on rack.`);
+    // No toast: the tile landing on the shelf is the feedback.
+    log("success", "Tiles attached to rack", { rackId, tileIds: normalizedTileIds, slotIndex, tier });
     return nextRackCard;
-  }, [commitWorkspaceChange, log, toast]);
+  }, [commitWorkspaceChange, log]);
 
   const removeTileFromRackCommand = useCallback((tileId, rackId, dropPosition) => {
     const result = removeTileFromRack(workspace.cards, tileId, rackId, dropPosition);
@@ -1470,9 +1481,12 @@ export function useCanvasCommands({
 
     event.preventDefault();
 
-    if (isUrl(text)) {
-      log("info", "Pasted URL into canvas center", { url: text, centerPoint });
-      const tile = createNewLinkCard(text, centerPoint, { exactCenter: true });
+    // Also a bare address like "amazon.co.uk/dp/..." (no https://).
+    const pastedUrl = toPastedUrl(text);
+
+    if (pastedUrl) {
+      log("info", "Pasted URL into canvas center", { url: pastedUrl, centerPoint });
+      const tile = createNewLinkCard(pastedUrl, centerPoint, { exactCenter: true });
       toast("info", "Ahh, what a boring link. Fine. I will stare into it for you.", {
         source: "eye",
         presentation: "oracle",
@@ -1519,13 +1533,15 @@ export function useCanvasCommands({
       return null;
     }
 
-    if (!isUrl(clipboardText.trim())) {
+    const clipboardUrl = toPastedUrl(clipboardText);
+
+    if (!clipboardUrl) {
       toast("warn", "Copy a URL first, then try Link.");
       return null;
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const tile = createNewLinkCard(clipboardText.trim(), centerPoint);
+    const tile = createNewLinkCard(clipboardUrl, centerPoint);
     toast("info", "Ahh, what a boring link. Fine. I will stare into it for you.", {
       source: "eye",
       presentation: "oracle",

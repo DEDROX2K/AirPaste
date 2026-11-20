@@ -54,6 +54,9 @@ function areRackStatesEqual(left, right) {
   return left.tileCount === right.tileCount
     && left.slotCount === right.slotCount
     && left.slotPreviewIndex === right.slotPreviewIndex
+    && left.gapWidth === right.gapWidth
+    && left.gapTier === right.gapTier
+    && left.refusedTier === right.refusedTier
     && left.dropTargetRect === right.dropTargetRect
     && left.rackRect.left === right.rackRect.left
     && left.rackRect.top === right.rackRect.top
@@ -237,6 +240,9 @@ export function useTileLayoutSystem({
             tileCount,
             slotCount,
             slotPreviewIndex,
+            gapWidth: slotPreviewIndex === null ? 0 : (rackDropPreview?.gapWidth ?? 0),
+            gapTier: slotPreviewIndex === null ? null : (rackDropPreview?.tier ?? null),
+            refusedTier: slotPreviewIndex === null ? null : (rackDropPreview?.refusedTier ?? null),
             dropTargetRect: rackDropPreview?.rackId === rackTile.id ? rackDropPreview.dropRect : null,
           },
         ];

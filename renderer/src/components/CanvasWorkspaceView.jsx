@@ -40,11 +40,15 @@ import {
 import { ChecklistCardsContext, useStableChecklistCards } from "../context/ChecklistCardsContext";
 import { TEXT_BOX_LABEL_STYLE, getLastTextBoxStyle, normalizeTextBoxStyle, rememberTextBoxStyle } from "../lib/textBoxStyle";
 import { GITHUB_REPO_CARD_TYPE } from "../tiles/github/model";
+import { X_POST_CARD_TYPE, X_PROFILE_CARD_TYPE } from "../tiles/x/model";
 import { getAdjacentStickyPosition, getFileCardCodeLanguageId, normalizeStickyStyle } from "../tiles/sticky/model";
 import { OPEN_FILE_COLOR_EVENT } from "../tiles/file/defaultFileDesign";
+import { OPEN_RACK_STYLE_EVENT } from "../tiles/rack/model";
 import {
   canAddLinkNote,
   getCloseLinkNotePatch,
+  getLinkNoteVariant,
+  getLinkNoteVariantPatch,
   getOpenLinkNotePatch,
   isLinkNoteOpen,
 } from "../tiles/link/notedLink";
@@ -3101,9 +3105,11 @@ export default function CanvasWorkspaceView() {
     activeContextTile?.id
     && (workspace.tethers ?? []).some((link) => link.a === activeContextTile.id || link.b === activeContextTile.id),
   );
-  // The GitHub repo tile has its own fixed design; it never shows a webclip.
+  // The GitHub repo and X tiles have their own fixed design; no webclip.
   const canShowWebclipAction = isBookmarkLinkCard(activeContextTile)
     && activeContextTile?.type !== GITHUB_REPO_CARD_TYPE
+    && activeContextTile?.type !== X_PROFILE_CARD_TYPE
+    && activeContextTile?.type !== X_POST_CARD_TYPE
     && Boolean(activeContextTile?.url?.trim());
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
     && (
@@ -3143,6 +3149,23 @@ export default function CanvasWorkspaceView() {
     commands.createFolderTile(radialMenu.worldPoint);
     return true;
   }, [commands, radialMenu]);
+
+  // Right-click on a rack: its style panel.
+  const contextRack = radialMenu?.kind === "tile"
+    && contextMenuSelectionCount <= 1
+    && activeContextTile?.type === "rack"
+    ? activeContextTile
+    : null;
+
+  const handleOpenRackStyle = useCallback(() => {
+    if (!contextRack) {
+      return false;
+    }
+
+    interactions.selectTile(contextRack.id, { forceSingle: true });
+    window.dispatchEvent(new CustomEvent(OPEN_RACK_STYLE_EVENT, { detail: { tileId: contextRack.id } }));
+    return true;
+  }, [contextRack, interactions]);
 
   const handleRadialRack = useCallback(() => {
     if (!radialMenu?.worldPoint) {
@@ -3195,6 +3218,28 @@ export default function CanvasWorkspaceView() {
     const patch = linkNoteContextState === "open"
       ? getCloseLinkNotePatch(activeContextTile)
       : getOpenLinkNotePatch(activeContextTile);
+
+    if (!patch) {
+      return false;
+    }
+
+    interactions.selectTile(activeContextTile.id, { forceSingle: true });
+    updateExistingCard(activeContextTile.id, patch);
+    return true;
+  }, [activeContextTile, interactions, linkNoteContextState, updateExistingCard]);
+
+  // "Add short note" on a plain link, or long <-> short on a noted one.
+  const handleRadialLinkNoteVariant = useCallback(() => {
+    if (!linkNoteContextState || !activeContextTile) {
+      return false;
+    }
+
+    const patch = linkNoteContextState === "open"
+      ? getLinkNoteVariantPatch(
+        activeContextTile,
+        getLinkNoteVariant(activeContextTile) === "short" ? "long" : "short",
+      )
+      : getOpenLinkNotePatch(activeContextTile, "short");
 
     if (!patch) {
       return false;
@@ -3401,10 +3446,12 @@ export default function CanvasWorkspaceView() {
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
     showFileColor: radialMenu?.kind === "tile" && isDefaultFileContextTile,
     linkNoteState: radialMenu?.kind === "tile" ? linkNoteContextState : null,
+    linkNoteVariant: getLinkNoteVariant(activeContextTile),
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     showTether: radialMenu?.kind === "tile" && showTetherAction,
     tetherCount: contextMenuSelectionCount,
     showUntether: radialMenu?.kind === "tile" && isActiveContextTileTethered,
+    showRackStyle: Boolean(contextRack),
     stackState: radialMenu?.kind !== "tile"
       ? null
       : activeContextTile?.stack?.id
@@ -3430,6 +3477,7 @@ export default function CanvasWorkspaceView() {
       onDeleteSelection: handleRadialDelete,
       onCreateFolder: handleRadialFolder,
       onCreateRack: handleRadialRack,
+      onOpenRackStyle: handleOpenRackStyle,
       onCreateLink: handleRadialLink,
       onCreateText: handleRadialText,
       onCreateChecklist: handleRadialCreateChecklist,
@@ -3437,6 +3485,7 @@ export default function CanvasWorkspaceView() {
       onEditText: handleRadialEditText,
       onChangeFileColor: handleRadialFileColor,
       onToggleLinkNote: handleRadialLinkNote,
+      onLinkNoteVariant: handleRadialLinkNoteVariant,
       onTether: handleRadialTether,
       onUntether: handleRadialUntether,
       onStack: handleRadialStack,
@@ -3449,12 +3498,15 @@ export default function CanvasWorkspaceView() {
     handleRadialFolder,
     handleRadialLink,
     handleRadialRack,
+    handleOpenRackStyle,
+    contextRack,
     handleRadialText,
     handleRadialCreateChecklist,
     handleRadialCreatePaperNote,
     handleRadialEditText,
     handleRadialFileColor,
     handleRadialLinkNote,
+    handleRadialLinkNoteVariant,
     handleRadialTether,
     handleRadialUntether,
     handleCopyPreviewCodexReport,

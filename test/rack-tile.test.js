@@ -1,6 +1,6 @@
-// The rack: tiles stand inside it as cards (they aren't rendered,
-// selected or moved on the canvas), it widens one card pitch per tile past
-// three, and its plastic colour is picked once at creation.
+// The rack: tiles stand on a shelf in frames sized by their own shape (they
+// aren't rendered, selected or moved on the canvas), the rack grows about
+// its centre to fit them, and its plastic colour is picked once at creation.
 import { describe, expect, it } from "vitest";
 import {
   addTileToRack,
@@ -15,6 +15,17 @@ import {
   pickRackPlasticColor,
 } from "@/tiles/rack/model.js";
 import {
+  RACK_FRAME_TOP,
+  RACK_MIN_WIDTH,
+  SHELF_SIDE,
+  SLOT_GAP,
+  getRackInsertionIndex,
+  getRackRowLayout,
+  getRackSlotMetrics,
+  rubberBand,
+} from "@/tiles/rack/geometry.js";
+import {
+  findRackDropTarget,
   getRenderableTileEntries,
   getSelectedTileIdsInRect,
 } from "@/systems/layout/tileLayout.js";
@@ -28,25 +39,49 @@ function makeRack(overrides = {}) {
 }
 
 describe("rack geometry", () => {
-  it("is 640 x 360 for up to three tiles and widens 206px per extra tile", () => {
-    expect(makeRack()).toMatchObject({ width: 640, height: 360 });
-    expect(makeRack({ tileIds: ["a", "b", "c"] }).width).toBe(640);
-    expect(makeRack({ tileIds: ["a", "b", "c", "d"] }).width).toBe(846);
-    expect(makeRack({ tileIds: ["a", "b", "c", "d", "e"] }).width).toBe(1052);
+  it("frames each tile 250px tall, keeping its shape within 0.56-1.9", () => {
+    expect(getRackSlotMetrics({ width: 300, height: 300 })).toMatchObject({ imageWidth: 250, frameWidth: 262, frameHeight: 286 });
+    // Too wide: capped at 1.9 and cropped (cover).
+    const wide = getRackSlotMetrics({ width: 400, height: 100 });
+    expect(wide.imageWidth).toBe(475);
+    expect(wide.scale).toBe(2.5);
+    // Too tall: floored at 0.56.
+    expect(getRackSlotMetrics({ width: 100, height: 1000 }).imageWidth).toBe(140);
   });
 
-  it("centres the cards as a group, 206px apart", () => {
-    const rack = makeRack({ tileIds: ["a", "b", "c"] });
-    expect([0, 1, 2].map((index) => getRackCardCenterX(rack, index))).toEqual([114, 320, 526]);
-
-    const single = makeRack({ tileIds: ["a"] });
-    expect(getRackCardCenterX(single, 0)).toBe(320);
+  it("is never narrower than its minimum and grows to fit its frames plus the shelf caps", () => {
+    expect(makeRack()).toMatchObject({ width: RACK_MIN_WIDTH, height: 360 });
+    const rack = makeRack({ tileIds: ["a", "b"], slotWidths: [262, 300] });
+    expect(rack.width).toBeCloseTo(262 + 300 + SLOT_GAP + (SHELF_SIDE * 2));
   });
 
-  it("lands a pulled-out tile full size, centred on its card", () => {
-    const rack = makeRack({ x: 100, y: 50, tileIds: ["a", "b", "c"] });
+  it("centres the frames as a group, SLOT_GAP apart", () => {
+    const rack = makeRack({ tileIds: ["a", "b", "c"], slotWidths: [200, 200, 200] });
+    const centre = rack.width / 2;
+    [-230, 0, 230].forEach((offset, index) => expect(getRackCardCenterX(rack, index) - centre).toBeCloseTo(offset));
+  });
+
+  it("opens a gap at the insertion index and picks the slot by centre x", () => {
+    const widths = [200, 200, 200];
+    const { slots, gap } = getRackRowLayout(widths, { gapIndex: 1, gapWidth: 100 });
+    expect(gap.left).toBe(slots[0].left + 200 + SLOT_GAP);
+    expect(slots[1].left).toBe(gap.left + 100 + SLOT_GAP);
+    expect(getRackInsertionIndex(widths, -1000)).toBe(0);
+    expect(getRackInsertionIndex(widths, 1)).toBe(2);
+    expect(getRackInsertionIndex(widths, 1000)).toBe(3);
+  });
+
+  it("lands a pulled-out tile full size, centred on its frame, top on the frame top", () => {
+    const rack = makeRack({ x: 100, y: 50, tileIds: ["a", "b", "c"], slotWidths: [200, 200, 200] });
     const tile = makeTile("b");
-    expect(getRackTileWorldPosition(rack, tile, 1)).toEqual({ x: 100 + 320 - 200, y: 50 + 26 });
+    expect(getRackTileWorldPosition(rack, tile, 1)).toEqual({ x: 100 + (rack.width / 2) - 200, y: 50 + RACK_FRAME_TOP });
+  });
+
+  it("rubber-bands a pull toward the 110px range", () => {
+    expect(rubberBand(0)).toBe(0);
+    expect(rubberBand(56)).toBeLessThan(56);
+    expect(rubberBand(10000)).toBeLessThan(110);
+    expect(rubberBand(-40)).toBe(-rubberBand(40));
   });
 });
 
@@ -62,20 +97,46 @@ describe("rack contents", () => {
     expect(getSelectedTileIdsInRect(cards, { left: -1000, top: -1000, right: 5000, bottom: 5000 })).toEqual(["rack", "loose"]);
   });
 
-  it("grows when a fourth tile goes in and gives the tile back on removal", () => {
-    let cards = [makeRack(), makeTile("a"), makeTile("b"), makeTile("c"), makeTile("d")];
-    ["a", "b", "c", "d"].forEach((tileId) => {
-      cards = addTileToRack(cards, tileId, "rack").cards;
-    });
+  it("sizes frames from the tiles, grows about its centre and gives the tile back on removal", () => {
+    let cards = [makeRack({ x: 0 }), makeTile("a"), makeTile("b", { width: 300, height: 300 })];
+    const startCentre = cards[0].x + (cards[0].width / 2);
+    cards = addTileToRack(cards, "a", "rack").cards;
+    cards = addTileToRack(cards, "b", "rack", 0).cards;
     const rack = cards.find((card) => card.id === "rack");
-    expect(rack.tileIds).toEqual(["a", "b", "c", "d"]);
-    expect(rack.width).toBe(846);
+
+    expect(rack.tileIds).toEqual(["b", "a"]);
+    expect(rack.slotWidths).toEqual([262, 487]);
+    expect(rack.x + (rack.width / 2)).toBeCloseTo(startCentre);
 
     const result = removeTileFromRack(cards, "b", "rack", { x: 5, y: 6 });
     expect(result.tile).toMatchObject({ id: "b", parentRackId: null, rackIndex: null, x: 5, y: 6 });
-    expect(result.rackCard.tileIds).toEqual(["a", "c", "d"]);
+    expect(result.rackCard.tileIds).toEqual(["a"]);
+    expect(result.rackCard.slotWidths).toEqual([487]);
+    expect(result.rackCard.x + (result.rackCard.width / 2)).toBeCloseTo(startCentre);
   });
 
+  it("targets a rack only while the pointer is in its zone, with the slot under the dragged tile", () => {
+    const rack = makeRack({ x: 0, y: 0, tileIds: ["a", "b"], slotWidths: [262, 262] });
+    const dragged = makeTile("d", { width: 300, height: 300 });
+    const tiles = { rack, d: dragged };
+    const find = (point, previousRackId = null) => findRackDropTarget({
+      tiles,
+      dragTileIds: ["d"],
+      dragOrigins: { d: { x: 0, y: 0, width: 300, height: 300 } },
+      rootTiles: [rack],
+      worldPoint: point,
+      previousRackId,
+    });
+    const centre = rack.width / 2;
+
+    expect(find({ x: centre - 400, y: 200 })).toMatchObject({ rackId: "rack", slotIndex: 0, gapWidth: 262 });
+    expect(find({ x: centre + 1, y: 200 })).toMatchObject({ slotIndex: 1 });
+    expect(find({ x: centre + 400, y: 200 })).toMatchObject({ slotIndex: 2 });
+    // Just outside the zone: nothing, unless already inside (hysteresis).
+    const outside = { x: centre, y: 360 + 60 + 20 };
+    expect(find(outside)).toBeNull();
+    expect(find(outside, "rack")).toMatchObject({ rackId: "rack" });
+  });
 });
 
 describe("rack plastic and name", () => {

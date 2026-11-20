@@ -2,6 +2,12 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   AppButton,
+  AppDialog,
+  AppDialogContent,
+  AppDialogDescription,
+  AppDialogFooter,
+  AppDialogHeader,
+  AppDialogTitle,
   AppSheet,
   AppSheetContent,
   AppTooltip,
@@ -52,6 +58,7 @@ function PageListItem({
   isInSplit,
   onSplitPage,
   onCloseSplit,
+  onDelete,
 }) {
   const inputRef = useRef(null);
 
@@ -64,9 +71,13 @@ function PageListItem({
     inputRef.current?.select();
   }, [isEditing]);
 
-  // Split screen controls (only with two or more pages): open this page in
-  // the right pane, or close the split from the page showing there.
-  const splitActions = showSplitActions && !collapsed && !isEditing ? (
+  // Row actions, shown on hover. Split screen (two or more pages): open this
+  // page in the right pane, or close the split from the page showing there.
+  // Delete (two or more pages): an X at the end of the row; the page showing
+  // in the split pane keeps only its close-split X, so the two never sit
+  // side by side.
+  const showDelete = Boolean(onDelete) && !isInSplit;
+  const splitActions = (showSplitActions || showDelete) && !collapsed && !isEditing ? (
     <span className="left-pages-panel__item-actions">
       {isInSplit ? (
         <button
@@ -83,7 +94,7 @@ function PageListItem({
         >
           <X size={12} aria-hidden="true" />
         </button>
-      ) : !isActive ? (
+      ) : showSplitActions && !isActive ? (
         <button
           type="button"
           className="left-pages-panel__item-action"
@@ -97,6 +108,22 @@ function PageListItem({
           title="Open in split screen"
         >
           <SplitColumns size={13} aria-hidden="true" />
+        </button>
+      ) : null}
+      {showDelete ? (
+        <button
+          type="button"
+          className="left-pages-panel__item-action left-pages-panel__item-action--delete"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          draggable={false}
+          aria-label={`Delete ${page.name}`}
+          title="Delete page"
+        >
+          <X size={12} aria-hidden="true" />
         </button>
       ) : null}
     </span>
@@ -202,9 +229,11 @@ function PagesPanelContent({
   splitPageId,
   onSplitPage,
   onCloseSplit,
+  onDeletePage = null,
   title = "Pages",
   extraActions = null,
 }) {
+  const canDelete = Boolean(onDeletePage) && pages.length > 1;
   return (
     <>
       <div className="left-pages-panel__header">
@@ -277,6 +306,7 @@ function PagesPanelContent({
                 isInSplit={splitPageId === page.id}
                 onSplitPage={() => onSplitPage(page.id)}
                 onCloseSplit={onCloseSplit}
+                onDelete={canDelete ? () => onDeletePage(page) : null}
               />
             ))}
           </nav>
@@ -306,6 +336,7 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
   const {
     workspace,
     createCanvasPage,
+    deleteCanvasPage,
     reorderCanvasPages,
     renameCanvasPage,
     setActiveCanvasPage,
@@ -315,9 +346,12 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
     ? (rightPane.pageId ?? workspace?.activePageId ?? null)
     : null;
   const workspacePages = workspace?.pages;
-  const pageListKey = (workspacePages ?? []).map((page) => `${page.id}\u0000${page.name}`).join("\u0001");
+  // Tile count too: deleting a page that has tiles asks first.
+  const pageListKey = (workspacePages ?? [])
+    .map((page) => `${page.id}\u0000${page.name}\u0000${page.cards?.length ?? 0}`)
+    .join("\u0001");
   const pages = useMemo(
-    () => (workspacePages ?? []).map((page) => ({ id: page.id, name: page.name })),
+    () => (workspacePages ?? []).map((page) => ({ id: page.id, name: page.name, tileCount: page.cards?.length ?? 0 })),
     [pageListKey], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
@@ -330,6 +364,7 @@ export default function LeftPagesPanel({ isNarrowDesktop = false }) {
       reorderCanvasPages={reorderCanvasPages}
       renameCanvasPage={renameCanvasPage}
       setActiveCanvasPage={setActiveCanvasPage}
+      deleteCanvasPage={deleteCanvasPage}
       splitPageId={splitPageId}
       onSplitPage={openPageSplitFor}
       onCloseSplit={closeSplit}
@@ -393,6 +428,7 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
   reorderCanvasPages,
   renameCanvasPage,
   setActiveCanvasPage,
+  deleteCanvasPage = null,
   splitPageId,
   onSplitPage,
   onCloseSplit,
@@ -407,6 +443,8 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
   const [draggedPageId, setDraggedPageId] = useState(null);
   const [dropIndicator, setDropIndicator] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The page waiting on "Delete page?" (only pages with tiles ask).
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -570,6 +608,45 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
     handleDragEnd();
   }
 
+  function deletePage(page) {
+    if (editingPageId === page.id) {
+      handleCommitRename(true);
+    }
+    if (splitPageId === page.id) {
+      onCloseSplit?.();
+    }
+    deleteCanvasPage?.(page.id);
+    setPendingDelete(null);
+  }
+
+  function handleDeletePage(page) {
+    if (page.tileCount > 0) {
+      setPendingDelete(page);
+      return;
+    }
+    deletePage(page);
+  }
+
+  const onDeletePage = deleteCanvasPage ? handleDeletePage : null;
+  const deleteDialog = (
+    <AppDialog open={Boolean(pendingDelete)} onOpenChange={(next) => { if (!next) setPendingDelete(null); }}>
+      <AppDialogContent className="max-w-sm">
+        <AppDialogHeader>
+          <AppDialogTitle>{pendingDelete ? `Delete ${pendingDelete.name}?` : ""}</AppDialogTitle>
+          <AppDialogDescription>
+            {pendingDelete
+              ? `Its ${pendingDelete.tileCount} ${pendingDelete.tileCount === 1 ? "tile goes" : "tiles go"} with it. Undo with Ctrl+Z.`
+              : ""}
+          </AppDialogDescription>
+        </AppDialogHeader>
+        <AppDialogFooter>
+          <AppButton type="button" tone="surface" onClick={() => setPendingDelete(null)}>Cancel</AppButton>
+          <AppButton type="button" tone="danger" onClick={() => pendingDelete && deletePage(pendingDelete)}>Delete</AppButton>
+        </AppDialogFooter>
+      </AppDialogContent>
+    </AppDialog>
+  );
+
   function handleSelectPage(pageId) {
     if (editingPageId && editingPageId !== pageId) {
       handleCommitRename(false);
@@ -645,9 +722,11 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
                 splitPageId={splitPageId}
                 onSplitPage={onSplitPage}
                 onCloseSplit={onCloseSplit}
+                onDeletePage={onDeletePage}
               />
             </AppSheetContent>
           </AppSheet>
+          {deleteDialog}
         </>
       </AppTooltipProvider>
     );
@@ -681,10 +760,12 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
           splitPageId={splitPageId}
           onSplitPage={onSplitPage}
           onCloseSplit={onCloseSplit}
+          onDeletePage={onDeletePage}
           title={title}
           extraActions={extraActions}
         />
       </aside>
+      {deleteDialog}
     </AppTooltipProvider>
   );
 });

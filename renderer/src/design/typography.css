@@ -17,6 +17,16 @@
   font-display: swap;
 }
 
+/* Obel Mono (SIL OFL, licence in public/fonts/ObelMono-1.003-woff2):
+   the label on the loading link preview. */
+@font-face {
+  font-family: "Obel Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/ObelMono-1.003-woff2/ObelMono-VF.woff2") format("woff2");
+}
+
 /* Geist (SIL OFL): the app's default UI face. One variable file covers every
    weight 100-900, so light/regular/medium/semibold/bold/extrabold cost one
    request (~70 KB). Italic is declared but only fetched if something uses it. */

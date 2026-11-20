@@ -15,6 +15,9 @@ const {
   WEBCLIP_MAX_HEIGHT,
 } = require("../constants");
 const { createResolvedPreviewResult } = require("../result");
+const { getConsentCookies, isConsentPageUrl } = require("../consent");
+const { isBlankCapture } = require("../blankCapture");
+const { extractProductFromHtml } = require("../product");
 const {
   cleanPreviewText,
   firstString,
@@ -441,6 +444,114 @@ function waitForEventOnce(target, eventName, timeoutMs) {
   });
 }
 
+// The capture window's user agent: Electron's own Chrome one without the
+// "Electron/x" and app tokens. A bare "Mozilla/5.0 ... AppleWebKit" string
+// gets bot pages from shops like eBay; a real Chrome UA passes their check.
+function getCaptureUserAgent() {
+  let fallback = "";
+
+  try {
+    fallback = require("electron").app?.userAgentFallback ?? "";
+  } catch {
+    fallback = "";
+  }
+
+  const cleaned = String(fallback)
+    .split(" ")
+    .filter((token) => !/^(Electron|airpaste)\//i.test(token))
+    .join(" ")
+    .trim();
+
+  return cleaned.includes("Chrome/")
+    ? cleaned
+    : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
+}
+
+// Loads a page in the offscreen capture window. Skips Google/YouTube's
+// consent screen (preview/consent.js) and rides out pages that redirect while
+// loading: a client-side redirect rejects loadURL with ERR_ABORTED even though
+// the window goes on to load the real page. Returns false when there is
+// nothing worth capturing (the load failed, or it still landed on a consent
+// screen).
+async function loadPageForCapture(webContents, url) {
+  for (const cookie of getConsentCookies(url)) {
+    await webContents.session.cookies.set(cookie).catch(() => { });
+  }
+
+  const stopped = waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+
+  try {
+    await webContents.loadURL(url, {
+      userAgent: getCaptureUserAgent(),
+    });
+  } catch (error) {
+    if (error?.code !== "ERR_ABORTED" && error?.errno !== -3) {
+      return false;
+    }
+  }
+
+  await stopped;
+  if (webContents.isLoading()) {
+    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
+  }
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  return !isConsentPageUrl(webContents.getURL());
+}
+
+// A page's HTML after it has run in an offscreen browser, for sites that
+// block plain HTTP fetches (bot checks that need a real browser, like
+// eBay's). `isReadyScript` is a JS expression polled in the page until it's
+// true (the real page has loaded past any challenge), up to `timeoutMs`.
+//
+// Its own in-memory session, cleared before every load: a bot check that
+// once flagged a session keeps answering it with its error page for as long
+// as that cookie lives, and the default session is shared with the app.
+const RENDER_PARTITION = "airpaste-preview-render";
+
+async function fetchRenderedPageHtml(url, { isReadyScript = "true", timeoutMs = 12000 } = {}) {
+  let renderWindow = null;
+
+  try {
+    renderWindow = new BrowserWindow({
+      show: false,
+      width: PREVIEW_VIEWPORT.width,
+      height: PREVIEW_VIEWPORT.height,
+      useContentSize: true,
+      backgroundColor: "#ffffff",
+      webPreferences: {
+        offscreen: true,
+        sandbox: true,
+        partition: RENDER_PARTITION,
+      },
+    });
+
+    const { webContents } = renderWindow;
+    await webContents.session.clearStorageData().catch(() => { });
+    await loadPageForCapture(webContents, url);
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const ready = await webContents.executeJavaScript(`Boolean(${isReadyScript})`, true).catch(() => false);
+
+      if (ready) {
+        break;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
+    const html = await webContents.executeJavaScript("document.documentElement.outerHTML", true).catch(() => "");
+    return { html: typeof html === "string" ? html : "", finalUrl: webContents.getURL() || url };
+  } catch {
+    return null;
+  } finally {
+    if (renderWindow && !renderWindow.isDestroyed()) {
+      renderWindow.destroy();
+    }
+  }
+}
+
 async function capturePreviewScreenshot(url) {
   let previewWindow = null;
 
@@ -453,12 +564,9 @@ async function capturePreviewScreenshot(url) {
 
     const { webContents } = previewWindow;
 
-    await webContents.loadURL(url, {
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    });
-
-    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (!(await loadPageForCapture(webContents, url))) {
+      return "";
+    }
 
     await webContents.executeJavaScript(
       [
@@ -479,6 +587,9 @@ async function capturePreviewScreenshot(url) {
     ).catch(() => { });
 
     const image = await webContents.capturePage();
+    if (isBlankCapture(image)) {
+      return "";
+    }
     const screenshot = image.toJPEG(PREVIEW_JPEG_QUALITY);
 
     return bufferToDataUrl(screenshot, "image/jpeg");
@@ -505,12 +616,9 @@ async function captureFullPageScreenshot(url) {
 
     const { webContents } = previewWindow;
 
-    await webContents.loadURL(url, {
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    });
-
-    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (!(await loadPageForCapture(webContents, url))) {
+      return null;
+    }
 
     await webContents.executeJavaScript(
       [
@@ -544,6 +652,9 @@ async function captureFullPageScreenshot(url) {
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     const image = await webContents.capturePage();
+    if (isBlankCapture(image)) {
+      return null;
+    }
     const { width, height } = image.getSize();
 
     return { buffer: image.toJPEG(PREVIEW_JPEG_QUALITY), width, height };
@@ -580,12 +691,9 @@ async function extractReadableArticle(url) {
 
     const { webContents } = previewWindow;
 
-    await webContents.loadURL(url, {
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    });
-
-    await waitForEventOnce(webContents, "did-stop-loading", PREVIEW_NETWORK_IDLE_TIMEOUT_MS);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (!(await loadPageForCapture(webContents, url))) {
+      return null;
+    }
 
     // Readability is wrapped in a function so it never touches the page's
     // globals; it parses a clone, so the live page is left alone.
@@ -728,6 +836,37 @@ async function resolveGenericLinkPreview(url) {
     metadata.siteName,
     getHostname(resolvedUrl),
   );
+  const product = extractProductFromHtml(documentSnapshot.html, resolvedUrl);
+
+  // A shop's product page (structured product data, see preview/product.js)
+  // becomes a product tile.
+  if (product) {
+    return {
+      result: createResolvedPreviewResult({
+        kind: PREVIEW_KIND.AMAZON_PRODUCT,
+        confidence: PREVIEW_CONFIDENCE.HIGH,
+        status: PREVIEW_STATUS.READY,
+        canonicalUrl: resolvedUrl,
+        title: firstString(product.title, metadata.title, documentSignals.ogTitle, documentSignals.pageTitle),
+        description: firstString(product.description, metadata.description, documentSignals.ogDescription),
+        favicon: firstString(documentSignals.faviconUrl, metadata.favicon),
+        siteName: fallbackSiteName,
+        candidateImageUrls: uniqueValues([...product.images, ...candidateImageUrls]),
+        // A screenshot of the page isn't a product photo: no image leaves
+        // the tile's empty image slot instead.
+        allowScreenshotFallback: false,
+        metadata: {
+          source: "generic-product",
+          productPrice: product.price,
+          productDomain: product.domain,
+          metadataFetchStatus: documentSnapshot.fetchStatus || "network-error",
+          openGraphStatus: metadata.openGraphStatus || "missing",
+        },
+      }),
+      documentSignals,
+      documentSnapshot,
+    };
+  }
 
   return {
     result: createResolvedPreviewResult({
@@ -756,11 +895,13 @@ async function resolveGenericLinkPreview(url) {
 
 module.exports = {
   acquirePreviewImage,
+  fetchImageDataUrl,
   capturePreviewScreenshot,
   captureFullPageScreenshot,
   extractReadableArticle,
   closePreviewBrowser,
   fetchJson,
+  fetchRenderedPageHtml,
   isLikelyPreviewImageUrl,
   resolveGenericLinkPreview,
   resolvePreviewImage,

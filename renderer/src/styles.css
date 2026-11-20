@@ -5,6 +5,11 @@
    frame of a 10-tile drag used to restyle all ten tiles' contents). */
 @property --tile-drag-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --tile-drag-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* Rack approach (TileShell useRackApproach): a dragged tile's scale near a
+   rack, around its grab point (offset from the tile's centre). */
+@property --rack-s { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --rack-gx { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --rack-gy { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --tether-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --tether-y { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @property --tether-rise { syntax: "<length>"; inherits: false; initial-value: 0px; }
@@ -3459,7 +3464,10 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
        perspective tilt / stretch / lift while dragging and settling. */
     var(--feel-transform, )
     rotate(var(--tether-rot, 0deg))
-    scale(var(--tether-scale, 1));
+    scale(var(--tether-scale, 1))
+    translate(var(--rack-gx, 0px), var(--rack-gy, 0px))
+    scale(var(--rack-s, 1))
+    translate(calc(var(--rack-gx, 0px) * -1), calc(var(--rack-gy, 0px) * -1));
   overflow: visible;
   transition: filter 180ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
   opacity: var(--tile-clipboard-opacity, 1);
@@ -3474,6 +3482,13 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
    must not smear it. */
 .card[data-feel] {
   transition: filter 180ms ease;
+}
+
+/* The rack approach glides its scale on its own (response ~.28, a touch of
+   overshoot) while the drag rewrites the rest of the transform per frame. */
+.card.card--rack-approach,
+.card.card--rack-approach[data-feel] {
+  transition: filter 180ms ease, --rack-s 300ms cubic-bezier(0.3, 1.18, 0.5, 1);
 }
 
 /* A keyboard nudge is an instant, exact position change (1px / 10px) --
@@ -3835,6 +3850,110 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   height: 100%;
   object-fit: cover;
   object-position: top center;
+}
+
+/* A cropped webclip (bottom handle, tiles/link/webclipCrop.js): the image
+   stays pinned to the top and the tile simply ends sooner. The cut is
+   softened by a progressive blur: three strips over the bottom band, each
+   drawing the page (as a background lined up with the image) blurred more
+   and masked in lower down.
+   - Plain `filter`, never backdrop-filter (inside a tile that makes the
+     whole canvas repaint on drag).
+   - Strips, not whole-page copies: a blurred layer the height of the page
+     (thousands of px, mostly clipped) is redrawn as the canvas moves and
+     blinked out and back while panning. The strips are only the band.
+   - They run --webclip-bleed past the cut (clipped by the surface), so the
+     blur samples the real page below instead of fading to nothing.
+   - The sharp image lines up because both are the page at the tile's width,
+     pinned to the top; LinkTile sets --webclip-crop-height (the tile's
+     height) and --webclip-full-height (the whole page's). */
+.card__surface--link-webclip-cropped {
+  --webclip-band: min(150px, calc(var(--webclip-crop-height, 600px) * 0.34));
+  --webclip-bleed: 28px;
+  position: relative;
+}
+
+.card__link-webclip-blur {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--webclip-bleed) * -1);
+  height: calc(var(--webclip-band) + var(--webclip-bleed) * 2);
+  pointer-events: none;
+}
+
+.card__link-webclip-blur-layer {
+  position: absolute;
+  inset: 0;
+  background-image: var(--webclip-src);
+  background-repeat: no-repeat;
+  background-size: 100% var(--webclip-full-height, 100%);
+  /* Where this strip starts on the page: the cut, less the band and bleed. */
+  background-position: 0 calc((var(--webclip-crop-height, 600px) - var(--webclip-band) - var(--webclip-bleed)) * -1);
+  filter: blur(var(--webclip-blur));
+}
+
+.card__link-webclip-blur-layer--1 {
+  --webclip-blur: 2px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--webclip-bleed), #000 calc(var(--webclip-bleed) + var(--webclip-band) * 0.4));
+  mask-image: linear-gradient(to bottom, transparent var(--webclip-bleed), #000 calc(var(--webclip-bleed) + var(--webclip-band) * 0.4));
+}
+
+.card__link-webclip-blur-layer--2 {
+  --webclip-blur: 6px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(var(--webclip-bleed) + var(--webclip-band) * 0.3), #000 calc(var(--webclip-bleed) + var(--webclip-band) * 0.7));
+  mask-image: linear-gradient(to bottom, transparent calc(var(--webclip-bleed) + var(--webclip-band) * 0.3), #000 calc(var(--webclip-bleed) + var(--webclip-band) * 0.7));
+}
+
+.card__link-webclip-blur-layer--3 {
+  --webclip-blur: 14px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(var(--webclip-bleed) + var(--webclip-band) * 0.6), #000 calc(var(--webclip-bleed) + var(--webclip-band)));
+  mask-image: linear-gradient(to bottom, transparent calc(var(--webclip-bleed) + var(--webclip-band) * 0.6), #000 calc(var(--webclip-bleed) + var(--webclip-band)));
+}
+
+/* Mid zoom every filter in a tile is switched off to keep zoom frames
+   cheap (see .canvas[data-zooming] above). The blur strips are small and
+   ARE the crop's edge -- without them the page just stops at a hard line
+   -- so they stay on. Out-ranks that rule's specificity and !important. */
+.canvas[data-zooming] .card .card__link-webclip-blur .card__link-webclip-blur-layer {
+  filter: blur(var(--webclip-blur)) !important;
+}
+
+/* The crop handle: the long note's panel handle turned on its side -- a
+   plain rectangle (no rounding) centred on the bottom edge, a steady size
+   on screen at any zoom, with a larger hit area than the bar you see. */
+.card__webclip-crop-handle {
+  --crop-ui: calc(1 / var(--canvas-zoom, 1));
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  z-index: 5;
+  width: calc(88px * var(--crop-ui));
+  height: calc(22px * var(--crop-ui));
+  cursor: ns-resize !important;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+}
+
+.card__webclip-crop-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(64px * var(--crop-ui));
+  height: calc(7px * var(--crop-ui));
+  border-radius: 0;
+  background: #5e636c;
+  transform: translate(-50%, -50%);
+  transition: background-color 120ms ease;
+}
+
+.card__webclip-crop-handle:hover::after {
+  background: #9ea3ab;
+}
+
+.card__webclip-crop-handle--active::after {
+  background: #0d99ff;
 }
 
 .card__link-webclip-loading {
@@ -5229,72 +5348,10 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   font-size: 11px;
 }
 
-.card__preview-fallback {
-  width: 100%;
-  height: 100%;
-  min-height: 150px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 8px;
-  color: #6f7176;
-  background: linear-gradient(145deg, #e1e2e4, #c9cacf);
-}
-
-.card__preview-fallback__icon {
-  width: 34px;
-  height: 34px;
-  margin-bottom: auto;
-  display: grid;
-  place-items: center;
-  border: 1px solid #aeb0b5;
-  border-radius: 10px;
-  color: #777a80;
-  background: rgba(255, 255, 255, 0.26);
-  font-size: 17px;
-  line-height: 1;
-}
-
-.card__preview-fallback__details { min-width: 0; }
-
-.card__preview-fallback__title,
-.card__preview-fallback__domain,
-.card__preview-fallback__status {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card__preview-fallback__title {
-  color: #56585d;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.3;
-}
-
-.card__preview-fallback__domain,
-.card__preview-fallback__status {
-  color: #818389;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.card__preview-fallback__status {
-  padding-top: 8px;
-  border-top: 1px solid rgba(89, 91, 96, 0.16);
-}
-
+/* Failed link preview: the art (FailedLinkPreview) carries its own frame,
+   so the tile surface behind it is see-through. */
 .card__surface-frame--preview-fallback {
   transform: none !important;
-  filter: grayscale(1) !important;
-}
-
-.card__surface-frame--preview-fallback .card__surface--preview-fallback {
-  border-color: #aeb0b5 !important;
-  background: #d5d6d9 !important;
-  overflow: hidden;
 }
 
 .card__retry {
@@ -11591,11 +11648,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
     .card__surface--progress
   ) {
   box-shadow: var(--ap-shadow-xl);
-}
-
-.card__surface--preview-fallback {
-  border-color: #aeb0b5 !important;
-  background: #d5d6d9 !important;
 }
 
 .card__surface--note,
