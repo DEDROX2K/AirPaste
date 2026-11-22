@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What! | AirPaste</title>
+    <meta name="description" content="What AirPaste is: an infinite, local-first canvas for visual thinkers.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="AirPaste">
+    <meta property="og:title" content="What | AirPaste">
+    <meta property="og:description" content="What AirPaste is: an infinite, local-first canvas for visual thinkers.">
+    <meta property="og:url" content="https://airpaste.co.uk/what.html">
+    <meta property="og:image" content="https://airpaste.co.uk/images/og-preview.png">
+    <meta property="og:image:width" content="1172">
+    <meta property="og:image:height" content="715">
+    <meta property="og:image:alt" content="AirPaste">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="What | AirPaste">
+    <meta name="twitter:description" content="What AirPaste is: an infinite, local-first canvas for visual thinkers.">
+    <meta name="twitter:image" content="https://airpaste.co.uk/images/og-preview.png">
+    <link rel="icon" type="image/png" href="images/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Mansalva&family=Playfair+Display:wght@700&display=swap">
+    <link rel="stylesheet" href="airpaste.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <style>
+        /* Specific overrides for standalone pages to ensure visibility without heavy canvas */
+        body {
+            background-color: var(--bg);
+            cursor: default !important;
+            /* Reverting cursor for sub-pages unless user wants trail */
+        }
+
+        * {
+            cursor: default !important;
+        }
+
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+    </style>
+    <script src="nav-blobs.js" defer></script>
+    <script src="arrow-sweep.js" defer></script>
+</head>
+
+<body>
+
+    <!-- <div class="nav-logo">
+        <a href="./" style="display: block;">
+            <img src="images/logovar/browserlogo.gif" alt="AirPaste Logo">
+        </a>
+    </div> -->
+
+    <nav class="top-nav">
+        <div class="nav-toggle-wrapper">
+            <div class="nav-toggle-container">
+                <div class="nav-toggle-gooey-layer">
+                    <div class="nav-toggle-indicator"></div>
+                </div>
+                <div class="nav-toggle-buttons">
+                    <button class="nav-toggle-btn" id="toggleHome">Home</button>
+                    <button class="nav-toggle-btn active" id="toggleWhat">What!</button>
+                    <button class="nav-toggle-btn" id="toggleWhy">Why?</button>
+                    <button class="nav-toggle-btn" id="toggleNext">What's Next</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <section class="manifesto-section">
+        <div class="manifesto-content">
+            <h2 class="manifesto-subtitle">
+                <span class="word-head">A Digital Canvas</span>
+            </h2>
+            <p class="manifesto-text">
+                AirPaste is a local-first desktop application designed for collectors, thinkers, and creators. It allows
+                you to paste links, images, and notes onto an infinite canvas, keeping everything organized in a visual,
+                spatial way.
+            </p>
+            <p class="manifesto-text highlight">
+                No cloud, no tracking, just your ideas.
+            </p>
+        </div>
+    </section>
+
+    <!-- Gooey Filter for Liquid Nav -->
+    <svg style="visibility: hidden; position: absolute;" width="0" height="0" xmlns="http://www.w3.org/2000/svg"
+        version="1.1">
+        <defs>
+            <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
+                    result="goo" />
+            </filter>
+        </defs>
+    </svg>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.162.0/three.min.js"></script>
+    <script>
+        // --- 💧 LIQUID NAV TOGGLE LOGIC ---
+        (function () {
+            const container = document.querySelector('.nav-toggle-container');
+            const indicator = document.querySelector('.nav-toggle-indicator');
+            const btns = document.querySelectorAll('.nav-toggle-btn');
+
+            if (!container || !indicator) return;
+
+            function updateToggle(btn) {
+                if (!btn) return;
+
+                btns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const btnRect = btn.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const leftOffset = btnRect.left - containerRect.left - 4;
+
+                indicator.style.width = btnRect.width + 'px';
+                indicator.style.transform = `translateX(${leftOffset}px)`;
+            }
+
+            const navMap = {
+                'toggleHome': './',
+                'toggleWhat': 'what.html',
+                'toggleWhy': 'why.html',
+                'toggleNext': 'whatsnext.html'
+            };
+
+            btns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    updateToggle(btn);
+
+                    const targetUrl = navMap[btn.id];
+                    if (targetUrl && !window.location.href.includes(targetUrl)) {
+                        setTimeout(() => {
+                            window.location.href = targetUrl;
+                        }, 150);
+                    }
+                });
+            });
+
+            window.addEventListener('load', () => {
+                const activeBtn = document.querySelector('.nav-toggle-btn.active');
+                if (activeBtn) updateToggle(activeBtn);
+            });
+
+            window.addEventListener('resize', () => {
+                const activeBtn = document.querySelector('.nav-toggle-btn.active');
+                if (activeBtn) updateToggle(activeBtn);
+            });
+        })();
+    </script>
+</body>
+
+</html>

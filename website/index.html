@@ -1,160 +1,1483 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AirPaste | Local-first canvas for everything you save</title>
-    <meta
-      name="description"
-      content="AirPaste is a local-first desktop canvas for links, notes, images, and pages. Download the app and keep your workspace on your machine."
-    />
-    <link rel="icon" type="image/png" href="./assets/icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div class="site-shell">
-      <header class="topbar">
-        <a class="brand" href="#top" aria-label="AirPaste home">
-          <img src="./assets/icon.png" alt="" width="28" height="28" />
-          <span>AirPaste</span>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirPaste | Local-First Bookmarks</title>
+    <meta name="description" content="An infinite, local-first canvas for visual thinkers. Save links forever, no cloud, no paywall — free forever.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="AirPaste">
+    <meta property="og:title" content="AirPaste | Local-First Bookmarks">
+    <meta property="og:description" content="An infinite, local-first canvas for visual thinkers. Save links forever, no cloud, no paywall — free forever.">
+    <meta property="og:url" content="https://airpaste.co.uk/">
+    <meta property="og:image" content="https://airpaste.co.uk/images/og-preview.png">
+    <meta property="og:image:width" content="1172">
+    <meta property="og:image:height" content="715">
+    <meta property="og:image:alt" content="AirPaste">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AirPaste | Local-First Bookmarks">
+    <meta name="twitter:description" content="An infinite, local-first canvas for visual thinkers. Save links forever, no cloud, no paywall — free forever.">
+    <meta name="twitter:image" content="https://airpaste.co.uk/images/og-preview.png">
+    <link rel="icon" type="image/png" href="images/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Mansalva&family=Playfair+Display:wght@700&display=swap">
+    <link rel="stylesheet" href="airpaste.css">
+    <!-- Scripts for Endless Motion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+    <!-- 🧊 Locked Core Engines -->
+    <script src="cube-trail.js" defer></script>
+    <script src="ascii-water.js" defer></script>
+    <script src="carousel.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.162.0/three.min.js"></script>
+    <script src="navbar-logic.js" defer></script>
+    <script src="nav-blobs.js" defer></script>
+    <script src="arrow-sweep.js" defer></script>
+</head>
+
+<body>
+
+
+    <canvas id="cubeCanvas"></canvas>
+    <!-- <div class="nav-logo">
+        <a href="./" style="display: block;">
+            <img src="images/logovar/browserlogo.gif" alt="AirPaste Logo">
         </a>
-        <nav class="topnav" aria-label="Primary">
-          <a href="#features">Features</a>
-          <a href="#download">Download</a>
-          <a href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">GitHub</a>
-        </nav>
-      </header>
+    </div> -->
 
-      <main id="top">
-        <section class="hero">
-          <div class="hero-copy">
-            <p class="eyebrow">Desktop app</p>
-            <h1>Save links, notes, images, and pages into one local-first canvas.</h1>
-            <p class="hero-text">
-              AirPaste gives you a spatial workspace for everything you collect, without forcing your ideas into tabs,
-              folders, or another cloud-first dashboard.
-            </p>
-            <div class="hero-actions">
-              <a class="button button--primary" href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">
-                Download AirPaste
-              </a>
-              <a class="button button--ghost" href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">
-                View source
-              </a>
+
+
+    <nav class="top-nav">
+        <div class="nav-toggle-wrapper">
+            <div class="nav-toggle-container">
+                <!-- Filtered Layer (for gooey morphing only) -->
+                <div class="nav-toggle-gooey-layer">
+                    <div class="nav-toggle-indicator"></div>
+                </div>
+
+                <!-- Crisp Layer (for text visibility) -->
+                <div class="nav-toggle-buttons">
+                    <button class="nav-toggle-btn active" id="toggleHome">AirPaste</button>
+                    <button class="nav-toggle-btn" id="toggleDownload">Download</button>
+                    <button class="nav-toggle-btn" id="toggleShop">Shop</button>
+                    <button class="nav-toggle-btn" id="toggleNext">What's Next</button>
+                </div>
             </div>
-            <p class="hero-meta">Best for V1: Windows installer via GitHub Releases. macOS and Linux can be added next.</p>
-          </div>
-
-          <div class="hero-visual" aria-hidden="true">
-            <div class="hero-board">
-              <div class="hero-card hero-card--link">
-                <span class="hero-card__label">Link</span>
-                <strong>Launch ideas without losing the source</strong>
-                <span>Open Graph previews, pinning, and quick actions.</span>
-              </div>
-              <div class="hero-card hero-card--note">
-                <span class="hero-card__label">Note</span>
-                <strong>Drop thoughts directly onto the canvas</strong>
-                <span>Keep context, placement, and visual grouping intact.</span>
-              </div>
-              <div class="hero-card hero-card--image">
-                <span class="hero-card__label">Image</span>
-                <strong>Collect screenshots and references fast</strong>
-                <span>Paste from the clipboard and arrange things naturally.</span>
-              </div>
-              <div class="hero-orbit hero-orbit--one"></div>
-              <div class="hero-orbit hero-orbit--two"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="proof-strip" aria-label="Highlights">
-          <article>
-            <strong>Local-first</strong>
-            <span>Your workspace stays on your machine.</span>
-          </article>
-          <article>
-            <strong>Visual canvas</strong>
-            <span>Organize by space instead of by endless lists.</span>
-          </article>
-          <article>
-            <strong>Fast capture</strong>
-            <span>Paste links, text, and images in seconds.</span>
-          </article>
-        </section>
-
-        <section id="features" class="section">
-          <div class="section-heading">
-            <p class="eyebrow">Why it feels different</p>
-            <h2>A simpler site for a simple promise</h2>
-            <p>
-              AirPaste is for the moment when you find something worth keeping and do not want to lose it inside a
-              browser tab graveyard.
-            </p>
-          </div>
-
-          <div class="feature-grid">
-            <article class="feature-card">
-              <span class="feature-kicker">Capture</span>
-              <h3>Paste almost anything</h3>
-              <p>URLs, text, images, and managed notes land in the same workspace without a complicated setup flow.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-kicker">Organize</span>
-              <h3>Think spatially</h3>
-              <p>Arrange saved items on a canvas so projects stay visual, flexible, and easier to revisit later.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-kicker">Own it</span>
-              <h3>Keep data local</h3>
-              <p>Your app and your saved material stay grounded in local files instead of depending on a web backend.</p>
-            </article>
-          </div>
-        </section>
-
-        <section id="download" class="section section--download">
-          <div class="section-heading">
-            <p class="eyebrow">Download</p>
-            <h2>Start with the cheapest release setup</h2>
-            <p>
-              Publish the installer on GitHub Releases, then point this page at the release. That keeps hosting simple
-              and download delivery reliable.
-            </p>
-          </div>
-
-          <div class="download-panel">
-            <div class="download-card download-card--primary">
-              <p class="download-label">Recommended now</p>
-              <h3>Windows installer</h3>
-              <p>Use GitHub Releases for the `.exe` so the website stays lightweight and the binary hosting is handled for you.</p>
-              <a class="button button--primary" href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">
-                Open releases
-              </a>
-            </div>
-
-            <div class="download-card">
-              <p class="download-label">Next up</p>
-              <h3>macOS and Linux</h3>
-              <p>Add extra release assets later without changing the site structure. The CTA layout is already ready for them.</p>
-              <span class="pill">Coming soon</span>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer class="footer">
-        <p>AirPaste is a local-first desktop canvas for collected ideas and references.</p>
-        <div class="footer-links">
-          <a href="https://github.com/DEDROX2K/AirPaste" target="_blank" rel="noreferrer">GitHub</a>
-          <a href="https://github.com/DEDROX2K/AirPaste/releases" target="_blank" rel="noreferrer">Releases</a>
         </div>
-      </footer>
+
+
+        <!-- Download button with corner-dots effect -->
+        <!-- <a href="#" class="nav-download-btn" id="navDownloadBtn">
+            Download AirPaste
+            <div class="corner-dots top-left"><i></i><i></i><i></i><i></i></div>
+            <div class="corner-dots top-right"><i></i><i></i><i></i><i></i></div>
+            <div class="corner-dots bottom-left"><i></i><i></i><i></i><i></i></div>
+            <div class="corner-dots bottom-right"><i></i><i></i><i></i><i></i></div>
+        </a> -->
+    </nav>
+
+    <section class="hero-section" id="hero">
+        <canvas id="pixelCanvas"></canvas>
+        <div class="hero-reveal-layer">
+            <img src="images/bg10.jpg" class="hero-bg-img" alt="Background">
+            <div class="reactive-container">
+                <!-- <div class="hero-top-left-text">
+                    Local first -Free and Open-Source <br>
+                    <br>
+                    In our opinion... <br>
+                    It should not cost 10£ monthly to save your bookmarks. <br>
+                    | - Raghav
+                </div> -->
+                <div class="title-stack-wrapper">
+                    <!-- Hero logo removed for cleaner aesthetic -->
+                </div>
+            </div>
+        </div>
+        <!-- <div class="hero-top-left-bar">
+            <img src="images/logo.png" alt="AirPaste Logo"
+                style="height: 16px; width: auto; vertical-align: middle; margin-right: 8px; image-rendering: pixelated;">
+            You should not spend 10£ to save bookmarks.
+        </div> -->
+        <!-- <div class="hero-cta-group">
+            <a href="download.html" class="pixel-btn-v2">Download AirPaste</a>
+        </div> -->
+        <div class="hero-scroll-indicator">
+            <div class="ascii-block-v">
+                <span class="filled"></span><span></span><span></span><span></span><span class="filled"></span>
+                <span></span><span class="filled"></span><span></span><span class="filled"></span><span></span>
+                <span></span><span></span><span class="filled"></span><span></span><span></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Drag ghost pill — positioned by JS -->
+    <div id="dragGhost">
+        <i class="px-icon" style="--icon: url(icons/pixelarticons/arrow-right.svg); width: 12px; height: 12px;"></i>
+        <span id="dragGhostLabel">www.spotify.com/...</span>
     </div>
-  </body>
+
+
+    <section class="manifesto-section" style="padding: 14vh 5vw 2vh 5vw;">
+        <div class="manifesto-content">
+            <h2 class="manifesto-subtitle">
+                <span class="word-head">Turn boring links into Interactive Tiles</span>
+            </h2>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         🖼️ BEFORE / AFTER SCRUBBER
+         ========================================== -->
+    <section class="scrubber-section">
+        <div class="scrubber-label-row">
+            <span class="scrubber-label">Before</span>
+            <span class="scrubber-label">After</span>
+        </div>
+        <div class="scrubber-stage" id="scrubberStage">
+            <div class="scrubber-card" id="scrubberCard">
+                <!-- AFTER: shown underneath, full width -->
+                <img src="images/afterzip.png" class="scrubber-img scrubber-after" alt="AirPaste After"
+                    draggable="false">
+                <!-- BEFORE: clipped on the left by cursor position -->
+                <div class="scrubber-before-wrap" id="scrubberBefore">
+                    <img src="images/beforezip.png" class="scrubber-img scrubber-before-img" alt="AirPaste Before"
+                        draggable="false">
+                </div>
+                <!-- Divider line -->
+                <div class="scrubber-divider" id="scrubberDivider"></div>
+            </div>
+        </div>
+        <p class="scrubber-hint"><span class="hint-pointer">← Move cursor to reveal →</span><span class="hint-touch">← Drag to reveal →</span></p>
+    </section>
+
+    <!-- ==========================================
+         💡 WHAT / WHY / FREE — three mini sections
+         ========================================== -->
+    <section class="about-trio">
+        <article class="about-card">
+            <div class="about-card-top">
+                <span class="about-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/layout.svg)"></i></span>
+                <span class="about-num">01</span>
+            </div>
+            <h3>What it is</h3>
+            <p>AirPaste is an <i class="px-inline" style="--icon: url(icons/pixelarticons/infinity.svg)"></i> infinite,
+                local-first canvas built for visual thinkers to map out ideas and
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/link.svg)"></i> save links forever.
+                Instead of paying for cloud subscriptions or hitting artificial storage limits, everything lives
+                directly on your <i class="px-inline" style="--icon: url(icons/pixelarticons/save.svg)"></i> hard drive,
+                completely under your control.</p>
+            <p>It's a living, visual workspace designed so you can understand your thoughts
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/eye.svg)"></i> at a single glance &mdash;
+                without the maintenance or paywalls of server-based apps.</p>
+            <span class="about-tag"><i class="privacy-dot"></i>Local-first</span>
+        </article>
+
+        <article class="about-card">
+            <div class="about-card-top">
+                <span class="about-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/lightbulb.svg)"></i></span>
+                <span class="about-num">02</span>
+            </div>
+            <h3>Why we built it</h3>
+            <p>Traditional note-taking tools like Obsidian force you into
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/file-text.svg)"></i> linear, text-heavy
+                formats. Linking nodes is useful, but visual thinkers need more than plain text and folders to see the
+                big picture.</p>
+            <p>AirPaste breaks that mold with a vibrant,
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/grid-2x2-2.svg)"></i> spatial canvas where
+                every button, animation and element is crafted with
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/heart.svg)"></i> care and fun. It isn't
+                another boring productivity tool &mdash; it's a space built for how your brain actually connects ideas.
+            </p>
+            <span class="about-tag"><i class="privacy-dot"></i>Made for visual thinkers</span>
+        </article>
+
+        <article class="about-card">
+            <div class="about-card-top">
+                <span class="about-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/gift.svg)"></i></span>
+                <span class="about-num">03</span>
+            </div>
+            <h3>Why it's free forever</h3>
+            <p>AirPaste will <i class="px-inline" style="--icon: url(icons/pixelarticons/lock.svg)"></i> never have a
+                paywall. Because AI is essentially a
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/users.svg)"></i> collective human mind, we
+                believe the tools built alongside it should be given back to the community without a price tag.</p>
+            <p>No premium tiers, server fees or hidden costs &mdash; just a powerful, open-ended canvas that
+                <i class="px-inline" style="--icon: url(icons/pixelarticons/home.svg)"></i> belongs entirely to you.</p>
+            <span class="about-tag"><i class="privacy-dot"></i>&pound;0, forever</span>
+        </article>
+    </section>
+
+    <!-- ==========================================
+         🃏 FAN CARD GALLERY
+         Swap src="" values with your own images.
+         ========================================== -->
+    <!-- Hidden for now — bring back later
+    <section class="fan-section">
+        <div class="wrapper">
+            <div><img src="images/DEDROX.DSGN/pi1.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic2.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic3.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic4.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic5.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic6.png" alt=""></div>
+            <div><img src="images/DEDROX.DSGN/pic7.png" alt=""></div>
+        </div>
+    </section>
+    -->
+
+    <section class="features-section">
+        <div class="features-content">
+            <h2 class="features-subtitle">
+                <span class="word-head">Features</span>
+            </h2>
+
+            <div class="features-grid">
+                <article class="feature-tile feature-tile--wide">
+                    <!-- image: images/features/reading-mode.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/book-open.svg)"></i></span>
+                    </div>
+                    <h3>Reading Mode</h3>
+                    <p>Read full articles and recipes right inside AirPaste &mdash; no ads, pop-ups or clutter pulling you away.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/article-backup.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/archive.svg)"></i></span>
+                    </div>
+                    <h3>Article backup</h3>
+                    <p>Saved articles are kept in full on your own drive, even if the original page disappears.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/ai-tagging.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/sparkles.svg)"></i></span>
+                    </div>
+                    <h3>AI image tagging</h3>
+                    <p>Every image you save is tagged automatically, so a quick search brings it straight back.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/same-vibe.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/colors-swatch.svg)"></i></span>
+                    </div>
+                    <h3>Same Vibe</h3>
+                    <p>Pick an image and AirPaste surfaces the saves that share its mood &mdash; connections you didn&rsquo;t know you had.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/text-in-images.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/search.svg)"></i></span>
+                    </div>
+                    <h3>Text in images</h3>
+                    <p>Search the words inside your images: memes, screenshots, even handwriting.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/image-search.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/image.svg)"></i></span>
+                    </div>
+                    <h3>Advanced image search</h3>
+                    <p>Find any image by an object, colour, detail, style or the text inside it.</p>
+                </article>
+
+                <article class="feature-tile feature-tile--wide">
+                    <!-- image: images/features/smart-spaces.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/grid-2x2-2.svg)"></i></span>
+                    </div>
+                    <h3>Smart Spaces</h3>
+                    <p>Collections without the effort. Saves gather themselves around a search, a theme or a tag &mdash; no filing required.</p>
+                </article>
+
+                <article class="feature-tile feature-tile--wide">
+                    <!-- image: images/features/ideas-notes.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/notes.svg)"></i></span>
+                    </div>
+                    <h3>Ideas &amp; notes</h3>
+                    <p>A sticky note that&rsquo;s always within reach. Jot ideas and to-dos as Quick Notes, or switch to Focus Mode for longer drafts.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/video.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/video.svg)"></i></span>
+                    </div>
+                    <h3>Videos &amp; GIFs</h3>
+                    <p>Keep your favourite GIFs and clips on the canvas, right beside everything else.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/clippings.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/scissors.svg)"></i></span>
+                    </div>
+                    <h3>Text clippings</h3>
+                    <p>Highlight a passage or quote, right-click, and it&rsquo;s saved &mdash; source and all.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/eyes-only.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/lock.svg)"></i></span>
+                    </div>
+                    <h3>For your eyes only</h3>
+                    <p>Everything lives on your device. No ads, no audience, no algorithm watching over your shoulder.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/serendipity.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/shuffle.svg)"></i></span>
+                    </div>
+                    <h3>Serendipity</h3>
+                    <p>A dreamy shuffle through old saves to spark ideas and jog your memory. Keep a card, or let it go.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/companion-apps.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/phone.svg)"></i></span>
+                    </div>
+                    <span class="feature-soon">Soon</span>
+                    <h3>Companion apps</h3>
+                    <p>AirPaste beyond the desktop, so your canvas comes with you.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/night-mode.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/moon.svg)"></i></span>
+                    </div>
+                    <span class="feature-soon">Soon</span>
+                    <h3>Night mode</h3>
+                    <p>Switch between light and dark whenever your eyes ask for it.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <!-- image: images/features/indie.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/heart.svg)"></i></span>
+                    </div>
+                    <h3>Proudly indie</h3>
+                    <p>Made by a small, independent team who use it every day. No investors to please &mdash; free, forever.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- <section class="dot-matrix-section">
+        <div class="board-container">
+            <div class="rivets">
+                <div class="rivet"></div>
+                <div class="rivet"></div>
+                <div class="rivet"></div>
+                <div class="rivet"></div>
+            </div>
+            <div class="board">
+                <div class="board__content">
+                    <div class="text-track">
+                        <div class="text">Only for WINDOWS </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section> -->
+
+
+
+
+    <!-- Empty section here -->
+    <!-- Empty section here -->
+    <!-- Empty section here -->
+    <!-- Empty section here -->
+    <!-- <section class="manifesto-section">
+        <div class="manifesto-content">
+            <h2 class="manifesto-subtitle">
+                <span class="word-head">We made a decision</span>
+            </h2>
+
+            <p class="manifesto-text">
+                We have stripped away the 'features' that modern tech uses to colonize your mind—the streaks, the
+                badges, and the social validation. What remains is a pure environment where you can exist without
+                being tracked, analyzed, or nudged. We are not a platform; we are a vault, a workshop, and a
+                sanctuary for the digital self.
+            </p>
+
+            <p class="manifesto-text highlight">
+                Our minds have been taken captive –<br>
+                by social approval systems, by newsfeeds and timelines, by advertisements and corporate agendas.
+            </p>
+
+        </div>
+    </section> -->
+
+
+
+
+
+
+
+
+    <!--             
+        <p class="manifesto-text">
+                Long are those days with links and plain text that fill our bookmarks tab. When you paste it in AirPaste
+                it turns into an interactive tile with the content of the link. Soon we will get AI generated Summaries
+                for tese tiles.
+
+                <br> <strong>Hover below to see links turn into Interactive Tiles</strong>
+            </p>
+
+
+        <div class="book-list-container">
+                        
+            <ul class="book-list">
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Music Albums -">
+                        <img src="images/f3.png" alt="Book cover" class="book-preview" />
+                        https://open.spotify.com/artist/4V8LLVI7PbaPR0K2TGSxFF
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Github links -">
+                        <img src="images/f10.png" alt="Book cover" class="book-preview" />
+                        https://github.com/meodai/pro-color-harmonies
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Pintrest Gifs -">
+                        <img src="images/f6.png" alt="Book cover" class="book-preview" />
+                        https://uk.pinterest.com/pin/36099234508063848/
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Youtube links -">
+                        <img src="images/f4.png" alt="Book cover" class="book-preview" />
+                        https://www.youtube.com/=michael+jackson+thriller
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Twitter Links -">
+                        <img src="images/f11.png" alt="Book cover" class="book-preview" />
+                        https://x.com/jiratickets/status/2036
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Website link -">
+                        <img src="images/f9.png" alt="Book cover" class="book-preview" />
+                        https://www.theverge.com/-copyright-copyright
+                    </a>
+                </li>
+                <li class="book-item">
+                    <a href="#" class="book-link" data-number="Copying a quote -">
+                        <img src="images/f8.png" alt="Book cover" class="book-preview" />
+                        [Markets are never wrong - opinions often are.]
+                    </a>
+                </li>
+
+            </ul>
+        </div> -->
+    </section>
+
+
+    <!-- ==========================================
+         🍱 PORTFOLIO BENTO GRID
+         ========================================== -->
+    <!-- <section class="portfolio-bento-section">
+        <div class="bento-grid">
+            <div class="bento-card blue folder">
+                <div class="card-content">
+                    <span class="badge">About me</span>
+                </div>
+            </div>
+
+            <div class="bento-card white">
+                <div class="card-content">
+                    <h3>Head of Brand + Creative at Plumb</h3>
+                    <div class="card-footer">
+                        <span>Current role</span>
+                        <img src="images/DEDROX.DSGN/NRML.svg" alt="icon" class="brand-icon">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bento-card orange">
+                <div class="card-content">
+                    <p>In 2020 I designed Mango, a reverse contrast text typeface, in Latin and Gujarati script. I
+                        released it on Future Fonts in 2024. You're reading it at 16px.</p>
+                    <a href="#" class="card-link">I made a font ↗</a>
+                </div>
+            </div>
+
+            <div class="bento-card red span-row-3">
+                <div class="card-content">
+                    <img src="images/DEDROX.DSGN/AN1.jpg" alt="illustration" class="full-img">
+                    <p class="small-text">I recently contributed a design to the Letterform Archive's 10th anniversary
+                        campaign, 10x10x10.</p>
+                </div>
+            </div>
+
+            <div class="bento-card illustration-card span-row-2">
+                <img src="images/DEDROX.DSGN/AN2.jpg" alt="procreate drawing" class="full-img">
+                <span class="badge bottom">Sometimes I draw in Procreate.</span>
+            </div>
+            <div class="bento-card green">
+                <div class="card-content centered">
+                    <h2 class="goopy-text">keya</h2>
+                    <a href="#" class="card-link white-link">I like making goopy letters ↗</a>
+                </div>
+            </div>
+
+            <div class="bento-card yellow">
+                <div class="card-content">
+                    <img src="images/DEDROX.DSGN/IT.svg" alt="icon" class="top-icon">
+                    <h3>Rendering complex scripts in digital spaces:</h3>
+                    <p>The development of layout and shaping technologies for complex script and language representation
+                        and consequent approaches to type design.</p>
+                    <a href="#" class="card-link">I wrote a dissertation in 2020 ↗</a>
+                </div>
+            </div>
+
+            <div class="bento-card dark-green span-col-2">
+                <div class="card-content">
+                    <h3>I always come back to letterforms</h3>
+                    <p>When I was 20 years old I became obsessed with learning everything about designing typefaces,
+                        especially for South Asian scripts. Typography has always been a way for me to connect with
+                        culture. And letterforms are something I always come back to in my work.</p>
+                    <a href="#" class="card-link">Scroll through my personal type archive ↗</a>
+                </div>
+            </div>
+
+            <div class="bento-card light-green">
+                <div class="card-content centered">
+                    <div class="circular-logo">
+                        <img src="images/DEDROX.DSGN/CONS.svg" alt="logo">
+                    </div>
+                    <a href="#" class="card-link">The Malee Scholarship 2020 Women of Typographic Excellence ↗</a>
+                </div>
+            </div>
+
+            <div class="bento-card white">
+                <div class="card-content">
+                    <img src="images/DEDROX.DSGN/PIX.svg" alt="icon" class="top-icon">
+                    <h3>I write Type of Culture</h3>
+                    <p>A newsletter where I write about typography, design, and culture.</p>
+                    <a href="#" class="card-link">Read my publication ↗</a>
+                </div>
+            </div>
+        </div>
+    </section> -->
+
+
+
+
+
+
+    <!-- ==========================================
+         🔒 PRIVACY FIRST
+         ========================================== -->
+    <!-- <section class="privacy-section">
+        <div class="privacy-frame">
+            <span class="privacy-badge privacy-badge--top">
+                <i class="px-icon" style="--icon: url(icons/pixelarticons/lock.svg)"></i>
+            </span>
+
+            <h2 class="privacy-title">
+                <span>Privacy first</span>
+                <span class="privacy-marquee" aria-hidden="true">
+                    <span class="privacy-track">
+                        <span class="privacy-pill"><i class="privacy-dot"></i>No account<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Tracking<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Ads<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Selling your data<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Telemetry<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Monthly fee<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Social feeds<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>No account<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Tracking<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Ads<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Selling your data<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Telemetry<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Monthly fee<b>Off</b></span>
+                        <span class="privacy-pill"><i class="privacy-dot"></i>Social feeds<b>Off</b></span>
+                    </span>
+                </span>
+                <span>with you in control</span>
+            </h2>
+
+            <div class="privacy-copy">
+                <p>AirPaste is local-first. Your links, tiles and canvases live on your device &mdash; no account, no
+                    cloud copy, nothing leaves unless you choose to. Your data is never sold or used to build ad
+                    profiles.</p>
+                <p>No streaks, badges or feeds nudging you back in. Just a quiet place to keep what matters to you.</p>
+            </div>
+
+            <a href="why.html" class="privacy-cta">
+                Read our privacy manifesto
+                <i class="px-icon" style="--icon: url(icons/pixelarticons/arrow-right.svg); width: 12px; height: 12px;"></i>
+            </a>
+
+            <span class="privacy-badge privacy-badge--bottom">
+                <i class="px-icon" style="--icon: url(icons/pixelarticons/shield.svg)"></i>
+            </span>
+        </div>
+    </section> -->
+
+    <div class="footer-reveal-container">
+        <footer class="main-footer">
+            <div class="footer-top">
+                <!-- Brand + download -->
+                <div class="footer-brand">
+                    <a href="./" class="footer-logo">
+                        <img src="images/logo.png" alt="" class="footer-logo-mark">
+                        <span>AirPaste</span>
+                    </a>
+                    <p>An <i class="px-inline" style="--icon: url(icons/pixelarticons/infinity.svg)"></i> infinite,
+                        local-first canvas for visual thinkers. Lives on your
+                        <i class="px-inline" style="--icon: url(icons/pixelarticons/save.svg)"></i> hard drive, free
+                        <i class="px-inline" style="--icon: url(icons/pixelarticons/heart.svg)"></i> forever.</p>
+                    <a href="download.html" class="footer-download">
+                        <i class="px-icon" style="--icon: url(icons/pixelarticons/download.svg)"></i>
+                        Download for Windows
+                    </a>
+                    <span class="footer-meta">
+                        <i class="px-icon" style="--icon: url(icons/pixelarticons/window-frame.svg)"></i>
+                        v1.0.0-beta.3 &middot; Windows 10 and above
+                    </span>
+                </div>
+
+                <div class="footer-grid">
+                    <div class="footer-col">
+                        <h4>Product</h4>
+                        <ul class="footer-list">
+                            <li><a href="./"><i class="px-icon" style="--icon: url(icons/pixelarticons/home.svg)"></i>Home</a></li>
+                            <li><a href="download.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/download.svg)"></i>Download</a></li>
+                            <li><a href="shop.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/store.svg)"></i>AirStore</a></li>
+                            <li><a href="whatsnext.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/flag.svg)"></i>Roadmap</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer-col">
+                        <h4>Core values</h4>
+                        <ul class="footer-list">
+                            <li><a href="why.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/shield.svg)"></i>Privacy manifesto</a></li>
+                            <li><a href="what.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/code.svg)"></i>Local-first code</a></li>
+                            <li><a href="https://dedrox2k.github.io/dedrox/ethos.html"><i class="px-icon" style="--icon: url(icons/pixelarticons/heart.svg)"></i>Our ethos</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer-col">
+                        <h4>Community</h4>
+                        <ul class="footer-list">
+                            <li><a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/x.svg)"></i>X / Twitter</a></li>
+                            <li><a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/github.svg)"></i>GitHub</a></li>
+                            <li><a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/discord.svg)"></i>Discord</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer-col">
+                        <h4>Say hello</h4>
+                        <ul class="footer-list">
+                            <li><a href="mailto:hello@airpaste.io"><i class="px-icon" style="--icon: url(icons/pixelarticons/mail.svg)"></i>hello@airpaste.io</a></li>
+                            <li><span><i class="px-icon" style="--icon: url(icons/pixelarticons/globe.svg)"></i>Distributed globally</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div class="footer-legal-links">
+                    <a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/lock.svg)"></i>Security</a>
+                    <a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/file-text.svg)"></i>Terms</a>
+                    <a href="#"><i class="px-icon" style="--icon: url(icons/pixelarticons/eye.svg)"></i>Privacy</a>
+                </div>
+                <div class="footer-made">
+                    Made with <i class="px-inline" style="--icon: url(icons/pixelarticons/heart.svg)"></i> for visual thinkers
+                </div>
+                <div class="footer-copyright">
+                    &copy;2026 AirPaste&reg;
+                </div>
+            </div>
+        </footer>
+
+        <div class="footer-void">
+            <div class="lines" aria-hidden="true">
+                <div class="lines-group">
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                </div>
+
+                <div class="lines-group">
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                    <section class="line-block"><span class="line-text">Download Airpaste Today</span></section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gooey Filter for Liquid Nav -->
+    <svg style="visibility: hidden; position: absolute;" width="0" height="0" xmlns="http://www.w3.org/2000/svg"
+        version="1.1">
+        <defs>
+            <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
+                    result="goo" />
+            </filter>
+        </defs>
+    </svg>
+
+
+    <script>
+        // Force scroll to top on every page load (prevents ScrollTrigger.refresh drift)
+        history.scrollRestoration = 'manual';
+        window.scrollTo(0, 0);
+
+        // --- Core Engines Extracted to cube-trail.js ---
+
+        // Initialize Global Smooth Scroll (Lenis)
+        const globalLenis = new Lenis();
+        function raf(time) {
+            globalLenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+        globalLenis.on('scroll', ScrollTrigger.update);
+
+        // ==========================================
+        // 🧲 HERO MAGNET SNAP
+        // A small scroll inside the hero pulls the page the rest of the way:
+        // down past the hero, or back up to the top.
+        // ==========================================
+        (function () {
+            const HERO_SNAP = {
+                threshold: 0.12,  // fraction of hero height scrolled before the pull kicks in
+                duration: 1.3,    // seconds — the slow magnet glide
+                easing: t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+            };
+
+            const hero = document.getElementById('hero');
+            if (!hero) return;
+
+            let snapping = false;
+            let snapTimer = null;
+
+            function snapTo(y) {
+                snapping = true;
+                const done = () => { snapping = false; clearTimeout(snapTimer); };
+                // Fallback in case the glide is interrupted and onComplete never fires
+                clearTimeout(snapTimer);
+                snapTimer = setTimeout(done, HERO_SNAP.duration * 1000 + 300);
+                globalLenis.scrollTo(y, {
+                    duration: HERO_SNAP.duration,
+                    easing: HERO_SNAP.easing,
+                    lock: true,
+                    force: true,
+                    onComplete: done,
+                });
+            }
+
+            // One wheel tick is enough: catch it before Lenis scrolls at all
+            // (capture on window runs ahead of Lenis's own wheel listener).
+            window.addEventListener('wheel', (e) => {
+                if (snapping) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+                if (!hero.offsetHeight) return; // hero hidden (mobile)
+                const heroEnd = hero.offsetTop + hero.offsetHeight;
+                const y = globalLenis.scroll;
+
+                let target = null;
+                if (e.deltaY > 0 && y < heroEnd - 1) target = heroEnd;
+                else if (e.deltaY < 0 && y > 1 && y <= heroEnd + 1) target = 0;
+                if (target === null) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+                snapTo(target);
+            }, { capture: true, passive: false });
+
+            // Fallback for keyboard / scrollbar scrolling
+            globalLenis.on('scroll', ({ scroll, direction }) => {
+                if (snapping) return;
+                const heroEnd = hero.offsetTop + hero.offsetHeight;
+                const pull = hero.offsetHeight * HERO_SNAP.threshold;
+
+                if (direction === 1 && scroll > pull && scroll < heroEnd - 1) {
+                    snapTo(heroEnd);
+                } else if (direction === -1 && scroll > 1 && scroll < heroEnd - pull) {
+                    snapTo(0);
+                }
+            });
+        })();
+
+        // ==========================================
+        // 🪟 SHOWCASE WINDOW TILT
+        // ==========================================
+        (function () {
+            const TILT = 6;    // max degrees
+            const EASE = 0.07;
+            const windows = [
+                document.getElementById('showcaseAirpaste'),
+                document.getElementById('bwSpotify'),
+                document.getElementById('bwYoutube'),
+                document.getElementById('bwPinterest'),
+            ];
+
+            windows.forEach(el => {
+                if (!el) return;
+                let tx = 0, ty = 0, cx = 0, cy = 0, raf;
+
+                el.addEventListener('mouseenter', () => {
+                    function loop() {
+                        cx += (tx - cx) * EASE;
+                        cy += (ty - cy) * EASE;
+                        el.style.transform = `${el.dataset.baseTransform || ''} perspective(600px) rotateY(${cx}deg) rotateX(${-cy}deg) scale(1.015)`;
+                        el.style.boxShadow = `0 30px 80px rgba(0,0,0,0.22), 0 6px 18px rgba(0,0,0,0.1)`;
+                        raf = requestAnimationFrame(loop);
+                    }
+                    loop();
+                });
+
+                el.addEventListener('mousemove', e => {
+                    const r = el.getBoundingClientRect();
+                    tx = ((e.clientX - r.left) / r.width - 0.5) * 2 * TILT;
+                    ty = ((e.clientY - r.top) / r.height - 0.5) * 2 * TILT;
+                });
+
+                el.addEventListener('mouseleave', () => {
+                    cancelAnimationFrame(raf);
+                    tx = 0; ty = 0;
+                    let f = 0;
+                    function settle() {
+                        cx += (0 - cx) * 0.07;
+                        cy += (0 - cy) * 0.07;
+                        el.style.transform = `${el.dataset.baseTransform || ''} perspective(600px) rotateY(${cx}deg) rotateX(${-cy}deg) scale(1)`;
+                        if (++f < 50) requestAnimationFrame(settle);
+                        else { el.style.transform = el.dataset.baseTransform || ''; el.style.boxShadow = ''; }
+                    }
+                    settle();
+                });
+            });
+
+            // No base transforms needed — positioning is purely via CSS top/left
+        })();
+
+        // ==========================================
+        // 🎯 DRAG-TO-AIRPASTE INTERACTION
+        // ==========================================
+        (function () {
+            const ghost = document.getElementById('dragGhost');
+            const ghostLabel = document.getElementById('dragGhostLabel');
+            const apWin = document.getElementById('showcaseAirpaste');
+            const canvas = apWin ? apWin.querySelector('.sw-canvas') : null;
+            const browsers = document.querySelectorAll('.browser-window');
+
+            if (!ghost || !canvas) return;
+
+            let dragging = null;   // the browser-window el being dragged
+            let isDragging = false;
+
+            // Tile counter for random placement
+            let tileCount = 5;
+
+            // Colours / thumb configs per source
+            const TILE_CONFIGS = {
+                spotify: { label: 'Spotify playlist', bg: 'linear-gradient(135deg,#1db954,#191414)' },
+                youtube: { label: 'YouTube video', bg: 'linear-gradient(135deg,#cc0000,#282828)' },
+                twitter: { label: 'x.com/ui8/...', bg: 'linear-gradient(135deg,#000000,#1d9bf0)' },
+            };
+
+            // ---- Move ghost with mouse ----
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                ghost.style.left = e.clientX + 'px';
+                ghost.style.top = e.clientY + 'px';
+
+                // Highlight AirPaste window when cursor is over it
+                const apRect = apWin.getBoundingClientRect();
+                const over = e.clientX >= apRect.left && e.clientX <= apRect.right &&
+                    e.clientY >= apRect.top && e.clientY <= apRect.bottom;
+                apWin.classList.toggle('drop-active', over);
+            }
+
+            // ---- Drop ----
+            function onMouseUp(e) {
+                if (!isDragging || !dragging) return;
+                isDragging = false;
+
+                ghost.classList.remove('visible');
+                dragging.classList.remove('is-dragging');
+
+                const apRect = apWin.getBoundingClientRect();
+                const dropped = e.clientX >= apRect.left && e.clientX <= apRect.right &&
+                    e.clientY >= apRect.top && e.clientY <= apRect.bottom;
+
+                apWin.classList.remove('drop-active');
+
+                if (dropped) {
+                    const id = dragging.dataset.dragId;
+                    const cfg = TILE_CONFIGS[id] || { label: dragging.dataset.dragLabel, bg: '#ccc' };
+
+                    // Calculate drop position relative to canvas
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const relX = Math.max(4, Math.min(e.clientX - canvasRect.left - 40, canvasRect.width - 140));
+                    const relY = Math.max(4, Math.min(e.clientY - canvasRect.top - 20, canvasRect.height - 60));
+
+                    const tile = document.createElement('div');
+                    tile.className = 'sw-tile sw-dropped';
+                    tile.style.cssText = `left:${relX}px; top:${relY}px; animation-delay:0s;`;
+                    tile.innerHTML = `
+                        <div class="sw-tile-thumb" style="background:${cfg.bg}"></div>
+                        <span>${cfg.label}</span>`;
+                    canvas.appendChild(tile);
+                }
+
+                dragging = null;
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+            }
+
+            // ---- Attach mousedown to each overlay ----
+            browsers.forEach(bw => {
+                const overlay = bw.querySelector('.bw-drag-overlay');
+                if (!overlay) return;
+
+                overlay.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    dragging = bw;
+                    isDragging = true;
+
+                    bw.classList.add('is-dragging');
+
+                    // Set ghost label
+                    ghostLabel.textContent = bw.dataset.dragLabel || 'link';
+                    ghost.style.left = e.clientX + 'px';
+                    ghost.style.top = e.clientY + 'px';
+                    ghost.classList.add('visible');
+
+                    window.addEventListener('mousemove', onMouseMove);
+                    window.addEventListener('mouseup', onMouseUp);
+                });
+            });
+        })();
+
+        // ==========================================
+        // 🎛️ MASTER ANIMATION CONTROLS
+        // ==========================================
+        const CONTROLS = {
+            parallaxMagnitude: 0.2,
+            parallaxEase: 0.08,
+            squeezeAmount: 0.08, // Restored breathing
+            squeezeBaseSpeed: 0.01,
+            hoverMultiplier: 1.5,
+            buttonHoverMultiplier: 4,
+            transitionSpeed: 0.05
+        };
+
+        const parallaxElements = document.querySelectorAll('[data-speed]');
+        const layers = document.querySelectorAll('.layer');
+        const btn = document.querySelector('.hero-btn');
+
+        let targetX = 0, targetY = 0;
+        let currentX = 0, currentY = 0;
+        let time = 0;
+
+        let isHeroHovered = true;
+        let isButtonHovered = false;
+        let currentSpeedMultiplier = 1;
+
+        window.addEventListener('mousemove', (e) => {
+            targetX = (e.clientX - window.innerWidth / 2);
+            targetY = (e.clientY - window.innerHeight / 2);
+        });
+
+        if (btn) {
+            btn.addEventListener('mouseenter', () => { isButtonHovered = true; });
+            btn.addEventListener('mouseleave', () => { isButtonHovered = false; });
+        }
+
+        // All parallax and squeeze animations removed as per request
+
+        // ==========================================
+        // 🔡 SCRAMBLE TEXT CYCLER
+        // ==========================================
+        const PHRASES = [
+            'Air Paste it',
+            'Air Paste it',
+        ];
+
+        const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&';
+        const SCRAMBLE_DURATION = 600; // ms to resolve each character
+
+        const btnText = document.querySelector('.btn-text');
+        let phraseIndex = 0;
+        let scrambleRaf = null;
+        let lastHoverTime = 0;
+
+        function scrambleTo(target) {
+            if (scrambleRaf) cancelAnimationFrame(scrambleRaf);
+            if (!btnText) return;
+
+            // 1. ADD THE BLUR CLASS HERE
+            btnText.classList.add('is-scrambling');
+
+            const start = performance.now();
+            const origin = btnText.textContent;
+            const len = Math.max(origin.length, target.length);
+
+            function frame(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / SCRAMBLE_DURATION, 1);
+                const resolved = Math.floor(progress * len);
+
+                let output = '';
+                for (let i = 0; i < len; i++) {
+                    if (i < resolved) {
+                        output += target[i] ?? '';
+                    } else if (i < target.length) {
+                        output += CHARS[Math.floor(Math.random() * CHARS.length)];
+                    }
+                }
+                btnText.textContent = output;
+
+                if (progress < 1) {
+                    scrambleRaf = requestAnimationFrame(frame);
+                } else {
+                    btnText.textContent = target;
+
+                    // 2. REMOVE THE BLUR CLASS HERE
+                    btnText.classList.remove('is-scrambling');
+
+                    scrambleRaf = null;
+                }
+            }
+
+            scrambleRaf = requestAnimationFrame(frame);
+        }
+        function nextPhrase() {
+            phraseIndex = (phraseIndex + 1) % PHRASES.length;
+            scrambleTo(PHRASES[phraseIndex]);
+        }
+
+        // Auto-cycle every 6 seconds
+        let cycleTimer = setInterval(nextPhrase, 6000);
+
+        // Hover triggers the next phrase (with a short cooldown so it doesn't spam)
+        if (btn) {
+            btn.addEventListener('mouseenter', () => {
+                const now = Date.now();
+                if (now - lastHoverTime > 800) {
+                    lastHoverTime = now;
+                    clearInterval(cycleTimer);
+                    nextPhrase();
+                    cycleTimer = setInterval(nextPhrase, 6000);
+                }
+            });
+        }
+
+        // ==========================================
+        // 📜 HERO TITLE — SCROLL-DRIVEN SHRINK
+        // ==========================================
+        const heroTitle = document.querySelector('.hero-title-center');
+
+        // The font size range (in px) JS will interpolate between.
+        // We measure the starting size from the element itself after render.
+        const FONT_MIN_PX = 28;   // shrinks down to ~1.75rem at full scroll
+        const RISE_PX = 50;   // rises 50px by the time hero is fully scrolled past
+
+        // Snapshot the starting font size ONCE before any mutation
+        const FONT_START_PX = heroTitle ? parseFloat(getComputedStyle(heroTitle).fontSize) : 0;
+
+        const navLinks = document.querySelector('.nav-links');
+        const getBtn = document.querySelector('.get-btn');
+
+        function updateHeroTitle() {
+            const progress = Math.min(window.scrollY / 500, 1);
+
+            // Title Fly-out
+            const flyY = -300 * progress;
+            if (heroTitle) {
+                heroTitle.style.opacity = 1;
+                heroTitle.style.transform = `translate(-50%, calc(-50% + ${flyY}px))`;
+            }
+
+            // Nav Elements Reveal
+            // Center Pill
+            if (navLinks) navLinks.style.pointerEvents = 'auto';
+
+            // Right CTA Button
+            if (getBtn) getBtn.style.pointerEvents = 'auto';
+        }
+
+        // Run once on load so the state is correct if page was already scrolled
+        updateHeroTitle();
+        window.addEventListener('scroll', updateHeroTitle, { passive: true });
+        window.addEventListener('resize', updateHeroTitle, { passive: true });
+
+        // ==========================================
+        // 🖼️ BEFORE / AFTER SCRUBBER
+        // ==========================================
+        (function () {
+            const card = document.getElementById('scrubberCard');
+            const before = document.getElementById('scrubberBefore');
+            const divider = document.getElementById('scrubberDivider');
+            if (!card || !before || !divider) return;
+
+            const TILT_MAX = 8;
+
+            // pointer events so a finger drag scrubs on touch screens too
+            card.addEventListener('pointermove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+
+                const targetPct = x * 100;
+                const targetTiltX = (x - 0.5) * 2 * TILT_MAX;
+                const targetTiltY = (y - 0.5) * 2 * TILT_MAX;
+
+                gsap.to(before, { width: targetPct + '%', duration: 0.2, ease: "power2.out" });
+                gsap.to(divider, { left: targetPct + '%', duration: 0.2, ease: "power2.out" });
+                gsap.to(card, {
+                    rotateY: targetTiltX,
+                    rotateX: -targetTiltY,
+                    duration: 0.4,
+                    ease: "power2.out"
+                });
+            });
+
+            card.addEventListener('pointerleave', () => {
+                gsap.to(card, { rotateY: 0, rotateX: 0, duration: 0.8, ease: "elastic.out(1, 0.5)" });
+            });
+        })();
+
+        // ==========================================
+        // 🌀 INTERACTIVE ENDLESS MOTION (FOOTER VOID)
+        // ==========================================
+        (function () {
+            const VOID_SETTINGS = {
+                lerp: 0.1,
+                text: "Download Airpaste Today",
+                lineGap: "12vh"
+            };
+
+            const voidEl = document.querySelector('.footer-void');
+            const lines = document.querySelector('.lines');
+            if (!voidEl || !lines) return;
+
+            voidEl.style.setProperty('--line-gap', VOID_SETTINGS.lineGap);
+            document.querySelectorAll('.line-text').forEach(t => t.textContent = VOID_SETTINGS.text);
+
+            const group = document.querySelector('.lines-group');
+            if (group) {
+                lines.appendChild(group.cloneNode(true));
+                lines.appendChild(group.cloneNode(true));
+            }
+
+            const lenis = new Lenis({
+                wrapper: voidEl,
+                content: lines,
+                smoothWheel: true,
+                infinite: true,
+                lerp: VOID_SETTINGS.lerp,
+            });
+
+            function anim(time) {
+                lenis.raf(time);
+                requestAnimationFrame(anim);
+            }
+            requestAnimationFrame(anim);
+
+            lenis.on('scroll', ScrollTrigger.update);
+
+            gsap.utils.toArray('.line-text').forEach((line) => {
+                gsap.fromTo(line,
+                    { scale: 1.1, opacity: 0.4 },
+                    {
+                        scale: 0.5,
+                        opacity: 1,
+                        ease: "power2.out",
+                        scrollTrigger: {
+                            trigger: line,
+                            scroller: voidEl,
+                            start: "top bottom",
+                            end: "bottom top",
+                            scrub: true
+                        }
+                    }
+                );
+            });
+
+            setTimeout(() => ScrollTrigger.refresh(), 500);
+        })();
+
+
+        // ==========================================
+        // 👾 ASCII / ARROW SWEEP EFFECT
+        // ==========================================
+        // (Now handled centrally by navbar-logic.js)
+
+
+
+        const carouselData = [
+            {
+                title: "Curate with Ease",
+                sub: "A sanctuary for your digital discoveries",
+                desc: "Save articles, images, and notes without being tracked or nudge-baited.",
+                img: "images/f1.png"
+            },
+            {
+                title: "Local-First Logic",
+                sub: "Your data stays where it belongs",
+                desc: "Everything is stored on your device. We don't have accounts because we don't have your data.",
+                img: "images/f2.png"
+            },
+            {
+                title: "Pure Interaction",
+                sub: "Zero streaks, zero badges",
+                desc: "Focus on what matters. We stripped away the addictive loops and left the utility.",
+                img: "images/f3.png"
+            },
+            {
+                title: "Technical Freedom",
+                sub: "Open-source and Extensible",
+                desc: "Built for those who value digital sovereignty. Your library, your rules.",
+                img: "images/f4.png"
+            }
+        ];
+
+        let currentIndex = 0;
+        const titleEl = document.getElementById('premiumCarouselTitle');
+        const subEl = document.getElementById('premiumCarouselSub');
+        const descEl = document.getElementById('premiumCarouselDesc');
+        const imgEl = document.getElementById('premiumCarouselImg');
+        const paginationEl = document.getElementById('carouselPagination');
+        const prevBtn = document.getElementById('prevCarousel');
+        const nextBtn = document.getElementById('nextCarousel');
+
+        const AUTO_SKIP_TIME = 3000;
+        let autoSkipTimer;
+        let progressInterval;
+        let progressValue = 0;
+
+        function startAutoSkip() {
+            clearInterval(autoSkipTimer);
+            clearInterval(progressInterval);
+            progressValue = 0;
+
+            // Ensure only the current active dot has a fill
+            document.querySelectorAll('.dot-fill').forEach(el => el.remove());
+
+            const activeDot = document.querySelectorAll('.dot')[currentIndex];
+            if (activeDot) {
+                const fill = document.createElement('div');
+                fill.className = 'dot-fill';
+                activeDot.appendChild(fill);
+            }
+
+            progressInterval = setInterval(() => {
+                progressValue += (100 / (AUTO_SKIP_TIME / 100));
+                const currentFill = document.querySelector('.dot.active .dot-fill');
+                if (currentFill) {
+                    currentFill.style.width = Math.min(progressValue, 100) + '%';
+                }
+            }, 100);
+
+            autoSkipTimer = setInterval(() => {
+                currentIndex = (currentIndex + 1) % carouselData.length;
+                updateSlide();
+            }, AUTO_SKIP_TIME);
+        }
+
+        function initCarousel() {
+            carouselData.forEach((_, i) => {
+                const dot = document.createElement('span');
+                dot.classList.add('dot');
+                if (i === 0) dot.classList.add('active');
+                dot.addEventListener('click', () => {
+                    currentIndex = i;
+                    updateSlide();
+                });
+                paginationEl.appendChild(dot);
+            });
+
+            prevBtn.addEventListener('click', () => {
+                currentIndex = (currentIndex - 1 + carouselData.length) % carouselData.length;
+                updateSlide();
+            });
+
+            nextBtn.addEventListener('click', () => {
+                currentIndex = (currentIndex + 1) % carouselData.length;
+                updateSlide();
+            });
+
+            startAutoSkip();
+        }
+
+        function updateSlide() {
+            const data = carouselData[currentIndex];
+            imgEl.classList.add('fade-out');
+
+            setTimeout(() => {
+                titleEl.textContent = data.title;
+                subEl.textContent = data.sub;
+                descEl.textContent = data.desc;
+                imgEl.src = data.img;
+
+                const dots = document.querySelectorAll('.dot');
+                dots.forEach((dot, i) => {
+                    dot.classList.toggle('active', i === currentIndex);
+                });
+
+                imgEl.classList.remove('fade-out');
+
+                // Restart auto-skip to sync progress bar with the new slide
+                startAutoSkip();
+            }, 400);
+        }
+
+        if (titleEl) initCarousel();
+
+    </script>
+    <script type="module">
+        import gsap from 'https://esm.sh/gsap@3.13.0'
+        import Draggable from 'https://esm.sh/gsap@3.13.0/Draggable'
+        import { Pane } from 'https://esm.sh/tweakpane@4.0.4'
+        gsap.registerPlugin(Draggable)
+
+        const config = {
+            theme: 'dark',
+            hue: 33,
+            duration: 10,
+            bglight: 0.1,
+            scale: 1.1,
+            style: 'track',
+            text: 'Only for WINDOWS 10 and above',
+        }
+
+        const board = document.querySelector('.board')
+        const textTrack = board.querySelector('.text-track')
+
+        const ctrl = new Pane({
+            title: 'config',
+            expanded: true,
+        })
+        let textCtrl
+        const update = () => {
+            document.documentElement.dataset.theme = config.theme
+            document.documentElement.style.setProperty('--hue', config.hue)
+            document.documentElement.style.setProperty('--duration', config.duration)
+            document.documentElement.style.setProperty('--bg-lightness', config.bglight)
+            document.documentElement.style.setProperty('--scale', config.scale)
+            if (textCtrl) textCtrl.hidden = config.style !== 'track'
+        }
+
+        const sync = (event) => {
+            if (
+                !document.startViewTransition ||
+                event.target.controller.view.labelElement.innerText !== 'theme'
+            )
+                return update()
+            document.startViewTransition(() => update())
+        }
+
+        ctrl.addBinding(config, 'style', {
+            label: 'style',
+            options: {
+                countdown: 'countdown',
+                track: 'track',
+                video: 'video',
+            },
+        })
+
+        ctrl.addBinding(config, 'bglight', {
+            label: 'bg-light',
+            min: 0,
+            max: 1,
+            step: 0.01,
+        })
+
+        textCtrl = ctrl.addBinding(config, 'text', {
+            label: 'text',
+            hidden: config.style !== 'track',
+        }).on('change', () => {
+            textTrack.innerHTML = `<div class="text">${config.text}</div><div class="text text--clone">${config.text}</div>`
+        })
+
+        ctrl.addBinding(config, 'hue', {
+            label: 'hue',
+            min: 0,
+            max: 359,
+            step: 1,
+        })
+
+        ctrl.addBinding(config, 'scale', {
+            label: 'scale',
+            min: 0.5,
+            max: 1.5,
+            step: 0.1,
+        })
+
+        ctrl.addBinding(config, 'duration', {
+            label: 'duration(s)',
+            min: 0.2,
+            max: 10,
+            step: 0.01,
+        })
+
+        ctrl.addBinding(config, 'theme', {
+            label: 'theme',
+            options: {
+                system: 'system',
+                light: 'light',
+                dark: 'dark',
+            },
+        })
+
+        ctrl.on('change', sync)
+        textTrack.innerHTML = `<div class="text">${config.text}</div><div class="text text--clone">${config.text}</div>`
+        update()
+
+        // make tweakpane panel draggable
+        const tweakClass = 'div.tp-dfwv'
+        setTimeout(() => {
+            const d = Draggable.create(tweakClass, {
+                type: 'x,y',
+                allowEventDefault: true,
+                trigger: tweakClass + ' button.tp-rotv_b',
+            })
+            const el = document.querySelector(tweakClass);
+            if (el) {
+                el.addEventListener('dblclick', () => {
+                    gsap.to(tweakClass, {
+                        x: `+=${d[0].x * -1}`,
+                        y: `+=${d[0].y * -1}`,
+                        onComplete: () => {
+                            gsap.set(tweakClass, { clearProps: 'all' })
+                        },
+                    })
+                })
+            }
+        }, 100);
+    </script>
+</body>
+
 </html>
