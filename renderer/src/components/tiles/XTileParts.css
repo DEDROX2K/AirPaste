@@ -110,7 +110,7 @@
 .x-tile__clip {
   position: absolute;
   left: 50%;
-  top: 0;
+  top: -28px;
   width: 74px;
   height: 28px;
   transform: translateX(-50%);

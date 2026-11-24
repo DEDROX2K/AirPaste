@@ -1,7 +1,8 @@
-// Stacks: select some tiles and press G (or right-click > Group) and they
-// gather into one neat pile, each a touch askew with a mild shadow. A stacked
-// tile is inert: clicking, dragging and selecting it do nothing. The only way
-// out is right-click > Ungroup, which puts every tile back where it was.
+// Stacks: select some tiles and press G (or right-click > Stack) and they
+// fly into one 3D pile (components/canvas/StackBundle.jsx). The pile is one
+// object: click selects it, drag moves it, double-click / Shift+G /
+// right-click > Unstack puts every tile back (relative to where the pile now
+// is). Its tiles themselves are inert while stacked.
 //
 // Each stacked card carries `stack`:
 //   { id, order, tilt, homeX, homeY }
@@ -129,43 +130,55 @@ export function unstackCards(cards, stackId) {
   return changed ? next : cards;
 }
 
-// One rubber band per pile, wrapped round the whole bundle: as wide as the
-// pile's outer edges (tilted tiles included) plus a little where it turns
-// round the sides, through the middle of the pile. `layer` is the top tile's
-// draw order, so the band sits over the pile but under anything added since.
-// The band's slant is fixed per pile.
-// Returns [{ stackId, x, y, width, angle, layer }] (x / y = band centre).
-export function getStackBands(cards) {
-  const piles = new Map();
+// Moves a whole pile by (dx, dy): the cards and the spots they go back to on
+// unstack, so a pile carried elsewhere comes apart where it now is.
+export function moveStackCards(cards, stackId, dx, dy) {
+  if (!stackId || (!dx && !dy)) {
+    return cards;
+  }
 
-  cards.forEach((card, index) => {
-    const stackId = card.stack?.id;
-
-    if (!stackId) {
-      return;
+  let changed = false;
+  const next = cards.map((card) => {
+    if (card.stack?.id !== stackId) {
+      return card;
     }
 
-    const radians = ((card.stack.tilt ?? 0) * Math.PI) / 180;
-    const halfX = (card.width * Math.abs(Math.cos(radians)) + card.height * Math.abs(Math.sin(radians))) / 2;
-    const halfY = (card.width * Math.abs(Math.sin(radians)) + card.height * Math.abs(Math.cos(radians))) / 2;
-    const centerX = card.x + card.width / 2;
-    const centerY = card.y + card.height / 2;
-    const pile = piles.get(stackId) ?? { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, layer: 0 };
-
-    pile.minX = Math.min(pile.minX, centerX - halfX);
-    pile.maxX = Math.max(pile.maxX, centerX + halfX);
-    pile.minY = Math.min(pile.minY, centerY - halfY);
-    pile.maxY = Math.max(pile.maxY, centerY + halfY);
-    pile.layer = Math.max(pile.layer, index + 1);
-    piles.set(stackId, pile);
+    changed = true;
+    return {
+      ...card,
+      x: Math.round(card.x + dx),
+      y: Math.round(card.y + dy),
+      stack: {
+        ...card.stack,
+        homeX: Number.isFinite(card.stack.homeX) ? Math.round(card.stack.homeX + dx) : card.stack.homeX,
+        homeY: Number.isFinite(card.stack.homeY) ? Math.round(card.stack.homeY + dy) : card.stack.homeY,
+      },
+    };
   });
 
-  return [...piles.entries()].map(([stackId, pile]) => ({
-    stackId,
-    x: (pile.minX + pile.maxX) / 2,
-    y: pile.minY + (pile.maxY - pile.minY) * (0.46 + jitter(`${stackId}:band-y`) * 0.06),
-    width: Math.round(pile.maxX - pile.minX + 14),
-    angle: Math.round(jitter(`${stackId}:band`) * 50) / 10,
-    layer: pile.layer,
-  }));
+  return changed ? next : cards;
+}
+
+// The cards of each pile, bottom to top: Map(stackId -> cards[]).
+export function groupStacks(cards) {
+  const piles = new Map();
+
+  cards.forEach((card) => {
+    const stackId = card.stack?.id;
+    if (!stackId) return;
+    const pile = piles.get(stackId);
+    if (pile) pile.push(card); else piles.set(stackId, [card]);
+  });
+
+  piles.forEach((pile) => pile.sort((a, b) => (a.stack.order ?? 0) - (b.stack.order ?? 0)));
+  return piles;
+}
+
+// How long a pile takes to fly apart (StackBundle.jsx): each layer leaves
+// 30ms after the one above it and flies for 560ms.
+export const STACK_RELEASE_STAGGER_MS = 30;
+export const STACK_FLY_MS = 560;
+
+export function stackReleaseDuration(count) {
+  return count * STACK_RELEASE_STAGGER_MS + STACK_FLY_MS;
 }

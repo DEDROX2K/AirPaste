@@ -1,0 +1,148 @@
+/* 3D stacks (StackBundle.jsx). The anchor is a zero-size box at the world
+   origin of .canvas__content, so the curved view can warp it like a tile. */
+.canvas__content .canvas-stack-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.canvas-stack {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  cursor: var(--ap-cursor-pointer, pointer);
+  outline: none;
+}
+
+.canvas-stack__pile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.canvas-stack:hover:not(.is-dragging):not(.is-releasing) .canvas-stack__pile {
+  transform: translateZ(6px);
+}
+
+.canvas-stack.is-squash .canvas-stack__pile {
+  animation: canvas-stack-squash 420ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@keyframes canvas-stack-squash {
+  0% { transform: scale3d(1, 1, 1); }
+  35% { transform: scale3d(1.025, 1.025, 0.78); }
+  70% { transform: scale3d(0.995, 0.995, 1.06); }
+  100% { transform: scale3d(1, 1, 1); }
+}
+
+.canvas-stack__layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+  transition: transform 560ms cubic-bezier(0.2, 0.9, 0.25, 1.04);
+}
+
+.canvas-stack__face,
+.canvas-stack__slice {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ap-tile-radius, 14px);
+}
+
+/* Its own 3D plane: without a transform Chromium paints the face into the
+   layer's base plane, and the edge slices get sorted over it. */
+.canvas-stack__face {
+  overflow: hidden;
+  transform: translateZ(0.5px);
+}
+
+/* Lower cards sit a touch darker, in the pile's shade. */
+.canvas-stack__face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(25, 18, 10, var(--stack-shade, 0));
+  pointer-events: none;
+}
+
+.canvas-stack__slice {
+  background-color: var(--stack-edge, #d9d5ce);
+  pointer-events: none;
+}
+
+.canvas-stack__host {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+/* A stacked tile is a picture of itself: no chrome, no hover, no input. */
+.canvas-stack__host .card {
+  transition: none !important;
+  filter: none !important;
+}
+
+.canvas-stack__host .card :is(.card__toolbar, .card__action-strip) {
+  display: none !important;
+}
+
+.canvas-stack__count {
+  position: absolute;
+  right: calc(10px / var(--stack-s, 1));
+  top: calc(10px / var(--stack-s, 1));
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateZ(1px) scale(calc(1 / var(--stack-s, 1)));
+  transform-origin: 100% 0;
+  opacity: 0;
+  transition: opacity 200ms ease 100ms;
+  pointer-events: none;
+}
+
+.canvas-stack.is-landed .canvas-stack__count {
+  opacity: 1;
+}
+
+/* Selection ring round the top card, just above it. */
+.canvas-stack__ring {
+  position: absolute;
+  inset: calc(-4px / var(--stack-s, 1));
+  border: calc(2px / var(--stack-s, 1)) solid var(--ap-dock-accent, #0071e3);
+  border-radius: calc(var(--ap-tile-radius, 14px) + 4px / var(--stack-s, 1));
+  transform: translateZ(1px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas-stack.is-selected .canvas-stack__ring {
+  opacity: 1;
+}
+
+.canvas-stack.is-dragging {
+  cursor: var(--ap-cursor-grabbing, grabbing);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-stack__layer,
+  .canvas-stack__pile {
+    transition-duration: 10ms !important;
+  }
+
+  .canvas-stack.is-squash .canvas-stack__pile {
+    animation: none;
+  }
+}

@@ -28,6 +28,7 @@ import {
   getRackSlotMetrics,
 } from "../../tiles/rack/geometry";
 import { setRackApproach, setRackDockHint } from "../../tiles/rack/rackMotion";
+import { getMergeDropTarget, getMergeGroupTileIds } from "../../tiles/merge/model";
 import {
   easeSnapOffset,
   getSnapRectsBounds,
@@ -170,6 +171,10 @@ export function useCanvasInteractionSystem({
     writeMarqueeBox(node, marqueeGeometryRef.current);
   }, []);
   const [rackDropPreview, setRackDropPreview] = useState(null);
+  // A tile dragged over another one: dropping merges them
+  // (tiles/merge/model.js). { targetTileId } or null.
+  const [mergeDropPreview, setMergeDropPreview] = useState(null);
+  const mergeDropPreviewRef = useRef(null);
 
   const dragStateRef = useRef(null);
   const marqueeStateRef = useRef(null);
@@ -220,6 +225,43 @@ export function useCanvasInteractionSystem({
 
   const clearRackDropPreview = useCallback(() => {
     setRackDropPreview(null);
+  }, []);
+
+  // The tile a dragged tile would merge with at `point`: the topmost canvas
+  // tile under it (cards are in draw order), if the two can merge.
+  const findMergeTargetAt = useCallback((dragTileId, point) => {
+    if (!point) {
+      return null;
+    }
+
+    const cards = cardsRef.current;
+
+    for (let index = cards.length - 1; index >= 0; index -= 1) {
+      const card = cards[index];
+
+      if (
+        card.id === dragTileId
+        || card.parentRackId
+        || !(point.x >= card.x && point.x <= card.x + card.width && point.y >= card.y && point.y <= card.y + card.height)
+      ) {
+        continue;
+      }
+
+      return getMergeDropTarget(cards, dragTileId, card.id) ? card.id : null;
+    }
+
+    return null;
+  }, []);
+
+  const updateMergeDropPreview = useCallback((targetTileId) => {
+    const next = targetTileId ? { targetTileId } : null;
+
+    if ((mergeDropPreviewRef.current?.targetTileId ?? null) === (next?.targetTileId ?? null)) {
+      return;
+    }
+
+    mergeDropPreviewRef.current = next;
+    setMergeDropPreview(next);
   }, []);
 
   // Magnet glide: while a drag's shown pull differs from its target, one
@@ -662,6 +704,7 @@ export function useCanvasInteractionSystem({
 
     closeContextMenu();
     clearRackDropPreview();
+    updateMergeDropPreview(null);
 
     const isPrimaryPointer = event.button === 0 || event.buttons === 1;
 
@@ -683,11 +726,18 @@ export function useCanvasInteractionSystem({
       return;
     }
 
-    const candidateTileIds = anchorEntry.containerType === "rack"
+    const pickedTileIds = anchorEntry.containerType === "rack"
       ? [tile.id]
       : selectedTileIdSet.has(tile.id)
         ? selectedTileIds
         : [tile.id];
+    // A merged group moves as one: grabbing any of its tiles (or its frame)
+    // drags the frame and every tile in it, frame first.
+    const candidateTileIds = anchorEntry.containerType === "rack"
+      ? pickedTileIds
+      : [...new Set(pickedTileIds.flatMap((tileId) => (
+        getMergeGroupTileIds(cardsRef.current, tileId) ?? [tileId]
+      )))];
     const dragEntries = candidateTileIds
       .map((tileId) => getRenderableTileEntryById(
         cardsRef.current,
@@ -1189,6 +1239,10 @@ export function useCanvasInteractionSystem({
 
       const dragState = dragStateRef.current;
 
+      if (!event) {
+        updateMergeDropPreview(null);
+      }
+
       if (dragState?.externalTarget) {
         externalDropRef.current?.preview(null, null);
       }
@@ -1274,6 +1328,12 @@ export function useCanvasInteractionSystem({
         } else {
           commands.cancelPendingWorkspaceChange();
         }
+      } else if (event && !activeRackPreview?.rackId && mergeDropPreviewRef.current?.targetTileId) {
+        const frameId = commands.mergeTiles(dragState.tileId, mergeDropPreviewRef.current.targetTileId);
+
+        if (frameId) {
+          wasHandled = true;
+        }
       } else if (event && activeRackPreview?.rackId) {
         // The rack flies each tile in from where it is on screen, keeping
         // the throw's momentum (RackTile picks these up).
@@ -1341,6 +1401,7 @@ export function useCanvasInteractionSystem({
       dragStateRef.current = null;
       setDraggingTileIds([]);
       clearRackDropPreview();
+      updateMergeDropPreview(null);
       if (dragState.kind === "group") {
         setSelectedGroupIds(dragState.groupIds);
       } else {
@@ -1501,6 +1562,18 @@ export function useCanvasInteractionSystem({
         updateRackApproach(dragState, null, null);
       }
 
+      // Over another tile with a single loose tile: dropping merges them.
+      // A rack under the pointer wins (it docks the tile instead).
+      if (
+        dragState.tileIds.length === 1
+        && !rackDropPreviewRef.current?.rackId
+        && dragState.origins[dragState.tileId]?.containerType === "canvas"
+      ) {
+        updateMergeDropPreview(findMergeTargetAt(dragState.tileId, currentWorldPoint));
+      } else {
+        updateMergeDropPreview(null);
+      }
+
       if (dragState.tileIds.length !== 1 || rackDropPreviewRef.current?.rackId) {
         const moveEnd = typeof performance !== "undefined" ? performance.now() : Date.now();
         const durationMs = moveEnd - moveStart;
@@ -1556,7 +1629,7 @@ export function useCanvasInteractionSystem({
       window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [canvas, clearRackDropPreview, commands, dragMotion, showDragDelta, startMagnetGlide, stopMagnetGlide]);
+  }, [canvas, clearRackDropPreview, commands, dragMotion, findMergeTargetAt, showDragDelta, startMagnetGlide, stopMagnetGlide, updateMergeDropPreview]);
 
   const handleCanvasPointerDown = useCallback((event) => {
     if (isHandMode && event.button !== 2) {
@@ -1650,6 +1723,7 @@ export function useCanvasInteractionSystem({
     dragMotion,
     dragGrabPoint,
     rackDropPreview,
+    mergeDropPreview,
     marqueeBox,
     marqueeRef,
     beginGroupDrag,
@@ -1684,6 +1758,7 @@ export function useCanvasInteractionSystem({
     handleGroupHoverChange,
     handleGroupPressStart,
     rackDropPreview,
+    mergeDropPreview,
     handleCanvasContextMenu,
     handleCanvasPointerDown,
     handleTileContextMenu,

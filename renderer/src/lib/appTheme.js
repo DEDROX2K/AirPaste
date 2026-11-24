@@ -1,3 +1,5 @@
+import { desktop } from "./desktop";
+
 // App colour theme: the window base (the grey around Home and the canvas card)
 // and the accent colour, picked from the flower picker in the Home sidebar.
 //
@@ -195,6 +197,8 @@ export function applyTheme(theme) {
   // Text that sits straight on the base (sidebar, title bar) flips to white
   // once the base gets dark enough.
   root.dataset.shellTone = luminance(base.h, base.s, base.l) < 0.2 ? "dark" : "light";
+  // The native window buttons (Windows) follow the same tone.
+  desktop.window.setControlsTone?.(root.dataset.shellTone);
 
   if (theme.hue == null) {
     for (const name of appliedVars) root.style.removeProperty(name);

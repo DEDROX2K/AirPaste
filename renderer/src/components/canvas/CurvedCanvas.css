@@ -1,0 +1,74 @@
+/* Curved view (CurvedCanvas.jsx). The wrapper has no z-index, so its parts
+   slot into the board's own stack: dots under the tiles (.canvas__content is
+   z 2), blur rings and vignette over the strokes (z 14), under the marquee
+   (z 18). */
+.canvas-curve {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.canvas-curve__dots,
+.canvas-curve__vignette {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.canvas-curve__dots {
+  z-index: 1;
+}
+
+.canvas-curve__vignette {
+  z-index: 16;
+}
+
+/* The CSS dot grid is replaced by the bent one (unless WebGL is missing). */
+.canvas.canvas--curved:not(.canvas--curved-no-gl) .canvas__grid {
+  visibility: hidden !important;
+}
+
+/* Each tile is warped on its own wrapper, so the wrapper carries the tile's
+   stacking order. */
+.canvas.canvas--curved .canvas__content .canvas__entry-item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  z-index: max(1, var(--tile-z, 1));
+}
+
+/* A faint progressive defocus at the rim: three rings, each a little blurrier
+   and starting a little further out. The flat centre is never blurred. */
+.canvas-curve__blur {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.canvas-curve__blur--1 {
+  backdrop-filter: blur(0.6px);
+  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e1a), #000 var(--curve-e1b));
+}
+
+.canvas-curve__blur--2 {
+  backdrop-filter: blur(1.2px);
+  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e2a), #000 var(--curve-e2b));
+}
+
+.canvas-curve__blur--3 {
+  backdrop-filter: blur(2px);
+  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e3a), #000 var(--curve-e3b));
+}
+
+/* Lite graphics (main/graphics.js): no blur, the vignette carries the curve. */
+:root[data-graphics="lite"] .canvas-curve__blur {
+  display: none;
+}

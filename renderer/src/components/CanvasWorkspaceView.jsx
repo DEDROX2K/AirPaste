@@ -1,13 +1,17 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Card from "./Card";
-import { Canvas, Folder, Gauge, Grid2X2, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
+import { Canvas, DrawLine, Folder, Gauge, Grid2X2, Highlighter, InkPen, Minus, PanHand, Plus, Pointer, Tether } from "./ui/icons";
 import CanvasAddMenu from "./CanvasAddMenu";
 import CanvasMiniMap from "./CanvasMiniMap";
 import CanvasZoomMenu from "./CanvasZoomMenu";
 import TileContextMenu from "./TileContextMenu";
 import CanvasDensityZones from "./canvas/CanvasDensityZones";
 import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
+import DrawingCanvas from "./canvas/DrawingCanvas";
+import StackBundle from "./canvas/StackBundle";
+import CurvedCanvas from "./canvas/CurvedCanvas";
+import { useCurvedView } from "../lib/curvedView";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
 import { useCanvasPane } from "../context/CanvasPaneContext";
@@ -19,7 +23,7 @@ import { useLog } from "../hooks/useLog";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useToast } from "../hooks/useToast";
 import { isPreviewDebugModeEnabled } from "../lib/testingTiles";
-import { getStackBands } from "../systems/stack/tileStack";
+import { groupStacks, stackReleaseDuration } from "../systems/stack/tileStack";
 import {
   CODE_CARD_TYPE,
   CANVAS_TEXT_CARD_TYPE,
@@ -69,9 +73,13 @@ import { rectsIntersect } from "../systems/layout/tileLayout";
 import { useDrawingTool } from "../systems/drawing/useDrawingTool";
 import {
   DRAWING_TOOL_MODE_HAND,
+  DRAWING_TOOL_MODE_HIGHLIGHTER,
+  DRAWING_TOOL_MODE_INK,
+  DRAWING_TOOL_MODE_LINE,
   DRAWING_TOOL_MODE_SELECT,
   DRAWING_TOOL_MODE_TETHER,
   DRAWING_TOOL_MODE_TEXT,
+  STROKE_TOOL_CONFIG,
 } from "../systems/drawing/drawingTypes";
 import { useTetherSystem } from "../systems/tether/useTetherSystem";
 import { useTileFeel } from "../systems/feel/useTileFeel";
@@ -99,20 +107,13 @@ import {
   WORKSPACE_LOD_LEVEL,
 } from "../systems/canvas/tileLod";
 
-// Loaded on demand: the drawing layer pulls in Konva (~300 kB), and most
-// canvases have no drawings; the grid view is only for Tile view.
-const loadDrawingLayer = () => import("./canvas/DrawingLayer");
-const DrawingLayer = lazy(loadDrawingLayer);
+// The grid view is only for Tile view.
 const GridWorkspaceView = lazy(() => import("./GridWorkspaceView"));
 
 // Quick text's padding around its text: the caret lands on the click point.
 const QUICK_TEXT_PADDING_X = 6;
 const QUICK_TEXT_PADDING_Y = 4;
 const SHOW_ZOOM_MENU = false;
-// Unstacking: the gap between one tile leaving the pile and the next, and
-// how long a cut band takes to snap before the pile comes apart.
-const STACK_RELEASE_STEP_MS = 110;
-const STACK_BAND_SNAP_MS = 240;
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -205,11 +206,12 @@ function writeQuickTextDraft(node, draft) {
   node.style.height = `${Math.abs(draft.end.y - draft.start.y)}px`;
 }
 
-function CanvasDockFrame({ children }) {
+function CanvasDockFrame({ children, above = null }) {
   return (
     <div className="canvas-stage__fab">
       <CanvasDockFlare mirrored />
       <div className="canvas-stage__dock-col">
+        {above}
         <div className="canvas-win-strip">{children}</div>
         <div className="canvas-stage__dock-base" aria-hidden="true" />
       </div>
@@ -267,6 +269,109 @@ function DrawingToolControls({
           {!iconOnly ? <span className="drawing-tool-controls__text">Tether</span> : null}
         </AppButton>
       </div>
+    </div>
+  );
+}
+
+const STROKE_TOOL_BUTTONS = [
+  { mode: DRAWING_TOOL_MODE_LINE, label: "Line", shortcut: "Shift+L", Icon: DrawLine },
+  { mode: DRAWING_TOOL_MODE_INK, label: "Ink pen", shortcut: "P", Icon: InkPen },
+  { mode: DRAWING_TOOL_MODE_HIGHLIGHTER, label: "Highlighter", shortcut: "Shift+H", Icon: Highlighter },
+];
+
+// Line / Ink pen / Highlighter, as their own segment of the dock strip.
+function StrokeToolControls({ activeTool, iconOnly = false, onToolChange }) {
+  const iconOnlyClassName = iconOnly ? " drawing-tool-controls--icon-only" : "";
+
+  return (
+    <div className={`drawing-tool-controls${iconOnlyClassName}`} role="group" aria-label="Drawing tools">
+      <div className="drawing-tool-controls__mode" role="group" aria-label="Drawing tool">
+        {STROKE_TOOL_BUTTONS.map(({ mode, label, shortcut, Icon }) => {
+          const isActive = activeTool === mode;
+          return (
+            <AppButton tone="unstyled"
+              key={mode}
+              type="button"
+              className={`drawing-tool-controls__button${isActive ? " drawing-tool-controls__button--active" : ""}`}
+              onClick={() => onToolChange(isActive ? DRAWING_TOOL_MODE_SELECT : mode)}
+              aria-label={`Switch to ${label} tool`}
+              aria-pressed={isActive}
+              title={`${label} (${shortcut})`}
+            >
+              <Icon className="drawing-tool-controls__icon" size={16} aria-hidden="true" />
+              {!iconOnly ? <span className="drawing-tool-controls__text">{label}</span> : null}
+            </AppButton>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Colour + size for the active drawing tool, or for the selected strokes.
+// Floats just above the dock strip.
+function StrokePropsBar({ target, onColor, onSize }) {
+  const lastTargetRef = useRef(null);
+  if (target) lastTargetRef.current = target;
+  const shown = target ?? lastTargetRef.current;
+  const config = shown?.tool ? STROKE_TOOL_CONFIG[shown.tool] : null;
+  const label = !shown
+    ? ""
+    : !config
+      ? "Mixed selection"
+      : shown.kind === "selection" && shown.count > 1
+        ? `${shown.count} strokes`
+        : config.name;
+
+  return (
+    <div
+      className={`canvas-draw-props${target ? " canvas-draw-props--open" : ""}`}
+      role="toolbar"
+      aria-label="Stroke properties"
+      aria-hidden={target ? undefined : true}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="canvas-draw-props__group">
+        <span className="canvas-draw-props__label">{label}</span>
+        {config ? config.palette.map((color) => {
+          const isActive = color.toLowerCase() === String(shown.color).toLowerCase();
+          return (
+            <button
+              key={color}
+              type="button"
+              tabIndex={target ? 0 : -1}
+              className={`canvas-draw-props__swatch${isActive ? " canvas-draw-props__swatch--active" : ""}`}
+              style={{ "--swatch": color }}
+              aria-label={`Colour ${color}`}
+              aria-pressed={isActive}
+              onClick={() => onColor(color)}
+            >
+              <i />
+            </button>
+          );
+        }) : null}
+      </div>
+      {config ? (
+        <div className="canvas-draw-props__group">
+          {config.sizes.map((size, index) => {
+            const isActive = size === shown.size;
+            return (
+              <button
+                key={size}
+                type="button"
+                tabIndex={target ? 0 : -1}
+                className={`canvas-draw-props__size${isActive ? " canvas-draw-props__size--active" : ""}`}
+                style={{ "--bar": `${2 + index * 2}px` }}
+                aria-label={`Size ${size}`}
+                aria-pressed={isActive}
+                onClick={() => onSize(index)}
+              >
+                <i />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1251,6 +1356,8 @@ export default function CanvasWorkspaceView() {
   const isStickerDragging = stickerDragState !== null;
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
+  // Curved view (toggle next to Home in the top bar): canvas only.
+  const isCurvedView = useCurvedView() && !isGridMode;
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -1259,31 +1366,18 @@ export default function CanvasWorkspaceView() {
   const cameraIsMoving = canvas.isPanning || canvas.isZooming;
   const drawingTool = useDrawingTool({
     drawings: workspace.drawings,
-    canvas,
     commitWorkspaceChange,
     enabled: !isGridMode,
   });
   const canvasToolMode = drawingTool.activeTool;
   const selectedCanvasToolMode = drawingTool.selectedTool;
-  const isLineToolActive = drawingTool.isLineToolActive;
+  const isLineToolActive = drawingTool.isStrokeToolActive;
   const isTextToolActive = drawingTool.isTextToolActive;
   const setCanvasToolMode = drawingTool.handleToolModeChange;
   const canvasToolModeRef = useRef(canvasToolMode);
   canvasToolModeRef.current = canvasToolMode;
-  const clearDraftLine = drawingTool.clearDraftLine;
+  const clearDraftLine = drawingTool.handleEscape;
   const deleteSelectedDrawingObject = drawingTool.deleteSelectedObject;
-  const needsDrawingLayer = isLineToolActive
-    || Boolean(drawingTool.draftLine)
-    || drawingTool.drawings.objects.length > 0;
-
-  useEffect(() => {
-    // Warm the chunk as soon as the line tool is picked, so the first
-    // stroke isn't waiting on Konva.
-    if (isLineToolActive) {
-      void loadDrawingLayer();
-    }
-  }, [isLineToolActive]);
-
   const commands = useCanvasCommands({
     folderPath,
     canvasFilePath: currentEditor.filePath,
@@ -1528,6 +1622,20 @@ export default function CanvasWorkspaceView() {
     suppressHoverUpdates: cameraIsMoving || isLineToolActive,
     externalDrop,
   });
+  // Strokes: a press on empty canvas (not a tile) may pick a stroke.
+  const isCanvasBackgroundTarget = useCallback((target) => (
+    target === canvas.containerRef.current
+    || Boolean(target?.classList?.contains("canvas__content"))
+    || Boolean(target?.classList?.contains("canvas__grid"))
+  ), [canvas.containerRef]);
+  const interactionsRef = useRef(interactions);
+  interactionsRef.current = interactions;
+  const clearTileSelectionForStrokes = useCallback(() => {
+    const current = interactionsRef.current;
+    if (current.selectedTileIds.length > 0 || current.selectedGroupIds.length > 0) {
+      current.replaceSelection([]);
+    }
+  }, []);
   const resetTransientState = interactions.resetTransientState;
 
   useEffect(() => {
@@ -2221,6 +2329,7 @@ export default function CanvasWorkspaceView() {
   const layout = useTileLayoutSystem({
     tiles: filteredTiles,
     rackDropPreview: interactions.rackDropPreview,
+    mergeDropPreview: interactions.mergeDropPreview,
     selectedTileIds: interactions.selectedTileIds,
     hoveredTileId: interactions.hoveredTileId,
     focusedTileId: interactions.focusedTileId,
@@ -2250,57 +2359,76 @@ export default function CanvasWorkspaceView() {
     () => new Set(workspace.cards.filter((card) => card.stack?.id).map((card) => card.id)),
     [workspace.cards],
   );
-  // Taking a pile apart: the tiles come out one by one, top first, each
-  // gliding back to where it was (a per-tile transition delay, see
-  // .canvas__entry-item[data-releasing] in TilePolish.css).
-  const [releaseDelays, setReleaseDelays] = useState({});
-  const [cuttingStackIds, setCuttingStackIds] = useState(() => new Set());
+  // 3D stacks (StackBundle): which pile is selected, which piles were just
+  // made (they fly in), and which are flying apart before they unstack.
+  const [selectedStackId, setSelectedStackId] = useState(null);
+  const [freshStackIds, setFreshStackIds] = useState(() => new Set());
+  const [releasingStackIds, setReleasingStackIds] = useState(() => new Set());
   const releaseTimersRef = useRef([]);
 
   useEffect(() => () => releaseTimersRef.current.forEach((timer) => window.clearTimeout(timer)), []);
 
-  const releaseStack = useCallback((stackId) => {
-    const members = workspace.cards
-      .filter((card) => card.stack?.id === stackId)
-      .sort((a, b) => b.stack.order - a.stack.order);
+  const stackPiles = useMemo(
+    () => (stackedTileIdSet.size === 0 ? new Map() : groupStacks(workspace.cards)),
+    [stackedTileIdSet, workspace.cards],
+  );
 
-    if (members.length === 0) {
+  const markStackFresh = useCallback((stackId) => {
+    if (!stackId) return;
+    setFreshStackIds((current) => new Set(current).add(stackId));
+    setSelectedStackId(stackId);
+  }, []);
+
+  const clearStackFresh = useCallback((stackId) => {
+    setFreshStackIds((current) => {
+      if (!current.has(stackId)) return current;
+      const next = new Set(current);
+      next.delete(stackId);
+      return next;
+    });
+  }, []);
+
+  // The layers fly back to where each tile goes, then the tiles come back as
+  // normal tiles in that same spot.
+  const releaseStack = useCallback((stackId) => {
+    const count = workspace.cards.filter((card) => card.stack?.id === stackId).length;
+
+    if (count === 0) {
       return;
     }
 
-    const delays = Object.fromEntries(members.map((card, index) => [card.id, index * STACK_RELEASE_STEP_MS]));
-    setReleaseDelays((current) => ({ ...current, ...delays }));
-    commands.unstackTiles(stackId);
-
-    const settle = window.setTimeout(() => {
-      setReleaseDelays((current) => {
-        const next = { ...current };
-        members.forEach((card) => delete next[card.id]);
-        return next;
-      });
-    }, members.length * STACK_RELEASE_STEP_MS + 700);
-    releaseTimersRef.current.push(settle);
-  }, [commands, workspace.cards]);
-
-  // Clicking the band cuts it: it snaps in two, then the pile comes apart.
-  const cutStackBand = useCallback((stackId) => {
-    setCuttingStackIds((current) => new Set(current).add(stackId));
+    setReleasingStackIds((current) => new Set(current).add(stackId));
+    setSelectedStackId((current) => (current === stackId ? null : current));
     const timer = window.setTimeout(() => {
-      releaseStack(stackId);
-      setCuttingStackIds((current) => {
+      commands.unstackTiles(stackId);
+      setReleasingStackIds((current) => {
         const next = new Set(current);
         next.delete(stackId);
         return next;
       });
-    }, STACK_BAND_SNAP_MS);
+    }, stackReleaseDuration(count));
     releaseTimersRef.current.push(timer);
-  }, [releaseStack]);
+  }, [commands, workspace.cards]);
 
-  // A rubber band around each stacked pile.
-  const stackBands = useMemo(
-    () => (stackedTileIdSet.size === 0 ? [] : getStackBands(workspace.cards)),
-    [stackedTileIdSet, workspace.cards],
-  );
+  const moveStack = useCallback((stackId, dx, dy) => commands.moveStack(stackId, dx, dy), [commands]);
+  const getStackZoom = useCallback(() => canvas.getViewportSnapshot?.()?.zoom ?? 1, [canvas]);
+  const getBoardSize = useCallback(() => {
+    const node = canvas.containerRef.current;
+    return node ? { width: node.clientWidth, height: node.clientHeight } : { width: 0, height: 0 };
+  }, [canvas.containerRef]);
+
+  useEffect(() => {
+    if (selectedStackId && !stackPiles.has(selectedStackId)) {
+      setSelectedStackId(null);
+    }
+  }, [selectedStackId, stackPiles]);
+
+  useEffect(() => {
+    if (interactions.selectedTileIds.length > 0) {
+      setSelectedStackId(null);
+    }
+  }, [interactions.selectedTileIds]);
+
   const tetherEntries = useMemo(
     () => (stackedTileIdSet.size === 0
       ? layout.canvasEntries
@@ -2683,6 +2811,12 @@ export default function CanvasWorkspaceView() {
       }
 
       if (event.key === "Escape") {
+        if (selectedStackId) {
+          event.preventDefault();
+          setSelectedStackId(null);
+          return;
+        }
+
         if (clearDraftLine()) {
           event.preventDefault();
           return;
@@ -2697,6 +2831,36 @@ export default function CanvasWorkspaceView() {
         if (interactions.selectedTileIds.length > 0 || interactions.selectedGroupIds.length > 0) {
           event.preventDefault();
           interactions.replaceSelection([]);
+          return;
+        }
+      }
+
+      if (canvasToolShortcutContext && !isGridMode && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
+        if (activeKey === "p" && !event.shiftKey) {
+          event.preventDefault();
+          interactions.replaceSelection([]);
+          setCanvasToolMode(DRAWING_TOOL_MODE_INK);
+          return;
+        }
+
+        if (activeKey === "h" && event.shiftKey) {
+          event.preventDefault();
+          interactions.replaceSelection([]);
+          setCanvasToolMode(DRAWING_TOOL_MODE_HIGHLIGHTER);
+          return;
+        }
+
+        // Shift+G: unstack the selected pile.
+        if (activeKey === "g" && event.shiftKey && selectedStackId) {
+          event.preventDefault();
+          releaseStack(selectedStackId);
+          return;
+        }
+
+        if (activeKey === "l" && event.shiftKey) {
+          event.preventDefault();
+          interactions.replaceSelection([]);
+          setCanvasToolMode(DRAWING_TOOL_MODE_LINE);
           return;
         }
       }
@@ -2730,8 +2894,10 @@ export default function CanvasWorkspaceView() {
         // G: pile the selected tiles into a stack (systems/stack/tileStack.js).
         if (activeKey === "g" && interactions.selectedTileIds.length > 1) {
           event.preventDefault();
-          if (commands.stackTiles(interactions.selectedTileIds)) {
+          const stackId = commands.stackTiles(interactions.selectedTileIds);
+          if (stackId) {
             interactions.replaceSelection([]);
+            markStackFresh(stackId);
           }
           interactions.closeContextMenu();
           return;
@@ -2810,6 +2976,12 @@ export default function CanvasWorkspaceView() {
         }
       }
 
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && activeKey === "d" && drawingTool.strokeSelection) {
+        event.preventDefault();
+        drawingTool.duplicateSelectedStrokes();
+        return;
+      }
+
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
         event.preventDefault();
         interactions.replaceSelection(layout.rootTiles.filter((tile) => !tile.stack?.id).map((tile) => tile.id));
@@ -2880,6 +3052,12 @@ export default function CanvasWorkspaceView() {
         && !interactions.contextMenu
       ) {
         const nudgeStep = event.shiftKey ? ARROW_NUDGE_STEP_LARGE : ARROW_NUDGE_STEP_SMALL;
+
+        if (drawingTool.nudgeSelectedStrokes(arrowNudgeDirection.x * nudgeStep, arrowNudgeDirection.y * nudgeStep)) {
+          event.preventDefault();
+          return;
+        }
+
         const nudged = interactions.nudgeSelection({
           x: arrowNudgeDirection.x * nudgeStep,
           y: arrowNudgeDirection.y * nudgeStep,
@@ -2945,6 +3123,11 @@ export default function CanvasWorkspaceView() {
     copySelectedCanvasSelection,
     cutSelectedCanvasSelection,
     deleteSelectedDrawingObject,
+    drawingTool,
+    markStackFresh,
+    releaseStack,
+    selectedStackId,
+    isGridMode,
     isLineToolActive,
     isTextToolActive,
     layout,
@@ -3228,6 +3411,19 @@ export default function CanvasWorkspaceView() {
     return true;
   }, [activeContextTile, interactions, linkNoteContextState, updateExistingCard]);
 
+  // The merged group a right-clicked tile is in, or that it's the frame of.
+  const mergeContextFrameId = activeContextTile
+    ? (activeContextTile.type === TILE_TYPES.MERGE_NOTE ? activeContextTile.id : (activeContextTile.mergeId ?? null))
+    : null;
+
+  const handleRadialUnmerge = useCallback(() => {
+    if (!mergeContextFrameId) {
+      return false;
+    }
+
+    return commands.unmergeTiles(mergeContextFrameId);
+  }, [commands, mergeContextFrameId]);
+
   // "Add short note" on a plain link, or long <-> short on a noted one.
   const handleRadialLinkNoteVariant = useCallback(() => {
     if (!linkNoteContextState || !activeContextTile) {
@@ -3294,11 +3490,13 @@ export default function CanvasWorkspaceView() {
       return false;
     }
 
-    if (commands.stackTiles(selectionIds)) {
+    const stackId = commands.stackTiles(selectionIds);
+    if (stackId) {
       interactions.replaceSelection([]);
+      markStackFresh(stackId);
     }
     return true;
-  }, [commands, interactions, radialMenu]);
+  }, [commands, interactions, markStackFresh, radialMenu]);
 
   const handleRadialUnstack = useCallback(() => {
     const stackId = activeContextTile?.stack?.id;
@@ -3447,6 +3645,7 @@ export default function CanvasWorkspaceView() {
     showFileColor: radialMenu?.kind === "tile" && isDefaultFileContextTile,
     linkNoteState: radialMenu?.kind === "tile" ? linkNoteContextState : null,
     linkNoteVariant: getLinkNoteVariant(activeContextTile),
+    mergeFrameId: radialMenu?.kind === "tile" ? mergeContextFrameId : null,
     singlePreviewRefreshDisabled: !canRefreshLinkPreviewCard(activeContextTile),
     showTether: radialMenu?.kind === "tile" && showTetherAction,
     tetherCount: contextMenuSelectionCount,
@@ -3486,6 +3685,7 @@ export default function CanvasWorkspaceView() {
       onChangeFileColor: handleRadialFileColor,
       onToggleLinkNote: handleRadialLinkNote,
       onLinkNoteVariant: handleRadialLinkNoteVariant,
+      onUnmerge: handleRadialUnmerge,
       onTether: handleRadialTether,
       onUntether: handleRadialUntether,
       onStack: handleRadialStack,
@@ -3507,6 +3707,8 @@ export default function CanvasWorkspaceView() {
     handleRadialFileColor,
     handleRadialLinkNote,
     handleRadialLinkNoteVariant,
+    handleRadialUnmerge,
+    mergeContextFrameId,
     handleRadialTether,
     handleRadialUntether,
     handleCopyPreviewCodexReport,
@@ -3567,6 +3769,39 @@ export default function CanvasWorkspaceView() {
     );
   }
 
+  // One tile's <Card>, used for loose tiles and for tiles inside a pile.
+  const renderTileCard = (card) => (
+    <Card
+      card={card}
+      tileMeta={decoratedTileMetaById[card.id]}
+      viewportZoom={viewportZoomForRender}
+      renderHint={tileRenderHintsById[card.id]}
+      childTiles={layout.rackTileChildrenByRackId[card.id] ?? EMPTY_CHILD_TILES}
+      rackState={layout.rackStateById[card.id] ?? null}
+      performanceMode={tilePerformanceMode}
+      onBeginDrag={interactions.beginTileDrag}
+      onContextMenu={interactions.handleTileContextMenu}
+      onHoverChange={interactions.handleTileHoverChange}
+      onFocusIn={interactions.handleTileFocusIn}
+      onFocusOut={interactions.handleTileFocusOut}
+      onOpenLink={commands.openTileLink}
+      onMediaLoad={commands.updateTileFromMediaLoad}
+      onPressStart={interactions.handleTilePressStart}
+      onPullFromRack={interactions.pullTileFromRack}
+      onCreateAdjacentSticky={createAdjacentSticky}
+      onRetry={commands.retryTilePreview}
+      canvasToolMode={canvasToolMode}
+      textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
+      onRequestTextBoxEdit={requestTextBoxEdit}
+      onEndTextBoxEdit={clearTextBoxEditState}
+    />
+  );
+  const selectStackFromPointer = (stackId) => {
+    interactions.replaceSelection([]);
+    interactions.closeContextMenu();
+    setSelectedStackId(stackId);
+  };
+
   return (
     <CanvasMotionContext.Provider value={isCanvasMoving}>
     <CanvasDragMotionContext.Provider value={interactions.dragMotion}>
@@ -3594,7 +3829,15 @@ export default function CanvasWorkspaceView() {
 
       {/* Dock: on the canvas bottom edge, centred (ShellLayers.css). */}
       {pane.compact ? null : (
-        <CanvasDockFrame>
+        <CanvasDockFrame
+          above={isGridMode ? null : (
+            <StrokePropsBar
+              target={drawingTool.propsTarget}
+              onColor={drawingTool.setStrokeColor}
+              onSize={drawingTool.setStrokeSizeIndex}
+            />
+          )}
+        >
           <CanvasAddMenu commands={addMenuCommands} disabled={!folderPath} iconOnly />
           <WorkspaceViewToggle mode={workspaceView.mode} onChange={updateWorkspaceMode} />
           <DrawingToolControls
@@ -3602,6 +3845,13 @@ export default function CanvasWorkspaceView() {
             iconOnly
             onToolChange={setCanvasToolMode}
           />
+          {isGridMode ? null : (
+            <StrokeToolControls
+              activeTool={selectedCanvasToolMode}
+              iconOnly
+              onToolChange={setCanvasToolMode}
+            />
+          )}
         </CanvasDockFrame>
       )}
 
@@ -3649,6 +3899,10 @@ export default function CanvasWorkspaceView() {
             return;
           }
 
+          if (event.button === 0 && selectedStackId) {
+            setSelectedStackId(null);
+          }
+
           interactions.handleCanvasPointerDown(event);
         }}
         onDoubleClick={(event) => {
@@ -3674,26 +3928,29 @@ export default function CanvasWorkspaceView() {
           <CanvasMiniMap canvas={canvas} tiles={filteredTiles} hidden={isGridMode} />
           <>
             <div ref={canvas.gridRef} className="canvas__grid" />
-            {needsDrawingLayer ? (
-              <Suspense fallback={null}>
-                <DrawingLayer
-                  drawings={drawingTool.drawings}
-                  draftLine={drawingTool.draftLine}
-                  getDraftLine={drawingTool.getDraftLine}
-                  subscribeDraftLine={drawingTool.subscribeDraftLine}
-                  selectedObjectId={drawingTool.selectedObjectId}
-                  activeTool={drawingTool.activeTool}
-                  isSpacePanning={drawingTool.isSpacePanning}
-                  getViewportSnapshot={canvas.getViewportSnapshot}
-                  subscribeViewportTransform={canvas.subscribeViewportTransform}
-                  onSelectObject={drawingTool.handleSelectObject}
-                  onStagePointerDown={drawingTool.handleStagePointerDown}
-                  onStagePointerMove={drawingTool.handleStagePointerMove}
-                  onStagePointerUp={drawingTool.handleStagePointerUp}
-                  onStagePointerCancel={drawingTool.handleStagePointerCancel}
-                  onStageContextMenu={drawingTool.handleStageContextMenu}
-                />
-              </Suspense>
+            <DrawingCanvas
+              engineRef={drawingTool.engineRef}
+              strokes={drawingTool.drawings.objects}
+              activeTool={drawingTool.activeTool}
+              toolConfig={drawingTool.toolConfig}
+              getViewportSnapshot={canvas.getViewportSnapshot}
+              subscribeViewportTransform={canvas.subscribeViewportTransform}
+              isBackgroundTarget={isCanvasBackgroundTarget}
+              onCommit={drawingTool.handleCommit}
+              onSelectionChange={drawingTool.setStrokeSelection}
+              onRequestTool={setCanvasToolMode}
+              onClearTileSelection={clearTileSelectionForStrokes}
+              curved={isCurvedView}
+            />
+            {isCurvedView ? (
+              <CurvedCanvas
+                containerRef={canvas.containerRef}
+                gridRef={canvas.gridRef}
+                getViewportSnapshot={canvas.getViewportSnapshot}
+                subscribeViewportTransform={canvas.subscribeViewportTransform}
+                setPointUnwarp={canvas.setPointUnwarp}
+                dragMotion={interactions.dragMotion}
+              />
             ) : null}
             <div
               key={canvasEntrySequence}
@@ -3711,84 +3968,48 @@ export default function CanvasWorkspaceView() {
                 onCutLink={tether.cutLink}
               />
               {activeRenderTiles.map((card, index) => {
+                // Stacked tiles are drawn inside their pile (below).
+                if (card.stack?.id) {
+                  return null;
+                }
                 return (
                 <div
                   key={card.id}
                   className="canvas__entry-item"
                   data-tether-tile={card.id}
-                  data-releasing={releaseDelays[card.id] !== undefined ? "" : undefined}
+                  data-warp-item=""
+                  data-warp-x={card.x}
+                  data-warp-y={card.y}
+                  data-warp-w={card.width}
+                  data-warp-h={card.height}
                   style={{
                     "--tile-z": layout.tileLayerById[card.id] ?? 1,
                     "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
-                    ...(releaseDelays[card.id] !== undefined ? { "--release-delay": `${releaseDelays[card.id]}ms` } : null),
                   }}
                 >
-                  <Card
-                    card={card}
-                    tileMeta={decoratedTileMetaById[card.id]}
-                    viewportZoom={viewportZoomForRender}
-                    renderHint={tileRenderHintsById[card.id]}
-                    childTiles={layout.rackTileChildrenByRackId[card.id] ?? EMPTY_CHILD_TILES}
-                    rackState={layout.rackStateById[card.id] ?? null}
-                    performanceMode={tilePerformanceMode}
-                    onBeginDrag={interactions.beginTileDrag}
-                    onContextMenu={interactions.handleTileContextMenu}
-                    onHoverChange={interactions.handleTileHoverChange}
-                    onFocusIn={interactions.handleTileFocusIn}
-                    onFocusOut={interactions.handleTileFocusOut}
-                    onOpenLink={commands.openTileLink}
-                    onMediaLoad={commands.updateTileFromMediaLoad}
-                    onPressStart={interactions.handleTilePressStart}
-                    onPullFromRack={interactions.pullTileFromRack}
-                    onCreateAdjacentSticky={createAdjacentSticky}
-                    onRetry={commands.retryTilePreview}
-                    canvasToolMode={canvasToolMode}
-                    textBoxEditorState={textBoxEditorState?.tileId === card.id ? textBoxEditorState : null}
-                    onRequestTextBoxEdit={requestTextBoxEdit}
-                    onEndTextBoxEdit={clearTextBoxEditState}
-                  />
+                  {renderTileCard(card)}
                 </div>
                 );
               })}
-              {stackBands.map((band) => (
-                // Not a <button>: the global button styles (SimpleUi.css) reset
-                // transform on hover, which made the band jump.
-                <div
-                  key={band.stackId}
-                  role="button"
-                  tabIndex={0}
-                  className={`canvas__stack-band${cuttingStackIds.has(band.stackId) ? " is-cut" : ""}`}
-                  aria-label="Cut the band to unstack"
-                  title="Cut to unstack"
-                  style={{
-                    left: `${band.x}px`,
-                    top: `${band.y}px`,
-                    width: `${band.width}px`,
-                    zIndex: band.layer,
-                    "--band-angle": `${band.angle}deg`,
-                  }}
-                  onPointerDown={(event) => {
-                    // Keep the press from starting a marquee or reaching the pile.
-                    if (event.button === 0) {
-                      event.stopPropagation();
-                    }
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!cuttingStackIds.has(band.stackId)) {
-                      cutStackBand(band.stackId);
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if ((event.key === "Enter" || event.key === " ") && !cuttingStackIds.has(band.stackId)) {
-                      event.preventDefault();
-                      cutStackBand(band.stackId);
-                    }
-                  }}
-                >
-                  <span className="canvas__stack-band-half canvas__stack-band-half--l" />
-                  <span className="canvas__stack-band-half canvas__stack-band-half--r" />
-                </div>
+              {[...stackPiles.entries()].map(([stackId, pileCards]) => (
+                <StackBundle
+                  key={stackId}
+                  stackId={stackId}
+                  cards={pileCards}
+                  zIndex={Math.max(1, ...pileCards.map((card) => layout.tileLayerById[card.id] ?? 1))}
+                  fresh={freshStackIds.has(stackId)}
+                  releasing={releasingStackIds.has(stackId)}
+                  selected={selectedStackId === stackId}
+                  renderCard={renderTileCard}
+                  getZoom={getStackZoom}
+                  getBoardSize={getBoardSize}
+                  subscribeViewportTransform={canvas.subscribeViewportTransform}
+                  onSelect={selectStackFromPointer}
+                  onMove={moveStack}
+                  onUnstack={releaseStack}
+                  onContextMenu={interactions.handleTileContextMenu}
+                  onFlyInDone={clearStackFresh}
+                />
               ))}
               {quickTextDraft ? (
                 <div className="quick-text-marquee" ref={setQuickTextDraftNode} />
@@ -3831,7 +4052,7 @@ export default function CanvasWorkspaceView() {
               Open Folder
             </AppButton>
           </section>
-        ) : totalTileCount === 0 ? (
+        ) : totalTileCount === 0 && drawingTool.drawings.objects.length === 0 ? (
           <AppEmptyState
             title="Canvas is empty"
             description="Use the Add button in the bottom-right to create a rack. Paste a URL or image to import directly."

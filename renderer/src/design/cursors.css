@@ -12,8 +12,6 @@
   --ap-cursor-pointer: url("./cursors/pointer.svg") 8 1, pointer;
   --ap-cursor-grab: url("./cursors/grab.svg") 12 10, grab;
   --ap-cursor-grabbing: url("./cursors/grabbing.svg") 12 12, grabbing;
-  /* Scissors (pixelarticons "cut"), for cutting a stack's rubber band. */
-  --ap-cursor-cut: url("./cursors/cut.svg") 12 12, crosshair;
 }
 
 html,

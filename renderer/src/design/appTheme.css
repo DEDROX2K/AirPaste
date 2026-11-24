@@ -29,12 +29,6 @@ html[data-app-theme="on"] .ap-home .ap-home-nav-link.is-active .ap-home-nav-link
 }
 
 
-/* Windows controls (one joined piece): a lighter step of the base. The
-   hover glows keep their yellow / green / red. */
-html[data-app-theme="on"] .titlebar-controls--joined {
-  --titlebar-controls-fill: var(--ap-theme-control);
-}
-
 /* Home card. Re-pointing --ap-bg-page carries the toolbar's tint too. */
 html[data-app-theme="on"] .app-window .ap-home-main,
 html[data-app-theme="on"] .ap-home-main {
@@ -96,12 +90,15 @@ html[data-app-theme="on"] .titlebar-tabs {
 /* Home button: matches the window controls. */
 html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo {
   background: var(--ap-theme-control);
-  border-color: var(--ap-theme-control-edge);
 }
 
 html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo:hover {
   background: var(--ap-theme-panel);
-  border-color: #fff;
+}
+
+html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__curve.is-on {
+  background: var(--ap-theme-panel);
+  color: var(--ap-theme-ink);
 }
 
 html[data-app-theme="on"] .titlebar-cluster__divider {

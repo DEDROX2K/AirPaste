@@ -126,6 +126,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   minimize: () => ipcRenderer.send("window:minimize"),
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
+  setControlsTone: (tone) => ipcRenderer.send("window:setControlsTone", { tone }),
   enterImmersive: () => ipcRenderer.send("window:enterImmersive"),
   exitImmersive: () => ipcRenderer.send("window:exitImmersive"),
   resizeStart: (direction) => ipcRenderer.send("window:resizeStart", { direction }),

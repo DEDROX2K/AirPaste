@@ -164,3 +164,20 @@
 .canvas-stage__flare--l {
   transform: scaleX(-1);
 }
+
+/* Pixel trail (ShellPixelTrail.jsx) on the grey base: under everything in
+   the window, so the opaque cards cover it and only the grey shows it. The
+   window is its own stacking context so the trail can sit at z -1 above the
+   grey fill. */
+.app-window {
+  isolation: isolate;
+}
+
+.app-window > .ap-shell-trail {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

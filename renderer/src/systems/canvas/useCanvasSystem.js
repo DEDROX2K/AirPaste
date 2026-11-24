@@ -75,6 +75,12 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const zoomGestureActiveRef = useRef(false);
   const writtenZoomRef = useRef(null);
   const panFrameRef = useRef(0);
+  // Curved view: maps a board point as drawn to where it sits on the flat
+  // board (systems/canvas/curvedWarp.js unwarp), or null when flat.
+  const pointUnwarpRef = useRef(null);
+  const setPointUnwarp = useCallback((unwarp) => {
+    pointUnwarpRef.current = typeof unwarp === "function" ? unwarp : null;
+  }, []);
   const [isPanning, setIsPanning] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
@@ -365,6 +371,12 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
 
   const toWorldPoint = useCallback((clientX, clientY) => {
     const rect = containerRectRef.current ?? measureContainerRect();
+    const unwarp = pointUnwarpRef.current;
+
+    if (unwarp && rect) {
+      const [x, y] = unwarp(clientX - rect.left, clientY - rect.top);
+      return clientToWorldPoint(rect, viewportRef.current, x + rect.left, y + rect.top);
+    }
 
     return clientToWorldPoint(rect, viewportRef.current, clientX, clientY);
   }, [measureContainerRect]);
@@ -508,9 +520,14 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       if (event.ctrlKey || event.metaKey || (!event.shiftKey && isMouseWheelEvent(event))) {
         // From this event's own measurement, never a saved one: the canvas
         // may have moved since (floating view).
-        const canvasPoint = rect
+        const rawPoint = rect
           ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
           : toCanvasPoint(event.clientX, event.clientY);
+        // Curved view: zoom about the flat-board point under the pointer.
+        const unwarp = pointUnwarpRef.current;
+        const canvasPoint = unwarp
+          ? (([x, y]) => ({ x, y }))(unwarp(rawPoint.x, rawPoint.y))
+          : rawPoint;
         if (rect) containerRectRef.current = rect;
         const worldPoint = {
           x: (canvasPoint.x - vp.x) / vp.zoom,
@@ -697,6 +714,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     getVisibleWorldRect,
     beginCanvasPan,
     subscribeViewportTransform,
+    setPointUnwarp,
     centerOnWorldPoint,
     setZoom,
     zoomIn,
@@ -716,6 +734,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     isPanning,
     isZooming,
     setViewportImmediate,
+    setPointUnwarp,
     setZoom,
     subscribeViewportTransform,
     toCanvasPoint,

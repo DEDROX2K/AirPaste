@@ -35,6 +35,7 @@ A tile feature is not complete until:
 | Implemented | Link & Media | Link Tile | `link` | Bookmark, preview, and media reference tile for web links. | `renderer/src/components/tiles/LinkTile.jsx` | `renderer/src/lib/workspace.js` | No direct Add menu entry. Usually created from paste/import. | Yes | Dedicated preview diagnostics and Codex copy report in DEV/testing flows. | Stable core tile type. |
 | Implemented | Link & Media | Image Tile | `link` | Imported image tile rendered through the link tile system. | `renderer/src/components/tiles/LinkTile.jsx` | `renderer/src/lib/workspace.js` | No direct Add menu entry. Created through import/paste flows. | No seeded examples yet | No dedicated image-only copy report. Uses clean serializable link payload. | Implemented as `type: "link"` plus `contentKind: "image"`, not as a separate type id. |
 | Implemented | Commerce | Product Tile | `amazon-product` | Product tile for shop links: Amazon, eBay and any page with product data. | `renderer/src/components/tiles/AmazonProductTile.jsx` | `renderer/src/lib/workspace.js` | No | No seeded examples yet | No dedicated copy report documented. | Specialized link-like tile. |
+| Implemented | Organisation | Merged Tiles | `merge-note` | Frame + short note around tiles dropped on each other. | `renderer/src/components/tiles/MergeNoteTile.jsx` | `renderer/src/tiles/merge/model.js` | No | No seeded examples yet | No dedicated copy report documented. | Created by dropping a tile on another; not added directly. |
 | Implemented | Link & Media | X Profile Tile | `x-profile` | X/Twitter profile as an ID badge hanging from a clip. | `renderer/src/components/tiles/XProfileTile.jsx` | `renderer/src/tiles/x/model.js` | No. Created by pasting an x.com/<handle> link. | No seeded examples yet | Link preview diagnostics. | Data from `preview/resolvers/x.js`; images stored in the card. |
 | Implemented | Link & Media | X Post Tile | `x-post` | X/Twitter post card held by a pin: text, media (1-4 images or inline video), link card, quoted post, counts. | `renderer/src/components/tiles/XPostTile.jsx` | `renderer/src/tiles/x/model.js` | No. Created by pasting an x.com/<handle>/status/<id> link. | No seeded examples yet | Link preview diagnostics. | Data from `preview/resolvers/x.js`; images stored in the card, video streamed. |
 | Implemented | Planning | Calendar Tile | `calendar` | Canvas calendar for planning dates and events. | `renderer/src/components/tiles/CalendarTile.jsx` | `renderer/src/lib/workspace.js` | Yes | No seeded examples yet | No dedicated diagnostics. | Stable manual tile. |
@@ -152,6 +153,34 @@ A tile feature is not complete until:
 - Future improvements:
   - Add seeded image examples to Testing Tiles.
   - Consider whether image deserves its own tile type in the future.
+
+## Merged Tiles (`merge-note`)
+
+- Type ID: `merge-note`
+- Status: Implemented (2026-11-23)
+- Purpose: Drop one tile on another and they snap into a group: side by side in rows (random order, up to 3 a row, fuller rows at the bottom, centred), wrapped in one yellow frame with a short note in a tab under the bottom row.
+- User-facing UX:
+  - Drag a single tile over another: the target gets the green merge ring; drop to merge. Dropping on a grouped tile (or its frame) adds to that group. A rack under the pointer wins (docks instead).
+  - Grabbing any tile in a group, or its yellow frame, drags the whole group.
+  - The note: click it once the frame is selected, or double-click it, to write (shared note editor). The tab grows with the text.
+  - Right-click a grouped tile or the frame > Unmerge: the frame goes, the tiles stay where they are.
+  - The group re-arranges itself when a tile in it resizes or is deleted; one left alone leaves the group.
+- Data model:
+```js
+// each member tile
+{ mergeId: "merge-..." }
+// the frame card, drawn just below its members
+{
+  type: "merge-note",
+  memberIds: [],     // shuffled order
+  body: "",          // note markdown
+  noteHeight: null,  // tab height, measured by the tile
+  mergeShape: { path: "", note: { x, y, width, height } } // rebuilt by settleMergeGroups
+}
+```
+- Main files: `renderer/src/tiles/merge/model.js` (layout, outline, merge / unmerge, `settleMergeGroups` run from `normalizeWorkspace`), `renderer/src/components/tiles/MergeNoteTile.jsx` / `.css`, drag hooks in `systems/interactions/useCanvasInteractionSystem.js`.
+- Tests: `test/merge-tiles.test.js`
+- Known limitations: only loose canvas tiles merge (not racks, tiles in racks, or stacked piles); dragging a whole group onto another tile doesn't merge groups.
 
 ## Product Tile (`amazon-product`)
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeCard } from "../renderer/src/lib/workspace";
 import { buildRadialMenuActions } from "../renderer/src/systems/interactions/radialMenuActions";
-import { STACK, getStackBands, stackCards, unstackCards } from "../renderer/src/systems/stack/tileStack";
+import { STACK, groupStacks, moveStackCards, stackCards, unstackCards } from "../renderer/src/systems/stack/tileStack";
 
 const tile = (id, x, y, width = 200, height = 220) => ({ id, type: "link", x, y, width, height });
 const board = () => [
@@ -12,6 +12,28 @@ const board = () => [
 ];
 
 describe("tile stacks", () => {
+  it("moves a pile and where its tiles go back to, together", () => {
+    const stacked = stackCards(board(), ["a", "b"], { stackId: "s1" }).cards;
+    const moved = moveStackCards(stacked, "s1", 40, -10);
+    const before = stacked.find((card) => card.id === "a");
+    const after = moved.find((card) => card.id === "a");
+
+    expect(after.x - before.x).toBe(40);
+    expect(after.y - before.y).toBe(-10);
+    expect(after.stack.homeX - before.stack.homeX).toBe(40);
+    expect(after.stack.homeY - before.stack.homeY).toBe(-10);
+    expect(moved.find((card) => card.id === "c")).toBe(stacked.find((card) => card.id === "c"));
+    expect(moveStackCards(stacked, "s1", 0, 0)).toBe(stacked);
+  });
+
+  it("groups each pile bottom to top", () => {
+    const stacked = stackCards(board(), ["a", "b", "c"], { stackId: "s1" }).cards;
+    const piles = groupStacks(stacked);
+
+    expect([...piles.keys()]).toEqual(["s1"]);
+    expect(piles.get("s1").map((card) => card.stack.order)).toEqual([0, 1, 2]);
+  });
+
   it("piles the selected tiles on the centre of their bounds, top one straight", () => {
     const result = stackCards(board(), ["a", "b", "c"], { stackId: "s1" });
     const piled = result.cards.filter((card) => card.stack);
@@ -65,22 +87,6 @@ describe("tile stacks", () => {
     const selectionMenu = buildRadialMenuActions({ menu: { kind: "tile", selectionIds: ["a", "b", "c"] }, stackState: "can-stack", handlers })
       .filter(Boolean);
     expect(selectionMenu.find((action) => action.id === "stack")?.label).toBe("Group 3 tiles");
-  });
-
-  it("wraps one rubber band round the whole pile, layered just over it", () => {
-    const stacked = stackCards(board(), ["a", "b", "c"], { stackId: "s1" }).cards;
-    const bands = getStackBands(stacked);
-    const members = stacked.filter((card) => card.stack);
-    const left = Math.min(...members.map((card) => card.x));
-    const right = Math.max(...members.map((card) => card.x + card.width));
-
-    expect(bands).toHaveLength(1);
-    expect(bands[0]).toMatchObject({ stackId: "s1", layer: stacked.length });
-    // At least as wide as every tile in the pile, centred on it.
-    expect(bands[0].width).toBeGreaterThanOrEqual(right - left + 10);
-    expect(Math.abs(bands[0].x - (left + right) / 2)).toBeLessThan(STACK.MAX_OFFSET_PX + 10);
-    expect(Math.abs(bands[0].angle)).toBeLessThanOrEqual(5);
-    expect(getStackBands(unstackCards(stacked, "s1"))).toEqual([]);
   });
 
 });

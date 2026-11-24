@@ -69,7 +69,7 @@ const EXPECTED_HANDLE_CHANNELS = [
 ];
 
 const EXPECTED_ON_CHANNELS = [
-  "window:minimize", "window:maximize", "window:close",
+  "window:minimize", "window:maximize", "window:close", "window:setControlsTone",
   "window:enterImmersive", "window:exitImmersive",
   "window:resizeStart", "window:resizeMove", "window:resizeEnd",
   "window:moveStart", "window:moveEnd",

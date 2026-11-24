@@ -145,6 +145,7 @@ import {
 } from "../tiles/canvasText/model";
 import { normalizeLinkNote } from "../tiles/link/notedLink";
 import { normalizeWebclipCropRatio } from "../tiles/link/webclipCrop";
+import { MERGE_NOTE_CARD_TYPE, normalizeMergeShape, settleMergeGroups } from "../tiles/merge/model";
 import { normalizeLinkArticle } from "../tiles/link/articleView";
 import {
   clampDefaultFileWidth,
@@ -315,6 +316,10 @@ function getCardType(card) {
     return PAPER_NOTE_CARD_TYPE;
   }
 
+  if (card?.type === MERGE_NOTE_CARD_TYPE) {
+    return MERGE_NOTE_CARD_TYPE;
+  }
+
   return null;
 }
 
@@ -349,6 +354,11 @@ function normalizeLegacyFolderChildLayouts(childIds, childLayouts) {
 }
 
 function getCardSize(type) {
+  // A merged group's frame: sized by its layout (tiles/merge/model.js).
+  if (type === MERGE_NOTE_CARD_TYPE) {
+    return { width: 400, height: 300 };
+  }
+
   if (type === FILE_CARD_TYPE) {
     return FILE_CARD_SIZE;
   }
@@ -688,9 +698,11 @@ function normalizeWorkspacePage(page, fallbackIndex = 0) {
     : Array.isArray(page?.tiles)
       ? page.tiles
       : [];
-  const cards = backfillRackSlots(sourceCards
+  // Merged groups are laid out from their members' current sizes on every
+  // change (tiles/merge/model.js).
+  const cards = settleMergeGroups(backfillRackSlots(sourceCards
     .map((card, index) => normalizeCard(card, index))
-    .filter(Boolean));
+    .filter(Boolean)));
 
   return {
     id: typeof page?.id === "string" && page.id.trim().length > 0 ? page.id : generateWorkspacePageId(),
@@ -1247,6 +1259,19 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
     rackIndex: type !== RACK_CARD_TYPE && Number.isFinite(card?.rackIndex)
       ? Math.max(0, Math.round(card.rackIndex))
       : null,
+    // Merged groups (tiles/merge/model.js): a member's frame id, and the
+    // frame's own members, note text and outline.
+    mergeId: type !== MERGE_NOTE_CARD_TYPE && typeof card?.mergeId === "string" && card.mergeId.trim().length > 0
+      ? card.mergeId
+      : null,
+    ...(type === MERGE_NOTE_CARD_TYPE ? {
+      memberIds: Array.isArray(card?.memberIds)
+        ? [...new Set(card.memberIds.filter((id) => typeof id === "string" && id.trim().length > 0))]
+        : [],
+      body: typeof card?.body === "string" ? card.body : "",
+      noteHeight: Number.isFinite(card?.noteHeight) && card.noteHeight > 0 ? card.noteHeight : null,
+      mergeShape: normalizeMergeShape(card?.mergeShape),
+    } : {}),
     createdAt,
     updatedAt,
   };

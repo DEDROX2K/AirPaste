@@ -1,48 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTypingTarget } from "../../lib/workspace";
 import {
-  appendDrawingObject,
-  buildCommittedLineFromDraft,
-  createDraftLine,
-  removeDrawingObjectById,
-  shouldCommitDraftLine,
-  updateDraftLine,
-  worldPointFromStageEvent,
-} from "./drawingUtils";
-import {
   createEmptyDrawings,
-  DEFAULT_DRAWING_STYLE,
   DRAWING_TOOL_MODE_HAND,
-  DRAWING_TOOL_MODE_LINE,
   DRAWING_TOOL_MODE_SELECT,
   DRAWING_TOOL_MODE_TETHER,
   DRAWING_TOOL_MODE_TEXT,
+  DRAWINGS_SCHEMA_VERSION,
+  isStrokeTool,
   normalizeDrawings,
+  STROKE_TOOL_CONFIG,
+  STROKE_TOOLS,
 } from "./drawingTypes";
 
-const FIXED_LINE_STROKE_WIDTH = 3;
+const TOOL_MODES = [
+  DRAWING_TOOL_MODE_SELECT,
+  DRAWING_TOOL_MODE_HAND,
+  DRAWING_TOOL_MODE_TEXT,
+  DRAWING_TOOL_MODE_TETHER,
+  ...STROKE_TOOLS,
+];
 
+function initialToolConfig() {
+  return Object.fromEntries(STROKE_TOOLS.map((tool) => [
+    tool,
+    { color: STROKE_TOOL_CONFIG[tool].color, size: STROKE_TOOL_CONFIG[tool].sizes[STROKE_TOOL_CONFIG[tool].sizeIdx] },
+  ]));
+}
+
+// Canvas tool mode + the drawing tools (Line, Ink pen, Highlighter). The
+// strokes themselves are drawn and edited by the stroke engine
+// (strokeEngine.js, mounted by DrawingCanvas); this hook owns the tool, the
+// per-tool colour/size, and saving strokes to the workspace (one history
+// entry per gesture, so Ctrl+Z works through the app's own undo).
 export function useDrawingTool({
   drawings,
-  canvas,
   commitWorkspaceChange,
   enabled = true,
 }) {
   const [selectedTool, setSelectedTool] = useState(DRAWING_TOOL_MODE_SELECT);
-  const [strokeColor, setStrokeColor] = useState(DEFAULT_DRAWING_STYLE.stroke);
-  const [draftLine, setDraftLine] = useState(null);
-  const [selectedObjectId, setSelectedObjectId] = useState(null);
   const [isSpacePanning, setIsSpacePanning] = useState(false);
-  const draftLineRef = useRef(null);
-  // The draft's moving end goes to these (DrawingLayer redraws the Konva
-  // line), not to state: state only says a draft exists, so the canvas
-  // renders once when drawing starts and once when it ends.
-  const draftListenersRef = useRef(new Set());
-  const subscribeDraftLine = useCallback((listener) => {
-    draftListenersRef.current.add(listener);
-    return () => draftListenersRef.current.delete(listener);
-  }, []);
-  const getDraftLine = useCallback(() => draftLineRef.current, []);
+  const [toolConfig, setToolConfig] = useState(initialToolConfig);
+  const [strokeSelection, setStrokeSelection] = useState(null);
+  const engineRef = useRef(null);
 
   const normalizedDrawings = useMemo(
     () => normalizeDrawings(drawings ?? createEmptyDrawings()),
@@ -51,197 +51,106 @@ export function useDrawingTool({
   const activeTool = enabled && isSpacePanning
     ? DRAWING_TOOL_MODE_HAND
     : selectedTool;
-  const isLineToolActive = enabled && activeTool === DRAWING_TOOL_MODE_LINE;
+  const isStrokeToolActive = enabled && isStrokeTool(activeTool);
   const isHandToolActive = enabled && activeTool === DRAWING_TOOL_MODE_HAND;
   const isTextToolActive = enabled && activeTool === DRAWING_TOOL_MODE_TEXT;
-  const lineStyle = useMemo(() => ({
-    stroke: strokeColor,
-    strokeWidth: FIXED_LINE_STROKE_WIDTH,
-    opacity: 1,
-  }), [strokeColor]);
-
-  const updateDraftState = useCallback((nextDraftLine) => {
-    draftLineRef.current = nextDraftLine;
-    setDraftLine(nextDraftLine);
-  }, []);
-
-  const clearDraftLine = useCallback(() => {
-    if (!draftLineRef.current) {
-      return false;
-    }
-
-    updateDraftState(null);
-    return true;
-  }, [updateDraftState]);
-
-  const commitDraftLine = useCallback(() => {
-    const pendingDraftLine = draftLineRef.current;
-
-    if (!pendingDraftLine) {
-      return false;
-    }
-
-    updateDraftState(null);
-
-    if (!shouldCommitDraftLine(pendingDraftLine)) {
-      return false;
-    }
-
-    const nextDrawingObject = buildCommittedLineFromDraft(pendingDraftLine);
-
-    if (!nextDrawingObject) {
-      return false;
-    }
-
-    commitWorkspaceChange((currentWorkspace) => ({
-      ...currentWorkspace,
-      drawings: appendDrawingObject(currentWorkspace.drawings, nextDrawingObject),
-    }));
-    setSelectedObjectId(nextDrawingObject.id);
-    return true;
-  }, [commitWorkspaceChange, updateDraftState]);
-
-  const deleteSelectedObject = useCallback(() => {
-    if (!selectedObjectId) {
-      return false;
-    }
-
-    const hasSelection = normalizedDrawings.objects.some((object) => object.id === selectedObjectId);
-
-    if (!hasSelection) {
-      setSelectedObjectId(null);
-      return false;
-    }
-
-    commitWorkspaceChange((currentWorkspace) => ({
-      ...currentWorkspace,
-      drawings: removeDrawingObjectById(currentWorkspace.drawings, selectedObjectId),
-    }));
-    setSelectedObjectId(null);
-    return true;
-  }, [commitWorkspaceChange, normalizedDrawings.objects, selectedObjectId]);
-
-  const beginDraftLine = useCallback((stageEvent) => {
-    const viewportSnapshot = canvas.getViewportSnapshot();
-    const worldPoint = worldPointFromStageEvent(
-      stageEvent,
-      canvas.clientToWorldPoint,
-      viewportSnapshot,
-    );
-
-    if (!worldPoint) {
-      return false;
-    }
-
-    updateDraftState(createDraftLine(worldPoint, lineStyle));
-    setSelectedObjectId(null);
-    return true;
-  }, [canvas, lineStyle, updateDraftState]);
-
-  const handleStagePointerDown = useCallback((stageEvent) => {
-    if (!isLineToolActive) {
-      return false;
-    }
-
-    const nativeEvent = stageEvent?.evt;
-    const pointerButton = Number.isFinite(nativeEvent?.button) ? nativeEvent.button : 0;
-
-    if (!nativeEvent) {
-      return false;
-    }
-
-    if (pointerButton === 2) {
-      nativeEvent.preventDefault();
-      return true;
-    }
-
-    if (pointerButton !== 0 && pointerButton !== 1) {
-      return false;
-    }
-
-    if (isSpacePanning) {
-      canvas.beginCanvasPan(nativeEvent);
-      return true;
-    }
-
-    nativeEvent.preventDefault();
-    nativeEvent.stopPropagation();
-    return beginDraftLine(stageEvent);
-  }, [beginDraftLine, canvas, isLineToolActive, isSpacePanning]);
-
-  const handleStagePointerMove = useCallback((stageEvent) => {
-    if (!draftLineRef.current || !isLineToolActive) {
-      return false;
-    }
-
-    const viewportSnapshot = canvas.getViewportSnapshot();
-    const worldPoint = worldPointFromStageEvent(
-      stageEvent,
-      canvas.clientToWorldPoint,
-      viewportSnapshot,
-    );
-
-    if (!worldPoint) {
-      return false;
-    }
-
-    const nextDraftLine = updateDraftLine(draftLineRef.current, worldPoint);
-    draftLineRef.current = nextDraftLine;
-    draftListenersRef.current.forEach((listener) => listener(nextDraftLine));
-    return true;
-  }, [canvas, isLineToolActive]);
-
-  const handleStagePointerUp = useCallback(() => (
-    commitDraftLine()
-  ), [commitDraftLine]);
-
-  const handleStagePointerCancel = useCallback(() => (
-    clearDraftLine()
-  ), [clearDraftLine]);
-
-  const handleStageContextMenu = useCallback((stageEvent) => {
-    if (!isLineToolActive) {
-      return false;
-    }
-
-    stageEvent?.evt?.preventDefault();
-    return true;
-  }, [isLineToolActive]);
-
-  const handleSelectObject = useCallback((drawingObjectId, stageEvent = null) => {
-    if (!isLineToolActive) {
-      return false;
-    }
-
-    stageEvent?.evt?.preventDefault?.();
-
-    if (stageEvent) {
-      stageEvent.cancelBubble = true;
-    }
-
-    setSelectedObjectId(drawingObjectId);
-    return true;
-  }, [isLineToolActive]);
 
   const handleToolModeChange = useCallback((nextToolMode) => {
-    const normalizedMode = [
-      DRAWING_TOOL_MODE_SELECT,
-      DRAWING_TOOL_MODE_HAND,
-      DRAWING_TOOL_MODE_TEXT,
-      DRAWING_TOOL_MODE_LINE,
-      DRAWING_TOOL_MODE_TETHER,
-    ].includes(nextToolMode)
-      ? nextToolMode
-      : DRAWING_TOOL_MODE_SELECT;
+    const normalizedMode = TOOL_MODES.includes(nextToolMode) ? nextToolMode : DRAWING_TOOL_MODE_SELECT;
 
-    if (normalizedMode !== DRAWING_TOOL_MODE_LINE) {
-      updateDraftState(null);
+    if (!isStrokeTool(normalizedMode)) {
       setIsSpacePanning(false);
-      setSelectedObjectId(null);
     }
 
     setSelectedTool(normalizedMode);
-  }, [updateDraftState]);
+  }, []);
+
+  const handleCommit = useCallback((strokes) => {
+    // Pages are the source of truth (the top-level `drawings` only mirrors
+    // the active page), so the stroke list goes onto the active page.
+    commitWorkspaceChange((currentWorkspace) => {
+      const drawingsValue = { version: DRAWINGS_SCHEMA_VERSION, objects: strokes };
+      const pages = Array.isArray(currentWorkspace.pages) ? currentWorkspace.pages : null;
+
+      if (!pages?.length) {
+        return { ...currentWorkspace, drawings: drawingsValue };
+      }
+
+      const activeId = pages.some((page) => page.id === currentWorkspace.activePageId)
+        ? currentWorkspace.activePageId
+        : pages[0].id;
+
+      return {
+        ...currentWorkspace,
+        drawings: drawingsValue,
+        pages: pages.map((page) => (page.id === activeId ? { ...page, drawings: drawingsValue } : page)),
+      };
+    });
+  }, [commitWorkspaceChange]);
+
+  // Property bar: a tool's defaults while it's active, else the selection.
+  const propsTarget = isStrokeToolActive
+    ? { kind: "tool", tool: activeTool, ...toolConfig[activeTool] }
+    : strokeSelection
+      ? { kind: "selection", ...strokeSelection }
+      : null;
+
+  const setStrokeColor = useCallback((color) => {
+    if (isStrokeTool(selectedTool)) {
+      setToolConfig((current) => ({ ...current, [selectedTool]: { ...current[selectedTool], color } }));
+      return;
+    }
+    engineRef.current?.applyToSelection({ color });
+  }, [selectedTool]);
+
+  const setStrokeSizeIndex = useCallback((sizeIdx) => {
+    if (isStrokeTool(selectedTool)) {
+      setToolConfig((current) => ({
+        ...current,
+        [selectedTool]: { ...current[selectedTool], size: STROKE_TOOL_CONFIG[selectedTool].sizes[sizeIdx] },
+      }));
+      return;
+    }
+    engineRef.current?.applyToSelection({ sizeIdx });
+  }, [selectedTool]);
+
+  const bumpStrokeSize = useCallback((dir) => {
+    if (isStrokeTool(selectedTool)) {
+      setToolConfig((current) => {
+        const sizes = STROKE_TOOL_CONFIG[selectedTool].sizes;
+        const at = Math.max(0, sizes.indexOf(current[selectedTool].size));
+        const size = sizes[Math.max(0, Math.min(sizes.length - 1, at + dir))];
+        return { ...current, [selectedTool]: { ...current[selectedTool], size } };
+      });
+      return true;
+    }
+    return engineRef.current?.applyToSelection({ sizeStep: dir }) ?? false;
+  }, [selectedTool]);
+
+  const deleteSelectedObject = useCallback(() => (
+    engineRef.current?.deleteSelection() ?? false
+  ), []);
+
+  const nudgeSelectedStrokes = useCallback((dx, dy) => (
+    engineRef.current?.nudgeSelection(dx, dy) ?? false
+  ), []);
+
+  const duplicateSelectedStrokes = useCallback(() => (
+    engineRef.current?.duplicateSelection() ?? false
+  ), []);
+
+  const clearStrokeSelection = useCallback(() => (
+    engineRef.current?.clearSelection() ?? false
+  ), []);
+
+  // Esc: a drawing tool goes back to Select, then a stroke selection clears.
+  const handleEscape = useCallback(() => {
+    if (isStrokeTool(selectedTool)) {
+      setSelectedTool(DRAWING_TOOL_MODE_SELECT);
+      return true;
+    }
+    return clearStrokeSelection();
+  }, [clearStrokeSelection, selectedTool]);
 
   useEffect(() => {
     if (!enabled || activeTool !== DRAWING_TOOL_MODE_HAND) {
@@ -250,41 +159,26 @@ export function useDrawingTool({
   }, [activeTool, enabled]);
 
   useEffect(() => {
-    if (!selectedObjectId) {
-      return;
-    }
-
-    const exists = normalizedDrawings.objects.some((object) => object.id === selectedObjectId);
-
-    if (!exists) {
-      setSelectedObjectId(null);
-    }
-  }, [normalizedDrawings.objects, selectedObjectId]);
-
-  useEffect(() => {
     function handleKeyDown(event) {
-      if (!enabled || event.code !== "Space") {
+      if (!enabled) return;
+      if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) return;
+
+      if (event.code === "Space") {
+        if (event.repeat || engineRef.current?.isDrawing()) return;
+        event.preventDefault();
+        setIsSpacePanning(true);
         return;
       }
 
-      if (event.repeat || draftLineRef.current) {
-        return;
-      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-      if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) {
-        return;
+      if (event.key === "[" || event.key === "]") {
+        if (bumpStrokeSize(event.key === "]" ? 1 : -1)) event.preventDefault();
       }
-
-      event.preventDefault();
-      setIsSpacePanning(true);
     }
 
     function handleKeyUp(event) {
-      if (event.code !== "Space") {
-        return;
-      }
-
-      setIsSpacePanning(false);
+      if (event.code === "Space") setIsSpacePanning(false);
     }
 
     function handleWindowBlur() {
@@ -299,31 +193,29 @@ export function useDrawingTool({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [enabled]);
+  }, [bumpStrokeSize, enabled]);
 
   return {
     activeTool,
     drawings: normalizedDrawings,
-    draftLine,
-    getDraftLine,
-    subscribeDraftLine,
+    engineRef,
     isHandToolActive,
-    isLineToolActive,
+    isStrokeToolActive,
     isSpacePanning,
     isTextToolActive,
-    lineStyle,
     selectedTool,
-    selectedObjectId,
-    setStrokeColor,
-    strokeColor,
+    strokeSelection,
+    propsTarget,
+    toolConfig,
+    handleCommit,
     handleToolModeChange,
-    handleSelectObject,
-    handleStageContextMenu,
-    handleStagePointerCancel,
-    handleStagePointerDown,
-    handleStagePointerMove,
-    handleStagePointerUp,
-    clearDraftLine,
+    setStrokeSelection,
+    setStrokeColor,
+    setStrokeSizeIndex,
     deleteSelectedObject,
+    nudgeSelectedStrokes,
+    duplicateSelectedStrokes,
+    clearStrokeSelection,
+    handleEscape,
   };
 }

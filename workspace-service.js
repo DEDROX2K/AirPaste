@@ -447,7 +447,7 @@ function normalizeUiState(uiState) {
     ...safe,
     version: DEFAULT_UI_STATE.version,
     selectedSection: ["home", "recents", "starred"].includes(safe.selectedSection) ? safe.selectedSection : "home",
-    homeView: ["grid", "list", "sheets", "cards"].includes(safe.homeView) ? safe.homeView : "grid",
+    homeView: ["grid", "list", "sheets", "cards", "files"].includes(safe.homeView) ? safe.homeView : "grid",
     sortBy: ["updatedAt", "name", "type"].includes(safe.sortBy) ? safe.sortBy : "updatedAt",
     filter: ["all", "canvases", "assets", "starred"].includes(safe.filter) ? safe.filter : "all",
     currentFolderPath: normalizeFolder(safe.currentFolderPath),

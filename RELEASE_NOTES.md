@@ -1,6 +1,6 @@
-# AirPaste v1.0.0 Beta 3
+# AirPaste v1.0.0 Beta 4
 
-Version `1.0.0-beta.3` · Windows · November 2026
+Version `1.0.0-beta.4` · Windows · November 2026
 
 ## Listing
 
@@ -17,15 +17,13 @@ AirPaste is a local-first desktop canvas for everything you save. Paste links, i
 
 ## What's in this beta
 
-- **Floating window.** The canvas is a rounded card on a calm grey background, with the title bar, tabs and dock built around it.
-- **New title bar.** Live status pill, home logo, live date and time, centred tabs that open and close smoothly, and custom window buttons.
-- **Live status pill.** Pulses green when a tile is created, red when one is deleted, and yellow when you edit text and click away.
-- **Dock on the canvas edge.** Add menu, view toggle and tools sit in a cradle on the canvas's bottom edge.
-- **Floating pages panel.** Pages float over the top-left of the canvas.
-- **Performance toggle.** Live fps in the title bar; click it for the full performance panel.
-- **Tiles.** Links, images, files, sticky notes, checklists, racks, text, GitHub and weather tiles, with tethering and version history.
-- **Splash screen.** Recent files and quick start, with a rotating photo.
-- **Custom Windows installer.** Per-user install, no admin needed, with Start menu and desktop shortcuts and a clean uninstaller.
+- **Drawing tools.** Line, Ink pen and Highlighter in the dock, with colours and sizes. Strokes are saved with the canvas and work with undo.
+- **3D stacks.** Select tiles and press G: they fly into a 3D pile you can move as one. Double-click or Shift+G to unstack.
+- **Curved view.** A toggle next to Home bends the canvas like a shallow dome, with a soft blurred rim.
+- **Files view on Home.** A third view next to List and Cards: every canvas is a folder holding its real tiles, and folders spread their canvases out when opened.
+- **Pixel trail.** A small trail of fading pixels follows the pointer over the grey window frame.
+- **Cleaner top bar.** Borderless buttons. Home opens in Cards view.
+- **New installer.** A minimal, Apple-style setup window.
 
 ## Known limitations
 
@@ -35,6 +33,6 @@ AirPaste is a local-first desktop canvas for everything you save. Paste links, i
 
 ## Install
 
-Run `AirPaste Setup 1.0.0-beta.1.exe`. It installs to `%LOCALAPPDATA%\Programs\AirPaste`. Uninstall from Windows Settings → Apps, or Start → Uninstall AirPaste. Your canvases are kept.
+Run `AirPaste Setup 1.0.0-beta.4.exe`. It installs to `%LOCALAPPDATA%\Programs\AirPaste`. Uninstall from Windows Settings → Apps, or Start → Uninstall AirPaste. Your canvases are kept.
 
 Report bugs: https://github.com/DEDROX2K/AirPaste/issues

@@ -1,0 +1,486 @@
+/* Files view (HomeFilesView.jsx): kraft folder objects. The folder outlines
+   are clip-paths injected once from the component (they're generated from
+   the point lists there). */
+.ap-files-grid {
+  --ap-fo-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 84px 40px;
+  padding: 26px 6px 90px;
+}
+
+.ap-fo {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  animation: ap-fo-drop 700ms var(--ap-fo-spring) both;
+  animation-delay: calc(var(--ap-stagger, 0) * 35ms);
+}
+
+.ap-fo:hover,
+.ap-fo:focus-within {
+  z-index: 10;
+}
+
+@keyframes ap-fo-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) rotate(-1.5deg) scale(1.03);
+  }
+}
+
+.ap-fo__hit {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: var(--ap-cursor-pointer, pointer);
+  text-align: center;
+}
+
+/* The app's global button styles (SimpleUi.css, !important) would paint a
+   hover fill and focus ring over the whole folder; the folder draws its own. */
+.ap-files-grid .ap-fo__hit,
+.ap-files-grid .ap-fo__hit:hover:not(:disabled) {
+  border-radius: 0 !important;
+  background: transparent !important;
+  transform: none !important;
+}
+
+.ap-files-grid .ap-fo__hit:focus-visible {
+  outline: none !important;
+}
+
+.ap-fo__hit:focus-visible .ap-fo__box {
+  outline: 2px solid var(--ap-accent, #3355ff);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.ap-fo__box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 372 / 236;
+  transition: transform 350ms var(--ap-fo-spring);
+}
+
+.ap-fo__hit:active .ap-fo__box {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+/* The folder, drawn at 404 x 262 and scaled to the box (--k = width / 372). */
+.ap-kf {
+  position: absolute;
+  left: calc(-14px * var(--k, 0.6));
+  top: calc(-22px * var(--k, 0.6));
+  width: 404px;
+  height: 262px;
+  transform: scale(var(--k, 0.6));
+  transform-origin: 0 0;
+}
+
+.ap-kf__back,
+.ap-kf__front {
+  position: absolute;
+  inset: 0;
+  transition: clip-path 550ms var(--ap-fo-spring);
+}
+
+.ap-kf__back {
+  z-index: 0;
+  background: radial-gradient(60% 62% at 52% 58%, #a57a4f 0%, #b08860 45%, #d2af8b 100%);
+}
+
+.ap-kf__front {
+  z-index: 2;
+  background: radial-gradient(70% 70% at 50% 56%, rgba(172, 131, 89, 0.8) 0%, rgba(190, 150, 110, 0.78) 55%, rgba(222, 193, 162, 0.82) 100%);
+  backdrop-filter: blur(16px);
+}
+
+/* A canvas (file) is light grey; a folder keeps the brown kraft. */
+.ap-kf--file .ap-kf__back {
+  background: radial-gradient(60% 62% at 52% 58%, #bdbdc0 0%, #c9c9cc 45%, #e1e1e3 100%);
+}
+
+.ap-kf--file .ap-kf__front {
+  background: radial-gradient(70% 70% at 50% 56%, rgba(196, 196, 200, 0.8) 0%, rgba(210, 210, 213, 0.78) 55%, rgba(232, 232, 234, 0.84) 100%);
+}
+
+:root[data-graphics="lite"] .ap-kf--file .ap-kf__front {
+  background: radial-gradient(70% 70% at 50% 56%, #cacace 0%, #d6d6d9 55%, #e8e8ea 100%);
+}
+
+.ap-kf__in {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* A canvas's tiles sit within the back panel (x 38–350, y 29–255 of the
+   404 x 262 drawing). */
+.ap-kf__tiles {
+  position: absolute;
+  left: 11%;
+  top: 12%;
+  width: 74%;
+  height: 82%;
+  /* Tall tiles never hang below the folder; they may still peek out the top. */
+  clip-path: inset(-120% -6% 0 -6%);
+}
+
+/* Contents: coloured tiles (a canvas) or paper sheets (a folder). A few
+   peek out when closed; on hover the rest fill in and everything rises. */
+.ap-fo__it {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  border-radius: 10px;
+  background: var(--c);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  opacity: var(--o0);
+  transform: translateY(0) rotate(var(--r)) scale(var(--s0));
+  transform-origin: 50% 100%;
+  transition: transform 250ms ease, opacity 200ms ease;
+}
+
+/* A real tile (HomeTileCard): sized by the layout, no fill of its own. */
+.ap-fo__it--tile {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Inside a folder a tile is just its picture: no title / description. */
+.ap-fo__it--tile .ap-seren-face__body {
+  display: none !important;
+}
+
+.ap-fo__it--tile .ap-home-tile {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14), 0 6px 14px -8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.ap-fo__it--sheet {
+  overflow: hidden;
+  border-radius: 8px;
+  background: #dcdcdc;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 6px 12px -8px rgba(0, 0, 0, 0.3);
+}
+
+.ap-fo__it--sheet b {
+  display: block;
+  overflow: hidden;
+  padding: 6px 8px;
+  background: #c6c6c6;
+  color: #222;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-fo:hover .ap-fo__it,
+.ap-fo:focus-within .ap-fo__it {
+  opacity: 1;
+  transform: translateY(var(--rise)) rotate(var(--r2)) scale(1);
+  transition: transform 500ms var(--ap-fo-spring) var(--d), opacity 150ms linear var(--d);
+}
+
+/* Little motion flicks round the folder on hover. */
+.ap-fo__dash {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1.2px rgba(0, 0, 0, 0.35));
+}
+
+.ap-fo__dash path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 12 30;
+  stroke-dashoffset: 12;
+  opacity: 0;
+}
+
+.ap-fo:hover .ap-fo__dash path,
+.ap-fo:focus-within .ap-fo__dash path {
+  animation: ap-fo-flick 550ms ease-out forwards;
+  animation-delay: calc(50ms + var(--k) * 50ms);
+}
+
+@keyframes ap-fo-flick {
+  0% { opacity: 1; stroke-dashoffset: 12; }
+  55% { opacity: 1; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: -12; }
+}
+
+/* Name under the folder; the meta line slides in on hover. */
+.ap-fo__tag {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 0;
+  right: 0;
+  display: block;
+  text-align: center;
+}
+
+.ap-fo__name {
+  display: block;
+  overflow: hidden;
+  padding: 0 6px;
+  color: var(--ap-text-primary);
+  font-family: var(--ap-font-display, inherit);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-fo__star {
+  display: inline-block;
+  margin-right: 4px;
+  color: #f5a400;
+  vertical-align: -1px;
+}
+
+.ap-fo__meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--ap-text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 200ms, transform 350ms var(--ap-fo-spring);
+}
+
+.ap-fo:hover .ap-fo__meta,
+.ap-fo:focus-within .ap-fo__meta {
+  opacity: 1;
+  transform: none;
+}
+
+.ap-fo__more {
+  position: absolute;
+  top: 2%;
+  right: max(0px, calc(50% - 148px));
+  z-index: 7;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.ap-fo:hover .ap-fo__more,
+.ap-fo:focus-within .ap-fo__more {
+  opacity: 1;
+}
+
+.ap-fo__more-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--ap-surface-raised, #fff);
+  color: var(--ap-text-secondary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.ap-fo__more-btn:hover {
+  color: var(--ap-text-primary);
+}
+
+/* ─── A folder opened: its canvases spread over the page ─── */
+.ap-spread-blur {
+  position: fixed;
+  inset: 0;
+  z-index: 1999;
+  background: rgba(238, 238, 240, 0.5);
+  backdrop-filter: blur(30px) saturate(1.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease;
+}
+
+.ap-spread-blur.is-on {
+  opacity: 1;
+}
+
+.ap-spread {
+  --ap-fo-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.ap-spread__scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.ap-spread__abs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: transform 700ms var(--ap-fo-spring), opacity 300ms ease;
+  transition-delay: var(--d, 0ms);
+  will-change: transform;
+}
+
+.ap-spread[data-phase="start"] .ap-spread__abs {
+  transition: none;
+}
+
+.ap-spread__folder {
+  z-index: 2;
+  cursor: var(--ap-cursor-pointer, pointer);
+}
+
+.ap-spread__folder .ap-fo__dash {
+  display: none;
+}
+
+.ap-spread__name {
+  position: absolute;
+  left: 46px;
+  right: 60px;
+  bottom: 34px;
+  overflow: hidden;
+  color: rgba(46, 26, 6, 0.85);
+  font-family: var(--ap-font-display, inherit);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-spread__name small {
+  display: block;
+  margin-top: 8px;
+  color: rgba(50, 28, 8, 0.62);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.ap-spread__paper {
+  z-index: 3;
+  cursor: var(--ap-cursor-pointer, pointer);
+  outline: none;
+}
+
+.ap-spread__paper:hover,
+.ap-spread__paper:focus-visible {
+  z-index: 5;
+}
+
+.ap-spread__sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #dcdcdc;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 18px 34px -16px rgba(0, 0, 0, 0.35);
+  transition: transform 350ms var(--ap-fo-spring), box-shadow 300ms;
+}
+
+.ap-spread__paper:hover .ap-spread__sheet,
+.ap-spread__paper:focus-visible .ap-spread__sheet {
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 30px 50px -18px rgba(0, 0, 0, 0.45);
+}
+
+.ap-spread__paper:focus-visible .ap-spread__sheet {
+  outline: 2px solid var(--ap-accent, #3355ff);
+  outline-offset: 3px;
+}
+
+.ap-spread__head {
+  overflow: hidden;
+  padding: 7px 10px;
+  background: #c6c6c6;
+  color: #1c1c1e;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-spread__body {
+  position: relative;
+  flex: 1;
+}
+
+.ap-spread__meta {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  color: #7a7a7e;
+  font-size: 11.5px;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+.ap-spread__paper:hover .ap-spread__meta,
+.ap-spread__paper:focus-visible .ap-spread__meta {
+  opacity: 1;
+}
+
+.ap-spread__x {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ap-surface-raised, #fff);
+  color: var(--ap-text-secondary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  cursor: var(--ap-cursor-pointer, pointer);
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms;
+}
+
+:root[data-graphics="lite"] .ap-kf__front {
+  background: radial-gradient(70% 70% at 50% 56%, #b8946d 0%, #c6a582 55%, #dec1a2 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-fo,
+  .ap-fo *,
+  .ap-spread,
+  .ap-spread * {
+    animation: none !important;
+    transition-duration: 10ms !important;
+    transition-delay: 0s !important;
+  }
+}

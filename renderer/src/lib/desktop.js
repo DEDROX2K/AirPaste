@@ -160,6 +160,8 @@ export const desktop = {
     minimize: () => electronBridge.minimize?.(),
     maximize: () => electronBridge.maximize?.(),
     close: () => electronBridge.close?.(),
+    // "light" | "dark": tints the native window buttons (Windows) to the bar.
+    setControlsTone: (tone) => electronBridge.setControlsTone?.(tone),
     // Full screen while Constellation is open (restored on exit).
     enterImmersive: () => electronBridge.enterImmersive?.(),
     exitImmersive: () => electronBridge.exitImmersive?.(),

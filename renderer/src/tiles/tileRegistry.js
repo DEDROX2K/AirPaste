@@ -12,6 +12,7 @@ import LinkTile from "../components/tiles/LinkTile";
 import PaperNoteTile from "../components/tiles/PaperNoteTile";
 import ProgressTile from "../components/tiles/ProgressTile";
 import RackTile from "../components/tiles/RackTile";
+import MergeNoteTile from "../components/tiles/MergeNoteTile";
 import StickyNoteTile from "../components/tiles/StickyNoteTile";
 import NotedLinkTile from "../components/tiles/NotedLinkTile";
 import StickyCodeFileTile from "../components/tiles/StickyCodeFileTile";
@@ -164,6 +165,13 @@ const tileRegistry = {
     displayName: "Rack Tile",
     status: "stable",
     Component: RackTile,
+  },
+  // The frame + short note of a merged group (tiles/merge/model.js).
+  [TILE_TYPES.MERGE_NOTE]: {
+    type: TILE_TYPES.MERGE_NOTE,
+    displayName: "Merged Tiles",
+    status: "stable",
+    Component: MergeNoteTile,
   },
   [TILE_TYPES.PAPER_NOTE]: {
     type: TILE_TYPES.PAPER_NOTE,

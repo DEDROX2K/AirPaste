@@ -47,7 +47,8 @@ import { formatDropRejectionMessage, formatDropSuccessMessage } from "../import/
 import { getImageTileSize } from "../import/imageSizing";
 import { getDropSpreadCenters } from "../import/dropTileLayout";
 import { getRenderableTileEntries } from "../layout/tileLayout";
-import { stackCards, unstackCards } from "../stack/tileStack";
+import { moveStackCards, stackCards, unstackCards } from "../stack/tileStack";
+import { mergeCards, unmergeGroup } from "../../tiles/merge/model";
 import { LINK_CARD_SIZE } from "../../tiles/link/model";
 import { getArticleModePatch, getStandardLinkTileSize } from "../../tiles/link/articleView";
 import { getWebclipHeight } from "../../tiles/link/webclipCrop";
@@ -1068,6 +1069,54 @@ export function useCanvasCommands({
     return true;
   }, [commitWorkspaceChange, log]);
 
+  const moveStack = useCallback((stackId, dx, dy) => {
+    if (!stackId || (!dx && !dy)) {
+      return false;
+    }
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const cards = moveStackCards(page.cards, stackId, dx, dy);
+      return cards === page.cards ? page : { ...page, cards };
+    }));
+    return true;
+  }, [commitWorkspaceChange]);
+
+  // Merged groups (tiles/merge/model.js): a tile dropped on another snaps
+  // into a group with it (or joins the group it's in); Unmerge splits one.
+  const mergeTiles = useCallback((dragTileId, targetTileId) => {
+    let frameId = null;
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const result = mergeCards(page.cards, dragTileId, targetTileId);
+
+      if (!result) {
+        return page;
+      }
+
+      frameId = result.frameId;
+      return { ...page, cards: result.cards };
+    }));
+
+    if (frameId) {
+      log("success", "Merged tiles", { frameId, dragTileId, targetTileId });
+    }
+
+    return frameId;
+  }, [commitWorkspaceChange, log]);
+
+  const unmergeTiles = useCallback((frameId) => {
+    if (!frameId) {
+      return false;
+    }
+
+    commitWorkspaceChange((current) => updateCurrentActivePage(current, (page) => {
+      const cards = unmergeGroup(page.cards, frameId);
+      return cards ? { ...page, cards } : page;
+    }));
+    log("info", "Unmerged tiles", { frameId });
+    return true;
+  }, [commitWorkspaceChange, log]);
+
   const moveGroups = useCallback((groupIds, delta) => {
     const normalizedGroupIds = Array.isArray(groupIds)
       ? [...new Set(groupIds.filter((groupId) => typeof groupId === "string" && groupId.trim().length > 0))]
@@ -1758,6 +1807,9 @@ export function useCanvasCommands({
     createFolderFromSelection,
     stackTiles,
     unstackTiles,
+    moveStack,
+    mergeTiles,
+    unmergeTiles,
     addTileToRack: addTileToRackCommand,
     addTilesToRack: addTilesToRackCommand,
     removeTileFromRack: removeTileFromRackCommand,
@@ -1815,6 +1867,9 @@ export function useCanvasCommands({
     createFolderFromSelection,
     stackTiles,
     unstackTiles,
+    moveStack,
+    mergeTiles,
+    unmergeTiles,
     deleteTile,
     deleteTiles,
     deleteGroups,

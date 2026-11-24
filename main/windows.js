@@ -10,6 +10,12 @@ const WINDOW_CLOSE_ANIMATION_MS = 190;
 const WINDOW_CLOSE_SAFETY_TIMEOUT_MS = 4000;
 
 // ~120Hz cursor poll while the titlebar drags the window.
+// Glyph colours for the native window buttons (Windows), by title bar tone:
+// soft greys that sit quietly on the bar rather than stand out.
+const WINDOW_CONTROLS_SYMBOL_COLORS = {
+  light: "#8a8a8e",
+  dark: "#b4b4b8",
+};
 const WINDOW_MOVE_POLL_MS = 8;
 const WINDOW_MOVE_THRESHOLD_PX = 3;
 
@@ -95,8 +101,20 @@ async function createWindow() {
     thickFrame: true,
     hasShadow: true,
     roundedCorners: true,
-    // No titleBarStyle/titleBarOverlay: those ask the OS for native window
-    // buttons. The renderer draws its own (TopTabBar.jsx).
+    // Windows: the system's own minimize / maximize / close buttons, made to
+    // blend into the app's title bar -- a transparent background (the bar
+    // shows through) and soft grey glyphs, as tall as the bar (44px). The
+    // renderer keeps the bar's content clear of them (TopTabBar.css) and
+    // lightens the glyphs on dark themes (window:setControlsTone). macOS
+    // draws its traffic lights in the page instead.
+    ...(process.platform === "win32" ? {
+      titleBarStyle: "hidden",
+      titleBarOverlay: {
+        color: "#00000000",
+        symbolColor: WINDOW_CONTROLS_SYMBOL_COLORS.light,
+        height: 44,
+      },
+    } : {}),
     show: false,
     title: "AirPaste",
     ...(windowIconPath ? { icon: windowIconPath } : {}),
@@ -187,6 +205,17 @@ function registerIpc() {
     fullScreenBeforeImmersive = null;
   });
   ipcMain.on("window:close", () => context.mainWindow?.close());
+  // The native window buttons' glyph colour follows the title bar's tone.
+  ipcMain.on("window:setControlsTone", (_event, payload = {}) => {
+    const mainWindow = context.mainWindow;
+    if (process.platform !== "win32" || !mainWindow || mainWindow.isDestroyed()) return;
+    const symbolColor = WINDOW_CONTROLS_SYMBOL_COLORS[payload.tone] ?? WINDOW_CONTROLS_SYMBOL_COLORS.light;
+    try {
+      mainWindow.setTitleBarOverlay({ color: "#00000000", symbolColor, height: 44 });
+    } catch {
+      // Older Electron or no overlay: nothing to tint.
+    }
+  });
   ipcMain.on("window:resizeStart", (_event, payload = {}) => {
     const mainWindow = context.mainWindow;
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMaximized()) {

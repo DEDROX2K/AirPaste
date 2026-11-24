@@ -21,6 +21,7 @@ const TILE_ACTION_ORDER = [
   "copy-codex-report",
   "rack-style",
   "stack",
+  "unmerge",
   "tether",
   "untether",
   "rack",
@@ -50,6 +51,8 @@ export function buildRadialMenuActions({
   showEditText = false,
   showFileColor = false,
   linkNoteState = null,
+  // The merged group the tile is in (or is the frame of): offers Unmerge.
+  mergeFrameId = null,
   // "long" | "short": the open note's variant (only read when it's open).
   linkNoteVariant = "long",
   showTether = false,
@@ -233,6 +236,19 @@ export function buildRadialMenuActions({
         label,
         kind: "action",
         onTrigger: handlers.onLinkNoteVariant,
+      };
+    }
+
+    if (id === "unmerge") {
+      if (!mergeFrameId) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Unmerge",
+        kind: "action",
+        onTrigger: handlers.onUnmerge,
       };
     }
 

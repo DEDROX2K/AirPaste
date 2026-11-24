@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { recordDerivedMetric } from "../../lib/perf";
+import { MERGE_NOTE_CARD_TYPE } from "../../tiles/merge/model";
 import {
   getRackSlotCount,
   RACK_CARD_TYPE,
@@ -76,6 +77,7 @@ function reuseEqualValues(previousById, nextById, isEqual) {
 export function useTileLayoutSystem({
   tiles,
   rackDropPreview,
+  mergeDropPreview = null,
   selectedTileIds,
   hoveredTileId,
   focusedTileId,
@@ -157,15 +159,33 @@ export function useTileLayoutSystem({
     return layers;
   }, [canvasEntries]);
   const tileLayerById = useMemo(() => {
-    return Object.fromEntries(visibleCanvasEntries.map((entry) => [
-      entry.tile.id,
-      getTileLayer((baseLayerById.get(entry.tile.id) ?? 1) - 1, {
-        isDragging: draggingTileIdSet.has(entry.tile.id),
-        isSelected: selectedTileIdSet.has(entry.tile.id),
-        isFocused: focusedTileId === entry.tile.id,
-      }),
-    ]));
+    return Object.fromEntries(visibleCanvasEntries.map((entry) => {
+      // A merged group's frame never rises over its own tiles: selecting
+      // it (or writing in its note) doesn't lift it like other tiles.
+      const isMergeFrame = entry.tile.type === MERGE_NOTE_CARD_TYPE;
+
+      return [
+        entry.tile.id,
+        getTileLayer((baseLayerById.get(entry.tile.id) ?? 1) - 1, {
+          isDragging: draggingTileIdSet.has(entry.tile.id),
+          isSelected: !isMergeFrame && selectedTileIdSet.has(entry.tile.id),
+          isFocused: !isMergeFrame && focusedTileId === entry.tile.id,
+        }),
+      ];
+    }));
   }, [baseLayerById, draggingTileIdSet, focusedTileId, selectedTileIdSet, visibleCanvasEntries]);
+
+  // The tile a drop would merge with, and its group's frame if it has one.
+  const mergeTargetIds = useMemo(() => {
+    const targetId = mergeDropPreview?.targetTileId;
+
+    if (!targetId) {
+      return null;
+    }
+
+    const target = visibleCanvasEntries.find((entry) => entry.tile.id === targetId)?.tile;
+    return new Set([targetId, target?.mergeId].filter(Boolean));
+  }, [mergeDropPreview, visibleCanvasEntries]);
 
   const tileMetaById = useMemo(() => {
     const start = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -185,7 +205,7 @@ export function useTileLayoutSystem({
           isMultiSelect: selectedTileIds.length > 1 && selectedTileIdSet.has(tile.id),
           isFocused: focusedTileId === tile.id,
           isHovered: hoveredTileId === tile.id,
-          isMergeTarget: false,
+          isMergeTarget: mergeTargetIds?.has(tile.id) === true,
         };
         const interactionState = getTileInteractionState(flags);
 
@@ -217,6 +237,7 @@ export function useTileLayoutSystem({
     draggingTileIdSet,
     focusedTileId,
     hoveredTileId,
+    mergeTargetIds,
     rackDropPreview,
     selectedTileIdSet,
     selectedTileIds.length,

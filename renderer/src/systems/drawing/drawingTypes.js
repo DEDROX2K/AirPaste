@@ -1,57 +1,55 @@
-export const DRAWINGS_SCHEMA_VERSION = 1;
+// Canvas drawings: Line, Ink pen and Highlighter strokes, stored per page as
+// `page.drawings = { version, objects: [stroke] }` in world coordinates.
+//
+// v2 stroke: { id, type: "stroke", tool: "line" | "ink" | "hl", color, size,
+//              points: [[x, y, f], ...] }   (f = ink width factor, 1 otherwise)
+// v1 objects ({ type: "line", points: [x1, y1, x2, y2], style }) are migrated
+// to v2 line strokes when read.
+export const DRAWINGS_SCHEMA_VERSION = 2;
+export const DRAWING_OBJECT_TYPE_STROKE = "stroke";
 export const DRAWING_OBJECT_TYPE_LINE = "line";
+
 export const DRAWING_TOOL_MODE_SELECT = "select";
 export const DRAWING_TOOL_MODE_HAND = "hand";
 export const DRAWING_TOOL_MODE_TEXT = "text";
-export const DRAWING_TOOL_MODE_LINE = "line";
 export const DRAWING_TOOL_MODE_TETHER = "tether";
+export const DRAWING_TOOL_MODE_LINE = "line";
+export const DRAWING_TOOL_MODE_INK = "ink";
+export const DRAWING_TOOL_MODE_HIGHLIGHTER = "hl";
 
-export const DEFAULT_DRAWING_STYLE = Object.freeze({
-  stroke: "#111111",
-  strokeWidth: 3,
-  opacity: 1,
+export const STROKE_TOOLS = Object.freeze([
+  DRAWING_TOOL_MODE_LINE,
+  DRAWING_TOOL_MODE_INK,
+  DRAWING_TOOL_MODE_HIGHLIGHTER,
+]);
+
+export function isStrokeTool(mode) {
+  return STROKE_TOOLS.includes(mode);
+}
+
+const INK_PALETTE = Object.freeze(["#1E1E1E", "#F24822", "#0D99FF", "#14AE5C", "#9747FF", "#FFFFFF"]);
+
+export const STROKE_TOOL_CONFIG = Object.freeze({
+  line: Object.freeze({ name: "Line", palette: INK_PALETTE, sizes: Object.freeze([2, 4, 8]), color: "#1E1E1E", sizeIdx: 1 }),
+  ink: Object.freeze({ name: "Ink pen", palette: INK_PALETTE, sizes: Object.freeze([6, 10, 16]), color: "#1E1E1E", sizeIdx: 1 }),
+  hl: Object.freeze({
+    name: "Highlighter",
+    palette: Object.freeze(["#FFD400", "#66E07A", "#FF8AD8", "#5BC7FF", "#FFA24C"]),
+    sizes: Object.freeze([14, 22, 34]),
+    color: "#FFD400",
+    sizeIdx: 1,
+  }),
 });
 
-const MIN_LINE_POINT_COUNT = 4;
-const MAX_STROKE_WIDTH = 96;
-
-function nowTimestampSeconds() {
-  return Math.floor(Date.now() / 1000);
-}
+const MAX_STROKE_SIZE = 96;
+const DEFAULT_COLOR = "#1E1E1E";
 
 function createFallbackDrawingId(fallbackIndex = 0) {
   return `draw_${Date.now().toString(36)}_${Math.abs(fallbackIndex).toString(36)}`;
 }
 
-function clamp(value, minValue, maxValue) {
-  return Math.max(minValue, Math.min(maxValue, value));
-}
-
-function toFiniteNumber(value, fallbackValue) {
-  return Number.isFinite(value) ? value : fallbackValue;
-}
-
-function normalizeStroke(stroke) {
-  return typeof stroke === "string" && stroke.trim().length > 0
-    ? stroke.trim()
-    : DEFAULT_DRAWING_STYLE.stroke;
-}
-
-function normalizeTimestamp(value, fallbackValue) {
-  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : fallbackValue;
-}
-
-function getCryptoProvider() {
-  if (typeof globalThis === "undefined") {
-    return null;
-  }
-
-  const { crypto } = globalThis;
-  return crypto ?? null;
-}
-
 export function createDrawingId(fallbackIndex = 0) {
-  const provider = getCryptoProvider();
+  const provider = typeof globalThis !== "undefined" ? globalThis.crypto : null;
 
   if (typeof provider?.randomUUID === "function") {
     return `draw_${provider.randomUUID().replaceAll("-", "")}`;
@@ -67,67 +65,110 @@ export function createEmptyDrawings() {
   };
 }
 
-export function normalizeDrawingStyle(style) {
-  const safeStyle = style && typeof style === "object" ? style : {};
-
-  return {
-    stroke: normalizeStroke(safeStyle.stroke),
-    strokeWidth: clamp(toFiniteNumber(safeStyle.strokeWidth, DEFAULT_DRAWING_STYLE.strokeWidth), 0.5, MAX_STROKE_WIDTH),
-    opacity: clamp(toFiniteNumber(safeStyle.opacity, DEFAULT_DRAWING_STYLE.opacity), 0, 1),
-  };
+function clamp(value, minValue, maxValue) {
+  return Math.max(minValue, Math.min(maxValue, value));
 }
 
-export function normalizeDrawingMeta(meta, fallbackCreatedAt = nowTimestampSeconds()) {
-  const safeMeta = meta && typeof meta === "object" ? meta : {};
-  const createdAt = normalizeTimestamp(safeMeta.createdAt, fallbackCreatedAt);
-
-  return {
-    createdAt,
-    updatedAt: normalizeTimestamp(safeMeta.updatedAt, createdAt),
-  };
+function isColor(value) {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 64;
 }
 
-function normalizeLinePoints(points) {
-  const safePoints = Array.isArray(points) ? points : [];
+function isPoint(point) {
+  return Array.isArray(point)
+    && point.length === 3
+    && Number.isFinite(point[0])
+    && Number.isFinite(point[1])
+    && Number.isFinite(point[2]);
+}
 
-  if (safePoints.length < MIN_LINE_POINT_COUNT) {
+// Already a valid v2 stroke: returned as-is, so unchanged strokes keep their
+// identity through a normalize and the renderer can skip them by reference.
+function isNormalizedStroke(object) {
+  return object.type === DRAWING_OBJECT_TYPE_STROKE
+    && typeof object.id === "string"
+    && object.id.length > 0
+    && isStrokeTool(object.tool)
+    && isColor(object.color)
+    && Number.isFinite(object.size)
+    && object.size > 0
+    && object.size <= MAX_STROKE_SIZE
+    && Array.isArray(object.points)
+    && object.points.length > 0
+    && object.points.every(isPoint);
+}
+
+function normalizeStrokePoints(points) {
+  if (!Array.isArray(points)) {
     return null;
   }
 
-  const normalizedPoints = safePoints
-    .slice(0, MIN_LINE_POINT_COUNT)
-    .map((value) => toFiniteNumber(value, 0));
+  const normalized = [];
 
-  if (normalizedPoints.some((value) => !Number.isFinite(value))) {
+  for (const point of points) {
+    if (!Array.isArray(point)) continue;
+    const x = Number(point[0]);
+    const y = Number(point[1]);
+    const f = Number.isFinite(Number(point[2])) ? Number(point[2]) : 1;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      normalized.push([x, y, clamp(f, 0.05, 4)]);
+    }
+  }
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+// v1: { type: "line", points: [x1, y1, x2, y2], style: { stroke, strokeWidth } }
+function migrateLegacyLine(object, fallbackIndex) {
+  const flat = Array.isArray(object.points) ? object.points.slice(0, 4).map(Number) : [];
+
+  if (flat.length < 4 || flat.some((value) => !Number.isFinite(value))) {
     return null;
   }
 
-  return normalizedPoints;
+  const style = object.style && typeof object.style === "object" ? object.style : {};
+
+  return {
+    id: typeof object.id === "string" && object.id.trim().length > 0 ? object.id : createDrawingId(fallbackIndex),
+    type: DRAWING_OBJECT_TYPE_STROKE,
+    tool: DRAWING_TOOL_MODE_LINE,
+    color: isColor(style.stroke) ? style.stroke.trim() : DEFAULT_COLOR,
+    size: clamp(Number.isFinite(style.strokeWidth) ? style.strokeWidth : 3, 0.5, MAX_STROKE_SIZE),
+    points: [[flat[0], flat[1], 1], [flat[2], flat[3], 1]],
+  };
 }
 
 export function normalizeDrawingObject(object, fallbackIndex = 0) {
-  const safeObject = object && typeof object === "object" ? object : null;
-
-  if (!safeObject || safeObject.type !== DRAWING_OBJECT_TYPE_LINE) {
+  if (!object || typeof object !== "object") {
     return null;
   }
 
-  const points = normalizeLinePoints(safeObject.points);
+  if (isNormalizedStroke(object)) {
+    return object;
+  }
+
+  if (object.type === DRAWING_OBJECT_TYPE_LINE || (!object.type && !object.tool)) {
+    return migrateLegacyLine(object, fallbackIndex);
+  }
+
+  if (object.type !== DRAWING_OBJECT_TYPE_STROKE || !isStrokeTool(object.tool)) {
+    return null;
+  }
+
+  const points = normalizeStrokePoints(object.points);
 
   if (!points) {
     return null;
   }
 
-  const createdAt = normalizeTimestamp(safeObject?.meta?.createdAt, nowTimestampSeconds());
-
   return {
-    id: typeof safeObject.id === "string" && safeObject.id.trim().length > 0
-      ? safeObject.id
-      : createDrawingId(fallbackIndex),
-    type: DRAWING_OBJECT_TYPE_LINE,
-    points,
-    style: normalizeDrawingStyle(safeObject.style),
-    meta: normalizeDrawingMeta(safeObject.meta, createdAt),
+    id: typeof object.id === "string" && object.id.trim().length > 0 ? object.id : createDrawingId(fallbackIndex),
+    type: DRAWING_OBJECT_TYPE_STROKE,
+    tool: object.tool,
+    color: isColor(object.color) ? object.color.trim() : DEFAULT_COLOR,
+    size: clamp(Number.isFinite(object.size) ? object.size : STROKE_TOOL_CONFIG[object.tool].sizes[1], 0.5, MAX_STROKE_SIZE),
+    points: object.tool === DRAWING_TOOL_MODE_LINE && points.length === 1
+      ? [points[0], [points[0][0] + 1, points[0][1], 1]]
+      : points,
   };
 }
 
@@ -135,11 +176,20 @@ export function normalizeDrawings(drawings) {
   const safeDrawings = drawings && typeof drawings === "object"
     ? drawings
     : createEmptyDrawings();
-  const objects = Array.isArray(safeDrawings.objects)
-    ? safeDrawings.objects
-      .map((object, index) => normalizeDrawingObject(object, index))
-      .filter(Boolean)
-    : [];
+  const sourceObjects = Array.isArray(safeDrawings.objects) ? safeDrawings.objects : [];
+  const objects = sourceObjects
+    .map((object, index) => normalizeDrawingObject(object, index))
+    .filter(Boolean);
+
+  // Nothing changed: hand back the same object, so memoised consumers
+  // don't see a new drawings value.
+  if (
+    safeDrawings.version === DRAWINGS_SCHEMA_VERSION
+    && objects.length === sourceObjects.length
+    && objects.every((object, index) => object === sourceObjects[index])
+  ) {
+    return safeDrawings;
+  }
 
   return {
     version: DRAWINGS_SCHEMA_VERSION,
@@ -147,14 +197,36 @@ export function normalizeDrawings(drawings) {
   };
 }
 
-export function createLineDrawingObject({ points, style, id, meta } = {}) {
-  const timestamp = nowTimestampSeconds();
+function arePointsEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
 
-  return normalizeDrawingObject({
-    id: typeof id === "string" && id.trim().length > 0 ? id : createDrawingId(0),
-    type: DRAWING_OBJECT_TYPE_LINE,
-    points: Array.isArray(points) ? points : null,
-    style: normalizeDrawingStyle(style),
-    meta: normalizeDrawingMeta(meta, timestamp),
-  });
+  for (let index = 0; index < a.length; index += 1) {
+    const p = a[index];
+    const q = b[index];
+    if (p === q) continue;
+    if (Array.isArray(p) && Array.isArray(q)) {
+      if (p.length !== q.length) return false;
+      for (let k = 0; k < p.length; k += 1) {
+        if (p[k] !== q[k]) return false;
+      }
+    } else if (p !== q) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function areDrawingObjectsEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return a.id === b.id
+    && a.type === b.type
+    && a.tool === b.tool
+    && a.color === b.color
+    && a.size === b.size
+    && arePointsEqual(a.points, b.points)
+    && JSON.stringify(a.style ?? null) === JSON.stringify(b.style ?? null);
 }

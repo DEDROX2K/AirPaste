@@ -46,6 +46,7 @@ import {
   TESTING_TILES_CANVAS_FILE_NAME,
   TESTING_TILES_CANVAS_NAME,
 } from "../lib/testingTiles";
+import { areDrawingObjectsEqual } from "../systems/drawing/drawingTypes";
 
 const CANVAS_SAVE_DELAY_MS = 420;
 // Pan/zoom-only changes wait longer: each save still makes the main process
@@ -145,30 +146,6 @@ function areCardsEqual(a, b) {
   return isSameJsonValue(a, b);
 }
 
-function areNumberArraysEqual(a, b) {
-  if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b)) return false;
-  if (a.length !== b.length) return false;
-
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function areDrawingObjectsEqual(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-
-  return a.id === b.id
-    && a.type === b.type
-    && areNumberArraysEqual(a.points, b.points)
-    && areObjectsEqual(a.style, b.style)
-    && areObjectsEqual(a.meta, b.meta);
-}
 
 function areDrawingsEqual(a, b) {
   if (a === b) return true;

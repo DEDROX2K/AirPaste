@@ -38,6 +38,7 @@ import {
   Copy as PixelCopy,
   Download,
   Eye as PixelEye,
+  Feather as PixelFeather,
   FileText as PixelFileText,
   Folder as PixelFolder,
   FolderPlus as PixelFolderPlus,
@@ -287,3 +288,11 @@ export const PaneRight = pixelIcon(pathGlyph(`${FRAME_PATH}M13 5h2v14h-2zM17 10h
 export const SplitRows = pixelIcon(pathGlyph(`${FRAME_PATH}M4 11h16v2H4z`, "SplitRowsGlyph"), "SplitRows");
 export const SwapHorizontal = pixelIcon(PixelArrowsHorizontal, "SwapHorizontal");
 export const Feedback = pixelIcon(PixelMessageText, "Feedback");
+
+// Drawing tools. Line: a pixel diagonal with square end handles
+// (pixelarticons has no line glyph). Ink pen: the feather quill.
+export const DrawLine = pixelIcon(pathGlyph("M3 17h4v4H3zM17 3h4v4h-4zM7 15h2v2H7zM9 13h2v2H9zM11 11h2v2h-2zM13 9h2v2h-2zM15 7h2v2h-2z", "DrawLineGlyph"), "DrawLine");
+export const InkPen = pixelIcon(PixelFeather, "InkPen");
+
+// Curved view: a barrel-shaped frame (sides bowed out) with a centre cross.
+export const CurvedView = pixelIcon(pathGlyph("M7 3h10v2H7zM4 5h3v2H4zM17 5h3v2h-3zM3 7h2v10H3zM19 7h2v10h-2zM4 17h3v2H4zM17 17h3v2h-3zM7 19h10v2H7zM11 8h2v8h-2zM8 11h8v2H8z", "CurvedViewGlyph"), "CurvedView");

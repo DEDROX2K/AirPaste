@@ -18,6 +18,7 @@ export const TILE_TYPES = Object.freeze({
   WEATHER: "weather",
   TEXT_BOX: "text-box",
   RACK: "rack",
+  MERGE_NOTE: "merge-note",
   NODE_GROUP: "node-group",
   GAME: "game",
   MODEL_3D: "3d-model",

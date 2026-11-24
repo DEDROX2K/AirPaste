@@ -68,6 +68,7 @@ import HomeCanvasPeek from "./home/HomeCanvasPeek";
 import { loadPeekEntries } from "../systems/home/homeTiles";
 import { getCanvasThumbnailVersion, useCanvasThumbnailRevision } from "../lib/canvasThumbnail";
 import HomeGroupCard, { GroupNameInput } from "./home/HomeGroupCard";
+import HomeFilesView from "./home/HomeFilesView";
 import { useHomeCardDrag } from "./home/useHomeCardDrag";
 import {
   addToGroup,
@@ -94,6 +95,7 @@ const HOME_SIDEBAR_COLLAPSED_STORAGE_KEY = "airpaste.homeSidebarCollapsed";
 function getResolvedHomeViewMode(uiState) {
   const mode = normalizeHomePreferences(uiState).viewMode;
   if (mode === "list") return "list";
+  if (mode === "files") return "files";
   return "cards";
 }
 
@@ -1190,6 +1192,7 @@ export default function HomeShell() {
   const listButtonRefs = useRef([]);
   const browserViewMode = homeViewMode;
   const isCardsView = browserViewMode === "cards";
+  const isFilesView = browserViewMode === "files";
 
   useEffect(() => {
     const normalizedPreferences = normalizeHomePreferences(homeData.uiState);
@@ -1281,19 +1284,12 @@ export default function HomeShell() {
 
   const persistHomeContext = useCallback((nextNavigation, nextPreferences = homePreferences, scrollTop = null, extraState = {}, forcedViewMode = null) => {
     const nextScrollTop = Number.isFinite(scrollTop) ? scrollTop : bodyRef.current?.scrollTop ?? 0;
-    const nextViewMode = forcedViewMode === "sheets"
-      ? "sheets"
-      : forcedViewMode === "cards"
-        ? "cards"
-      : forcedViewMode === "list"
-        ? "list"
-        : (
-          nextPreferences?.viewMode === "sheets"
-            ? "sheets"
-            : nextPreferences?.viewMode === "cards"
-              ? "cards"
-              : "list"
-        );
+    const KNOWN_VIEW_MODES = ["sheets", "cards", "list", "files"];
+    const nextViewMode = KNOWN_VIEW_MODES.includes(forcedViewMode)
+      ? forcedViewMode
+      : KNOWN_VIEW_MODES.includes(nextPreferences?.viewMode)
+        ? nextPreferences.viewMode
+        : "cards";
     const persistedPreferences = {
       ...nextPreferences,
       viewMode: nextViewMode,
@@ -1461,6 +1457,11 @@ export default function HomeShell() {
   async function submitRename() {
     const name = textDialog?.value?.trim();
     if (!name || !textDialog?.target) return;
+    if (textDialog.type === "rename-group") {
+      updateHomeLayout(renameGroup(homeLayout, textDialog.target.id, name));
+      setTextDialog(null);
+      return;
+    }
     await renameItemEntry(textDialog.target, name);
     setTextDialog(null);
   }
@@ -1511,7 +1512,7 @@ export default function HomeShell() {
 
   const emptyState = describeEmptyState();
   const sectionTitle = sectionLabel(navigation.selectedSection);
-  const itemCountLabel = formatItemCount(browserItems.length, "canvas");
+  const itemCountLabel = formatItemCount(browserItems.length, "canvas", "canvases");
   return (
     <main
       ref={shellRef}
@@ -1582,9 +1583,9 @@ export default function HomeShell() {
                   role="tab"
                   aria-label="List view"
                   title="List view"
-                  aria-selected={!isCardsView}
-                  aria-pressed={!isCardsView}
-                  className={`ap-home-view-toggle__btn${!isCardsView ? " is-active" : ""}`}
+                  aria-selected={browserViewMode === "list"}
+                  aria-pressed={browserViewMode === "list"}
+                  className={`ap-home-view-toggle__btn${browserViewMode === "list" ? " is-active" : ""}`}
                   onClick={() => {
                     const nextPreferences = { ...homePreferences, viewMode: "list" };
                     setHomeViewMode("list");
@@ -1612,6 +1613,24 @@ export default function HomeShell() {
                 >
                   <Grid2X2 size={15} aria-hidden="true" />
                   <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="Files view"
+                  title="Files view"
+                  aria-selected={isFilesView}
+                  aria-pressed={isFilesView}
+                  className={`ap-home-view-toggle__btn${isFilesView ? " is-active" : ""}`}
+                  onClick={() => {
+                    const nextPreferences = { ...homePreferences, viewMode: "files" };
+                    setHomeViewMode("files");
+                    setHomePreferences(nextPreferences);
+                    persistHomeContext(navigation, nextPreferences, 0, {}, "files");
+                  }}
+                >
+                  <Folder size={15} aria-hidden="true" />
+                  <span>Files</span>
                 </button>
               </div>
               <AppButton
@@ -1671,7 +1690,22 @@ export default function HomeShell() {
                   </div>
                 </div>
               )}
-              {isCardsView ? (
+              {isFilesView ? (
+                <HomeFilesView
+                  folderPath={folderPath}
+                  canvases={canvasItems}
+                  layout={homeLayout}
+                  grouping={groupingActive}
+                  starredGroups={starredGroups}
+                  onOpenCanvas={(entry) => void handleOpenEntry(entry)}
+                  onRename={(entry) => setTextDialog({ type: "rename", value: entry.name, target: entry })}
+                  onDelete={(entry) => setConfirmDialog({ target: entry })}
+                  onToggleStar={(entry) => void toggleItemStarred(entry.filePath, !entry.starred)}
+                  onRenameGroup={(group) => setTextDialog({ type: "rename-group", value: group.name, target: group })}
+                  onToggleGroupStar={(groupId) => updateHomeLayout(toggleGroupStar(homeLayout, groupId))}
+                  onUngroup={(keys, groupId) => updateHomeLayout(ungroup(homeLayout, keys, groupId))}
+                />
+              ) : isCardsView ? (
                 <HomeCardsView
                   folderPath={folderPath}
                   canvases={canvasItems}
@@ -1764,7 +1798,9 @@ export default function HomeShell() {
       <TextPromptDialog
         open={Boolean(textDialog)}
         title={
-          textDialog?.type === "rename"
+          textDialog?.type === "rename-group"
+            ? "Rename folder"
+            : textDialog?.type === "rename"
             ? "Rename entry"
             : textDialog?.type === "canvas"
               ? "Create canvas"
@@ -1773,7 +1809,7 @@ export default function HomeShell() {
                 : "Create Workspace"
         }
         description={
-          textDialog?.type === "rename"
+          textDialog?.type === "rename" || textDialog?.type === "rename-group"
             ? "Update the selected folder or file name."
             : textDialog?.type === "create-dome"
               ? "Choose a workspace name."
@@ -1781,14 +1817,14 @@ export default function HomeShell() {
                 ? "Create a folder in the current location."
                 : "Choose a name for the new file."
         }
-        confirmLabel={textDialog?.type === "rename" ? "Save" : "Create"}
+        confirmLabel={textDialog?.type === "rename" || textDialog?.type === "rename-group" ? "Save" : "Create"}
         value={textDialog?.value ?? ""}
         disabled={!textDialog?.value?.trim() || folderLoading}
         onChange={(value) => setTextDialog((current) => (current ? { ...current, value } : current))}
         onCancel={() => setTextDialog(null)}
         onConfirm={() => {
           if (!textDialog) return;
-          void (textDialog.type === "rename" ? submitRename() : submitCreate(textDialog.type));
+          void (textDialog.type === "rename" || textDialog.type === "rename-group" ? submitRename() : submitCreate(textDialog.type));
         }}
       />
 

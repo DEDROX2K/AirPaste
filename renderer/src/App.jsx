@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ShellPixelTrail from "./components/ShellPixelTrail";
 import AppLaunchSplash from "./components/AppLaunchSplash";
 import CanvasSplitLayout from "./components/canvas/CanvasSplitLayout";
 import ConflictDialog from "./components/ConflictDialog";
@@ -310,6 +311,7 @@ export default function App() {
     <div className={`app-shell app-shell--with-tabs app-shell--ready ${usesCustomTitlebar ? "app-shell--custom-titlebar" : "app-shell--native-frame"} ${isLoading ? "app-shell--loading" : ""} ${isClosing ? "app-shell--closing" : ""}`}>
       {usesCustomTitlebar && usesCustomWindowResize ? <WindowResizeHandles /> : null}
       <div className="app-window">
+        <ShellPixelTrail />
         <TopTabBar usesCustomTitlebar={usesCustomTitlebar} onRequestClose={requestWindowClose} />
 
         <div className="app-shell__view-container">

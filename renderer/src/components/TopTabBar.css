@@ -518,7 +518,7 @@
   display: flex;
   align-items: center;
   height: 33px;
-  border: 1px solid rgba(20, 20, 18, 0.08);
+  border: 0;
   border-radius: 4px;
   background: #fafaf9;
   color: #1b1b1a;
@@ -541,9 +541,9 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) inset;
 }
 
-/* The Home button, styled as a match for the window controls on the right
-   end (.titlebar-btn--win): grey 36px rounded square, translucent 2px
-   border, white border + darker glyph on hover, press-in on click. */
+/* The Home button (and the curved-view toggle beside it): grey 36px rounded
+   square, no border, lighter fill + darker glyph on hover, press-in on
+   click. */
 .titlebar-cluster:has(.titlebar-cluster__logo) {
   align-items: center;
   height: auto;
@@ -555,20 +555,18 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 2px solid #7676767f;
+  border: 0;
   border-radius: 30%;
   background: #c0c0c0;
   color: rgba(0, 0, 0, 0.45);
   -webkit-app-region: no-drag;
   transition:
     background-color 140ms ease,
-    border-color 140ms ease,
     color 140ms ease,
     transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .titlebar-cluster__chip.titlebar-cluster__logo:hover {
-  border-color: #ffffff;
   background: #d2d2d2;
   color: rgba(0, 0, 0, 0.7);
   transform: none;
@@ -583,6 +581,16 @@
   width: 16px;
   height: 16px;
   color: inherit;
+}
+
+/* Curved view on: the toggle reads as pressed in. */
+.titlebar-cluster__chip.titlebar-cluster__curve.is-on {
+  background: #a9a9a9;
+  color: rgba(0, 0, 0, 0.82);
+}
+
+.titlebar-cluster__chip.titlebar-cluster__curve.is-on:hover {
+  background: #b4b4b4;
 }
 
 .titlebar-cluster__logo .ap-logo-icon {
@@ -959,7 +967,7 @@
 #titlebar-center-slot button {
   min-height: 28px !important;
   padding: 4px 10px !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 0 !important;
   border-radius: 6px !important;
   background: #ffffff !important;
   color: var(--ap-text-primary) !important;
@@ -977,8 +985,7 @@
 #titlebar-right-slot button:hover,
 #titlebar-right-slot .zoom-menu__trigger:hover,
 #titlebar-center-slot button:hover {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border-color: rgba(0, 0, 0, 0.15) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
   transform: var(--ap-hover-lift-sm);
 }
 
@@ -989,152 +996,14 @@
   -webkit-app-region: no-drag;
 }
 
-/* --- Windows controls (in-app; the native overlay is off). ---
-   Minimize, maximize and close joined into one grey piece (TopTabBar.jsx,
-   from "Window controls.svg", 120 x 42), hanging from the top edge of the
-   window: the stems on top of minimize and close touch it. The glyphs are
-   cut out of the shape, so the bar shows through them.
-   Hover: a faint glow in the piece's traffic-light colour (yellow / green /
-   red) rings it and lights its glyph from behind. Plain gradients, no
-   filter, so it costs nothing to show. */
-.titlebar-right:has(.titlebar-controls--joined) {
-  align-self: stretch;
-}
-
-.titlebar-controls--joined {
-  --titlebar-controls-fill: #d9d9d9;
-  --glow-minimize: 255, 189, 46;
-  --glow-maximize: 39, 201, 63;
-  --glow-close: 255, 95, 86;
-
-  position: relative;
-  align-self: flex-start;
-  width: 120px;
-  height: 42px;
-}
-
-.titlebar-joined__shape {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.titlebar-joined__shape path {
-  fill: var(--titlebar-controls-fill);
-  transition: fill 140ms ease;
-}
-
-/* Each glow is centred on its piece and reaches ~14px past it. */
-.titlebar-joined__glow {
-  --glow: 0, 0, 0;
-
-  position: absolute;
-  z-index: 0;
-  top: -10.7px;
-  width: 70px;
-  height: 66px;
-  border-radius: 50%;
-  background: radial-gradient(
-    closest-side,
-    rgba(var(--glow), 0.6) 0%,
-    rgba(var(--glow), 0.32) 58%,
-    rgba(var(--glow), 0) 100%
-  );
-  opacity: 0;
-  transform: scale(0.85);
-  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  pointer-events: none;
-}
-
-.titlebar-joined__glow.is-minimize {
-  --glow: var(--glow-minimize);
-  left: -15.7px;
-}
-
-.titlebar-joined__glow.is-maximize {
-  --glow: var(--glow-maximize);
-  left: 28.4px;
-}
-
-.titlebar-joined__glow.is-close {
-  --glow: var(--glow-close);
-  left: 69.6px;
-  top: -9.8px;
-  width: 66px;
-  height: 66px;
-}
-
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-minimize:hover) .titlebar-joined__glow.is-minimize,
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-maximize:hover) .titlebar-joined__glow.is-maximize,
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-close:hover) .titlebar-joined__glow.is-close,
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-minimize:focus-visible) .titlebar-joined__glow.is-minimize,
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-maximize:focus-visible) .titlebar-joined__glow.is-maximize,
-.titlebar-controls--joined:has(.titlebar-joined__hit.is-close:focus-visible) .titlebar-joined__glow.is-close {
-  opacity: 1;
-  transform: none;
-}
-
-/* Pressed: the glow tightens a touch. */
-.titlebar-controls--joined:has(.titlebar-joined__hit:active) .titlebar-joined__glow {
-  transform: scale(0.94);
-}
-
-/* The click areas: each piece's slice of the shape, full height; close
-   runs on to the window's right edge (the bar has 10px side padding). */
-.titlebar-joined__hit {
-  appearance: none;
-  -webkit-appearance: none;
-  position: absolute;
-  top: 0;
-  z-index: 2;
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  background: transparent;
-  outline: none;
-  cursor: var(--ap-cursor-default) !important;
-}
-
-/* The click areas are real <button>s, and SimpleUi.css gives every button
-   a hover fill and a focus outline with !important (`:is(button, ...)
-   :hover:not(:disabled)`, specificity 0,3,0). Here that painted a white box
-   over the piece. They stay invisible in every state (the glow is the
-   feedback): 0,4,0 and !important out-rank it. */
-.titlebar-controls.titlebar-controls--joined .titlebar-joined__hit.titlebar-joined__hit {
-  border-radius: 0 !important;
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-  transform: none !important;
-}
-
-.titlebar-joined__hit.is-minimize {
-  left: 0;
-  width: 41.5px;
-}
-
-.titlebar-joined__hit.is-maximize {
-  left: 41.5px;
-  width: 42.5px;
-}
-
-.titlebar-joined__hit.is-close {
-  left: 84px;
-  width: 46px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .titlebar-joined__glow {
-    transition: opacity 120ms ease;
-    transform: none !important;
-  }
+/* --- Windows controls ---
+   The system's own minimize / maximize / close (main/windows.js
+   titleBarOverlay) sit over the bar's right end, with a transparent
+   background so the bar shows through and soft grey glyphs. The bar keeps
+   clear of them: env(titlebar-area-width) is the width Windows leaves for
+   the page (no overlay, e.g. macOS: the whole width, so just 10px). */
+.titlebar-root {
+  padding-right: calc(100% - env(titlebar-area-width, 100%) + 10px) !important;
 }
 
 /* --- macOS Traffic Lights styling --- */
