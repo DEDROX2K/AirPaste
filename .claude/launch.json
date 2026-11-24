@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:renderer"],
       "port": 5173
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "website"],
+      "port": 8765
     }
   ]
 }
