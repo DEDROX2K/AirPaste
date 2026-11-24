@@ -583,14 +583,66 @@
   color: inherit;
 }
 
-/* Curved view on: the toggle reads as pressed in. */
-.titlebar-cluster__chip.titlebar-cluster__curve.is-on {
-  background: #a9a9a9;
-  color: rgba(0, 0, 0, 0.82);
+/* Curved view switch (next to Home): a pill track with a sliding knob that
+   carries the globe. Grey when off, ink when on. The app-wide button rules
+   (SimpleUi.css, !important) would square it off and repaint it on hover,
+   hence the specificity and !important here. */
+.titlebar-cluster .titlebar-curve-switch {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #c0c0c0 !important;
+  cursor: var(--ap-cursor-pointer);
+  -webkit-app-region: no-drag;
+  transition: background-color 180ms ease;
 }
 
-.titlebar-cluster__chip.titlebar-cluster__curve.is-on:hover {
-  background: #b4b4b4;
+.titlebar-cluster .titlebar-curve-switch:hover:not(:disabled) {
+  background: #b4b4b4 !important;
+}
+
+.titlebar-cluster .titlebar-curve-switch.is-on,
+.titlebar-cluster .titlebar-curve-switch.is-on:hover:not(:disabled) {
+  background: #2b2b2d !important;
+}
+
+.titlebar-curve-switch__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), color 180ms ease;
+}
+
+.titlebar-curve-switch.is-on .titlebar-curve-switch__knob {
+  transform: translateX(22px);
+  color: #2b2b2d;
+}
+
+.titlebar-cluster .titlebar-curve-switch:active .titlebar-curve-switch__knob {
+  width: 28px;
+}
+
+.titlebar-cluster .titlebar-curve-switch.is-on:active .titlebar-curve-switch__knob {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-curve-switch__knob {
+    transition: none;
+  }
 }
 
 .titlebar-cluster__logo .ap-logo-icon {

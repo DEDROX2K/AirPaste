@@ -14,6 +14,7 @@ import { CardColorMenu } from "../ui/CardColorMenu";
 import { ContextMenuItem, ContextMenuSeparator } from "../ui/context-menu";
 import { Folder, FolderOpen, MoreHorizontal, Pencil, Star, Trash2, X } from "../ui/icons";
 import { loadCanvasEntries } from "../../systems/home/homeTiles";
+import { getSerendipityKind } from "../../lib/serendipity";
 import HomeTileCard from "./HomeTileCard";
 import "./HomeFiles.css";
 
@@ -139,6 +140,10 @@ function layoutFolderTiles(count, seed) {
   });
 }
 
+function hasFolderFace(entry) {
+  return getSerendipityKind(entry.card) !== "link" || Boolean(entry.card?.image);
+}
+
 function useInView(ref) {
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -166,7 +171,9 @@ function TileContents({ item, folderPath }) {
     if (!inView) return undefined;
     let cancelled = false;
     loadCanvasEntries(item).then((list) => {
-      if (!cancelled) setEntries(list.slice(0, MAX_FOLDER_TILES));
+      // Inside a folder a tile shows only its picture, so a link with no
+      // preview image would be an empty card: leave those out.
+      if (!cancelled) setEntries(list.filter(hasFolderFace).slice(0, MAX_FOLDER_TILES));
     });
     return () => {
       cancelled = true;

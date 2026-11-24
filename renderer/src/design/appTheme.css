@@ -96,9 +96,8 @@ html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo:hover {
   background: var(--ap-theme-panel);
 }
 
-html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__curve.is-on {
-  background: var(--ap-theme-panel);
-  color: var(--ap-theme-ink);
+html[data-app-theme="on"] .titlebar-cluster .titlebar-curve-switch:not(.is-on) {
+  background: var(--ap-theme-control) !important;
 }
 
 html[data-app-theme="on"] .titlebar-cluster__divider {

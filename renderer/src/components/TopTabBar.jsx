@@ -17,7 +17,7 @@ import {
   AppDropdownMenuSeparator,
   AppDropdownMenuTrigger,
 } from "./ui/app";
-import { Check, ChevronRight, CurvedView, ErrorIcon, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
+import { Check, ChevronRight, ErrorIcon, Globe, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
 import { toggleCurvedView, useCurvedView } from "../lib/curvedView";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import { useSplitView } from "../context/SplitViewContext";
@@ -144,13 +144,16 @@ function TitlebarCluster({ isHomeActive, isCanvasActive = false, onHome }) {
       {isCanvasActive ? (
         <button
           type="button"
-          className={`titlebar-cluster__chip titlebar-cluster__logo titlebar-cluster__curve${isCurved ? " is-on" : ""}`}
+          role="switch"
+          className={`titlebar-curve-switch${isCurved ? " is-on" : ""}`}
           onClick={toggleCurvedView}
           title={isCurved ? "Curved view: on" : "Curved view: off"}
           aria-label="Curved view"
-          aria-pressed={isCurved}
+          aria-checked={isCurved}
         >
-          <CurvedView size={20} aria-hidden="true" />
+          <span className="titlebar-curve-switch__knob" aria-hidden="true">
+            <Globe size={12} />
+          </span>
         </button>
       ) : null}
     </div>

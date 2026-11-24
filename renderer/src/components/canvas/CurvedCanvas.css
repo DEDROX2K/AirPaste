@@ -53,19 +53,22 @@
   pointer-events: none;
 }
 
+/* Stops are percentages of the half-diagonal (a centred circle's
+   farthest-corner radius), matching CURVE_BLUR_RINGS in curvedWarp.js, so
+   the rings never depend on a measured size. */
 .canvas-curve__blur--1 {
   backdrop-filter: blur(0.6px);
-  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e1a), #000 var(--curve-e1b));
+  mask-image: radial-gradient(circle farthest-corner at 50% 50%, transparent 62%, #000 82%);
 }
 
 .canvas-curve__blur--2 {
   backdrop-filter: blur(1.2px);
-  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e2a), #000 var(--curve-e2b));
+  mask-image: radial-gradient(circle farthest-corner at 50% 50%, transparent 74%, #000 94%);
 }
 
 .canvas-curve__blur--3 {
   backdrop-filter: blur(2px);
-  mask-image: radial-gradient(circle at 50% 50%, transparent var(--curve-e3a), #000 var(--curve-e3b));
+  mask-image: radial-gradient(circle farthest-corner at 50% 50%, transparent 86%, #000 106%);
 }
 
 /* Lite graphics (main/graphics.js): no blur, the vignette carries the curve. */

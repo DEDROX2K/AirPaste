@@ -164,6 +164,12 @@
   display: none !important;
 }
 
+/* Nothing left to show (no picture after all): drop the empty card. */
+.ap-fo__it--tile:has(.ap-seren-face.is-text-only),
+.ap-fo__it--tile:has(.ap-seren-face__missing) {
+  display: none;
+}
+
 .ap-fo__it--tile .ap-home-tile {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14), 0 6px 14px -8px rgba(0, 0, 0, 0.35);
   pointer-events: none;

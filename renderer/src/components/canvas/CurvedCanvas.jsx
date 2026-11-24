@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { getCanvasGridSpacing } from "../../systems/canvas/canvasMath";
-import { CURVE, CURVE_BLUR_RINGS, createWarp, worldBoxTransform } from "../../systems/canvas/curvedWarp";
+import { CURVE, createWarp, worldBoxTransform } from "../../systems/canvas/curvedWarp";
 import "./CurvedCanvas.css";
 
 // Curved view (the toggle next to Home): the board bends like a shallow
@@ -110,7 +110,10 @@ export default function CurvedCanvas({
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    const board = containerRef.current;
+    // The board is this component's parent. Its ref can't be used here: on
+    // a fresh mount (opening or switching to a canvas) a child's layout
+    // effect runs before the parent's ref is attached.
+    const board = root?.parentElement ?? containerRef.current;
     if (!root || !board) return undefined;
 
     let dotsGL = null;
@@ -137,7 +140,7 @@ export default function CurvedCanvas({
     let followDrag = false;
 
     const readTheme = () => {
-      const grid = gridRef.current;
+      const grid = gridRef.current ?? board.querySelector(".canvas__grid");
       theme.dot = parseColor(grid ? getComputedStyle(grid).getPropertyValue("--grid-line").trim() : "");
       const [r, g, b] = boardBackground(board);
       const dark = (0.2126 * r + 0.7152 * g + 0.0722 * b) < 0.4;
@@ -231,11 +234,6 @@ export default function CurvedCanvas({
         G.canvas.height = Math.round(height * dpr);
         G.gl.viewport(0, 0, G.canvas.width, G.canvas.height);
       }
-      const R = Math.hypot(width, height) / 2;
-      CURVE_BLUR_RINGS.forEach(([a, b], index) => {
-        root.style.setProperty(`--curve-e${index + 1}a`, `${a * R}px`);
-        root.style.setProperty(`--curve-e${index + 1}b`, `${b * R}px`);
-      });
       render();
     };
 
