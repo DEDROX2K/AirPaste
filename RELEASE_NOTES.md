@@ -24,6 +24,14 @@ AirPaste is a local-first desktop canvas for everything you save. Paste links, i
 - **Pixel trail.** A small trail of fading pixels follows the pointer over the grey window frame.
 - **Cleaner top bar.** Borderless buttons. Home opens in Cards view.
 - **New installer.** A minimal, Apple-style setup window.
+- **Copy image.** Right-click a link tile → Copy image puts its full-size picture on the clipboard.
+- **Double-click to type.** Double-clicking empty canvas starts a quick text (it used to make a sticky).
+- **Paste lands in the middle.** Copied or cut tiles, links and images paste at the centre of the view, also across files.
+- **Pages panel in the frame.** The pages list is a cut-out of the window frame, identical on both sides of split screen.
+- **Quick checklist.** Grows with its tasks, scrolls past a height, and the add box stays pinned at the bottom.
+- **Grow-pop animations.** Tiles pop in when created or first shown; big canvases show a placeholder for each tile while they load.
+- **Top bar.** Home, Curved view and Theme are matching buttons side by side; curved view is remembered per page and per split pane.
+- **Fixes.** Smooth when scrolling and zooming at once; closing a tab with many tiles is instant; no more "changed elsewhere" save prompts; no focus border around text boxes; curved view no longer bends huge tiles when zoomed far in.
 
 ## Known limitations
 
