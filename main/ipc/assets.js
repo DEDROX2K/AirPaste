@@ -1,4 +1,4 @@
-const { ipcMain, nativeImage, net, protocol } = require("electron");
+const { clipboard, ipcMain, nativeImage, net, protocol } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
@@ -177,7 +177,61 @@ function registerProtocolHandler() {
   });
 }
 
+const MAX_CLIPBOARD_IMAGE_BYTES = 64 * 1024 * 1024;
+
+// The bytes behind an image a tile shows: an app asset (airpaste-asset://),
+// an embedded data: URL, or a remote http(s) image (fetched here, where the
+// page's CORS rules don't apply).
+async function readImageSourceBytes(source) {
+  const value = String(source ?? "").trim();
+  if (!value) throw new Error("No image to copy.");
+
+  if (value.startsWith("data:")) {
+    const match = value.match(/^data:image\/[a-z0-9.+-]+(;[^,]*)?,(.*)$/is);
+    if (!match) throw new Error("Not an image.");
+    const isBase64 = /;base64/i.test(match[1] || "");
+    return isBase64 ? Buffer.from(match[2], "base64") : Buffer.from(decodeURIComponent(match[2]), "utf8");
+  }
+
+  const url = new URL(value);
+  if (url.protocol === `${ASSET_PROTOCOL_SCHEME}:`) {
+    const assetPath = resolvedAssetUrlRegistry.get(String(url.host || "").trim());
+    if (!assetPath) throw new Error("Image file not found.");
+    return fs.readFile(assetPath);
+  }
+
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    const response = await net.fetch(url.toString());
+    if (!response.ok) throw new Error(`Image download failed (${response.status}).`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > MAX_CLIPBOARD_IMAGE_BYTES) throw new Error("Image is too large to copy.");
+    return bytes;
+  }
+
+  throw new Error("Unsupported image source.");
+}
+
 function registerIpc() {
+  // Copy a tile's picture to the system clipboard as an image. nativeImage
+  // decodes PNG and JPEG; anything else (WebP, AVIF, GIF, SVG...) comes back
+  // as raw bytes for the renderer to re-encode as PNG (writeClipboardPng).
+  ipcMain.handle("airpaste:copyImageToClipboard", async (_event, source) => {
+    const bytes = await readImageSourceBytes(source);
+    const image = nativeImage.createFromBuffer(bytes);
+    if (!image.isEmpty()) {
+      clipboard.writeImage(image);
+      return { copied: true };
+    }
+    return { copied: false, bytes: new Uint8Array(bytes) };
+  });
+
+  ipcMain.handle("airpaste:writeClipboardPng", async (_event, pngBytes) => {
+    const image = nativeImage.createFromBuffer(Buffer.from(pngBytes ?? []));
+    if (image.isEmpty()) throw new Error("Could not read that image.");
+    clipboard.writeImage(image);
+    return { copied: true };
+  });
+
   ipcMain.handle("airpaste:importImageAsset", async (_event, folderPath, payload) => (
     withWorkspaceQueue(folderPath, async () => (
       workspaceService.importImageAsset(folderPath, payload)

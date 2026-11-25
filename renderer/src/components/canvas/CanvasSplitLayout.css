@@ -127,18 +127,8 @@
   pointer-events: none;
 }
 
-/* Right pane: its own pages panel, the same floating card as the main
-   one (ShellLayers.css), in the same top-left spot of its pane. */
-.app-window .canvas-split__pane > .left-pages-panel--pane {
-  position: absolute;
-  top: var(--ap-shell-float-inset);
-  left: var(--ap-shell-float-inset);
-  max-height: calc(100% - var(--ap-shell-float-inset) * 2);
-  z-index: 10;
-  border: 1px solid rgba(20, 20, 18, 0.08) !important;
-  border-radius: var(--ap-shell-float-radius) !important;
-  box-shadow: none !important;
-}
+/* Right pane: its own pages panel -- the same piece as the main one, a
+   hole in the top-left corner of its pane (ShellLayers.css). */
 
 /* Another file's name as the panel title. */
 .left-pages-panel--pane .left-pages-panel__title {

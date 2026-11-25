@@ -87,9 +87,17 @@ body,
   transform: none !important;
 }
 
-:is(button, .button, .ap-ui-button, input, textarea, select):focus-visible {
+:is(button, .button, .ap-ui-button, input[type="checkbox"], input[type="radio"]):focus-visible {
   outline: 2px solid var(--ap-simple-ink) !important;
   outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+/* Text fields never get a focus outline or ring anywhere in the app: the
+   caret already shows where you're typing, and the box around it read as
+   clutter. (Buttons and checkboxes keep theirs for keyboard use.) */
+html body :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]), textarea, select, [contenteditable="true"], [contenteditable=""]):is(:focus, :focus-visible) {
+  outline: none !important;
   box-shadow: none !important;
 }
 

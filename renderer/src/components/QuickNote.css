@@ -206,19 +206,50 @@
 }
 
 .quick-note__sheet {
-  max-height: min(420px, calc(100vh - 180px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 6px 11px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 4px 6px 11px;
   border-radius: 13px;
   background: var(--quick-note-sheet);
-  scrollbar-width: thin;
 }
 
+/* The tasks grow the panel upwards until it reaches this height, then
+   scroll; the add box below stays put. */
 .quick-note__list {
+  max-height: min(360px, calc(100vh - 230px));
   margin: 0;
-  padding: 0;
+  padding: 0 7px 0 0;
   list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--quick-note-ink) 28%, transparent) transparent;
+}
+
+.quick-note__list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.quick-note__list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quick-note__list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--quick-note-ink) 28%, transparent);
+}
+
+.quick-note__list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--quick-note-ink) 50%, transparent);
+}
+
+.quick-note__list::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+.quick-note__list:empty {
+  display: none;
 }
 
 .quick-note__row {
@@ -265,7 +296,9 @@
   outline-offset: 1px;
 }
 
-.quick-note__row:last-child {
+.quick-note__row--draft {
+  flex: none;
+  margin-right: 7px;
   border-bottom: 0;
 }
 
@@ -348,6 +381,12 @@
 .quick-note__input--draft {
   flex: 1;
   width: 100%;
+  min-width: 0;
+  /* One line: long text runs on to the right instead of wrapping. */
+  field-sizing: fixed;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 .quick-note__input--draft::placeholder {

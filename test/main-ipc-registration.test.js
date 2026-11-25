@@ -60,6 +60,7 @@ const EXPECTED_HANDLE_CHANNELS = [
   "airpaste:importImageAsset", "airpaste:resolveAssetUrl", "airpaste:captureCanvasThumbnail",
   "airpaste:saveCanvasThumbnail",
   "airpaste:importFiles", "airpaste:captureWebclip", "airpaste:captureArticle", "airpaste:readArticle",
+  "airpaste:copyImageToClipboard", "airpaste:writeClipboardPng",
   // main/ipc/files.js
   "airpaste:watchMarkdownFile", "airpaste:unwatchMarkdownFile", "airpaste:getUserName", "airpaste:openExternal", "airpaste:openFile", "airpaste:revealPath",
   // main/ipc/linkPreview.js

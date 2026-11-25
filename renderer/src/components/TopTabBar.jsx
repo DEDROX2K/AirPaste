@@ -17,11 +17,12 @@ import {
   AppDropdownMenuSeparator,
   AppDropdownMenuTrigger,
 } from "./ui/app";
-import { Check, ChevronRight, ErrorIcon, Globe, Feedback, Home, HomeGlyph, Info, Minus, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
-import { toggleCurvedView, useCurvedView } from "../lib/curvedView";
+import { Check, ChevronRight, ErrorIcon, Globe, Feedback, Home, Info, Minus, Palette, PaneLeft, PaneRight, Pencil, RefreshCw, Share, SplitColumns, SplitRows, SwapHorizontal, Timer, Unlink, Warning, X } from "./ui/icons";
+import { toggleCurvedView, useActiveCurveTarget, useCurvedView } from "../lib/curvedView";
 import { canRemarkNow, ERRATIC_CURSOR_QUIPS, HOME_QUIPS, pickRandom, speakOracle } from "../lib/eyeCommentary";
 import { useSplitView } from "../context/SplitViewContext";
 import TabDetachOverlay from "./canvas/TabDetachOverlay";
+import { ThemePickerPopover } from "./home/ThemePicker";
 import "./TopTabBar.css";
 
 const HOME_COOLDOWN_MS = 90000;
@@ -117,17 +118,25 @@ function TitleBarControls({ isMac, onRequestClose }) {
   return null;
 }
 
-// Top-left: one Home button. On Home it shows the AirPaste logo (click =
-// splash); in a file it shows a house icon (click = back to Home). The clock
-// and live pill are removed for now.
+// Top-left: Home, Curved view (in a canvas) and Theme, as one set of
+// matching chips -- same size, fill, icon size, hover and press. Home on the
+// Home screen opens the splash; in a file it goes back to Home. The curved
+// chip is a switch: dark with a white globe while on, for the page in the
+// active canvas pane. Theme opens the theme picker under it.
 function TitlebarCluster({ isHomeActive, isCanvasActive = false, onHome }) {
-  const isCurved = useCurvedView();
+  // The page in the active canvas pane (the side last clicked in split
+  // screen) -- published by that canvas view.
+  const curveTarget = useActiveCurveTarget();
+  const isCurved = useCurvedView(curveTarget);
+  const themeAnchorRef = useRef(null);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const closeTheme = useCallback(() => setThemeOpen(false), []);
 
   return (
-    <div className="titlebar-cluster" aria-label="Home">
+    <div className="titlebar-cluster" role="toolbar" aria-label="Home and view">
       <button
         type="button"
-        className="titlebar-cluster__chip titlebar-cluster__logo"
+        className={`titlebar-chip${isHomeActive ? " is-current" : ""}`}
         onClick={() => {
           if (isHomeActive) {
             openLaunchSplash();
@@ -139,23 +148,35 @@ function TitlebarCluster({ isHomeActive, isCanvasActive = false, onHome }) {
         aria-label="Home"
         aria-current={isHomeActive ? "page" : undefined}
       >
-        {isHomeActive ? <IconHomeFilled /> : <HomeGlyph size={20} aria-hidden="true" />}
+        <Home size={16} aria-hidden="true" />
       </button>
       {isCanvasActive ? (
         <button
           type="button"
           role="switch"
-          className={`titlebar-curve-switch${isCurved ? " is-on" : ""}`}
-          onClick={toggleCurvedView}
+          className={`titlebar-chip titlebar-chip--toggle${isCurved ? " is-on" : ""}`}
+          onClick={() => toggleCurvedView(curveTarget)}
+          disabled={!curveTarget}
           title={isCurved ? "Curved view: on" : "Curved view: off"}
           aria-label="Curved view"
           aria-checked={isCurved}
         >
-          <span className="titlebar-curve-switch__knob" aria-hidden="true">
-            <Globe size={12} />
-          </span>
+          <Globe size={16} aria-hidden="true" />
         </button>
       ) : null}
+      <button
+        ref={themeAnchorRef}
+        type="button"
+        className={`titlebar-chip${themeOpen ? " is-open" : ""}`}
+        onClick={() => setThemeOpen((open) => !open)}
+        title="Theme"
+        aria-label="Theme"
+        aria-expanded={themeOpen}
+        aria-haspopup="dialog"
+      >
+        <Palette size={16} aria-hidden="true" />
+      </button>
+      <ThemePickerPopover anchorRef={themeAnchorRef} open={themeOpen} onClose={closeTheme} placement="below" />
     </div>
   );
 }

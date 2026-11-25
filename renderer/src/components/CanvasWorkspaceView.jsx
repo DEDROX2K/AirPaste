@@ -11,7 +11,7 @@ import CanvasTetherLayer from "./canvas/CanvasTetherLayer";
 import DrawingCanvas from "./canvas/DrawingCanvas";
 import StackBundle from "./canvas/StackBundle";
 import CurvedCanvas from "./canvas/CurvedCanvas";
-import { useCurvedView } from "../lib/curvedView";
+import { clearActiveCurveTarget, curveKey, setActiveCurveTarget, useCurvedView } from "../lib/curvedView";
 import "./canvas/CanvasTetherLayer.css";
 import { useAppContext } from "../context/useAppContext";
 import { useCanvasPane } from "../context/CanvasPaneContext";
@@ -57,6 +57,7 @@ import {
   isLinkNoteOpen,
 } from "../tiles/link/notedLink";
 import TILE_TYPES from "../tiles/tileTypes";
+import { copyTileImageToClipboard, tileHasCopyableImage } from "../lib/copyTileImage";
 import {
   CANVAS_TEXT_FORMAT_PLAIN,
   CANVAS_TEXT_VARIANT_STICKY,
@@ -114,6 +115,23 @@ const GridWorkspaceView = lazy(() => import("./GridWorkspaceView"));
 const QUICK_TEXT_PADDING_X = 6;
 const QUICK_TEXT_PADDING_Y = 4;
 const SHOW_ZOOM_MENU = false;
+// Opening a canvas with many tiles in view: each one first shows as a light
+// placeholder at its spot, then the real tiles mount this many per frame,
+// nearest the middle of the view first, instead of one long blank commit.
+const TILE_MOUNT_BATCH = 18;
+// How long after appearing a tile keeps its pop / fade-up class (a little
+// longer than the animation, so a re-render mid-animation doesn't cut it).
+const TILE_APPEAR_MS = 1000;
+
+// Link-style tiles whose picture can be copied with "Copy image".
+const COPYABLE_IMAGE_TILE_TYPES = new Set([
+  TILE_TYPES.LINK,
+  TILE_TYPES.AMAZON_PRODUCT,
+  TILE_TYPES.GITHUB_REPO,
+  TILE_TYPES.X_POST,
+  TILE_TYPES.X_PROFILE,
+]);
+
 const LINK_PREVIEW_DEBUG_ACTIONS_ENABLED = (
   Boolean(import.meta.env.DEV)
   || String(import.meta.env.VITE_PREVIEW_DEBUG ?? "").trim() === "1"
@@ -1357,7 +1375,17 @@ export default function CanvasWorkspaceView() {
   const workspaceView = workspace.view ?? { mode: "flat" };
   const isGridMode = workspaceView.mode === "grid";
   // Curved view (toggle next to Home in the top bar): canvas only.
-  const isCurvedView = useCurvedView() && !isGridMode;
+  // Per page, and per split pane (each pane is its own page or file). The
+  // active pane tells the top bar's switch which one it controls.
+  const curvedViewKey = curveKey(currentEditor.filePath, workspace.activePageId);
+  const isCurvedView = useCurvedView(curvedViewKey) && !isGridMode;
+  useEffect(() => {
+    if (!pane.isActive || !curvedViewKey) {
+      return undefined;
+    }
+    setActiveCurveTarget(curvedViewKey);
+    return () => clearActiveCurveTarget(curvedViewKey);
+  }, [curvedViewKey, pane.isActive]);
 
   const canvas = useCanvasSystem({
     viewport: workspace.viewport,
@@ -1839,10 +1867,31 @@ export default function CanvasWorkspaceView() {
     }
 
     const nextPasteCount = Math.max(0, Number(canvasClipboard.pasteCount) || 0) + 1;
-    const offset = 24 * nextPasteCount;
+    // Pasted tiles land centred in the middle of the view, wherever they were
+    // copied or cut from (another file's coordinates mean nothing here).
+    // Repeated pastes of the same copy step down-right so they don't stack.
+    const center = canvas.getViewportCenter();
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    canvasClipboard.tiles.forEach((tile) => {
+      if (tile?.parentRackId && canvasClipboard.tiles.some((other) => other?.id === tile.parentRackId)) return;
+      const x = Number(tile?.x);
+      const y = Number(tile?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const w = Number.isFinite(Number(tile?.width)) ? Number(tile.width) : 0;
+      const h = Number.isFinite(Number(tile?.height)) ? Number(tile.height) : 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+    const cascade = 24 * (nextPasteCount - 1);
+    const hasBounds = Number.isFinite(minX) && Number.isFinite(center?.x);
     const pastedSelection = pasteCanvasSelectionClipboardPayload(canvasClipboard, {
-      offsetX: offset,
-      offsetY: offset,
+      offsetX: hasBounds ? Math.round(center.x - (minX + maxX) / 2) + cascade : 24 * nextPasteCount,
+      offsetY: hasBounds ? Math.round(center.y - (minY + maxY) / 2) + cascade : 24 * nextPasteCount,
     });
 
     if (!pastedSelection?.tiles?.length) {
@@ -1928,6 +1977,7 @@ export default function CanvasWorkspaceView() {
     toast("success", pastedSelection.tiles.length === 1 ? "1 item pasted." : `${pastedSelection.tiles.length} items pasted.`);
     return true;
   }, [
+    canvas,
     canvasClipboard,
     commitWorkspaceChange,
     commitWorkspaceChangeForPath,
@@ -2625,6 +2675,85 @@ export default function CanvasWorkspaceView() {
     })
   ), [layout.rootTiles, tileRenderHintsById]);
   const activeRenderTiles = layout.rootTiles;
+  // Progressive first mount (see TILE_MOUNT_BATCH). Only while the canvas is
+  // first loading: once every tile in view has mounted, tiles created,
+  // pasted or scrolled into view later mount straight away.
+  const [isTileLoadPhase, setIsTileLoadPhase] = useState(true);
+  const [mountedTileIds, setMountedTileIds] = useState(() => new Set());
+  const isProgressiveTileMount = isTileLoadPhase && activeRenderTiles.length > TILE_MOUNT_BATCH;
+  useEffect(() => {
+    if (!isTileLoadPhase) {
+      return undefined;
+    }
+
+    if (activeRenderTiles.length <= TILE_MOUNT_BATCH) {
+      // Small canvas: everything mounted in the first render. Nothing in
+      // view yet but tiles elsewhere: keep waiting for them to come in view.
+      if (activeRenderTiles.length > 0 || workspace.cards.length === 0) {
+        setIsTileLoadPhase(false);
+      }
+      return undefined;
+    }
+
+    const pending = activeRenderTiles.filter((tile) => !mountedTileIds.has(tile.id));
+    if (pending.length === 0) {
+      setIsTileLoadPhase(false);
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const center = canvas.getViewportCenter();
+      const distance = (tile) => (
+        Math.hypot(tile.x + (tile.width ?? 0) / 2 - center.x, tile.y + (tile.height ?? 0) / 2 - center.y)
+      );
+      const next = [...pending].sort((a, b) => distance(a) - distance(b)).slice(0, TILE_MOUNT_BATCH);
+      setMountedTileIds((current) => {
+        const merged = new Set(current);
+        next.forEach((tile) => merged.add(tile.id));
+        return merged;
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeRenderTiles, canvas, isTileLoadPhase, mountedTileIds, workspace.cards.length]);
+  // When each tile first appeared here, as a placeholder and as itself, so
+  // a tile grows in with a pop when it's created or first comes into view,
+  // and fades up when it replaces its loading placeholder -- but doesn't
+  // replay when it re-mounts later (culled out and back, re-rendered).
+  // Recorded after commit, never during render (StrictMode renders twice).
+  // Switching page (or back from grid view) starts afresh, so the page's
+  // tiles all pop in, staggered.
+  const tileAppearKey = `${canvasEntrySequence}:${workspace.activePageId ?? ""}`;
+  const tileAppearRef = useRef({ key: tileAppearKey, records: new Map() });
+  const appearRecords = tileAppearRef.current.key === tileAppearKey ? tileAppearRef.current.records : null;
+  const appearNow = performance.now();
+  const getTileAppearClass = (tileId, showingPlaceholder) => {
+    // A placeholder pops by itself (its fill); the wrapper stays still.
+    if (showingPlaceholder) {
+      return "";
+    }
+    const record = appearRecords?.get(tileId);
+    const cameFromPlaceholder = record?.placeholderAt != null;
+    if (record?.realAt != null && appearNow - record.realAt >= TILE_APPEAR_MS) {
+      return "";
+    }
+    return cameFromPlaceholder ? " canvas__entry-item--reveal" : " canvas__entry-item--pop";
+  };
+  useLayoutEffect(() => {
+    const now = performance.now();
+    if (tileAppearRef.current.key !== tileAppearKey) {
+      tileAppearRef.current = { key: tileAppearKey, records: new Map() };
+    }
+    const { records } = tileAppearRef.current;
+    activeRenderTiles.forEach((tile) => {
+      const record = records.get(tile.id) ?? {};
+      if (isProgressiveTileMount && !mountedTileIds.has(tile.id)) {
+        record.placeholderAt ??= now;
+      } else {
+        record.realAt ??= now;
+      }
+      records.set(tile.id, record);
+    });
+  });
   const promotedDomTileCount = activeRenderTiles.length;
   const activeEmbedTileCount = useMemo(() => (
     activeRenderTiles.filter((tile) => tile?.airpaste?.embed?.mode === "live" && typeof tile?.url === "string" && tile.url.trim().length > 0).length
@@ -3294,6 +3423,10 @@ export default function CanvasWorkspaceView() {
     && activeContextTile?.type !== X_PROFILE_CARD_TYPE
     && activeContextTile?.type !== X_POST_CARD_TYPE
     && Boolean(activeContextTile?.url?.trim());
+  const canCopyContextTileImage = radialMenu?.kind === "tile"
+    && contextMenuSelectionCount <= 1
+    && COPYABLE_IMAGE_TILE_TYPES.has(activeContextTile?.type)
+    && tileHasCopyableImage(activeContextTile);
   const canCopyPreviewDiagnostics = LINK_PREVIEW_DEBUG_ACTIONS_ENABLED
     && (
       isBookmarkLinkCard(activeContextTile)
@@ -3573,6 +3706,22 @@ export default function CanvasWorkspaceView() {
     return commands.captureTileArticle(activeContextTile);
   }, [activeContextTile, commands]);
 
+  const handleCopyTileImage = useCallback(async () => {
+    if (!activeContextTile) {
+      return false;
+    }
+
+    try {
+      await copyTileImageToClipboard(activeContextTile, folderPath);
+      toast("success", "Image copied");
+      return true;
+    } catch (error) {
+      log("error", "Copy image failed", error?.message || "Could not copy the image.");
+      toast("error", error?.message || "Could not copy the image");
+      return false;
+    }
+  }, [activeContextTile, folderPath, log, toast]);
+
   const handleCopyPreviewDiagnostics = useCallback(async () => {
     if (!canCopyPreviewDiagnostics || !activeContextTile) {
       return false;
@@ -3641,6 +3790,7 @@ export default function CanvasWorkspaceView() {
     articlePending: activeContextTile?.article?.status === "capturing",
     showCopyPreviewDiagnostics: radialMenu?.kind === "tile" && canCopyPreviewDiagnostics,
     showCopyCodexReport: radialMenu?.kind === "tile" && canCopyPreviewCodexReport,
+    showCopyImage: canCopyContextTileImage,
     showEditText: radialMenu?.kind === "tile" && isPlainTextBoxContextTile,
     showFileColor: radialMenu?.kind === "tile" && isDefaultFileContextTile,
     linkNoteState: radialMenu?.kind === "tile" ? linkNoteContextState : null,
@@ -3660,6 +3810,7 @@ export default function CanvasWorkspaceView() {
           : null,
     handlers: {
       onCopyCodexReport: handleCopyPreviewCodexReport,
+      onCopyImage: handleCopyTileImage,
       onCopyPreviewDiagnostics: handleCopyPreviewDiagnostics,
       onRefreshFailedPreviews: handleRefreshFailedPreviews,
       onRefreshPreview: handleRefreshTilePreview,
@@ -3712,6 +3863,8 @@ export default function CanvasWorkspaceView() {
     handleRadialTether,
     handleRadialUntether,
     handleCopyPreviewCodexReport,
+    handleCopyTileImage,
+    canCopyContextTileImage,
     handleCopyPreviewDiagnostics,
     handleRefreshFailedPreviews,
     handleRefreshTilePreview,
@@ -3906,7 +4059,8 @@ export default function CanvasWorkspaceView() {
           interactions.handleCanvasPointerDown(event);
         }}
         onDoubleClick={(event) => {
-          // Double-click empty canvas: a new sticky under the pointer.
+          // Double-click empty canvas: quick text with its caret under the
+          // pointer, ready to type (the same as a click with the text tool).
           const isCanvasBackground = event.target === event.currentTarget
             || event.target.classList?.contains("canvas__content")
             || event.target.classList?.contains("canvas__grid");
@@ -3916,7 +4070,7 @@ export default function CanvasWorkspaceView() {
           }
 
           event.preventDefault();
-          beginStickyCreation(canvas.clientToWorldPoint(event.clientX, event.clientY));
+          createQuickText(canvas.clientToWorldPoint(event.clientX, event.clientY));
         }}
         onContextMenu={interactions.handleCanvasContextMenu}
         onClick={(event) => {
@@ -3972,10 +4126,11 @@ export default function CanvasWorkspaceView() {
                 if (card.stack?.id) {
                   return null;
                 }
+                const showingPlaceholder = isProgressiveTileMount && !mountedTileIds.has(card.id);
                 return (
                 <div
                   key={card.id}
-                  className="canvas__entry-item"
+                  className={`canvas__entry-item${getTileAppearClass(card.id, showingPlaceholder)}`}
                   data-tether-tile={card.id}
                   data-warp-item=""
                   data-warp-x={card.x}
@@ -3985,9 +4140,24 @@ export default function CanvasWorkspaceView() {
                   style={{
                     "--tile-z": layout.tileLayerById[card.id] ?? 1,
                     "--canvas-entry-delay": `${Math.min(index, 14) * 34}ms`,
+                    // The pop grows from the tile's own centre.
+                    "--pop-ox": `${card.x + (Number.isFinite(card.width) ? card.width : 0) / 2}px`,
+                    "--pop-oy": `${card.y + (Number.isFinite(card.height) ? card.height : 0) / 2}px`,
                   }}
                 >
-                  {renderTileCard(card)}
+                  {showingPlaceholder ? (
+                    <div
+                      className="canvas__tile-placeholder"
+                      aria-hidden="true"
+                      style={{
+                        width: `${Number.isFinite(card.width) ? card.width : 240}px`,
+                        height: `${Number.isFinite(card.height) ? card.height : 160}px`,
+                        transform: `translate3d(${card.x}px, ${card.y}px, 0)`,
+                      }}
+                    >
+                      <span className="canvas__tile-placeholder-fill" />
+                    </div>
+                  ) : renderTileCard(card)}
                 </div>
                 );
               })}

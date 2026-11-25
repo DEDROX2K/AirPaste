@@ -104,7 +104,7 @@
 
 /* A canvas (file) is light grey; a folder keeps the brown kraft. */
 .ap-kf--file .ap-kf__back {
-  background: radial-gradient(60% 62% at 52% 58%, #bdbdc0 0%, #c9c9cc 45%, #e1e1e3 100%);
+  background:#858585;
 }
 
 .ap-kf--file .ap-kf__front {

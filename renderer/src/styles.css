@@ -1712,6 +1712,81 @@ option {
   opacity: 1;
 }
 
+/* Stand-in for a tile while a big canvas is still mounting its tiles (see
+   TILE_MOUNT_BATCH in CanvasWorkspaceView): a soft card at the tile's exact
+   spot that pops in and breathes, swapped for the real tile a frame or two
+   later. The outer box is placed; the fill inside it animates. */
+.canvas__tile-placeholder {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: var(--tile-z, 1);
+  pointer-events: none;
+}
+
+.canvas__tile-placeholder-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  animation:
+    ap-grow-pop 380ms ease-out backwards,
+    ap-loading-breathe 1.6s ease-in-out 380ms infinite;
+}
+
+[data-theme="dark"] .canvas__tile-placeholder-fill {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* A tile appearing (created, pasted, first coming into view, or its page
+   opening) grows in with a pop from its own centre; one replacing its
+   loading placeholder just fades up. The whole tile wrapper animates, so
+   every tile type gets it. While animating, the wrapper is a box at the
+   board's origin (the tile's coordinates stay the same inside it) carrying
+   the tile's stacking order, as in curved view. */
+.canvas__content .canvas__entry-item--pop,
+.canvas__content .canvas__entry-item--reveal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: max(1, var(--tile-z, 1));
+}
+
+.canvas__content .canvas__entry-item--pop {
+  transform-origin: var(--pop-ox, 0) var(--pop-oy, 0);
+  animation: ap-grow-pop 380ms ease-out backwards;
+}
+
+.canvas__content .canvas__entry-item--reveal {
+  animation: ap-fade-in 200ms ease-out backwards;
+}
+
+/* Curved view pins each wrapper with a matrix that assumes its origin is
+   the board's corner, so moving the origin to the tile's centre would throw
+   the warp off: tiles fade in there instead. */
+.canvas.canvas--curved .canvas__content .canvas__entry-item.canvas__entry-item--pop {
+  transform-origin: 0 0;
+  animation-name: ap-fade-in;
+  animation-duration: 220ms;
+}
+
+/* A page opening: its tiles pop in one after another. */
+.canvas__content--entering .canvas__entry-item--pop {
+  animation-delay: var(--canvas-entry-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas__tile-placeholder-fill,
+  .canvas__content .canvas__entry-item--pop,
+  .canvas__content .canvas__entry-item--reveal {
+    animation: none;
+  }
+}
+
 .canvas__content {
   transform-origin: 0 0;
   /* transform is set inline by useCanvasSystem (see getCanvasContentTransform). */
@@ -1736,28 +1811,8 @@ option {
   z-index: max(1, var(--tile-z, 1));
 }
 
-/* Tile view returns to the spatial canvas with the same staggered settle. */
-.canvas__content--entering .canvas__entry-item .card__surface-frame {
-  animation: canvas-tile-settle-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--canvas-entry-delay, 0ms);
-}
-
-@keyframes canvas-tile-settle-in {
-  from {
-    opacity: 0;
-    transform: translateY(-22px) scale(0.988);
-  }
-
-  72% {
-    opacity: 1;
-    transform: translateY(2px) scale(1);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
+/* Page switches and returning from grid view pop tiles in with the same
+   staggered grow pop as everything else (.canvas__entry-item--pop). */
 
 .canvas__marquee {
   position: absolute;
@@ -4834,8 +4889,7 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   height: 8px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(240, 240, 240, 0.06), rgba(240, 240, 240, 0.34), rgba(240, 240, 240, 0.06));
-  transform: translateX(-120%);
-  animation: videoLoadingSweep 1.4s ease-in-out infinite;
+  animation: ap-loading-breathe 1.4s ease-in-out infinite;
 }
 
 .card__video-loading-bar--two {
@@ -4846,21 +4900,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   animation-delay: 0.22s;
 }
 
-@keyframes videoLoadingSweep {
-  0% {
-    transform: translateX(-120%);
-    opacity: 0.45;
-  }
-
-  50% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateX(120%);
-    opacity: 0.4;
-  }
-}
 
 .card__video-placeholder {
   display: flex;
@@ -11913,7 +11952,6 @@ body.airpaste-thumbnail-capture .canvas-perf-overlay {
   border-color: var(--ap-border-strong);
 }
 
-.card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select):focus-visible,
 .card__surface :is(button, input[type="checkbox"]):focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(154, 143, 130, 0.22);

@@ -216,6 +216,10 @@ export default function QuickNote() {
   const [closing, setClosing] = useState(false);
   const inputRefs = useRef(new Map());
   const draftRef = useRef(null);
+  const listRef = useRef(null);
+  // Set when a task is added from the bottom box: the list scrolls to its
+  // end so the new task (and the box under it) stay in view.
+  const scrollToEndRef = useRef(false);
   const saveTimeoutRef = useRef(0);
   const pendingSaveRef = useRef(null);
   const refCallbacks = useRef(new Map());
@@ -297,10 +301,18 @@ export default function QuickNote() {
   }, [flushSave]);
 
   useLayoutEffect(() => {
+    if (!scrollToEndRef.current) return;
+    scrollToEndRef.current = false;
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [note.items]);
+
+  useLayoutEffect(() => {
     if (!focusRequest) return;
     const target = focusRequest.id === "draft" ? draftRef.current : inputRefs.current.get(focusRequest.id);
     if (target) {
-      target.focus();
+      target.focus({ preventScroll: true });
+      target.scrollIntoView?.({ block: "nearest" });
       const caret = focusRequest.caret === "start" ? 0 : target.value.length;
       target.setSelectionRange?.(caret, caret);
     }
@@ -372,6 +384,7 @@ export default function QuickNote() {
       event.preventDefault();
       const text = draft.trim();
       if (!text || note.items.length >= QUICK_NOTE_MAX_ITEMS) return;
+      scrollToEndRef.current = true;
       commit((current) => ({ ...current, items: [...current.items, makeQuickNoteItem({ text })] }));
       setDraft("");
       return;
@@ -458,7 +471,7 @@ export default function QuickNote() {
           <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-frame" />
           <div className="quick-note__frame">
             <div className="quick-note__sheet">
-              <ul className="quick-note__list">
+              <ul ref={listRef} className="quick-note__list">
                 {note.items.map((item) => (
                   <QuickNoteRow
                     key={item.id}
@@ -470,20 +483,23 @@ export default function QuickNote() {
                     onDelete={deleteItem}
                   />
                 ))}
-                <li className="quick-note__row quick-note__row--draft">
-                  <span className="quick-note__check quick-note__check--ghost" aria-hidden="true" />
-                  <input
-                    ref={draftRef}
-                    className="quick-note__input quick-note__input--draft"
-                    value={draft}
-                    placeholder="Add a task"
-                    spellCheck={false}
-                    aria-label="Add a task"
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={handleDraftKeyDown}
-                  />
-                </li>
               </ul>
+              {/* Outside the scrolling list: always at the bottom, so more
+                  tasks can be added straight away however long the list. */}
+              <div className="quick-note__row quick-note__row--draft">
+                <span className="quick-note__check quick-note__check--ghost" aria-hidden="true" />
+                <input
+                  ref={draftRef}
+                  type="text"
+                  className="quick-note__input quick-note__input--draft"
+                  value={draft}
+                  placeholder="Add a task"
+                  spellCheck={false}
+                  aria-label="Add a task"
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleDraftKeyDown}
+                />
+              </div>
             </div>
           </div>
         </section>

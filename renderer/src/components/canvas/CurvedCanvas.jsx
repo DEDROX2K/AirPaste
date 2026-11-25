@@ -130,6 +130,10 @@ export default function CurvedCanvas({
     let height = 1;
     let dpr = 1;
     let field = createWarp(1, 1);
+    // False until the board has a real size. Measured while hidden or still
+    // laying out (switching tabs), it reads 0x0 and the warp would shrink
+    // the whole board into one corner, so nothing is warped until then.
+    let sized = false;
     const theme = { dot: [0, 0, 0, 0.15], shadow: [0.14, 0.1, 0.06], vignette: 0.14 };
     let items = [];
     let itemsDirty = true;
@@ -210,7 +214,7 @@ export default function CurvedCanvas({
     };
 
     const render = (viewport = getViewportSnapshot()) => {
-      if (!viewport) return;
+      if (!viewport || !sized) return;
       warpItems(viewport);
       drawGL(viewport);
     };
@@ -223,8 +227,13 @@ export default function CurvedCanvas({
     };
 
     const resize = () => {
-      width = Math.max(1, board.clientWidth);
-      height = Math.max(1, board.clientHeight);
+      if (board.clientWidth < 32 || board.clientHeight < 32) {
+        sized = false;
+        return;
+      }
+      sized = true;
+      width = board.clientWidth;
+      height = board.clientHeight;
       dpr = Math.min(2, window.devicePixelRatio || 1);
       field = createWarp(width, height);
       setPointUnwarp?.(field.unwarp);
@@ -265,7 +274,7 @@ export default function CurvedCanvas({
       if (drag) {
         followDrag = true;
         const viewport = getViewportSnapshot();
-        if (viewport) warpItems(viewport);
+        if (viewport && sized) warpItems(viewport);
         return;
       }
       schedule();

@@ -50,4 +50,28 @@ describe("curved view warp", () => {
     });
     expect(worldBoxTransform(field, viewport, 600, 400, 10, 10)).toBeNull();
   });
+
+  it("draws a tile that fills the view flat when zoomed far in", () => {
+    // 1000x1000 world box at zoom 8 covering the whole 1200x800 board.
+    const viewport = { x: -3000, y: -3000, zoom: 8 };
+    expect(worldBoxTransform(field, viewport, 0, 0, 1000, 1000)).toBeNull();
+  });
+
+  it("fits a big, partly visible tile on its on-screen part", () => {
+    // Zoomed in: the tile's left edge sits near the board's right rim and
+    // the rest runs thousands of px off screen.
+    const viewport = { x: 1000, y: -2000, zoom: 6 };
+    const box = { x: 0, y: 0, w: 2000, h: 2000 };
+    const css = worldBoxTransform(field, viewport, box.x, box.y, box.w, box.h);
+    const m = css.slice("matrix3d(".length, -1).split(",").map(Number);
+    expect(m.every(Number.isFinite)).toBe(true);
+    // A point of the tile on screen lands where the curve puts it, not
+    // dragged off by the far corners (fitting those put it ~400px away).
+    const wx = 20;
+    const wy = 400;
+    const [ex, ey] = apply(m, wx, wy);
+    const [sx, sy] = field.warp(viewport.x + wx * viewport.zoom, viewport.y + wy * viewport.zoom);
+    expect(Math.abs(viewport.x + ex * viewport.zoom - sx)).toBeLessThan(60);
+    expect(Math.abs(viewport.y + ey * viewport.zoom - sy)).toBeLessThan(60);
+  });
 });

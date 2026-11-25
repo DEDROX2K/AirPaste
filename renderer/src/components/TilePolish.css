@@ -883,9 +883,7 @@
   box-shadow: none !important;
 }
 
-.canvas__content .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select):focus-visible,
 .canvas__content .card__surface :is(button, input[type="checkbox"]):focus-visible,
-.grid-workspace .card__surface :is(input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea, select):focus-visible,
 .grid-workspace .card__surface :is(button, input[type="checkbox"]):focus-visible {
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14), 0 0 0 1px rgba(0, 113, 227, 0.42) !important;
@@ -957,15 +955,6 @@
   text-transform: none !important;
 }
 
-@keyframes apTileLoadingSweep {
-  0% {
-    background-position: 140% 0, 0 0;
-  }
-
-  100% {
-    background-position: -140% 0, 0 0;
-  }
-}
 
 @keyframes canvas-tile-fade-in {
   from { opacity: 0; }

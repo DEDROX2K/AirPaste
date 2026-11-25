@@ -2,7 +2,6 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import ShellPixelTrail from "./components/ShellPixelTrail";
 import AppLaunchSplash from "./components/AppLaunchSplash";
 import CanvasSplitLayout from "./components/canvas/CanvasSplitLayout";
-import ConflictDialog from "./components/ConflictDialog";
 import FloatingCanvasWindow from "./components/canvas/FloatingCanvasWindow";
 import { DevConsole } from "./components/DevConsole";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -362,7 +361,6 @@ export default function App() {
       <QuickNote />
       {import.meta.env.DEV && <DevConsole />}
       <AppLaunchSplash />
-      <ConflictDialog />
       {/* Toasts used to speak through the titlebar eye, which is hidden for now. */}
       <ToastStack />
     </div>

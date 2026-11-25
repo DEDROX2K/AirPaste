@@ -31,6 +31,7 @@ const ACTION_ICONS = Object.freeze({
   webclip: Image,
   "copy-preview-diagnostics": Bug,
   "copy-codex-report": Clipboard,
+  "copy-image": Clipboard,
   snapping: Grid2X2,
   text: Type,
   "edit-text": Pencil,

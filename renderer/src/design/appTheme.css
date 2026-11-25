@@ -87,17 +87,10 @@ html[data-app-theme="on"] .titlebar-tabs {
   --tab-shape-hover: var(--ap-theme-panel);
 }
 
-/* Home button: matches the window controls. */
-html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo {
-  background: var(--ap-theme-control);
-}
-
-html[data-app-theme="on"] .titlebar-cluster__chip.titlebar-cluster__logo:hover {
-  background: var(--ap-theme-panel);
-}
-
-html[data-app-theme="on"] .titlebar-cluster .titlebar-curve-switch:not(.is-on) {
-  background: var(--ap-theme-control) !important;
+/* Home / Curved view / Theme chips: match the window controls. */
+html[data-app-theme="on"] .titlebar-cluster .titlebar-chip {
+  --chip-fill: var(--ap-theme-control);
+  --chip-fill-hover: var(--ap-theme-panel);
 }
 
 html[data-app-theme="on"] .titlebar-cluster__divider {

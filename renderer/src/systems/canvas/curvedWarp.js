@@ -95,10 +95,25 @@ export function matrixToCss(m) {
   return `matrix3d(${m.map((v) => (Math.abs(v) < 1e-12 ? 0 : +v.toPrecision(9))).join(",")})`;
 }
 
+// A tile covering this much of the board starts easing flat, and is fully
+// flat by BACKDROP_FLAT: at that zoom it's the backdrop. One perspective
+// matrix can't bend a box that covers the curve from rim to rim -- it only
+// shrinks or skews the whole thing, middle included, which read as the view
+// "curving too soon" when zoomed far in.
+const BACKDROP_EASE = 0.3;
+const BACKDROP_FLAT = 0.6;
+// How far past the board's edges the fitted part of a big tile reaches.
+const FIT_MARGIN = 0.08;
+
 // For an element whose own coordinates are world units (inside the
 // view-transformed .canvas__content, transform-origin 0 0): the transform
 // that draws the world box (x, y, w, h) on its warped corners. null when the
 // box sits in the flat centre (no transform needed).
+//
+// A box much bigger than the board (zoomed far in) is fitted on the part of
+// it that is on screen, not on its far-off corners: those sit where the
+// curve is extreme and dragged the whole tile, its visible middle included,
+// into a steep skew.
 export function worldBoxTransform(warpField, viewport, x, y, w, h) {
   const z = viewport.zoom || 1;
   const lx0 = viewport.x + x * z;
@@ -106,18 +121,49 @@ export function worldBoxTransform(warpField, viewport, x, y, w, h) {
   const lx1 = lx0 + w * z;
   const ly1 = ly0 + h * z;
   if (warpField.isFlat(lx0, ly0, lx1, ly1)) return null;
-  const toWorld = ([px, py]) => [(px - viewport.x) / z - x, (py - viewport.y) / z - y];
-  const q = [
-    toWorld(warpField.warp(lx0, ly0)),
-    toWorld(warpField.warp(lx1, ly0)),
-    toWorld(warpField.warp(lx1, ly1)),
-    toWorld(warpField.warp(lx0, ly1)),
-  ];
-  // box-local quad -> then shift the box itself to the origin
-  const m = quadMatrix(w, h, q[0], q[1], q[2], q[3]);
-  // M · translate(-x, -y), then the result lives in world coords again:
-  // translate(x, y) · M · translate(-x, -y)
+
+  const bw = warpField.width;
+  const bh = warpField.height;
+  const mx = bw * FIT_MARGIN;
+  const my = bh * FIT_MARGIN;
+  const cx0 = Math.max(lx0, -mx);
+  const cy0 = Math.max(ly0, -my);
+  const cx1 = Math.min(lx1, bw + mx);
+  const cy1 = Math.min(ly1, bh + my);
+  if (cx1 <= cx0 || cy1 <= cy0) return null; // off screen: nothing to draw
+
+  const visibleW = Math.max(0, Math.min(lx1, bw) - Math.max(lx0, 0));
+  const visibleH = Math.max(0, Math.min(ly1, bh) - Math.max(ly0, 0));
+  const coverage = (visibleW * visibleH) / (bw * bh);
+  if (coverage >= BACKDROP_FLAT) return null;
+  const flatness = Math.max(0, (coverage - BACKDROP_EASE) / (BACKDROP_FLAT - BACKDROP_EASE));
+
+  // The fitted part, in box-local units.
+  const sx0 = (cx0 - lx0) / z;
+  const sy0 = (cy0 - ly0) / z;
+  const sw = (cx1 - cx0) / z;
+  const sh = (cy1 - cy0) / z;
+  const toLocal = ([px, py]) => [(px - viewport.x) / z - x, (py - viewport.y) / z - y];
+  // Each corner where the curve puts it, eased towards where it sits flat.
+  const corner = (px, py) => {
+    const [wx, wy] = warpField.warp(px, py);
+    return toLocal([wx + (px - wx) * flatness, wy + (py - wy) * flatness]);
+  };
+  const q = [corner(cx0, cy0), corner(cx1, cy0), corner(cx1, cy1), corner(cx0, cy1)];
+  // Maps the fitted part (sx0, sy0)-(sx0+sw, sy0+sh) onto its warped
+  // corners: quad matrix of the part, after moving the part to the origin.
+  const m = preTranslate(quadMatrix(sw, sh, q[0], q[1], q[2], q[3]), sx0, sy0);
+  // translate(x, y) · M · translate(-x, -y): back in world coords.
   return matrixToCss(conjugateTranslate(m, x, y));
+}
+
+// M · translate(-tx, -ty) for a column-major matrix3d.
+function preTranslate(m, tx, ty) {
+  const out = m.slice();
+  for (let r = 0; r < 4; r += 1) {
+    out[12 + r] = m[12 + r] - tx * m[r] - ty * m[4 + r];
+  }
+  return out;
 }
 
 // translate(tx, ty) · M · translate(-tx, -ty) for a column-major matrix3d.

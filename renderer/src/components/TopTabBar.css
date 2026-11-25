@@ -524,130 +524,85 @@
   color: #1b1b1a;
 }
 
-.titlebar-cluster__logo {
-  width: 38px;
-  justify-content: center;
-  padding: 0;
-  cursor: var(--ap-cursor-pointer);
-  transition: transform 0.15s ease;
-}
-
-.titlebar-cluster__logo:hover {
-  transform: translateY(-1px);
-}
-
-.titlebar-cluster__logo:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) inset;
-}
-
-/* The Home button (and the curved-view toggle beside it): grey 36px rounded
-   square, no border, lighter fill + darker glyph on hover, press-in on
-   click. */
-.titlebar-cluster:has(.titlebar-cluster__logo) {
+/* Home, Curved view and Theme: one set of matching chips. Each is a 36px
+   rounded square in the bar's control grey with a 16px icon; hover lifts
+   the fill, press squeezes it. The curved chip is a switch: dark with a
+   white globe while on. The app-wide button rules (SimpleUi.css, all
+   !important) would repaint them, hence the specificity and !important. */
+.titlebar-cluster:has(.titlebar-chip) {
   align-items: center;
+  gap: 4px;
   height: auto;
 }
 
-.titlebar-cluster__chip.titlebar-cluster__logo {
+.titlebar-cluster .titlebar-chip {
+  --chip-fill: #c0c0c0;
+  --chip-fill-hover: #d2d2d2;
+  --chip-ink: rgba(0, 0, 0, 0.5);
+  --chip-ink-hover: rgba(0, 0, 0, 0.78);
+
   display: grid;
   place-items: center;
   width: 36px;
   height: 36px;
+  min-width: 0;
   padding: 0;
-  border: 0;
-  border-radius: 30%;
-  background: #c0c0c0;
-  color: rgba(0, 0, 0, 0.45);
+  border: 0 !important;
+  border-radius: 11px !important;
+  background: var(--chip-fill) !important;
+  box-shadow: none !important;
+  color: var(--chip-ink) !important;
+  cursor: var(--ap-cursor-pointer);
   -webkit-app-region: no-drag;
+  app-region: no-drag;
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
-.titlebar-cluster__chip.titlebar-cluster__logo:hover {
-  background: #d2d2d2;
-  color: rgba(0, 0, 0, 0.7);
-  transform: none;
-}
-
-.titlebar-cluster__chip.titlebar-cluster__logo:active {
-  box-shadow: none;
-  transform: scale(0.94);
-}
-
-.titlebar-cluster__chip.titlebar-cluster__logo svg {
+.titlebar-cluster .titlebar-chip svg {
   width: 16px;
   height: 16px;
   color: inherit;
 }
 
-/* Curved view switch (next to Home): a pill track with a sliding knob that
-   carries the globe. Grey when off, ink when on. The app-wide button rules
-   (SimpleUi.css, !important) would square it off and repaint it on hover,
-   hence the specificity and !important here. */
-.titlebar-cluster .titlebar-curve-switch {
-  position: relative;
-  display: block;
-  width: 52px;
-  height: 30px;
-  min-width: 0;
-  padding: 0;
-  border: 0 !important;
-  border-radius: 999px !important;
-  background: #c0c0c0 !important;
-  cursor: var(--ap-cursor-pointer);
-  -webkit-app-region: no-drag;
-  transition: background-color 180ms ease;
+.titlebar-cluster .titlebar-chip:hover:not(:disabled),
+.titlebar-cluster .titlebar-chip.is-open {
+  background: var(--chip-fill-hover) !important;
+  color: var(--chip-ink-hover) !important;
+  transform: none !important;
 }
 
-.titlebar-cluster .titlebar-curve-switch:hover:not(:disabled) {
-  background: #b4b4b4 !important;
+.titlebar-cluster .titlebar-chip:active:not(:disabled) {
+  transform: scale(0.92) !important;
 }
 
-.titlebar-cluster .titlebar-curve-switch.is-on,
-.titlebar-cluster .titlebar-curve-switch.is-on:hover:not(:disabled) {
+/* Home while on the Home screen: the icon at full strength. */
+.titlebar-cluster .titlebar-chip.is-current {
+  color: var(--chip-ink-hover) !important;
+}
+
+.titlebar-cluster .titlebar-chip--toggle.is-on,
+.titlebar-cluster .titlebar-chip--toggle.is-on:hover:not(:disabled) {
   background: #2b2b2d !important;
+  color: #ffffff !important;
 }
 
-.titlebar-curve-switch__knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #ffffff;
-  color: rgba(0, 0, 0, 0.45);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
-  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), color 180ms ease;
+.titlebar-cluster .titlebar-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.titlebar-curve-switch.is-on .titlebar-curve-switch__knob {
-  transform: translateX(22px);
-  color: #2b2b2d;
-}
-
-.titlebar-cluster .titlebar-curve-switch:active .titlebar-curve-switch__knob {
-  width: 28px;
-}
-
-.titlebar-cluster .titlebar-curve-switch.is-on:active .titlebar-curve-switch__knob {
-  transform: translateX(18px);
+.titlebar-cluster .titlebar-chip:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, 0.55) !important;
+  outline-offset: 2px !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .titlebar-curve-switch__knob {
-    transition: none;
+  .titlebar-cluster .titlebar-chip {
+    transition: none !important;
   }
-}
-
-.titlebar-cluster__logo .ap-logo-icon {
-  width: 27px;
-  height: 27px;
 }
 
 .titlebar-cluster__clock {
@@ -1181,9 +1136,34 @@
   --tab-pair-link-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 39.3885 27.1094' preserveAspectRatio='none'%3E%3Cpath d='M0.264543 0C3.31529 0 6.13122 1.00709 8.39638 2.70801V2.70605L8.40712 2.7168C9.51052 3.5471 10.4818 4.543 11.287 5.66602L13.3778 9.39327C15.913 13.6934 24.0947 13.6602 25.788 9.39327L27.8222 5.72168C30.2778 2.25922 34.3186 1.65082e-07 38.8866 0H39.3885V27.1094H38.8866C34.3183 27.1094 30.2778 24.8495 27.8222 21.3867L25.788 17.8749C22.9219 13.1458 16.0687 13.1458 13.3778 17.8749L11.287 21.4424C10.4819 22.5655 9.51054 23.5612 8.40712 24.3916L8.39638 24.4033V24.4004C6.13114 26.1015 3.3155 27.1094 0.264543 27.1094H0V0H0.264543Z'/%3E%3C/svg%3E");
 }
 
-/* The flex gap is 5px; the margin makes the gap the connector's width. */
+/* The connector's end colours are registered so they can fade: as plain
+   custom properties they switched instantly while the tab bodies faded over
+   140ms, so the join flashed a different colour from the tabs for a moment
+   on every select, hover and pair change. */
+@property --pair-link-l {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+@property --pair-link-r {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+/* The flex gap is 5px; the margin makes the gap the connector's width. It
+   opens and closes with the same timing as the tab corners squaring off. */
+.titlebar-tab-shell {
+  transition: margin-right 280ms var(--tab-smooth);
+}
+
 .titlebar-tab-shell--paired-left {
   margin-right: calc(var(--tab-pair-link-w) - 5px);
+  transition:
+    margin-right 280ms var(--tab-smooth),
+    --pair-link-l 140ms ease,
+    --pair-link-r 140ms ease;
 }
 
 .titlebar-tab-shell--paired-left .titlebar-tab__body {
@@ -1238,10 +1218,23 @@
   background-color: var(--pair-idle);
   background-image: linear-gradient(90deg, var(--pair-link-l), var(--pair-link-r));
   transition: background-color 140ms ease;
+  /* Grows in from the middle as the pair forms, in step with the gap. */
+  transform-origin: 50% 50%;
+  animation: titlebar-pair-link-in 280ms var(--tab-smooth) backwards;
   -webkit-mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
   mask: var(--tab-pair-link-mask) center / 100% 100% no-repeat;
   cursor: var(--ap-cursor-pointer, pointer);
   -webkit-app-region: no-drag;
+}
+
+@keyframes titlebar-pair-link-in {
+  from { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-pair-link {
+    animation: none;
+  }
 }
 
 .titlebar-pair-link:focus-visible {

@@ -14,6 +14,7 @@ const TILE_ACTION_ORDER = [
   "link-note",
   "link-note-variant",
   "file-color",
+  "copy-image",
   "refresh-preview",
   "webclip",
   "article",
@@ -48,6 +49,8 @@ export function buildRadialMenuActions({
   articlePending = false,
   showCopyPreviewDiagnostics = false,
   showCopyCodexReport = false,
+  // A link tile with a picture: offers Copy image.
+  showCopyImage = false,
   showEditText = false,
   showFileColor = false,
   linkNoteState = null,
@@ -94,6 +97,19 @@ export function buildRadialMenuActions({
         isDisabled: failedPreviewRefreshCount === 0,
         activeLabel: failedPreviewRefreshCount > 0 ? `${failedPreviewRefreshCount} recoverable` : "",
         onTrigger: handlers.onRefreshFailedPreviews,
+      };
+    }
+
+    if (id === "copy-image") {
+      if (!showCopyImage) {
+        return null;
+      }
+
+      return {
+        id,
+        label: "Copy image",
+        kind: "action",
+        onTrigger: handlers.onCopyImage,
       };
     }
 

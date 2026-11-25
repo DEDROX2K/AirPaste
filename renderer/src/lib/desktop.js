@@ -118,6 +118,10 @@ export const desktop = {
     getDroppedFilePath: (file) => airpasteBridge.getDroppedFilePath?.(file) ?? "",
     resolveAssetUrl: (folderPath, relativePath, options = null) =>
       airpasteBridge.resolveAssetUrl?.(folderPath, relativePath, options) ?? Promise.resolve(""),
+    copyImageToClipboard: (source) =>
+      airpasteBridge.copyImageToClipboard?.(source) ?? Promise.reject(new Error("Copying images needs the desktop app.")),
+    writeClipboardPng: (pngBytes) =>
+      airpasteBridge.writeClipboardPng?.(pngBytes) ?? Promise.reject(new Error("Copying images needs the desktop app.")),
     captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
       airpasteBridge.captureCanvasThumbnail?.(folderPath, canvasFilePath, rect, devicePixelRatio) ?? Promise.resolve({ thumbnailPath: "" }),
     saveCanvasThumbnail: (folderPath, canvasFilePath, dataUrl) =>

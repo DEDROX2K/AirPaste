@@ -7,7 +7,7 @@
    2. The floating card, rounded with a gap on every side:
       .ap-home                         on Home
       .app-shell__workspace-layout     on a canvas (pan/zoom happen inside)
-      .left-pages-panel    floats on top of the canvas inside the card
+      .left-pages-panel    a piece of the grey frame in the card's top-left corner
       .canvas-stage__fab   the dock, on the canvas bottom edge: flare, dock
                            over a grey base, flare (CanvasDockFrame)
 
@@ -99,6 +99,46 @@
   border: 1px solid rgba(20, 20, 18, 0.08) !important;
   border-radius: var(--ap-shell-float-radius) !important;
   box-shadow: none !important;
+}
+
+/* The pages panel (main, and each split pane's copy -- the same piece) is a
+   hole in the canvas, not a card on it: the canvas beside it is masked out
+   in the panel's shape (LeftPagesPanel useCanvasNotch), so this corner shows
+   the window's grey base and its pixel trail, joined to the canvas's top
+   and left edges by rounded corners like the quick note's edge connectors.
+   The panel itself is see-through; only the page list's sheet is drawn.
+   The card behind the canvas is see-through too, so the hole shows the base.
+   Selectors are long to outrank the older panel skins (final-overrides,
+   SimpleUi, CanvasDockPolish, CanvasSplitLayout, appTheme), which all use
+   !important. */
+html .app-shell--ready .app-window .app-shell__view-container > .app-shell__workspace-layout {
+  background: transparent !important;
+}
+
+html .app-shell--ready .app-window :is(.app-shell__workspace-layout, .canvas-split__pane) > .left-pages-panel.left-pages-panel--frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  max-height: calc(100% - 56px);
+  padding: 0 8px 8px 0;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--ap-text-primary, #1f1f1d);
+}
+
+.left-pages-panel--frame > .left-pages-panel__sheet {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 13px;
+  background: var(--ap-theme-panel, #f5f5f7);
 }
 
 /* Dock on the canvas bottom edge. The strip keeps its own size and styling;

@@ -77,6 +77,8 @@ contextBridge.exposeInMainWorld("airpaste", {
   },
   resolveAssetUrl: (folderPath, relativePath, options) =>
     ipcRenderer.invoke("airpaste:resolveAssetUrl", folderPath, relativePath, options),
+  copyImageToClipboard: (source) => ipcRenderer.invoke("airpaste:copyImageToClipboard", source),
+  writeClipboardPng: (pngBytes) => ipcRenderer.invoke("airpaste:writeClipboardPng", pngBytes),
   captureCanvasThumbnail: (folderPath, canvasFilePath, rect, devicePixelRatio = 1) =>
     ipcRenderer.invoke("airpaste:captureCanvasThumbnail", folderPath, canvasFilePath, rect, devicePixelRatio),
   saveCanvasThumbnail: (folderPath, canvasFilePath, dataUrl) =>

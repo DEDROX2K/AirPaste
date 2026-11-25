@@ -200,8 +200,7 @@
 }
 
 .ap-home-group__name-input:focus {
-  border-color: #4a7dff;
-  box-shadow: 0 0 0 2px rgba(74, 125, 255, 0.25);
+  outline: none;
 }
 
 .ap-home-group__meta {
@@ -425,21 +424,16 @@
 .ap-home-switching__card {
   aspect-ratio: 236 / 218;
   border-radius: 10px;
-  background:
-    linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%) 0 0 / 220% 100%,
-    #ececea;
-  animation: ap-home-shimmer 1.3s ease-in-out infinite;
-  animation-delay: calc(var(--ap-stagger, 0) * 60ms);
+  background: #ececea;
+  animation:
+    ap-grow-pop 380ms ease-out backwards,
+    ap-loading-breathe 1.4s ease-in-out 380ms infinite;
+  animation-delay: calc(var(--ap-stagger, 0) * 60ms), calc(380ms + var(--ap-stagger, 0) * 60ms);
 }
 
 @keyframes ap-home-switch-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
-}
-
-@keyframes ap-home-shimmer {
-  from { background-position: 120% 0, 0 0; }
-  to { background-position: -120% 0, 0 0; }
 }
 
 @keyframes ap-home-spin {

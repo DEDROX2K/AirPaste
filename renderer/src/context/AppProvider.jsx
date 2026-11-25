@@ -534,7 +534,6 @@ export function AppProvider({ children }) {
 
     const totalStart = typeof performance !== "undefined" ? performance.now() : Date.now();
 
-    const expectedUpdatedAt = canvasDiskUpdatedAtRef.current[canvasPath];
     const forceHistorySnapshot = Boolean(forceHistorySnapshotRef.current[canvasPath]);
     delete forceHistorySnapshotRef.current[canvasPath];
 
@@ -549,7 +548,10 @@ export function AppProvider({ children }) {
         partial: true,
         returnWorkspace: false,
         changedKeys,
-        expectedUpdatedAt,
+        // No expectedUpdatedAt: saves are last-write-wins. The "changed
+        // elsewhere" conflict prompt fired on ordinary edits (mtime drift
+        // from cloud sync) and was removed; Version History still snapshots
+        // what's on disk before overwriting it.
         forceHistorySnapshot,
       });
       serializeMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - totalStart;
@@ -1117,11 +1119,16 @@ export function AppProvider({ children }) {
       return false;
     }
 
+    // The tab closes straight away. The save starts here (it reads the
+    // canvas synchronously, and closing a tab doesn't drop the canvas from
+    // memory anyway) and finishes in the background along with the Home
+    // refresh; waiting on both made closing a big canvas take seconds.
     const captured = captureActiveCanvasThumbnail();
-    await flushAllPendingCanvasSaves().catch(() => {});
-    if (captured && folderPath) {
-      await refreshHomeData(folderPath);
-    }
+    const targetFolderPath = folderPath;
+    void flushAllPendingCanvasSaves()
+      .catch(() => {})
+      .then(() => (captured && targetFolderPath ? refreshHomeData(targetFolderPath) : null))
+      .catch(() => {});
 
     return captured;
   }, [activeTab?.id, captureActiveCanvasThumbnail, flushAllPendingCanvasSaves, folderPath, refreshHomeData]);
@@ -1527,7 +1534,6 @@ export function AppProvider({ children }) {
         partial: true,
         returnWorkspace: false,
         changedKeys: ["pages"],
-        expectedUpdatedAt: doc.updatedAt,
         forceHistorySnapshot: true,
       });
 

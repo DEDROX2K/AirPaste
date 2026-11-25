@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/useAppContext";
 import {
   AppButton,
@@ -18,6 +18,78 @@ import {
 import { Canvas, Plus, Sidebar, SidebarClose, SidebarOpen, SplitColumns, X } from "./ui/icons";
 import { useSplitView } from "../context/SplitViewContext";
 import "./LeftPagesPanel.css";
+
+// The framed panel (see ShellLayers.css) is a hole in the canvas, not a card
+// on it: the canvas beside it is masked so the window's grey base (and its
+// pixel trail) shows through where the panel sits. The cut-out has the
+// panel's rounded inner corner, and the canvas's own corners beside it
+// (right of the panel at the top, below it on the left) are rounded like the
+// quick note's edge connectors.
+const NOTCH_EDGE_RADIUS = 14;
+const NOTCH_INNER_RADIUS = 18;
+const MASK_PROPS = ["maskImage", "maskPosition", "maskSize", "maskRepeat"];
+
+function buildNotchMask(panelWidth, panelHeight) {
+  const pw = Math.max(1, Math.round(panelWidth));
+  const ph = Math.max(1, Math.round(panelHeight));
+  const F = NOTCH_EDGE_RADIUS;
+  const R = Math.min(NOTCH_INNER_RADIUS, pw / 2, ph / 2);
+  const w = pw + F;
+  const h = ph + F;
+  const d = `M${pw + F} 0H${w}V${h}H0V${ph + F}A${F} ${F} 0 0 1 ${F} ${ph}H${pw - R}`
+    + `A${R} ${R} 0 0 0 ${pw} ${ph - R}V${F}A${F} ${F} 0 0 1 ${pw + F} 0Z`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><path d='${d}' fill='black'/></svg>`;
+  const solid = "linear-gradient(#000, #000)";
+  // The two plain layers overlap the shape by 1px so no seam shows.
+  return {
+    maskImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}"), ${solid}, ${solid}`,
+    maskPosition: "0 0, 100% 0, 0 100%",
+    maskSize: `${w}px ${h}px, calc(100% - ${w - 1}px) 100%, 100% calc(100% - ${h - 1}px)`,
+    maskRepeat: "no-repeat",
+  };
+}
+
+function useCanvasNotch(panelRef, enabled) {
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const parent = panel?.parentElement;
+    if (!enabled || !panel || !parent) {
+      return undefined;
+    }
+
+    const targets = () => [...parent.children].filter((el) => el !== panel);
+    const clear = () => {
+      targets().forEach((el) => {
+        MASK_PROPS.forEach((prop) => {
+          el.style[prop] = "";
+          el.style[`webkit${prop[0].toUpperCase()}${prop.slice(1)}`] = "";
+        });
+      });
+    };
+    const apply = () => {
+      const mask = buildNotchMask(panel.offsetWidth, panel.offsetHeight);
+      targets().forEach((el) => {
+        MASK_PROPS.forEach((prop) => {
+          el.style[prop] = mask[prop];
+          el.style[`webkit${prop[0].toUpperCase()}${prop.slice(1)}`] = mask[prop];
+        });
+      });
+    };
+
+    apply();
+    const resizeObserver = new ResizeObserver(apply);
+    resizeObserver.observe(panel);
+    // The canvas next to it can be swapped (split screen opening, a pane's
+    // file loading): mask whatever sits beside the panel.
+    const mutationObserver = new MutationObserver(apply);
+    mutationObserver.observe(parent, { childList: true });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      clear();
+    };
+  }, [enabled, panelRef]);
+}
 
 const PANEL_COLLAPSED_STORAGE_KEY = "airpaste.leftPagesPanelCollapsed";
 const PANE_PANEL_COLLAPSED_STORAGE_KEY = "airpaste.splitPagesPanelCollapsed";
@@ -438,6 +510,8 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
   collapsedStorageKey = PANEL_COLLAPSED_STORAGE_KEY,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const panelRef = useRef(null);
+  useCanvasNotch(panelRef, !isNarrowDesktop);
   const [editingPageId, setEditingPageId] = useState(null);
   const [draftName, setDraftName] = useState("");
   const [draggedPageId, setDraggedPageId] = useState(null);
@@ -732,13 +806,7 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
     );
   }
 
-  return (
-    <AppTooltipProvider delayDuration={120}>
-      <aside
-        className={`left-pages-panel${collapsed ? " left-pages-panel--collapsed" : ""}${draggedPageId ? " left-pages-panel--dragging" : ""}${className ? ` ${className}` : ""}`}
-        aria-label={title}
-        onPointerDown={className ? (event) => event.stopPropagation() : undefined}
-      >
+  const content = (
         <PagesPanelContent
           collapsed={collapsed}
           pages={pages}
@@ -764,6 +832,20 @@ const LeftPagesPanelBody = memo(function LeftPagesPanelBody({
           title={title}
           extraActions={extraActions}
         />
+  );
+
+  return (
+    <AppTooltipProvider delayDuration={120}>
+      {/* Main panel and split pane's panel are the same piece: a hole in
+          the canvas's top-left corner showing the window frame, holding
+          the page list on a sheet (ShellLayers.css, useCanvasNotch). */}
+      <aside
+        ref={panelRef}
+        className={`left-pages-panel left-pages-panel--frame${collapsed ? " left-pages-panel--collapsed" : ""}${draggedPageId ? " left-pages-panel--dragging" : ""}${className ? ` ${className}` : ""}`}
+        aria-label={title}
+        onPointerDown={className ? (event) => event.stopPropagation() : undefined}
+      >
+        <div className="left-pages-panel__sheet">{content}</div>
       </aside>
       {deleteDialog}
     </AppTooltipProvider>

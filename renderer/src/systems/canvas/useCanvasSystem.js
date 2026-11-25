@@ -69,6 +69,8 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
   const viewportListenerSetRef = useRef(new Set());
   const wheelStopTimeoutRef = useRef(0);
   const wheelPanSettleTimeoutRef = useRef(0);
+  // Time of the last wheel event read as a zoom (see handleWheel).
+  const lastWheelZoomAtRef = useRef(0);
   const zoomAnimationFrameRef = useRef(0);
   const zoomLastFrameTimeRef = useRef(0);
   const zoomCommitWhenSettledRef = useRef(false);
@@ -381,9 +383,14 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
     return clientToWorldPoint(rect, viewportRef.current, clientX, clientY);
   }, [measureContainerRect]);
 
-  const getViewportCenter = useCallback(() => (
-    getViewportCenterPoint(containerRectRef.current ?? measureContainerRect(), viewportRef.current)
-  ), [measureContainerRect]);
+  // Measured fresh: it's only read on discrete actions (paste, create), and
+  // a rect cached while the board was hidden or mid-layout puts new tiles
+  // far from the middle of the view.
+  const getViewportCenter = useCallback(() => {
+    const fresh = measureContainerRect();
+    const rect = fresh && fresh.width > 0 && fresh.height > 0 ? fresh : containerRectRef.current;
+    return getViewportCenterPoint(rect, viewportRef.current);
+  }, [measureContainerRect]);
 
   const getContainerRectSnapshot = useCallback(() => (
     containerRectRef.current ?? measureContainerRect()
@@ -517,7 +524,21 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       // trackpad pinch (reported as a wheel event with ctrlKey set), or
       // Ctrl/Cmd + any wheel. A two-finger trackpad scroll pans, and
       // Shift + mouse wheel pans sideways.
-      if (event.ctrlKey || event.metaKey || (!event.shiftKey && isMouseWheelEvent(event))) {
+      // A mouse wheel mid-zoom sometimes sends one step that doesn't read as
+      // a wheel (fractional legacy delta); keep zooming through it instead
+      // of flipping to a pan for a frame.
+      const now = performance.now();
+      const continuesZoom = !event.shiftKey
+        && event.deltaX === 0
+        && now - lastWheelZoomAtRef.current < 120;
+      if (event.ctrlKey || event.metaKey || continuesZoom || (!event.shiftKey && isMouseWheelEvent(event))) {
+        lastWheelZoomAtRef.current = now;
+        // A pan's delayed commit must not land mid-zoom: it would reset the
+        // easing to a stale viewport. The zoom's own commit includes it.
+        if (wheelPanSettleTimeoutRef.current) {
+          window.clearTimeout(wheelPanSettleTimeoutRef.current);
+          wheelPanSettleTimeoutRef.current = 0;
+        }
         // From this event's own measurement, never a saved one: the canvas
         // may have moved since (floating view).
         const rawPoint = rect
@@ -560,11 +581,23 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
         panDeltaY = 0;
       }
 
-      const nextViewport = {
-        ...vp,
-        x: vp.x - panDeltaX,
-        y: vp.y - panDeltaY,
-      };
+      const shift = (base) => ({
+        ...base,
+        x: base.x - panDeltaX,
+        y: base.y - panDeltaY,
+      });
+      const nextViewport = shift(vp);
+
+      // A zoom is still easing in (or its gesture hasn't settled): scrolling
+      // at the same time shifts both the drawn view and the zoom's target,
+      // so the two compose instead of the pan cancelling the zoom part way.
+      // The zoom's own settle commits the result.
+      if (zoomAnimationFrameRef.current || zoomGestureActiveRef.current) {
+        const target = targetViewportRef.current ?? vp;
+        applyRenderedViewport(nextViewport);
+        scheduleViewportCommit(shift(target), { immediate: false });
+        return;
+      }
 
       // Pan tracks the trackpad 1:1, same as a pointer-drag pan -- no
       // eased/animated interpolation, which would feel laggy here. The
@@ -579,6 +612,7 @@ export function useCanvasSystem({ viewport, onViewportChange }) {
       }
       wheelPanSettleTimeoutRef.current = window.setTimeout(() => {
         wheelPanSettleTimeoutRef.current = 0;
+        if (zoomAnimationFrameRef.current || zoomGestureActiveRef.current) return;
         commitPendingViewport();
       }, VIEWPORT_COMMIT_DELAY_MS);
     }

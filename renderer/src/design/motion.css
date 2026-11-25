@@ -106,6 +106,24 @@
 
 /* ─── Enter / Exit Keyframes ───────────────────────────────────────────── */
 
+/* Grow pop: how things appear across the app (tiles created or coming
+   into view, loading placeholders). Grows from small with a slight
+   overshoot. Uses the separate `scale` property, so it composes with an
+   element's own transform (position, hover lift) instead of replacing it.
+   Never a left-to-right sweep. */
+@keyframes ap-grow-pop {
+  0% { opacity: 0; scale: 0.6; }
+  55% { opacity: 1; scale: 1.045; }
+  80% { scale: 0.99; }
+  100% { opacity: 1; scale: 1; }
+}
+
+/* Still loading: a soft breathe in place (replaces the old sweeps). */
+@keyframes ap-loading-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 /* Fade in */
 @keyframes ap-fade-in {
   from { opacity: 0; }

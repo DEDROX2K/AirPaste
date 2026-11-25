@@ -307,7 +307,7 @@ function IntensityArc({ theme }) {
   );
 }
 
-export function ThemePickerPopover({ anchorRef, open, onClose }) {
+export function ThemePickerPopover({ anchorRef, open, onClose, placement = "right" }) {
   const theme = useAppTheme();
   const popRef = useRef(null);
   const [pos, setPos] = useState(null);
@@ -318,14 +318,20 @@ export function ThemePickerPopover({ anchorRef, open, onClose }) {
       const rect = anchorRef.current.getBoundingClientRect();
       const width = STAGE_W + 20;
       const height = STAGE_H + 20;
-      const left = Math.min(window.innerWidth - width - 8, rect.right + 12);
-      const top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.bottom - height));
+      // "below": hangs under the anchor, its left edge on the anchor's (the
+      // top bar's theme chip); "right": beside it, bottoms aligned.
+      const left = placement === "below"
+        ? Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))
+        : Math.min(window.innerWidth - width - 8, rect.right + 12);
+      const top = placement === "below"
+        ? Math.min(window.innerHeight - height - 8, rect.bottom + 8)
+        : Math.max(8, Math.min(window.innerHeight - height - 8, rect.bottom - height));
       setPos({ left, top });
     };
     place();
     window.addEventListener("resize", place);
     return () => window.removeEventListener("resize", place);
-  }, [open, anchorRef]);
+  }, [open, anchorRef, placement]);
 
   useEffect(() => {
     if (!open) return undefined;
