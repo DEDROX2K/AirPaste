@@ -1,5 +1,8 @@
-/* Checklist tile: yellow header band with a white sheet tucked over it,
-   then the task list and an add-input. Height is always auto -- the tile
+/* Checklist tile: a white sheet (title, task list, add-input) with the
+   yellow header band tucked in behind its top edge -- only a lip shows. On
+   hover (or while editing the date / time) the band slides up out from
+   behind the sheet to show its details. The band moves by transform, so the
+   tile's measured height never changes on hover. Height is always auto -- the tile
    grows with its tasks and ChecklistTile writes the measured height back to
    card.height. Like PaperNoteTile, this deliberately does not use
    .card__surface-frame/.card__surface: TilePolish.css forces those to a flat
@@ -22,8 +25,10 @@
   --checklist-box-checked: #2e2e2e;
   --checklist-divider: #e8e8e8;
   --checklist-caret: #e5a800;
-  --checklist-shadow-base: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --checklist-glow: 0 28px 56px -18px rgba(255, 190, 30, 0.5);
+  /* Grey shadows, the same as every other tile (TilePolish.css tokens). */
+  --checklist-shadow: var(--ap-tile-shadow, 0 14px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04));
+  --checklist-shadow-hover: var(--ap-tile-shadow-hover, 0 18px 42px rgba(0, 0, 0, 0.1), 0 5px 16px rgba(0, 0, 0, 0.055));
+  --checklist-shadow-selected: var(--ap-tile-shadow-selected, 0 10px 24px rgba(0, 0, 0, 0.08), 0 3px 8px rgba(0, 0, 0, 0.05));
 
   position: relative;
   box-sizing: border-box;
@@ -33,10 +38,7 @@
   caret-color: var(--checklist-caret);
   font-family: "Roboto", var(--ap-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
-  /* box-shadow:
-    var(--checklist-shadow-base),
-    0 14px 32px -14px rgba(0, 0, 0, 0.12),
-    var(--checklist-glow); */
+  box-shadow: var(--checklist-shadow);
   transition:
     box-shadow 220ms var(--ap-tile-ease, ease),
     transform 220ms var(--ap-tile-ease, ease);
@@ -55,23 +57,20 @@
 .card--hovered:not(.card--dragging):not(.card--selected) .checklist-tile,
 .card--focused:not(.card--dragging):not(.card--selected) .checklist-tile {
   transform: translateY(-3px);
-  box-shadow:
-  0 1px 20px rgba(0, 0, 0, 0.05), 0 14px 32px -14px rgb(255 255 184 / 12%), 0px -8px 56px -18px rgb(255 233 123 / 50%);
+  box-shadow: var(--checklist-shadow-hover);
 }
 
 /* Selected reads as "picked up": a deeper shadow, no ring, matching the
    rest of the canvas tiles. */
 .card--selected .checklist-tile {
-  box-shadow:
-    var(--checklist-shadow-base),    0 20px 44px -14px rgba(0, 0, 0, 0),    var(--checklist-glow);
+  box-shadow: var(--checklist-shadow-selected);
 }
 
 .card--dragging .checklist-tile {
   transform: none;
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.16),
-    0 8px 22px rgba(0, 0, 0, 0.1),
-    var(--checklist-glow);
+    0 8px 22px rgba(0, 0, 0, 0.1);
 }
 
 :is(.card--merge-target, .card--folder-group-target, .card--folder-group-armed) .checklist-tile {
@@ -123,15 +122,51 @@
 /* ---------- Header ---------- */
 
 .checklist-tile__header {
-  height: 67px; /* 45px visible + 22px tucked under the body */
+  /* Tucked: behind the sheet with a 7px lip above it. Peeked: 45px out. */
+  --checklist-header-tuck: -7px;
+  --checklist-header-peek: -45px;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  height: 67px;
   padding: 0 26px;
   border-radius: 24px 24px 0 0;
+  transform: translateY(var(--checklist-header-tuck));
+  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1);
   background: linear-gradient(
     180deg,
     var(--checklist-yellow-top) 0%,
     var(--checklist-yellow-mid) 68%,
     var(--checklist-yellow-bottom) 100%
   );
+}
+
+/* Peek out on hover, and stay out while its date / time are being edited. */
+.card--hovered:not(.card--dragging) .checklist-tile__header,
+.checklist-tile__header:focus-within {
+  transform: translateY(var(--checklist-header-peek));
+}
+
+/* The row's details only show once the band is out. */
+.checklist-tile__header-row {
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.card--hovered:not(.card--dragging) .checklist-tile__header-row,
+.checklist-tile__header:focus-within .checklist-tile__header-row {
+  opacity: 1;
+  transition-delay: 80ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checklist-tile__header,
+  .checklist-tile__header-row {
+    transition: none;
+  }
 }
 
 .checklist-tile__header-row {
@@ -194,9 +229,9 @@
 
 .checklist-tile__body {
   position: relative;
-  margin-top: -22px;
+  z-index: 1;
   padding: 23px 26px 0;
-  border-radius: 22px 22px 24px 24px;
+  border-radius: 24px;
   background: var(--checklist-sheet);
 }
 

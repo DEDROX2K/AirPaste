@@ -437,7 +437,9 @@ export default function QuickNote() {
           {...eventGuards}
         >
           <EdgeConnector className="quick-note__fillet quick-note__fillet--above-tab" />
-          <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-tab" />
+          {/* Joins the launcher to the canvas card's bottom edge, which sits
+              the window gap above the window's bottom (as on the open panel). */}
+          <EdgeConnector className="quick-note__fillet quick-note__fillet--beside-frame" />
           <ListChecks size={17} />
           {openCount ? <span className="quick-note-launcher__count">{openCount}</span> : null}
         </button>

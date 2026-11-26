@@ -154,14 +154,16 @@ function TitlebarCluster({ isHomeActive, isCanvasActive = false, onHome }) {
         <button
           type="button"
           role="switch"
-          className={`titlebar-chip titlebar-chip--toggle${isCurved ? " is-on" : ""}`}
+          className={`titlebar-chip titlebar-chip--switch${isCurved ? " is-on" : ""}`}
           onClick={() => toggleCurvedView(curveTarget)}
           disabled={!curveTarget}
           title={isCurved ? "Curved view: on" : "Curved view: off"}
           aria-label="Curved view"
           aria-checked={isCurved}
         >
-          <Globe size={16} aria-hidden="true" />
+          <span className="titlebar-chip__knob" aria-hidden="true">
+            <Globe size={14} />
+          </span>
         </button>
       ) : null}
       <button
@@ -816,6 +818,29 @@ export function TopTabBar({ usesCustomTitlebar, onRequestClose }) {
   const detachOverlayRef = useRef(null);
   const detachSeqRef = useRef(0);
   const rootRef = useRef(null);
+  // The tabs sit centred on the whole bar; they may grow until they'd reach
+  // whichever side group is wider (left cluster, or the right group plus
+  // the system window buttons), measured live, instead of keeping a fixed
+  // 400px clear on each side.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const left = root?.querySelector(":scope > .titlebar-left");
+    const right = root?.querySelector(":scope > .titlebar-right");
+    if (!root || !left || !right) return undefined;
+
+    const measure = () => {
+      const rootRect = root.getBoundingClientRect();
+      const leftReach = left.getBoundingClientRect().right - rootRect.left;
+      const rightReach = rootRect.right - right.getBoundingClientRect().left;
+      const reserve = Math.ceil(Math.max(leftReach, rightReach) + 12);
+      root.style.setProperty("--titlebar-side-reserve", `${reserve}px`);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    [root, left, right].forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
   // The linked split pair on screen (both its tabs read as active).
   const shownPair = activeTabPath ? pairedPaths.get(activeTabPath) ?? null : null;
 

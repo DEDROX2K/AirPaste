@@ -56,6 +56,69 @@ function setLine(element, x1, y1, x2, y2) {
   element.setAttribute("y2", y2.toFixed(1));
 }
 
+// Where the line from a tile's centre towards (tx, ty) leaves the tile, and
+// which way that edge faces. Kept clear of the rounded corners.
+const ROPE_CORNER_CLEARANCE = 18;
+// The rope's resting width in screen px (CanvasTetherLayer.css matches).
+const ROPE_WIDTH = 2.4;
+// The end caps only show once both tiles have settled: while they bounce,
+// float or lift, the tile grows over its cap and hides it. Settled ropes
+// reveal their caps one after another, this far apart, so opening a file
+// with tethers (or a group settling) pops them in in turn.
+const CAP_REVEAL_GAP_MS = 110;
+
+function isNodeSettled(node) {
+  return node.mode !== NODE_MODE_HELD && !isNodeMoving(node) && !node.lift && !node.rot;
+}
+
+function getEdgeAnchor(node, tx, ty) {
+  const hw = Math.max(1, (node.w ?? 0) / 2);
+  const hh = Math.max(1, (node.h ?? 0) / 2);
+  const dx = tx - node.x;
+  const dy = ty - node.y;
+
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+    return { x: node.x, y: node.y + hh, nx: 0, ny: 1 };
+  }
+
+  const scaleX = Math.abs(dx) > 1e-6 ? hw / Math.abs(dx) : Infinity;
+  const scaleY = Math.abs(dy) > 1e-6 ? hh / Math.abs(dy) : Infinity;
+  const clampAlong = (offset, half) => {
+    const room = Math.max(0, half - ROPE_CORNER_CLEARANCE);
+    return Math.max(-room, Math.min(room, offset));
+  };
+
+  if (scaleX < scaleY) {
+    return { x: node.x + Math.sign(dx) * hw, y: node.y + clampAlong(dy * scaleX, hh), nx: Math.sign(dx), ny: 0 };
+  }
+
+  return { x: node.x + clampAlong(dx * scaleY, hw), y: node.y + Math.sign(dy) * hh, nx: 0, ny: Math.sign(dy) };
+}
+
+// A rope between two tiles: from edge to edge, leaving each square to its
+// edge, with a gravity sag that grows when the link is slack and pulls out
+// when it's taut (stretch: (length - rest) / rest).
+function getRope(nodeA, nodeB, stretch = 0) {
+  const a = getEdgeAnchor(nodeA, nodeB.x, nodeB.y);
+  const b = getEdgeAnchor(nodeB, nodeA.x, nodeA.y);
+  const distance = Math.hypot(b.x - a.x, b.y - a.y);
+  const tension = Math.max(0, Math.min(1, stretch * 2));
+  const slack = Math.max(0, Math.min(1, -stretch * 2));
+  const reach = Math.max(10, Math.min(220, distance * 0.42)) * (1 - 0.55 * tension);
+  const sag = distance * 0.1 * (0.35 + slack) * (1 - tension);
+  const c1x = a.x + a.nx * reach;
+  const c1y = a.y + a.ny * reach + sag;
+  const c2x = b.x + b.nx * reach;
+  const c2y = b.y + b.ny * reach + sag;
+  const d = `M${a.x.toFixed(1)} ${a.y.toFixed(1)}C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  return { a, b, d };
+}
+
+function setCap(element, point) {
+  element.setAttribute("cx", point.x.toFixed(1));
+  element.setAttribute("cy", point.y.toFixed(1));
+}
+
 function setRect(element, node, inset) {
   element.setAttribute("x", (node.x - node.w / 2 - inset).toFixed(1));
   element.setAttribute("y", (node.y - node.h / 2 - inset).toFixed(1));
@@ -111,6 +174,12 @@ export function useTetherSystem({
   const initializedRef = useRef(false);
   const cardElementsRef = useRef(new Map());
   const linkElementsRef = useRef(new Map());
+  // Cap reveals: when the last one was scheduled, and each link's timer.
+  const capRevealRef = useRef({ nextAt: 0, timers: new Map() });
+  useEffect(() => () => {
+    capRevealRef.current.timers.forEach((timer) => window.clearTimeout(timer));
+    capRevealRef.current.timers.clear();
+  }, []);
   const linkElementsSourceRef = useRef({ tethers: null, svg: null });
   const bornLinkIdsRef = useRef(new Set());
   const snapsRef = useRef([]);
@@ -215,17 +284,39 @@ export function useTetherSystem({
         return;
       }
 
-      setLine(elements.line, link.a.x, link.a.y, link.b.x, link.b.y);
-      setLine(elements.hit, link.a.x, link.a.y, link.b.x, link.b.y);
+      const rope = getRope(link.a, link.b, link.stretch ?? 0);
+      elements.line.setAttribute("d", rope.d);
+      elements.hit.setAttribute("d", rope.d);
+      elements.twist?.setAttribute("d", rope.d);
+      if (elements.capA) setCap(elements.capA, rope.a);
+      if (elements.capB) setCap(elements.capB, rope.b);
+
+      const settled = isNodeSettled(link.a) && isNodeSettled(link.b);
+      const reveal = capRevealRef.current;
+      const group = elements.group;
+
+      if (group && settled && !group.hasAttribute("data-caps") && !reveal.timers.has(link.id)) {
+        const now = performance.now();
+        const at = Math.max(now, reveal.nextAt);
+        reveal.nextAt = at + CAP_REVEAL_GAP_MS;
+        reveal.timers.set(link.id, window.setTimeout(() => {
+          reveal.timers.delete(link.id);
+          group.setAttribute("data-caps", "");
+        }, at - now));
+      } else if (group && !settled) {
+        window.clearTimeout(reveal.timers.get(link.id));
+        reveal.timers.delete(link.id);
+        group.removeAttribute("data-caps");
+      }
       const stretch = Math.abs(link.stretch ?? 0);
-      elements.line.style.opacity = Math.min(1, 0.5 + stretch * 0.8).toFixed(2);
+      elements.line.style.opacity = Math.min(1, 0.85 + stretch * 0.5).toFixed(2);
 
       // Under tension the line thickens (up to +1px); slack lines keep the
       // stylesheet width. The width the stylesheet gives is in screen px
       // (--tether-ui), so the extra is scaled the same way.
       if (stretch > 0.04) {
         const extra = Math.min(1, (stretch - 0.04) * 2.5);
-        elements.line.style.strokeWidth = `calc(${(1.4 + extra).toFixed(2)}px * var(--tether-ui))`;
+        elements.line.style.strokeWidth = `calc(${(ROPE_WIDTH + extra).toFixed(2)}px * var(--tether-ui))`;
         elements.line.dataset.tense = "1";
       } else if (elements.line.dataset.tense) {
         elements.line.style.removeProperty("stroke-width");
@@ -578,7 +669,14 @@ export function useTetherSystem({
         const hit = group.querySelector("[data-role=\"hit\"]");
 
         if (line && hit) {
-          nextLinkElements.set(group.getAttribute("data-tether-link"), { line, hit });
+          nextLinkElements.set(group.getAttribute("data-tether-link"), {
+            group,
+            line,
+            hit,
+            twist: group.querySelector("[data-role=\"twist\"]"),
+            capA: group.querySelector("[data-role=\"cap-a\"]"),
+            capB: group.querySelector("[data-role=\"cap-b\"]"),
+          });
         }
       });
       linkElementsRef.current = nextLinkElements;
@@ -591,8 +689,8 @@ export function useTetherSystem({
       bornLinkIdsRef.current.forEach((linkId) => {
         nextLinkElements.get(linkId)?.line.animate?.(
           [
-            { strokeWidth: `${4 / zoom}px`, opacity: 0 },
-            { strokeWidth: `${1.4 / zoom}px`, opacity: 1 },
+            { strokeWidth: `${(ROPE_WIDTH * 2.5) / zoom}px`, opacity: 0 },
+            { strokeWidth: `${ROPE_WIDTH / zoom}px`, opacity: 1 },
           ],
           { duration: 300, easing: "ease-out" },
         );
@@ -707,8 +805,8 @@ export function useTetherSystem({
     line.animate(
       [
         { strokeWidth: `${1.4 / zoom}px` },
-        { strokeWidth: `${4 / zoom}px`, stroke: "#7C5CFF", offset: 0.4 },
-        { strokeWidth: `${1.4 / zoom}px` },
+        { strokeWidth: `${(ROPE_WIDTH * 2.5) / zoom}px`, stroke: "#7C5CFF", offset: 0.4 },
+        { strokeWidth: `${ROPE_WIDTH / zoom}px` },
       ],
       { duration: 500, easing: "ease" },
     );

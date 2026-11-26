@@ -1,8 +1,10 @@
 import { memo } from "react";
 
-// The tether lines: straight, centre to centre, in a layer UNDER the tiles
-// so only the part between two tiles shows (never clipped at a border, any
-// tile shape works). Positions are written by useTetherSystem every frame
+// The tethers: ropes from edge to edge, in a layer UNDER the tiles. Each end
+// is a round cap centred on the tile's edge, so the tile covers its inner
+// half and a semicircle shows; the rope leaves square to the edge and sags
+// a little under gravity (slack ropes more, taut ones pull straight).
+// Positions are written by useTetherSystem every frame
 // while something moves; React only decides which lines exist and how
 // they look (hover, focus). Only the wide invisible "hit" lines take the
 // pointer: hover turns a line red with a scissors cursor, a press cuts it.
@@ -32,8 +34,11 @@ function CanvasTetherLayer({
 
         return (
           <g key={tether.id} className={className} data-tether-link={tether.id}>
-            <line className="tether-layer__line" data-role="line" />
-            <line
+            <path className="tether-layer__line" data-role="line" />
+            <path className="tether-layer__twist" data-role="twist" />
+            <circle className="tether-layer__cap" data-role="cap-a" />
+            <circle className="tether-layer__cap" data-role="cap-b" />
+            <path
               className="tether-layer__hit"
               data-role="hit"
               onPointerEnter={() => onHotLinkChange(tether.id)}

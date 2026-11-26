@@ -51,7 +51,15 @@
   background: var(--quick-note-frame);
   color: #fff;
   cursor: pointer;
-  transition: color 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+/* Hover darkens the tab a step (the app-wide button hover in SimpleUi.css
+   would lighten it, hence the specificity and !important). */
+.app-window ~ .quick-note-launcher:hover,
+body .quick-note-launcher:hover {
+  background: color-mix(in srgb, var(--quick-note-frame) 86%, #000) !important;
+  box-shadow: none !important;
 }
 
 .quick-note-launcher > svg:not(.quick-note__fillet) {

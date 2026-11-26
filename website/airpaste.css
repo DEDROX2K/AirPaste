@@ -1887,12 +1887,26 @@ html {
         #dedede;
 }
 
-.feature-media img {
+.feature-media img,
+.feature-media video {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* Screen recordings: a little taller, and the dark frame shows while the
+   first frame loads instead of the dot grid. */
+.feature-media--video {
+    height: 300px;
+    background: #1b1b1a;
+}
+
+/* The tile beside a recording gets the same height, so the row lines up. */
+.feature-tile:has(.feature-media--video) + .feature-tile .feature-media,
+.feature-tile:has(+ .feature-tile .feature-media--video) .feature-media {
+    height: 300px;
 }
 
 .feature-media-icon {
@@ -1954,8 +1968,14 @@ html {
         grid-column: auto;
     }
 
-    .feature-media {
+    .feature-media,
+    .feature-tile:has(.feature-media--video) + .feature-tile .feature-media,
+    .feature-tile:has(+ .feature-tile .feature-media--video) .feature-media {
         height: 180px;
+    }
+
+    .feature-media.feature-media--video {
+        height: 220px;
     }
 }
 

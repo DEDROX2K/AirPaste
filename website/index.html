@@ -82,7 +82,7 @@
     <section class="hero-section" id="hero">
         <canvas id="pixelCanvas"></canvas>
         <div class="hero-reveal-layer">
-            <img src="images/bg10.jpg" class="hero-bg-img" alt="Background">
+            <img src="images/bg10.png" class="hero-bg-img" alt="Background">
             <div class="reactive-container">
                 <!-- <div class="hero-top-left-text">
                     Local first -Free and Open-Source <br>
@@ -234,142 +234,155 @@
                 <span class="word-head">Features</span>
             </h2>
 
+            <!-- Only features that are in the app today (Soon = not yet).
+                 Screen recordings live in Vids/: to show one on a tile, swap
+                 its .feature-media for a .feature-media--video holding
+                 <video src="Vids/..." autoplay muted loop playsinline>
+                 (spaces in file names as %20). -->
             <div class="features-grid">
                 <article class="feature-tile feature-tile--wide">
-                    <!-- image: images/features/reading-mode.png -->
+                    <div class="feature-media feature-media--video">
+                        <video src="Vids/Rack%20system.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Racks in AirPaste"></video>
+                    </div>
+                    <h3>Racks</h3>
+                    <p>Shelve tiles in a rack and carry them as one. Racks come in different sizes and materials, and tiles slot in and out with a drag.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/link.svg)"></i></span>
+                    </div>
+                    <h3>Paste anything</h3>
+                    <p>Paste a link and it turns into a rich preview: videos, X posts, GitHub repos and products each get their own tile. Images, files and text paste straight in.</p>
+                </article>
+
+                <article class="feature-tile">
                     <div class="feature-media">
                         <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/book-open.svg)"></i></span>
                     </div>
-                    <h3>Reading Mode</h3>
-                    <p>Read full articles and recipes right inside AirPaste &mdash; no ads, pop-ups or clutter pulling you away.</p>
+                    <h3>Reading mode</h3>
+                    <p>Read full articles right inside AirPaste &mdash; no ads, pop-ups or clutter pulling you away. A copy is kept on your drive.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/article-backup.png -->
                     <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/archive.svg)"></i></span>
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/camera.svg)"></i></span>
                     </div>
-                    <h3>Article backup</h3>
-                    <p>Saved articles are kept in full on your own drive, even if the original page disappears.</p>
+                    <h3>Webclip</h3>
+                    <p>Flip any link to a full-page snapshot of the site, saved with your canvas.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/ai-tagging.png -->
                     <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/sparkles.svg)"></i></span>
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/clipboard.svg)"></i></span>
                     </div>
-                    <h3>AI image tagging</h3>
-                    <p>Every image you save is tagged automatically, so a quick search brings it straight back.</p>
+                    <h3>Copy image</h3>
+                    <p>Right-click a link tile to copy its picture, full size, and paste it into any other app.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/same-vibe.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/colors-swatch.svg)"></i></span>
-                    </div>
-                    <h3>Same Vibe</h3>
-                    <p>Pick an image and AirPaste surfaces the saves that share its mood &mdash; connections you didn&rsquo;t know you had.</p>
-                </article>
-
-                <article class="feature-tile">
-                    <!-- image: images/features/text-in-images.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/search.svg)"></i></span>
-                    </div>
-                    <h3>Text in images</h3>
-                    <p>Search the words inside your images: memes, screenshots, even handwriting.</p>
-                </article>
-
-                <article class="feature-tile">
-                    <!-- image: images/features/image-search.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/image.svg)"></i></span>
-                    </div>
-                    <h3>Advanced image search</h3>
-                    <p>Find any image by an object, colour, detail, style or the text inside it.</p>
-                </article>
-
-                <article class="feature-tile feature-tile--wide">
-                    <!-- image: images/features/smart-spaces.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/grid-2x2-2.svg)"></i></span>
-                    </div>
-                    <h3>Smart Spaces</h3>
-                    <p>Collections without the effort. Saves gather themselves around a search, a theme or a tag &mdash; no filing required.</p>
-                </article>
-
-                <article class="feature-tile feature-tile--wide">
-                    <!-- image: images/features/ideas-notes.png -->
                     <div class="feature-media">
                         <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/notes.svg)"></i></span>
                     </div>
                     <h3>Ideas &amp; notes</h3>
-                    <p>A sticky note that&rsquo;s always within reach. Jot ideas and to-dos as Quick Notes, or switch to Focus Mode for longer drafts.</p>
+                    <p>Sticky notes, paper notes with a focus mode for longer drafts, and a quick checklist always waiting in the corner of the window.</p>
                 </article>
 
-                <article class="feature-tile">
-                    <!-- image: images/features/video.png -->
+                <article class="feature-tile feature-tile--wide">
                     <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/video.svg)"></i></span>
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/layout.svg)"></i></span>
                     </div>
-                    <h3>Videos &amp; GIFs</h3>
-                    <p>Keep your favourite GIFs and clips on the canvas, right beside everything else.</p>
+                    <h3>Pages &amp; split screen</h3>
+                    <p>Split a canvas into pages, then put two pages or two canvases side by side and drag tiles between them.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/clippings.png -->
                     <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/scissors.svg)"></i></span>
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/feather.svg)"></i></span>
                     </div>
-                    <h3>Text clippings</h3>
-                    <p>Highlight a passage or quote, right-click, and it&rsquo;s saved &mdash; source and all.</p>
+                    <h3>Drawing tools</h3>
+                    <p>A line, an ink pen and a highlighter, with colours and sizes. Sketch and mark up right on the canvas.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/eyes-only.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/copy.svg)"></i></span>
+                    </div>
+                    <h3>3D stacks</h3>
+                    <p>Select tiles and press <strong>G</strong>: they fly into a real pile you can move as one. Double-click to spread them out again.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/attachment.svg)"></i></span>
+                    </div>
+                    <h3>Tethers</h3>
+                    <p>Tie tiles together and they float on springs, moving as a group.</p>
+                </article>
+
+                <article class="feature-tile feature-tile--wide">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/globe.svg)"></i></span>
+                    </div>
+                    <h3>Curved view</h3>
+                    <p>Bend the whole board like a shallow dome, with a soft blur at the rim. Remembered for each page.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/colors-swatch.svg)"></i></span>
+                    </div>
+                    <h3>Themes</h3>
+                    <p>Pick a colour and a tone for the whole app from the theme picker in the top bar.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/clock.svg)"></i></span>
+                    </div>
+                    <h3>Version history</h3>
+                    <p>Every canvas keeps snapshots as you work, so you can step back to an earlier version any time.</p>
+                </article>
+
+                <article class="feature-tile">
                     <div class="feature-media">
                         <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/lock.svg)"></i></span>
                     </div>
                     <h3>For your eyes only</h3>
-                    <p>Everything lives on your device. No ads, no audience, no algorithm watching over your shoulder.</p>
+                    <p>Everything lives on your device and works offline. No ads, no account, no algorithm watching over your shoulder.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/serendipity.png -->
                     <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/shuffle.svg)"></i></span>
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/heart.svg)"></i></span>
                     </div>
-                    <h3>Serendipity</h3>
-                    <p>A dreamy shuffle through old saves to spark ideas and jog your memory. Keep a card, or let it go.</p>
+                    <h3>Proudly indie</h3>
+                    <p>Made by a small, independent team who use it every day. No investors to please &mdash; free, forever.</p>
                 </article>
 
                 <article class="feature-tile">
-                    <!-- image: images/features/companion-apps.png -->
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/folder.svg)"></i></span>
+                    </div>
+                    <h3>Files view</h3>
+                    <p>Browse Home as folders: every canvas holds its real tiles, and opening one spreads them out.</p>
+                </article>
+
+                <article class="feature-tile">
+                    <div class="feature-media">
+                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/file.svg)"></i></span>
+                    </div>
+                    <h3>Plain files</h3>
+                    <p>Canvases are ordinary files in a folder you choose. Back them up, sync them, keep them &mdash; they&rsquo;re yours.</p>
+                </article>
+
+                <article class="feature-tile">
                     <div class="feature-media">
                         <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/phone.svg)"></i></span>
                     </div>
                     <span class="feature-soon">Soon</span>
                     <h3>Companion apps</h3>
                     <p>AirPaste beyond the desktop, so your canvas comes with you.</p>
-                </article>
-
-                <article class="feature-tile">
-                    <!-- image: images/features/night-mode.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/moon.svg)"></i></span>
-                    </div>
-                    <span class="feature-soon">Soon</span>
-                    <h3>Night mode</h3>
-                    <p>Switch between light and dark whenever your eyes ask for it.</p>
-                </article>
-
-                <article class="feature-tile">
-                    <!-- image: images/features/indie.png -->
-                    <div class="feature-media">
-                        <span class="feature-media-icon"><i class="px-icon" style="--icon: url(icons/pixelarticons/heart.svg)"></i></span>
-                    </div>
-                    <h3>Proudly indie</h3>
-                    <p>Made by a small, independent team who use it every day. No investors to please &mdash; free, forever.</p>
                 </article>
             </div>
         </div>

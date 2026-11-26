@@ -19,7 +19,7 @@
         fontSize: 28,
         blue: 'rgb(157, 143, 113)',    // AirPaste Blue
         white: '#ffffffff',
-        coverImgSrc: 'images/bg19.jpg'
+        coverImgSrc: 'images/bg19.png'
     };
 
     let w, h, cols, rows;
