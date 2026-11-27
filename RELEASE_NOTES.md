@@ -1,6 +1,6 @@
-# AirPaste v1.0.0 Beta 4
+# AirPaste v1.0.0 Beta 5
 
-Version `1.0.0-beta.4` · Windows · November 2026
+Version `1.0.0-beta.5` · Windows · November 2026
 
 ## Listing
 
@@ -15,7 +15,15 @@ AirPaste is a local-first desktop canvas for everything you save. Paste links, i
 
 **Keywords:** AirPaste, infinite canvas, visual bookmarks, link saver, moodboard, whiteboard, sticky notes, research board, inspiration board, spatial notes, local-first, offline, desktop app, productivity
 
-## What's in this beta
+## New in Beta 5
+
+- **Code tile, rebuilt.** Paste or type code and the badge detects the language (JS, TS, Python, HTML, CSS, SQL, Go, Rust and more); click it to pick one yourself. Full editor with syntax colours, line-by-line selection bands, copy and text size buttons.
+- **Height that fits.** The code tile grows with its code, then scrolls. Drag the lime bar on the bottom edge to set a height; double-click it to fit again.
+- **Rope tethers.** Tethers run from edge to edge with round end caps and sag like rope: slack ones droop, taut ones pull straight.
+- **Top bar.** Curved view is now a switch, and tabs use all the free space between the side buttons.
+- **Quick note.** The launcher joins the window frame cleanly.
+
+## Beta 4
 
 - **Drawing tools.** Line, Ink pen and Highlighter in the dock, with colours and sizes. Strokes are saved with the canvas and work with undo.
 - **3D stacks.** Select tiles and press G: they fly into a 3D pile you can move as one. Double-click or Shift+G to unstack.
@@ -41,6 +49,6 @@ AirPaste is a local-first desktop canvas for everything you save. Paste links, i
 
 ## Install
 
-Run `AirPaste Setup 1.0.0-beta.4.exe`. It installs to `%LOCALAPPDATA%\Programs\AirPaste`. Uninstall from Windows Settings → Apps, or Start → Uninstall AirPaste. Your canvases are kept.
+Run `AirPaste-Setup-1.0.0-beta.5.exe`. It installs to `%LOCALAPPDATA%\Programs\AirPaste`. Uninstall from Windows Settings → Apps, or Start → Uninstall AirPaste. Your canvases are kept.
 
 Report bugs: https://github.com/DEDROX2K/AirPaste/issues

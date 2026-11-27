@@ -558,22 +558,17 @@ export function useCanvasCommands({
 
   const createCode = useCallback((preferredCenter = null) => {
     if (!folderPath) {
-      log("warn", "New code snippet blocked because no folder is open");
+      log("warn", "New code tile blocked because no folder is open");
       toast("warn", "Open a folder first.");
       return null;
     }
 
     const centerPoint = preferredCenter ?? getViewportCenter();
-    const codeTile = createNewCodeCard(centerPoint, {
-      title: "Terminal command",
-      language: "bash",
-      code: "npm run dev",
-      wrap: true,
-      showLineNumbers: true,
-    });
+    // Empty, "Untitled", language detected from whatever gets pasted in.
+    const codeTile = createNewCodeCard(centerPoint);
 
-    log("success", "New code snippet created on the canvas", centerPoint);
-    toast("success", "Code snippet dropped into place.");
+    log("success", "New code tile created on the canvas", centerPoint);
+    toast("success", "Code tile dropped into place.");
     maybeRemark(toast, TILE_CREATE_QUIPS, "create");
     return codeTile;
   }, [createNewCodeCard, folderPath, getViewportCenter, log, toast]);
