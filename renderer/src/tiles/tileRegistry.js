@@ -3,7 +3,7 @@ import ArticleLinkTile from "../components/tiles/ArticleLinkTile";
 import CanvasTextTile from "../components/tiles/CanvasTextTile";
 import CalendarTile from "../components/tiles/CalendarTile";
 import ChecklistTile from "../components/tiles/ChecklistTile";
-import CodeSnippetTile from "../components/tiles/CodeSnippetTile";
+import CodeTile from "../components/tiles/CodeTile";
 import CounterTile from "../components/tiles/CounterTile";
 import DeadlineTile from "../components/tiles/DeadlineTile";
 import FileTile from "../components/tiles/FileTile";
@@ -114,9 +114,9 @@ const tileRegistry = {
   },
   [TILE_TYPES.CODE]: {
     type: TILE_TYPES.CODE,
-    displayName: "Code Snippet Tile",
+    displayName: "Code Tile",
     status: "stable",
-    Component: CodeSnippetTile,
+    Component: CodeTile,
   },
   [TILE_TYPES.COUNTER]: {
     type: TILE_TYPES.COUNTER,

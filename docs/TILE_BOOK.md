@@ -43,7 +43,7 @@ A tile feature is not complete until:
 | Deprecated | Notes & Writing | Note / Markdown Tile | `note` | Legacy alias kept so previously saved Markdown notes still render; no longer creatable. | `renderer/src/components/tiles/CanvasTextTile.jsx` | `renderer/src/lib/workspace.js` | No (removed) | None | No dedicated diagnostics/copy report. State is serializable. | Replaced by the Paper Note tile; file-backed vault notes are unaffected. |
 | Implemented | Notes & Writing | Canvas Text | `canvas-text` | Lightweight visible canvas label for headings, callouts, and annotations. | `renderer/src/components/tiles/TextBoxTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated DEV/testing diagnostics and Codex copy report. | Plain-text annotations use one fixed visual style; legacy `text-box` data is migrated here. |
 | Implemented | Structured Data | Database / Table Tile | `table` | Lightweight grid tile for small structured datasets. | `renderer/src/components/tiles/TableTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | No dedicated diagnostics/copy report yet. State is serializable. | Tracker-style table, not a spreadsheet. |
-| Implemented | Development | Code Snippet Tile | `code` | Syntax-highlighted storage tile for commands, config, SQL, regex, and snippets. | `renderer/src/components/tiles/CodeSnippetTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
+| Implemented | Development | Code Tile | `code` | Code file with language detection, CodeMirror editing and an adjustable height. | `renderer/src/components/tiles/CodeTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated code diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
 | Implemented | Tracking & Productivity | Counter Tile | `counter` | Large plus/minus counter for lightweight tracking. | `renderer/src/components/tiles/CounterTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated counter diagnostics and Codex copy report in DEV/testing flows. | Stable manual tile. |
 | Implemented | Tracking & Productivity | Deadline Countdown Tile | `deadline` | Live countdown to a deadline or launch. | `renderer/src/components/tiles/DeadlineTile.jsx` | `renderer/src/lib/workspace.js` | Yes | Yes | Dedicated deadline diagnostics and Codex copy report in DEV/testing flows. | Rewritten with a cleaner dashboard-style layout. |
 | Implemented | Tracking & Productivity | Progress Bar Tile | `progress` | Progress indicator, optionally linked to checklist completion. | `renderer/src/components/tiles/ProgressTile.jsx` | `renderer/src/lib/workspace.js` | No | No | Dedicated progress diagnostics and Codex copy report in DEV/testing flows. | Legacy hidden tile kept for workspace compatibility. |
@@ -432,56 +432,50 @@ A tile feature is not complete until:
   - Add table-specific diagnostics.
   - Add more seeded empty and stress examples.
 
-## Code Snippet Tile
+## Code Tile
 
 - Type ID: `code`
 - Category: Development
-- Status: Implemented
-- Purpose: Safe syntax-highlighted storage tile for code, commands, config, SQL, and regex.
+- Status: Implemented (reworked 2026-11-26 from "AirPaste — Code Tile v2")
+- Purpose: A code file on the canvas: paste or type code, the tile works out the language.
 - User-facing UX:
-  - Editable title
-  - Language selector
-  - Editable code area
-  - Preview mode with syntax highlighting
-  - Copy Code button
-  - Wrap toggle
-  - Line-number toggle
-  - `Cmd/Ctrl+Enter` toggles edit/preview
-  - `Escape` exits editing
+  - Black header with an editable title (Obel Mono) and a lime FILE TYPE badge
+  - The badge shows the detected language (pops when it changes); click it for a list of every language plus Auto. A picked language shows a ● marker.
+  - Grey paper on a blue frame holds the code. At rest it shows a static highlighted copy; pressing it mounts CodeMirror 6 (lazy) with the caret where you pressed.
+  - Selection draws one band per selected line (no block fill); the caret line gets a faint band while editing
+  - Tools on the paper (top right): copy, smaller text, bigger text
+  - Lime bar on the bottom edge (on hover): drag to set the height, double-click or Enter to go back to auto, arrow keys ±20 px
+  - Auto height grows with the code (160–440 px of paper), then the paper scrolls
+  - Tab inserts two spaces, Escape leaves the editor
 - Data model:
 ```js
 {
   type: "code",
-  title: "Untitled snippet",
-  language: "plain",
+  title: "Untitled",
+  language: "auto",      // or a key from CODE_LANGUAGES (js, ts, py, rust, ...)
   code: "",
-  wrap: true,
-  showLineNumbers: true
+  codeFontSize: 14,      // one of 10 11 12 13 14 16 18 20 24
+  codeHeight: null,      // null = auto, else paper height 120–1600
+  wrap: false,           // kept from the old tile, unused
+  showLineNumbers: false // kept from the old tile, unused
 }
 ```
+  - Old language names (javascript, typescript, python, markdown, plain, regex) are mapped on load.
+  - `card.height` follows the paper: 108.5 + paper + 19.
 - Main files:
-  - `renderer/src/components/tiles/CodeSnippetTile.jsx`
-  - `renderer/src/lib/renderCodeSyntax.jsx`
-  - `renderer/src/lib/workspace.js`
-  - `renderer/src/components/CanvasAddMenu.jsx`
-  - `renderer/src/systems/commands/useCanvasCommands.js`
-  - `renderer/src/components/CanvasWorkspaceView.jsx`
+  - `renderer/src/components/tiles/CodeTile.jsx` + `CodeTile.css`
+  - `renderer/src/tiles/code/CodeEditor.jsx` (CodeMirror view, highlight style, line bands)
+  - `renderer/src/tiles/code/codeLanguages.js` (lazy language packs)
+  - `renderer/src/tiles/code/detectLanguage.js` (weighted regex detection)
+  - `renderer/src/tiles/code/staticHighlight.js` (static copy / compact renders)
+  - `renderer/src/tiles/code/model.js`
 - Add menu behavior:
-  - No
-  - Hidden from current creation surfaces and retained for older boards only
-- Testing Tiles examples:
-  - None seeded in the current QA board
-- Diagnostics / copy report behavior:
-  - Dedicated DEV/testing diagnostics export exists.
-  - Dedicated DEV/testing Codex report exists.
-  - Diagnostics include language, code length, line count, wrap, and line-number settings.
+  - None (the Add menu's "Code file" is the sticky code-file design, a different tile)
+- Compact / rack renders: static copy of the first 30 lines; tools and bar hidden.
+- Tests: `test/code-tile.test.js`, `test/normalize-card.test.js`
 - Known limitations:
-  - Lightweight internal highlighter, not a full parser.
-  - Not a runnable IDE.
-  - Hidden from current creation surfaces.
-- Future improvements:
-  - More language coverage.
-  - More seeded QA examples for long and empty states.
+  - Width isn't resizable from the tile itself.
+  - Detection is heuristic; short snippets may read as TEXT until there is more code.
 
 ## Counter Tile
 

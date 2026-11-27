@@ -58,9 +58,14 @@ import {
 import {
   CODE_CARD_SIZE,
   CODE_DEFAULT_LANGUAGE,
+  CODE_LANGUAGES,
+  CODE_LANGUAGE_AUTO,
   CODE_DEFAULT_TITLE,
+  normalizeCodeFontSize,
+  normalizeCodeHeight,
   normalizeCodeLanguage,
 } from "../tiles/code/model";
+import { detectCodeLanguage } from "../tiles/code/detectLanguage";
 import {
   CALENDAR_CARD_SIZE,
   CALENDAR_DEFAULT_HEIGHT_PRESET,
@@ -1164,6 +1169,8 @@ function normalizeCardFresh(card, fallbackIndex = 0) {
     code: type === CODE_CARD_TYPE ? String(card?.code ?? "") : "",
     wrap: type === CODE_CARD_TYPE ? card?.wrap !== false : false,
     showLineNumbers: type === CODE_CARD_TYPE ? card?.showLineNumbers !== false : false,
+    codeFontSize: type === CODE_CARD_TYPE ? normalizeCodeFontSize(card?.codeFontSize) : null,
+    codeHeight: type === CODE_CARD_TYPE ? normalizeCodeHeight(card?.codeHeight) : null,
     value: type === COUNTER_CARD_TYPE
       ? counterValue
       : type === PROGRESS_CARD_TYPE
@@ -2103,7 +2110,9 @@ export function formatCardSubtitle(card) {
 
   if (card.type === CODE_CARD_TYPE) {
     const lineCount = String(card.code ?? "").split(/\r?\n/).length;
-    return `${card.language || CODE_DEFAULT_LANGUAGE} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
+    const languageKey = normalizeCodeLanguage(card.language);
+    const shownLanguage = languageKey === CODE_LANGUAGE_AUTO ? detectCodeLanguage(card.code) : languageKey;
+    return `${shownLanguage ? CODE_LANGUAGES[shownLanguage] : "Code"} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
   }
 
   if (card.type === COUNTER_CARD_TYPE) {

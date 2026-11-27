@@ -12,7 +12,7 @@ import AmazonProductTile from "@/components/tiles/AmazonProductTile";
 import GitHubRepoTile from "@/components/tiles/GitHubRepoTile";
 import CalendarTile from "@/components/tiles/CalendarTile";
 import ChecklistTile from "@/components/tiles/ChecklistTile";
-import CodeSnippetTile from "@/components/tiles/CodeSnippetTile";
+import CodeTile from "@/components/tiles/CodeTile";
 import CounterTile from "@/components/tiles/CounterTile";
 import DeadlineTile from "@/components/tiles/DeadlineTile";
 import CanvasTextTile from "@/components/tiles/CanvasTextTile";
@@ -37,7 +37,7 @@ describe("getTileRegistration (the dispatch Card.jsx uses for every rendered til
     ["weather", WeatherTile],
     ["calendar", CalendarTile],
     ["checklist", ChecklistTile],
-    ["code", CodeSnippetTile],
+    ["code", CodeTile],
     ["counter", CounterTile],
     ["deadline", DeadlineTile],
     ["progress", ProgressTile],

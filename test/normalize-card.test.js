@@ -118,18 +118,19 @@ describe("normalizeCard", () => {
     expect(withoutItems.timeLabel).toBe("15:30");
   });
 
-  it("normalizes a code card, defaulting language to plain and preserving wrap/line-number flags", () => {
-    const card = normalizeCard({ type: "code", code: "console.log(1)", language: "javascript", wrap: false });
+  it("normalizes a code card: legacy language names, auto by default, font size and height", () => {
+    const card = normalizeCard({ type: "code", code: "console.log(1)", language: "javascript", wrap: false, codeFontSize: 18, codeHeight: 5000 });
     expect(card).toMatchObject({
       type: "code",
       code: "console.log(1)",
-      language: "javascript",
+      language: "js",
       wrap: false,
-      showLineNumbers: true,
+      codeFontSize: 18,
+      codeHeight: 1600,
     });
 
-    const defaulted = normalizeCard({ type: "code" });
-    expect(defaulted.language).toBe("plain");
+    const defaulted = normalizeCard({ type: "code", language: "plain", codeFontSize: 15 });
+    expect(defaulted).toMatchObject({ language: "auto", codeFontSize: 14, codeHeight: null });
   });
 
   it("normalizes a counter card's value/step/unit with their defaults", () => {

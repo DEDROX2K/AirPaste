@@ -22,7 +22,7 @@ Use this file as the simple source of truth when adding new tiles. For each new 
 | Link Tile | `link` | yes | stable | indirect via paste/import | no | yes | yes | yes | no | no | no | no | no | no | `LinkTile.jsx` |
 | Amazon Product Tile | `amazon-product` | yes | stable | no direct create flow | no | no | yes | yes | no | no | no | yes | no | no | `AmazonProductTile.jsx` |
 | Checklist Tile | `checklist` | yes | stable | yes | yes | no seeded examples yet | yes | yes | yes | no | no | no | no | no | `ChecklistTile.jsx` |
-| Code Snippet Tile | `code` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `CodeSnippetTile.jsx` |
+| Code Tile | `code` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `CodeTile.jsx` |
 | Note Tile | `note` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `NoteTile.jsx` |
 | Table Tile | `table` | yes | stable | yes | yes | yes | yes | yes | yes | no | no | no | no | no | `TableTile.jsx` |
 | Rack Tile | `rack` | yes | stable | yes | yes | no | yes | yes | no | no | yes | no | no | no | `RackTile.jsx` |

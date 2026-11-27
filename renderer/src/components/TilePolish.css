@@ -439,32 +439,8 @@
   transform: translateY(-3px) !important;
 }
 
-/* code's own border color and shadow (styles.css) aren't !important, so the
-   generic rule above (line ~80) was winning with --ap-tile-line and
-   --ap-tile-shadow instead -- same bordered-box symptom, different cause
-   (a losing specificity fight, not a missing exception). Outer shadow only
-   on hover, like every other tile; the inset highlight is a material
-   detail, not elevation, so it stays at rest. */
-.canvas__content .card__surface--code,
-.grid-workspace .card__surface--code,
-.card__surface--code {
-  border-color: rgba(110, 118, 145, 0.22) !important;
-  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.16) !important;
-}
-
-.canvas__content .card--code.card--hovered:not(.card--dragging):not(.card--selected) .card__surface--code,
-.canvas__content .card--code.card--focused:not(.card--dragging):not(.card--selected) .card__surface--code,
-.grid-workspace .card--code.card--hovered:not(.card--dragging):not(.card--selected) .card__surface--code,
-.grid-workspace .card--code.card--focused:not(.card--dragging):not(.card--selected) .card__surface--code,
-.card--code.card--hovered:not(.card--dragging):not(.card--selected) .card__surface--code,
-.card--code.card--focused:not(.card--dragging):not(.card--selected) .card__surface--code {
-  box-shadow:
-    0 22px 40px rgba(10, 13, 20, 0.28),
-    inset 0 1px 0 rgba(148, 163, 184, 0.16) !important;
-}
-
-.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress, .card__surface--code),
-.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress, .card__surface--code) {
+.canvas__content :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress),
+.grid-workspace :is(.card__surface--note, .card__surface--table, .card__surface--counter, .card__surface--progress) {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 250, 252, 0.94)),
     var(--ap-tile-bg-subtle) !important;

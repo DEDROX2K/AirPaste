@@ -1,0 +1,468 @@
+/* Code tile -- "AirPaste — Code Tile v2" (Code_editor.svg at 0.5×).
+   Width follows the card; the height comes from the paper (--ct-paper-h),
+   see CodeTile.jsx. Global button rules in SimpleUi.css are !important, so
+   the button overrides here are too. */
+
+.ct-tile {
+  --ct-mono: "Obel Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --ct-blue: #212AB7;
+  --ct-lime: #ACD619;
+  --ct-paper: #D9D9D9;
+  --ct-ink: #000;
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.ct-tile--resizing,
+.ct-tile--resizing * {
+  cursor: ns-resize !important;
+}
+
+/* header: the tab strip, then the black slab */
+.ct-tabs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 118px;
+  height: 10px;
+  fill: var(--ct-ink);
+}
+
+.ct-head {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 80.5px;
+  z-index: 2;
+  border-radius: 3px;
+  background: var(--ct-ink);
+}
+
+.ct-title {
+  position: absolute;
+  left: 36px;
+  top: 27px;
+  right: 170px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: 400 25px/34px var(--ct-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+span.ct-title {
+  cursor: inherit;
+}
+
+.ct-title::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+html body .ct-tile .ct-title:focus {
+  box-shadow: 0 2px 0 var(--ct-lime) !important;
+}
+
+/* FILE TYPE badge: lime, with the stepped notch on its left edge */
+html body .ct-tile .ct-type {
+  position: absolute;
+  right: 19.5px;
+  top: 20px;
+  height: 38px;
+  padding: 0 12px 0 19px;
+  border: 0;
+  border-radius: 3px !important;
+  background: var(--ct-lime) !important;
+  color: #000;
+  font: 700 23px/38px var(--ct-mono);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 7px 100%, 7px 55%, 0 37%);
+  cursor: pointer;
+}
+
+html body .ct-tile .ct-type:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px #000 !important;
+}
+
+.ct-type--pop {
+  animation: ct-pop 380ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes ct-pop {
+  0% { transform: scale(0.86); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.ct-type__manual {
+  margin-left: 4px;
+  font-size: 13px;
+  vertical-align: 3px;
+  opacity: 0.6;
+}
+
+/* blue body with the chamfered step on the lower right */
+.ct-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 79.5px;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--ct-blue);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - min(170px, 44%)),
+    calc(100% - 10.5px) calc(100% - min(170px, 44%) + 16px),
+    calc(100% - 10.5px) 100%,
+    0 100%
+  );
+}
+
+/* the grey paper: the editor */
+.ct-paper {
+  position: absolute;
+  left: 19.5px;
+  right: 27.5px;
+  top: 108.5px;
+  height: var(--ct-paper-h, 220px);
+  overflow: hidden;
+  border-radius: 2.5px;
+  background: var(--ct-paper);
+  color: var(--ct-ink);
+  font: 400 var(--ct-fs, 14px) / 1.6 var(--ct-mono);
+  tab-size: 2;
+  cursor: text;
+}
+
+.ct-tile--static .ct-paper {
+  cursor: inherit;
+}
+
+.ct-scroll,
+.ct-cm,
+.ct-tile .ct-cm .cm-editor {
+  position: absolute;
+  inset: 0;
+}
+
+.ct-scroll,
+.ct-tile .ct-cm .cm-scroller {
+  overflow: auto;
+}
+
+.ct-tile--static .ct-scroll {
+  overflow: hidden;
+}
+
+.ct-scroll::-webkit-scrollbar,
+.ct-tile .ct-cm .cm-scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ct-scroll::-webkit-scrollbar-thumb,
+.ct-tile .ct-cm .cm-scroller::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: var(--ct-blue);
+}
+
+.ct-scroll::-webkit-scrollbar-track,
+.ct-tile .ct-cm .cm-scroller::-webkit-scrollbar-track,
+.ct-scroll::-webkit-scrollbar-corner,
+.ct-tile .ct-cm .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* static copy and CodeMirror share one layout so switching never shifts */
+.ct-pre {
+  display: inline-block;
+  min-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 44px 18px 20px;
+  font: inherit;
+  letter-spacing: 0;
+  tab-size: inherit;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+.ct-pre--empty {
+  color: #8A8A8A;
+}
+
+.ct-tile .ct-cm .cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--ct-ink);
+  font: inherit;
+}
+
+.ct-tile .ct-cm .cm-editor.cm-focused {
+  outline: none;
+}
+
+.ct-tile .ct-cm .cm-scroller {
+  font: inherit;
+  line-height: inherit;
+}
+
+.ct-tile .ct-cm .cm-content {
+  padding: 44px 0 20px;
+  caret-color: var(--ct-ink);
+  font: inherit;
+  tab-size: 2;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ct-tile .ct-cm .cm-line {
+  position: relative;
+  z-index: 0;
+  padding: 0 18px;
+}
+
+.ct-tile .ct-cm .cm-cursor {
+  border-left: 2px solid var(--ct-ink);
+}
+
+.ct-tile .ct-cm .cm-placeholder {
+  color: #8A8A8A;
+}
+
+.ct-tile .ct-cm .cm-matchingBracket {
+  background: rgba(172, 214, 25, 0.55);
+  outline: none;
+}
+
+.ct-tile .ct-cm .cm-nonmatchingBracket {
+  background: rgba(180, 56, 14, 0.25);
+}
+
+/* no block highlight: the native selection is invisible, each selected
+   line gets its own band (2 px apart) and the caret's line a faint one */
+.ct-tile .ct-cm .cm-content ::selection,
+.ct-tile .ct-cm .cm-content::selection {
+  background: transparent !important;
+}
+
+.ct-cm .ct-band::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 1px;
+  bottom: 1px;
+  z-index: -1;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.ct-cm .ct-band--sel::before {
+  background: rgba(33, 42, 183, 0.16);
+  box-shadow: inset 3px 0 0 var(--ct-blue);
+}
+
+.ct-cm .ct-band--cur::before {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* syntax colours for the static copy (CodeEditor.jsx has the same set) */
+.ct-tk-kw { color: var(--ct-blue); font-weight: 700; }
+.ct-tk-str { color: #4D6E00; }
+.ct-tk-num { color: #B4380E; }
+.ct-tk-com { color: #7D7D7D; font-style: italic; }
+.ct-tk-tag { color: var(--ct-blue); }
+.ct-tk-att { color: #6A3AB0; }
+.ct-tk-fn { color: #000; font-weight: 700; }
+.ct-tk-pun { color: #555; }
+
+/* top-right tools on the paper: copy, smaller, bigger */
+.ct-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.ct-tile:hover .ct-tools,
+.ct-tools:focus-within {
+  opacity: 1;
+}
+
+html body .ct-tile .ct-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px !important;
+  background: #000 !important;
+  color: #fff;
+  font: 700 15px/1 var(--ct-mono);
+  cursor: pointer;
+}
+
+.ct-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+html body .ct-tile .ct-btn:hover:not(:disabled),
+html body .ct-tile .ct-btn--ok {
+  background: var(--ct-lime) !important;
+  color: #000;
+}
+
+html body .ct-tile .ct-btn:focus-visible {
+  outline: 2px solid var(--ct-lime) !important;
+  outline-offset: 1px !important;
+}
+
+.ct-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* lime bar on the bottom edge: shows on hover, drag to set the height */
+html body .ct-tile .ct-grip {
+  position: absolute;
+  left: calc(19.5px + (100% - 47px) / 2 - 47px);
+  bottom: -3.5px;
+  z-index: 4;
+  width: 94px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 !important;
+  background: var(--ct-lime) !important;
+  cursor: ns-resize;
+  opacity: 0;
+  transform: scaleX(0.6) !important;
+  transition: opacity 0.15s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.ct-grip::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: -9px;
+  bottom: -9px;
+}
+
+html body .ct-tile:hover .ct-grip:not(:disabled),
+html body .ct-tile .ct-grip:focus-visible,
+html body .ct-tile.ct-tile--resizing .ct-grip {
+  opacity: 1;
+  transform: scaleX(1) !important;
+}
+
+html body .ct-tile .ct-grip:focus-visible {
+  outline: 2px solid #000 !important;
+  outline-offset: 2px !important;
+}
+
+/* language picker */
+.ct-menu {
+  position: absolute;
+  right: 19.5px;
+  top: 62px;
+  z-index: 6;
+  box-sizing: border-box;
+  width: 196px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: 3px;
+  background: #000;
+  color: #fff;
+  font: 400 13px/1 var(--ct-mono);
+  cursor: default;
+}
+
+html body .ct-tile .ct-menu button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 2px !important;
+  background: none !important;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+html body .ct-tile .ct-menu button:hover,
+html body .ct-tile .ct-menu button.on {
+  background: var(--ct-lime) !important;
+  color: #000;
+}
+
+.ct-menu small {
+  font-size: inherit;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-type--pop { animation: none; }
+  html body .ct-tile .ct-grip { transition: none; }
+}
+
+/* Tile-wide font rules (TilePolish.css) force the system sans onto inputs
+   and buttons with !important; this tile is Obel Mono throughout. */
+html body .ct-tile :is(.ct-title, .ct-type, .ct-btn, .ct-menu, .ct-menu button) {
+  font-family: var(--ct-mono) !important;
+}
+
+.ct-scroll::-webkit-scrollbar-button,
+.ct-tile .ct-cm .cm-scroller::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* SimpleUi's button:hover:not(:disabled) outranks the plain rules above. */
+html body .ct-tile .ct-type:hover:not(:disabled) {
+  background: var(--ct-lime) !important;
+}
+
+html body .ct-tile .ct-grip:hover:not(:disabled) {
+  background: var(--ct-lime) !important;
+}
+
+.ct-menu::-webkit-scrollbar-button {
+  display: none;
+}
+
+.ct-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ct-menu::-webkit-scrollbar-thumb {
+  background: var(--ct-lime);
+}
